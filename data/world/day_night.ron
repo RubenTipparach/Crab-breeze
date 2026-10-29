@@ -62,6 +62,38 @@
         glow_px: 3.0,
         glow_m: 2.5,
         glow_from_m: 300.0,
+        // The airport's and seaport's masts and floodlights (openspec/changes/night-voxel-light section 2d; owner,
+        // 2026-10-29: "airports and seaports lit like this at all times", "area near terminals should probably be lit
+        // with parking lot lamps"): white metal halide, 60,000 lm per unit of a mast's power on its page (a 25 m
+        // apron mast is 1.6), placed from the sites' tables with the street lamps and lit from dusk with them.
+        halide_colour: (0.86, 0.92, 1.0),
+        mast_lumens: 60000.0,
+        // The glow dots: lights that light nothing (runway, approach and taxiway lights, ships' anchor and navigation
+        // lights; "not actual lights, just light dots"), 0.8 m and at least glow_px across, twice their colour at
+        // their heart, on with the lamps.
+        dot_brightness: 2.0,
+        dot_m: 0.8,
+        signal_colours: (
+            white: (1.0, 0.93, 0.82),
+            red: (1.0, 0.05, 0.03),
+            green: (0.05, 0.75, 0.2),
+            blue: (0.08, 0.2, 1.0),
+        ),
+        // Every runway's lights by one rule (the airport's and the air bases'): edges every 60 m, 3 m outside the
+        // paving; the centre line every 30 m from 130 m in; a green threshold bar 60 m in from each end and a red end
+        // bar 2 m nearer it, a light every 3 m across.
+        runway: (
+            edge_spacing_m: 60.0,
+            edge_out_m: 3.0,
+            edge_y_m: 0.35,
+            centre_spacing_m: 30.0,
+            centre_from_m: 130.0,
+            centre_y_m: 0.1,
+            threshold_in_m: 60.0,
+            end_past_m: 2.0,
+            bar_spacing_m: 3.0,
+            bar_y_m: 0.2,
+        ),
     ),
     // The buildings' windows (owner, 2026-10-28: "buildings also need some sort of cell lighting. If the
     // building is damaged all of its lights turn off"): each a cell one storey high and 2.5 m wide; the share
@@ -89,5 +121,9 @@
         house_cell_m: 4.0,
         glass_alpha_night: 0.75,
         glass_night_deg: (-8.0, 4.0),
+        // The airport's and seaport's buildings and ships are lit every night (ALWAYS_LIT); a control tower's cab is lit
+        // day and night at twice a room's brightness, its rooms within 5 m of its highest inside surface (ALWAYS_ON; "top control towers should always be lit").
+        cab_gain: 2.0,
+        cab_depth_m: 5.0,
     ),
 )

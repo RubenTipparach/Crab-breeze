@@ -10,6 +10,7 @@
 //! its own footprint with its pads (survey SP2). Pure and deterministic.
 
 use super::bases::{AirBase, KeepClear};
+use super::lamps::LightColour;
 use super::layout::{City, Rect};
 use super::small_buildings::kit::Kits;
 use super::small_buildings::lots::{Lot, Zone};
@@ -151,6 +152,67 @@ pub struct SiteGround {
     pub materials: BTreeMap<String, GroundMaterial>,
 }
 
+/// One of a site's floodlights (openspec change `night-voxel-light`, design section 2d), in its frame: a mast, or a
+/// floodlight on something built (a gantry's boom, a ship's house).
+#[derive(Clone, Debug, PartialEq)]
+pub struct SiteMast {
+    /// Its foot (x, z).
+    pub at: Vec2,
+    /// The height its foot stands at.
+    pub base_m: f32,
+    /// Its head over its foot, metres.
+    pub h_m: f32,
+    /// Where its light is aimed (x, y, z).
+    pub aim: Vec3,
+    /// Its light against a street lamp's per unit (`lamps.mast_lumens`); 0 lights nothing and only glows.
+    pub power: f32,
+    /// How far its light reaches, metres.
+    pub range_m: f32,
+    /// Its cone's half angle, radians.
+    pub cone_rad: f32,
+    /// Its light's colour.
+    pub colour: LightColour,
+    /// True for a mast with a pole and a head; false for a floodlight on something built, drawn by nothing.
+    pub pole: bool,
+    /// The placement it stands on (an index into `placements`): it goes out when that is damaged.
+    pub lot: Option<u32>,
+}
+
+/// One of a site's glow dots (a runway light, a ship's anchor light), in its frame: a glow that lights nothing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SiteDot {
+    /// Where (x, y, z).
+    pub at: Vec3,
+    /// Its colour.
+    pub colour: LightColour,
+    /// The placement it stands on: it goes out when that is damaged.
+    pub lot: Option<u32>,
+}
+
+/// A runway of a site, lit by the runway lights' rule (`lamps::runway_dots`), in its frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SiteRunway {
+    /// One end of its centre line (x, z).
+    pub a: Vec2,
+    /// The other end (x, z).
+    pub b: Vec2,
+    /// Its paved width, metres.
+    pub width_m: f32,
+    /// Its surface's height.
+    pub y_m: f32,
+}
+
+/// A site's night lights, as its page lays them out (its `nightLights`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SiteLights {
+    /// Masts and floodlights.
+    pub masts: Vec<SiteMast>,
+    /// Glow dots.
+    pub dots: Vec<SiteDot>,
+    /// Runways.
+    pub runways: Vec<SiteRunway>,
+}
+
 /// One site as its page laid it out.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SiteTemplate {
@@ -166,6 +228,8 @@ pub struct SiteTemplate {
     pub ground: SiteGround,
     /// Points the game reads off it, in its frame (x, z): the seaport's `terminal`, `berth` and `mouth`.
     pub marks: BTreeMap<String, Vec2>,
+    /// Its night lights.
+    pub lights: SiteLights,
 }
 
 impl SiteTemplate {
@@ -196,6 +260,51 @@ struct SiteJson {
     kits: Vec<serde_json::Value>,
     placements: Vec<PlacementJson>,
     ground: GroundJson,
+    #[serde(default)]
+    lights: LightsJson,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct LightsJson {
+    masts: Vec<MastJson>,
+    dots: Vec<DotJson>,
+    runways: Vec<RunwayJson>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MastJson {
+    x: f32,
+    z: f32,
+    base: f32,
+    h: f32,
+    aim: [f32; 3],
+    power: f32,
+    range: f32,
+    cone: f32,
+    colour: LightColour,
+    pole: bool,
+    #[serde(default)]
+    lot: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DotJson {
+    at: [f32; 3],
+    colour: LightColour,
+    #[serde(default)]
+    lot: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RunwayJson {
+    a: [f32; 2],
+    b: [f32; 2],
+    w: f32,
+    y: f32,
 }
 
 #[derive(Deserialize)]
@@ -311,6 +420,7 @@ fn load_site(dir: &Path, name: &str, kind: SiteKind, kits: &mut Kits) -> Result<
     if marks.values().any(|v| !v.is_finite()) {
         return Err(format!("{what}: a mark is not a finite point"));
     }
+    let lights = lights_of(&j.lights, placements.len()).map_err(|e| format!("{what}: {e}"))?;
     if kind == SiteKind::Seaport {
         for m in ["terminal", "berth", "mouth"] {
             if !marks.contains_key(m) {
@@ -330,7 +440,65 @@ fn load_site(dir: &Path, name: &str, kind: SiteKind, kits: &mut Kits) -> Result<
             materials: j.ground.materials,
         },
         marks,
+        lights,
     })
+}
+
+/// A site table's lights, checked: every number finite, a mast's height and reach not negative, its cone under a
+/// right angle, a runway's ends apart, and every `lot` one of the site's `placements`.
+fn lights_of(j: &LightsJson, placements: usize) -> Result<SiteLights, String> {
+    let lot = |l: Option<u32>| match l {
+        Some(i) if i as usize >= placements => Err(format!("a light names placement {i}, past the {placements} there are")),
+        l => Ok(l),
+    };
+    let mut out = SiteLights::default();
+    for m in &j.masts {
+        let finite = [m.x, m.z, m.base, m.h, m.power, m.range, m.cone]
+            .iter()
+            .chain(&m.aim)
+            .all(|v| v.is_finite());
+        if !finite || m.h < 0.0 || m.power < 0.0 || m.range < 0.0 || !(0.0..1.56).contains(&m.cone) {
+            return Err(format!(
+                "the mast at ({}, {}) is not a finite mast with a cone under a right angle",
+                m.x, m.z
+            ));
+        }
+        out.masts.push(SiteMast {
+            at: Vec2::new(m.x, m.z),
+            base_m: m.base,
+            h_m: m.h,
+            aim: Vec3::from(m.aim),
+            power: m.power,
+            range_m: m.range,
+            cone_rad: m.cone,
+            colour: m.colour,
+            pole: m.pole,
+            lot: lot(m.lot)?,
+        });
+    }
+    for d in &j.dots {
+        if !d.at.iter().all(|v| v.is_finite()) {
+            return Err("a light dot is not a finite point".into());
+        }
+        out.dots.push(SiteDot {
+            at: Vec3::from(d.at),
+            colour: d.colour,
+            lot: lot(d.lot)?,
+        });
+    }
+    for r in &j.runways {
+        let (a, b) = (Vec2::from(r.a), Vec2::from(r.b));
+        if !(a.is_finite() && b.is_finite() && r.w.is_finite() && r.y.is_finite()) || r.w <= 0.0 || a.distance(b) < 1.0 {
+            return Err("a runway is not two finite ends apart with a width".into());
+        }
+        out.runways.push(SiteRunway {
+            a,
+            b,
+            width_m: r.w,
+            y_m: r.y,
+        });
+    }
+    Ok(out)
 }
 
 /// A site placed on the island.
@@ -348,6 +516,8 @@ pub struct PlacedSite {
     pub city: u32,
     /// Its ground's solids in the world (least and greatest corners), worked out once it is placed.
     pub solids: Vec<(Vec3, Vec3)>,
+    /// The island's lot of its first placement: its placements are the lots from here, in order.
+    pub first_lot: u32,
 }
 
 impl PlacedSite {
@@ -359,6 +529,7 @@ impl PlacedSite {
             ground_m,
             city,
             solids: Vec::new(),
+            first_lot: 0,
         };
         s.solids = s.solids_in_world();
         s
@@ -372,6 +543,17 @@ impl PlacedSite {
     /// A point of its frame (x, z) in the world.
     pub fn to_world(&self, local: Vec2) -> Vec2 {
         self.origin + turn_by(local, self.turn)
+    }
+
+    /// A point of its frame (x, y, z) in the world.
+    pub fn point_to_world(&self, local: Vec3) -> Vec3 {
+        let p = self.to_world(Vec2::new(local.x, local.z));
+        Vec3::new(p.x, self.ground_m + local.y, p.y)
+    }
+
+    /// The island's lot of its placement `placement`.
+    pub fn lot_of(&self, placement: u32) -> u32 {
+        self.first_lot + placement
     }
 
     /// A world point (x, z) in its frame.

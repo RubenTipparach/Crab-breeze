@@ -15,6 +15,12 @@ use serde::Deserialize;
 pub const MAX_CELLS: u32 = 4096;
 /// The most room light a vertex can carry (the packed fraction is `light / LIGHT_SCALE`).
 pub const LIGHT_SCALE: f32 = 4.0;
+/// The room index of a room that is lit every night (the airport's and seaport's buildings and ships, design section
+/// 2d): no hash and no hourly share; it comes on with the glass through dusk and stays on until dawn.
+pub const ALWAYS_LIT: u32 = MAX_CELLS - 1;
+/// The room index of a room lit day and night at `cab_gain` (a control tower's cab; owner, 2026-10-29: "top control
+/// towers should always be lit").
+pub const ALWAYS_ON: u32 = MAX_CELLS - 2;
 
 /// `day_night.ron`'s `rooms`: the lit rooms and the glass at night.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -41,6 +47,10 @@ pub struct RoomLights {
     /// Sun elevations, degrees, over which the glass turns from its day look to its night look (fully
     /// night at the first): "gradually as it gets dark".
     pub glass_night_deg: [f32; 2],
+    /// An always-on room (`ALWAYS_ON`, a tower's cab) is this many times as bright as a lit room.
+    pub cab_gain: f32,
+    /// A control tower's cab is its rooms whose light is within this of its highest inside surface, metres.
+    pub cab_depth_m: f32,
 }
 
 impl Default for RoomLights {
@@ -55,6 +65,8 @@ impl Default for RoomLights {
             house_cell_m: 4.0,
             glass_alpha_night: 0.75,
             glass_night_deg: [-8.0, 4.0],
+            cab_gain: 2.0,
+            cab_depth_m: 5.0,
         }
     }
 }
@@ -72,6 +84,8 @@ impl RoomLights {
         within("rooms.house_storey_m", self.house_storey_m, 2.0, 10.0)?;
         within("rooms.house_cell_m", self.house_cell_m, 1.0, 20.0)?;
         within("rooms.glass_alpha_night", self.glass_alpha_night, 0.0, 1.0)?;
+        within("rooms.cab_gain", self.cab_gain, 0.0, LIGHT_SCALE)?;
+        within("rooms.cab_depth_m", self.cab_depth_m, 0.0, 50.0)?;
         within("rooms.glass_night_deg", self.glass_night_deg[0], -90.0, 90.0)?;
         within("rooms.glass_night_deg", self.glass_night_deg[1], -90.0, 90.0)?;
         if self.glass_night_deg[0] < self.glass_night_deg[1] {

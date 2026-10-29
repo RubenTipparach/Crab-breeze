@@ -113,6 +113,8 @@ struct KitDraw {
     lod2: Vec<Prim>,
     furn: Vec<Prim>,
     leaves: Vec<Vec<Prim>>,
+    /// The room index its rooms carry.
+    rooms: RoomCells,
 }
 
 /// The kits' meshes and the island's materials, once loaded.
@@ -428,6 +430,7 @@ fn bind(
                 _ => {}
             }
         }
+        d.rooms = RoomCells::of(&plan.small.kits.kits[draws.len()], &d.lod0, &data.0.day_night.rooms);
         draws.push(d);
     }
     // Each generator's texture set, where it has been made (one set serves every surface of that generator).
@@ -551,7 +554,7 @@ fn bind(
             if let Some(mut m) = meshes.get_mut(&p.mesh)
                 && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
             {
-                light_house_rooms(&mut m, &data.0.day_night.rooms);
+                light_house_rooms(&mut m, &data.0.day_night.rooms, d.rooms);
                 lit += 1;
             }
         }
@@ -566,7 +569,7 @@ fn bind(
                 let n = m.count_vertices();
                 m.insert_attribute(
                     Mesh::ATTRIBUTE_UV_1,
-                    vec![[0.0, cb_core::night_light::pack_room(HOUSE_CELL, 1.0)]; n],
+                    vec![[0.0, cb_core::night_light::pack_room(d.rooms.cell, 1.0)]; n],
                 );
                 if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
                     for c in c.iter_mut() {
@@ -680,11 +683,63 @@ const ROOM_PROBE_M: f32 = 0.3;
 /// an entire house lit or unlit instead of individual rooms"); the shader's hash of it with the lot's origin decides.
 const HOUSE_CELL: u32 = 1;
 
+/// The room index a kit's rooms carry: a house's one switch (`HOUSE_CELL`); every room of the airport's and seaport's
+/// buildings and ships lit every night (`ALWAYS_LIT`, design section 2d: "airports and seaports lit like this at all
+/// times"), and a control tower's cab, its rooms within `rooms.cab_depth_m` of its highest, lit day and night
+/// (`ALWAYS_ON`: "top control towers should always be lit").
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct RoomCells {
+    cell: u32,
+    /// A room whose light point is this high or higher (the kit's frame) is the cab's.
+    cab_from_m: Option<f32>,
+}
+
+impl Default for RoomCells {
+    fn default() -> Self {
+        Self {
+            cell: HOUSE_CELL,
+            cab_from_m: None,
+        }
+    }
+}
+
+impl RoomCells {
+    /// A kit's: a site's are always lit, and a control tower's cab is the top of its inside surfaces (`lod0`).
+    fn of(kit: &cb_core::world::small_buildings::Kit, lod0: &[Prim], lights: &RoomLights) -> Self {
+        if !kit.kind.is_site() {
+            return Self::default();
+        }
+        let top = kit
+            .id
+            .contains("control_tower")
+            .then(|| {
+                lod0.iter()
+                    .filter(|p| INSIDE.contains(&p.surface.as_str()))
+                    .filter_map(|p| p.src.as_ref())
+                    .flat_map(|o| o.pos.iter().map(|p| p[1]))
+                    .fold(f32::MIN, f32::max)
+            })
+            .filter(|y| y.is_finite() && *y > f32::MIN);
+        Self {
+            cell: cb_core::night_light::ALWAYS_LIT,
+            cab_from_m: top.map(|y| y - lights.cab_depth_m),
+        }
+    }
+
+    /// The index of the room whose light point is `point`.
+    fn at(self, point: Vec3) -> u32 {
+        match self.cab_from_m {
+            Some(y) if point.y >= y => cb_core::night_light::ALWAYS_ON,
+            _ => self.cell,
+        }
+    }
+}
+
 /// Gives a house mesh (in its kit's frame, the floor at the lot's ground) its room light in the second UV's `y`
 /// (`cb_core::night_light`, design section 2b): lit from under the ceiling of the 4 m cell its normal faces, the
-/// whole house one switch (`HOUSE_CELL`). Its colours' alpha goes to 0 (slot 0, always standing).
-fn light_house_rooms(m: &mut Mesh, lights: &RoomLights) {
-    light_house_rooms_keep_slots(m, lights);
+/// whole house one switch (`RoomCells`). Its colours' alpha goes to 0 (slot 0, always standing).
+fn light_house_rooms(m: &mut Mesh, lights: &RoomLights, cells: RoomCells) {
+    light_house_rooms_keep_slots(m, lights, cells);
     if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
         for c in c.iter_mut() {
             c[3] = 0.0;
@@ -693,7 +748,7 @@ fn light_house_rooms(m: &mut Mesh, lights: &RoomLights) {
 }
 
 /// `light_house_rooms` without touching the slots (furniture carries its pieces' own).
-fn light_house_rooms_keep_slots(m: &mut Mesh, lights: &RoomLights) {
+fn light_house_rooms_keep_slots(m: &mut Mesh, lights: &RoomLights, cells: RoomCells) {
     let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
         (m.attribute(Mesh::ATTRIBUTE_POSITION), m.attribute(Mesh::ATTRIBUTE_NORMAL))
     else {
@@ -705,7 +760,7 @@ fn light_house_rooms_keep_slots(m: &mut Mesh, lights: &RoomLights) {
         .map(|(p, n)| {
             let (p, n) = (Vec3::from(*p), Vec3::from(*n));
             let (point, _) = lights.house_cell(p + n * ROOM_PROBE_M, 0.0);
-            [0.0, cb_core::night_light::pack_room(HOUSE_CELL, lights.light_at(p, n, point))]
+            [0.0, cb_core::night_light::pack_room(cells.at(point), lights.light_at(p, n, point))]
         })
         .collect();
     m.insert_attribute(Mesh::ATTRIBUTE_UV_1, uv1);
@@ -1012,6 +1067,7 @@ fn furniture_mesh(
     base: u32,
     real: bool,
     lights: &RoomLights,
+    cells: RoomCells,
 ) -> Option<Mesh> {
     let mut c = Corners::new();
     if real {
@@ -1067,7 +1123,7 @@ fn furniture_mesh(
         return None;
     }
     let mut m = c.mesh();
-    light_house_rooms_keep_slots(&mut m, lights);
+    light_house_rooms_keep_slots(&mut m, lights, cells);
     if let Err(e) = m.generate_tangents() {
         warn!("small buildings: furniture tangents: {e}");
     }
@@ -1298,10 +1354,15 @@ fn furnish(
         // Meshed on the pool; the furniture it has stays until the new one is in (`finish_jobs`).
         let k = lots.lots[lot as usize].kit as usize;
         let base = states.base(state_key(lot), lots.kits.kits[k].pieces.len(), &mut buffers);
-        let (all, furn, models) = (lots.kits.clone(), kits.kits[k].furn.clone(), kits.furniture.clone());
+        let (all, furn, models, cells) = (
+            lots.kits.clone(),
+            kits.kits[k].furn.clone(),
+            kits.furniture.clone(),
+            kits.kits[k].rooms,
+        );
         let lights = data.0.day_night.rooms.clone();
         let task = AsyncComputeTaskPool::get()
-            .spawn(async move { furniture_mesh(&all.kits[k], &all, &furn, &models, base, kind == Furnished::Real, &lights) });
+            .spawn(async move { furniture_mesh(&all.kits[k], &all, &furn, &models, base, kind == Furnished::Real, &lights, cells) });
         houses.jobs.furniture.insert(lot, (kind, task));
         built += 1;
     }

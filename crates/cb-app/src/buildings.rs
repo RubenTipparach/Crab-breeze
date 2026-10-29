@@ -1271,7 +1271,7 @@ fn light_windows(
 }
 
 /// The lit rooms' uniforms for the hour (`building_state.wesl`): the share of rooms lit and their brightness, their
-/// colour, and the glass's night share. The share is held to 1/256 steps so the materials change every few
+/// colour, the glass's night share and an always-on cab's gain. The share is held to 1/256 steps so the materials change every few
 /// seconds of dusk, not every frame.
 pub fn room_uniforms(d: &cb_core::GameData, l: &cb_core::day_night::Lighting) -> (Vec4, Vec4, f32) {
     let r = &d.day_night.rooms;
@@ -1279,7 +1279,7 @@ pub fn room_uniforms(d: &cb_core::GameData, l: &cb_core::day_night::Lighting) ->
     let elevation = l.sun_dir.y.clamp(-1.0, 1.0).asin().to_degrees();
     let night = (r.glass_night_share(elevation) * 256.0).round() / 256.0;
     let [cr, cg, cb] = r.colour;
-    (Vec4::new(share, r.cd_m2, night, 0.0), Vec4::new(cr, cg, cb, 0.0), night)
+    (Vec4::new(share, r.cd_m2, night, r.cab_gain), Vec4::new(cr, cg, cb, 0.0), night)
 }
 
 #[cfg(test)]
@@ -1357,8 +1357,13 @@ mod tests {
     #[test]
     fn the_vertex_shader_unpacks_with_the_cores_light_scale() {
         let wesl = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/shaders/building_state.wesl")).unwrap();
-        let want = format!("const LIGHT_SCALE: f32 = {:.1};", cb_core::night_light::LIGHT_SCALE);
-        assert!(wesl.contains(&want), "building_state.wesl must say `{want}`");
+        for want in [
+            format!("const LIGHT_SCALE: f32 = {:.1};", cb_core::night_light::LIGHT_SCALE),
+            format!("const ALWAYS_ON: f32 = {:.1};", cb_core::night_light::ALWAYS_ON as f32),
+            format!("const ALWAYS_LIT: f32 = {:.1};", cb_core::night_light::ALWAYS_LIT as f32),
+        ] {
+            assert!(wesl.contains(&want), "building_state.wesl must say `{want}`");
+        }
     }
 
     fn frame() -> Frame {

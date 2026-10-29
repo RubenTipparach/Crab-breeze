@@ -4647,8 +4647,8 @@ function luffing(g, c, out) { put("Luffing crane", B => S.luffingCrane(B), c[0],
 // cabins, mess and bridge. Its bow along `heading` as the model's would be; `y` is its waterline.
 function ship(g, id, c, heading, y = 0) {
   const turn = ((Math.round(Math.atan2(heading[0], heading[1]) / (PI / 2)) % 4) + 4) % 4;
-  SHIPLIST.push({ id, c, turn, y });
-  put(id, B => S.ship(B, E.M, id), c[0], c[1], turn, y, Object.assign({ base: y - S.SHIPS[id].draft, anchorBuilt: true, collapse: SINKS, sink: true }, MACHINE));
+  const lot = put(id, B => S.ship(B, E.M, id), c[0], c[1], turn, y, Object.assign({ base: y - S.SHIPS[id].draft, anchorBuilt: true, collapse: SINKS, sink: true }, MACHINE));
+  SHIPLIST.push({ id, c, turn, y, lot });
 }
 // A tug of the 1980s, 28 x 9 m (no model of its own yet: the kit's ship at those sizes).
 function tug(g, c, heading, labels, name) { ship(g, "tug", c, heading); if (name) labels.push([name, c, 10, "standin"]); }
@@ -4665,8 +4665,8 @@ function shed(g, name, x0, z0, x1, z1, h, m, labels, label) {
   if (label) labels.push([label, [cx, cz], h + 6]);
 }
 function gantry(g, x, zLand, zSea, labels, name) {
-  put("Container gantry", B => S.gantry(B, { gauge: zSea - zLand }), x, zLand, 0, DECK, MACHINE);
-  GANTRIES.push([x, zLand, zSea - zLand]);
+  const lot = put("Container gantry", B => S.gantry(B, { gauge: zSea - zLand }), x, zLand, 0, DECK, MACHINE);
+  GANTRIES.push([x, zLand, zSea - zLand, lot]);
   if (name) labels.push([name, [x, zSea + 20], 74]);
 }
 function straddle(g, c) { put("Straddle carrier", B => S.straddle(B), c[0], c[1], 0, DECK, MACHINE); }
@@ -4840,80 +4840,97 @@ const dotMat = new T.ShaderMaterial({
 // Metal halide on the quays and cranes, sodium on the roads, the car park and the fishing boats' work lights.
 const DOT = { white: 0xfff6e8, red: 0xff3a2e, green: 0x37e07a, halide: 0xe6eeff, sodium: 0xffb35a, cabin: 0xffd9a0 };
 const cabLight = new T.PointLight(0xfff0d0, 2.2, 22, 1.2); scene.add(cabLight);   // port control's top floor, always lit
-function buildNight() {
-  for (const o of [...nightG.children]) { nightG.remove(o); if (o.geometry) o.geometry.dispose(); }
-  cabLight.visible = show === "proposed" && !window.SITE_EXPORT;
-  cabLight.position.set(78, DECK + 32 - 2.5, 38);
-  if (show !== "proposed" || window.SITE_EXPORT) return;
-  const dots = [], dot = (x, y, z, c) => dots.push([x, y, z, c]);
+// The port's night lights as data (section 2d): the page draws them, and tools/buildings/export_sites.cjs writes the
+// same list into the site's table for the game (`lights`), so the game's lamps stand where these do. A mast: its foot
+// (x, z) at `base`, its head h over it, its floodlight aimed at `aim` with `power`, `range` m and a `cone` (radians;
+// power 0 lights nothing, only glows); `pole` false is a floodlight on something already built (a gantry's boom, a
+// ship's house), drawn by nothing. A dot: a glow at (x, y, z) that lights nothing. `lot` ties a light to the placement
+// it stands on (a ship, a gantry): it goes out when that is damaged. Colours: white, red, green, blue, halide, sodium.
+function nightLights() {
+  const L = { masts: [], dots: [], runways: [] };
+  const dot = (x, y, z, col, lot) => L.dots.push(lot == null ? [x, y, z, col] : [x, y, z, col, lot]);
   // A mast from `base`, its head at h over it, its floodlights aimed down at `aim` ([x, z], at `aimY`).
   function mast(at, h, aim, power, o = {}) {
-    const base = o.base ?? DECK, col = o.col ?? DOT.halide, top = base + h;
-    const pole = new T.Mesh(new T.BoxGeometry(0.6, h, 0.6), M.fence); pole.position.set(at[0], base + h / 2, at[1]); nightG.add(pole);
-    const hs = Math.min(1, h / 12), head = new T.Mesh(new T.BoxGeometry(3 * hs, 0.6 * hs, 1.2 * hs), M.lamp); head.position.set(at[0], top, at[1]); nightG.add(head);
-    dot(at[0], top, at[1], col);
-    if (!power) return;
-    const sp = new T.SpotLight(col, power, o.range ?? h * 3.2, 0.95, 0.7, 1.2);
-    sp.position.set(at[0], top - 0.4, at[1]); sp.target.position.set(aim[0], o.aimY ?? DECK, aim[1]); nightG.add(sp, sp.target);
+    const base = o.base ?? DECK, top = base + h;
+    L.masts.push({ x: at[0], z: at[1], base, h, aim: [aim[0], o.aimY ?? DECK, aim[1]], power, range: o.range ?? h * 3.2, cone: 0.95, col: o.col ?? "halide", pole: true });
+    dot(at[0], top, at[1], o.col ?? "halide");
   }
+  // A floodlight on something built: at p, aimed at q.
+  const flood = (p, q, power, range, cone, lot) => L.masts.push({ x: p[0], z: p[2], base: p[1], h: 0, aim: q, power, range, cone, col: "halide", pole: false, lot });
   const self = (at, h, power, o) => mast(at, h, at, power, o);
   // ---- the container terminal: 35 m high masts in the lanes between the stack blocks
   for (const x of [-806, -714, -622, -530]) for (const z of [39, 75]) self([x, z], 35, 2.2);
   // the gantries: lamps along the boom, a floodlight under the boom's sea end onto the ship, red on the apex
-  for (const [x, z, g] of GANTRIES) {
-    for (let u = -25; u <= g + 55; u += 10) for (const s of [-4, 4]) dot(x + s, DECK + 42.6, z + u, DOT.halide);
-    dot(x, DECK + 70.6, z + g / 2, DOT.red);
-    const sp = new T.SpotLight(DOT.halide, 1.6, 90, 0.6, 0.7, 1.2); sp.position.set(x, DECK + 42, z + g + 10); sp.target.position.set(x, DECK + 4, z + g + 14); nightG.add(sp, sp.target);
+  for (const [x, z, g, lot] of GANTRIES) {
+    for (let u = -25; u <= g + 55; u += 10) for (const s of [-4, 4]) dot(x + s, DECK + 42.6, z + u, "halide", lot);
+    dot(x, DECK + 70.6, z + g / 2, "red", lot);
+    flood([x, DECK + 42, z + g + 10], [x, DECK + 4, z + g + 14], 1.6, 90, 0.6, lot);
   }
   // ---- the cargo pier, the ferry terminal and its lanes, the tug quay
   for (const [x, z] of [[-350, 15], [-290, 15], [-350, 285], [-290, 285]]) self([x, z], 25, 1.6);
   mast([-105, 80], 15, [-75, 80], 1.2); mast([-45, 80], 15, [-75, 80], 1.2); mast([-128, 110], 12, [-120, 125], 1.0);
   mast([45, 90], 15, [45, 116], 1.0);
   // ---- the tanker jetty: sodium lamps along the trestle, floodlights on its head over the loading arms
-  for (let z = 30; z <= 400; z += 40) mast([196.2, z], 6, [196, z], 0, { base: 4, col: DOT.sodium });
+  for (let z = 30; z <= 400; z += 40) mast([196.2, z], 6, [196, z], 0, { base: 4, col: "sodium" });
   mast([150, 436], 15, [200, 446], 1.6, { base: 5.5 }); mast([250, 436], 15, [200, 446], 1.6, { base: 5.5 });
   // ---- the tank farm's corners and the dry dock, lit down onto its floor
   for (const at of [[113, -272], [307, -272], [113, -108], [307, -108]]) mast(at, 15, [210, -190], 1.2);
   for (const at of [[334, -195], [386, -195], [334, -6], [386, -6]]) mast(at, 20, [360, -100], 1.0, { aimY: DOCK.floor, range: 130 });
-  dot(360, DECK + 65.6, -110, DOT.red);   // the goliath's obstruction lamp
+  dot(360, DECK + 65.6, -110, "red");   // the goliath's obstruction lamp
   // ---- the fishing harbour: the mole's floodlights, lamps along the pontoons, the fish market's front
-  mast([447, 50], 12, [560, 60], 1.2); mast([447, 170], 12, [560, 140], 1.2); mast([515, -12], 10, [515, 0], 0.9, { col: DOT.sodium });
-  for (const x of [500, 560, 620]) for (let z = 20; z <= 145; z += 25) mast([x, z], 3.5, [x, z], 0, { base: 0.9, col: DOT.sodium });
+  mast([447, 50], 12, [560, 60], 1.2); mast([447, 170], 12, [560, 140], 1.2); mast([515, -12], 10, [515, 0], 0.9, { col: "sodium" });
+  for (const x of [500, 560, 620]) for (let z = 20; z <= 145; z += 25) mast([x, z], 3.5, [x, z], 0, { base: 0.9, col: "sodium" });
   // ---- the coast guard quay and the mech slipway
   for (const at of [[745, 90], [835, 90], [838, 2], [902, 2]]) self(at, 15, 1.3);
   // ---- landside: the port road's sodium lamps every 40 m (a floodlight every fourth), the car park, the warehouses
-  for (let x = -1180, i = 0; x <= 1180; x += 40, i++) mast([x, -321], 10, [x, -330], i % 4 ? 0 : 1.0, { col: DOT.sodium });
-  for (const at of [[-172, -200], [-118, -200], [-172, -150], [-118, -150]]) self(at, 10, 0.9, { col: DOT.sodium });
-  for (const x of [-815, -695, -575]) mast([x, -174], 10, [x, -170], 0.9, { col: DOT.sodium });
+  for (let x = -1180, i = 0; x <= 1180; x += 40, i++) mast([x, -321], 10, [x, -330], i % 4 ? 0 : 1.0, { col: "sodium" });
+  for (const at of [[-172, -200], [-118, -200], [-172, -150], [-118, -150]]) self(at, 10, 0.9, { col: "sodium" });
+  for (const x of [-815, -695, -575]) mast([x, -174], 10, [x, -170], 0.9, { col: "sodium" });
   // ---- every ship's lights
-  for (const sh of SHIPLIST) shipLights(sh);
-  function shipLights(sh) {
-    const s = S.SHIPS[sh.id], L = s.len, H = s.house, a = sh.turn * PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+  for (const sh of SHIPLIST) {
+    const s = S.SHIPS[sh.id], Ln = s.len, H = s.house, a = sh.turn * PI / 2, ca = Math.cos(a), sa = Math.sin(a);
     const at = (x, y, z) => [sh.c[0] + x * ca + z * sa, sh.y + y, sh.c[1] - x * sa + z * ca];
-    const D = (x, y, z, c) => { const p = at(x, y, z); dot(p[0], p[1], p[2], c); };
-    const bowZ = s.bow < 0 ? -L / 2 : L / 2, sternZ = -bowZ, hw = Math.min(H.w, s.beam / 2 - 0.45);
+    const D = (x, y, z, c) => { const p = at(x, y, z); dot(p[0], p[1], p[2], c, sh.lot); };
+    const bowZ = s.bow < 0 ? -Ln / 2 : Ln / 2, sternZ = -bowZ, hw = Math.min(H.w, s.beam / 2 - 0.45);
     const bridgeZ = s.bow < 0 ? H.z0 : H.z1, mastTop = H.small ? 0 : Math.max(H.top + 4, s.sheer + 8);
-    // anchor (all-round white) lights on the masts, or the house top and the stern
-    for (const z of s.masts || []) D(0, mastTop + 0.3, z, DOT.white);
-    if (!s.masts) { D(0, H.top + 1.2, (H.z0 + H.z1) / 2, DOT.white); }
+    // anchor (all-round white) lights on the masts, or the house top
+    for (const z of s.masts || []) D(0, mastTop + 0.3, z, "white");
+    if (!s.masts) D(0, H.top + 1.2, (H.z0 + H.z1) / 2, "white");
     // ready to sail (the tugs and gunboats): sidelights at the bridge wings, the stern light
     if (sh.id === "tug" || sh.id === "gunboat") {
       const stbd = s.bow < 0 ? 1 : -1;
-      D(stbd * (hw + 0.2), H.top - 0.8, bridgeZ, DOT.green); D(-stbd * (hw + 0.2), H.top - 0.8, bridgeZ, DOT.red);
-      D(0, s.sheer + 0.8, sternZ, DOT.white);
+      D(stbd * (hw + 0.2), H.top - 0.8, bridgeZ, "green"); D(-stbd * (hw + 0.2), H.top - 0.8, bridgeZ, "red");
+      D(0, s.sheer + 0.8, sternZ, "white");
     }
     // deck lights along both rails, sodium on the fishing boats
-    const step = Math.max(6, L / 8), col = sh.id === "fishing_boat" || sh.id === "launch" ? DOT.sodium : DOT.halide;
-    if (L >= 20) for (let z = -L / 2 + step / 2; z < L / 2; z += step) if (z < H.z0 - 1 || z > H.z1 + 1) for (const sx of [-1, 1]) D(sx * (s.beam / 2 - 0.6), s.bulwark + 1.2, z, col);
-    if (s.aframe) D(0, 6.4, s.aframe + 0.4, DOT.sodium);
-    // the big ships' deck floodlights, from the front of the house onto the deck before it, and from the foremast
-    if (L >= 60) {
-      const p = at(0, H.top + 0.8, bridgeZ + (s.bow < 0 ? -0.3 : 0.3)), q = at(0, s.sheer, (bridgeZ + bowZ) / 2);
-      const sp = new T.SpotLight(DOT.halide, 1.4, L * 1.1, 0.5, 0.6, 1.2); sp.position.set(...p); sp.target.position.set(...q); nightG.add(sp, sp.target);
+    const step = Math.max(6, Ln / 8), col = sh.id === "fishing_boat" || sh.id === "launch" ? "sodium" : "halide";
+    if (Ln >= 20) for (let z = -Ln / 2 + step / 2; z < Ln / 2; z += step) if (z < H.z0 - 1 || z > H.z1 + 1) for (const sx of [-1, 1]) D(sx * (s.beam / 2 - 0.6), s.bulwark + 1.2, z, col);
+    if (s.aframe) D(0, 6.4, s.aframe + 0.4, "sodium");
+    // the big ships' deck floodlights, from the front of the house onto the deck before it
+    if (Ln >= 60) flood(at(0, H.top + 0.8, bridgeZ + (s.bow < 0 ? -0.3 : 0.3)), at(0, s.sheer, (bridgeZ + bowZ) / 2), 1.4, Ln * 1.1, 0.5, sh.lot);
+  }
+  return L;
+}
+function buildNight() {
+  for (const o of [...nightG.children]) { nightG.remove(o); if (o.geometry) o.geometry.dispose(); }
+  cabLight.visible = show === "proposed" && !window.SITE_EXPORT;
+  cabLight.position.set(78, DECK + 32 - 2.5, 38);
+  if (show !== "proposed") return;
+  const L = nightLights();
+  if (window.SITE_EXPORT) { window.SITE_EXPORT.lights = L; return; }
+  for (const m of L.masts) {
+    const col = DOT[m.col], top = m.base + m.h;
+    if (m.pole) {
+      const hs = Math.min(1, m.h / 12);
+      const pole = new T.Mesh(new T.BoxGeometry(0.6, m.h, 0.6), M.fence); pole.position.set(m.x, m.base + m.h / 2, m.z); nightG.add(pole);
+      const head = new T.Mesh(new T.BoxGeometry(3 * hs, 0.6 * hs, 1.2 * hs), M.lamp); head.position.set(m.x, top, m.z); nightG.add(head);
     }
+    if (!m.power) continue;
+    const sp = new T.SpotLight(col, m.power, m.range, m.cone, 0.7, 1.2);
+    sp.position.set(m.x, top - (m.pole ? 0.4 : 0), m.z); sp.target.position.set(...m.aim); nightG.add(sp, sp.target);
   }
   const geo = new T.BufferGeometry(), P = [], C = [];
-  for (const [x, y, z, c] of dots) { P.push(x, y, z); const col = new T.Color(c); C.push(col.r, col.g, col.b); }
+  for (const [x, y, z, c] of L.dots) { P.push(x, y, z); const col = new T.Color(DOT[c]); C.push(col.r, col.g, col.b); }
   geo.setAttribute("position", new T.Float32BufferAttribute(P, 3)); geo.setAttribute("color", new T.Float32BufferAttribute(C, 3));
   nightG.add(new T.Points(geo, dotMat));
 }

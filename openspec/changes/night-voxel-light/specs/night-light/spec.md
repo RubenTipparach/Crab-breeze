@@ -43,3 +43,23 @@ When a building is damaged, the game SHALL rebake the light within its windows' 
 #### Scenario: A building is shot at night
 - **WHEN** a building with lit windows is damaged at 22:00
 - **THEN** its windows go dark at once, and once the rebake lands, the facing building no longer carries its window light
+
+### Requirement: The airport and the seaport are lit every night
+The airport's and seaport's buildings and ships SHALL light all their rooms from dusk to dawn, a control tower's cab SHALL be lit day and night, their masts and floodlights SHALL stand where the approved pages put them, and every runway SHALL carry its edge, centre line, threshold and end lights as glow dots that light nothing.
+
+#### Scenario: A site's rooms are always lit at night
+- **WHEN** the glass's night share is above zero
+- **THEN** every room of a site building or ship carries the full night share of its room light, with no hash and no hourly share
+
+#### Scenario: A tower's cab is always on
+- **WHEN** it is day or night
+- **THEN** the rooms of a control tower's cab glow at `cab_gain` times a lit room
+
+#### Scenario: The masts come from the page
+- **WHEN** the sites are exported from their approved pages
+- **THEN** each site's table lists the page's masts, floodlights, dots and runways, and the game places a lamp for each mast at the same point of the site's frame
+
+#### Scenario: A damaged ship goes dark
+- **WHEN** a ship or a crane is damaged
+- **THEN** the lights standing on it go out
+

@@ -568,34 +568,43 @@ const dotMat = new T.ShaderMaterial({
   vertexShader: "#include <common>\n#include <logdepthbuf_pars_vertex>\nuniform float scale; varying vec3 vC; void main() { vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = max(3.0, 0.9 * scale / -mv.z);\n#include <logdepthbuf_vertex>\n}",
   fragmentShader: "#include <logdepthbuf_pars_fragment>\nvarying vec3 vC; void main() {\n#include <logdepthbuf_fragment>\nfloat r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.0, r); gl_FragColor = vec4(vC * (a * a * 2.2 + smoothstep(0.35, 0.0, r)), 1.0); }",
 });
-const DOT = { white: 0xfff6e8, green: 0x37e07a, red: 0xff3a2e, blue: 0x4a7dff, apron: 0xe6eeff };
+const DOT = { white: 0xfff6e8, green: 0x37e07a, red: 0xff3a2e, blue: 0x4a7dff, halide: 0xe6eeff, sodium: 0xffb35a };
 // The always-lit tower cab: a warm light in the cab, day and night (outside the night group).
 const cabLight = new T.PointLight(0xfff0d0, 2.2, 30, 1.2); scene.add(cabLight);
-function buildNight() {
-  for (const o of [...nightG.children]) { nightG.remove(o); if (o.geometry) o.geometry.dispose(); }
-  cabLight.visible = show === "proposed" && !window.SITE_EXPORT;
-  cabLight.position.set(370, 55 + 3.5, 480);
-  if (show !== "proposed" || window.SITE_EXPORT) return;
-  const dots = [], put = (x, y, z, c) => dots.push([x, y, z, c]);
-  // Runway edge lights every 60 m, 3 m outside the edge; the centre line every 30 m; across each end, the threshold
-  // green and the end red.
-  for (const R of [runway(MAIN), runway(CROSS)]) {
-    for (let u = 0; u <= R.len + 0.1; u += 60) for (const v of [-(R.w2 + 3), R.w2 + 3]) { const q = R.at(u, v); put(q[0], 0.6, q[1], DOT.white); }
-    for (let u = BLAST + 70; u <= R.len - BLAST - 70; u += 30) { const q = R.at(u, 0); put(q[0], 0.35, q[1], DOT.white); }
-    for (const [u, c] of [[BLAST, DOT.green], [R.len - BLAST, DOT.green], [BLAST - 2, DOT.red], [R.len - BLAST + 2, DOT.red]])
-      for (let v = -R.w2; v <= R.w2 + 0.1; v += 3) { const q = R.at(u, v); put(q[0], 0.45, q[1], c); }
+// The runway lights' one rule (section 2d), as the game's (`cb_core::world::lamps::runway_dots`): edge lights every
+// 60 m both sides, 3 m outside the paving; the centre line every 30 m between the thresholds' touchdown ends; across
+// each threshold, 60 m in, a green bar every 3 m, and 2 m past it a red one (the end, for the other way). Heights over
+// the runway's surface. The page draws it; the game draws each exported runway (and the air bases') by its own copy.
+function runwayDots(rw, dot) {
+  const R = runway(rw), y = rw.y;
+  for (let u = 0; u <= R.len + 0.1; u += 60) for (const v of [-(R.w2 + 3), R.w2 + 3]) { const q = R.at(u, v); dot(q[0], y + 0.35, q[1], "white"); }
+  for (let u = BLAST + 70; u <= R.len - BLAST - 70; u += 30) { const q = R.at(u, 0); dot(q[0], y + 0.1, q[1], "white"); }
+  for (const [u, c] of [[BLAST, "green"], [R.len - BLAST, "green"], [BLAST - 2, "red"], [R.len - BLAST + 2, "red"]])
+    for (let v = -R.w2; v <= R.w2 + 0.1; v += 3) { const q = R.at(u, v); dot(q[0], y + 0.2, q[1], c); }
+}
+// The airfield's night lights as data (section 2d): the page draws them, and tools/buildings/export_sites.cjs writes
+// the same list into the site's table for the game (`lights`). A mast: its foot (x, z) at `base`, its head h over it,
+// its floodlight aimed at `aim` with `power`, `range` m and a `cone` (radians); a dot: a glow at (x, y, z) that lights
+// nothing; a runway: its centre line a to b, its width and its surface's height, lit by `runwayDots`.
+function nightLights() {
+  const L = { masts: [], dots: [], runways: [] };
+  const dot = (x, y, z, col) => L.dots.push([x, y, z, col]);
+  function mast(at, h, aim, power) {
+    L.masts.push({ x: at[0], z: at[1], base: 0, h, aim: [aim[0], 0, aim[1]], power, range: h * 3.2, cone: 0.95, col: "halide", pole: true });
+    dot(at[0], h, at[1], "halide");
   }
+  L.runways.push({ a: MAIN.a, b: MAIN.b, w: MAIN.w, y: TOP.main }, { a: CROSS.a, b: CROSS.b, w: CROSS.w, y: TOP.cross });
   // The approach crossbars and the PAPI: their lamps glow (the boxes are drawn with the runway).
   const main = runway(MAIN);
   for (const end of [0, 1]) {
     const from = end === 0 ? main.a : main.b, d = end === 0 ? main.d : [-main.d[0], -main.d[1]], right = [-d[1], d[0]];
     const at = (u, v) => [from[0] + d[0] * u + right[0] * v, from[1] + d[1] * u + right[1] * v];
-    for (let i = 1; i <= 10; i++) { const half = i % 3 === 0 ? 9 : 6; for (let k = 0; k < 5; k++) { const q = at(-i * 30, -half + k * half / 2); put(q[0], 1.6, q[1], DOT.white); } }
-    for (let k = 0; k < 4; k++) { const q = at(BLAST + AIM, -main.w2 - 15 - k * 9); put(q[0], 1.15, q[1], k < 2 ? DOT.white : DOT.red); }
+    for (let i = 1; i <= 10; i++) { const half = i % 3 === 0 ? 9 : 6; for (let k = 0; k < 5; k++) { const q = at(-i * 30, -half + k * half / 2); dot(q[0], 1.6, q[1], "white"); } }
+    for (let k = 0; k < 4; k++) { const q = at(BLAST + AIM, -main.w2 - 15 - k * 9); dot(q[0], 1.15, q[1], k < 2 ? "white" : "red"); }
   }
   // Taxiway edge lights, blue, every 30 m: the parallel taxiway and the three links.
-  for (let x = -988; x <= 988; x += 30) for (const z of [TAXI_Z - TAXI_W / 2 - 1.5, TAXI_Z + TAXI_W / 2 + 1.5]) put(x, 0.5, z, DOT.blue);
-  for (const x of [-976, 0, 976]) for (let z = main.w2 + 20; z < TAXI_Z - TAXI_W / 2; z += 30) for (const s of [-1, 1]) put(x + s * (TAXI_W / 2 + 1.5), 0.5, z, DOT.blue);
+  for (let x = -988; x <= 988; x += 30) for (const z of [TAXI_Z - TAXI_W / 2 - 1.5, TAXI_Z + TAXI_W / 2 + 1.5]) dot(x, 0.5, z, "blue");
+  for (const x of [-976, 0, 976]) for (let z = main.w2 + 20; z < TAXI_Z - TAXI_W / 2; z += 30) for (const s of [-1, 1]) dot(x + s * (TAXI_W / 2 + 1.5), 0.5, z, "blue");
   // Apron masts next to the boarding bridges: one 25 m mast a gate, beside the bridge's rotunda on the side away from
   // the bridge, its four floodlights aimed down onto the stand. White, as at the reference's terminal.
   for (const g of GATES) {
@@ -606,17 +615,27 @@ function buildNight() {
   // The car park's lamps, 9 m, every 35 m along its aisles; the multi-storey's roof deck, 6 m.
   for (let x = 437; x <= 690; x += 35) for (const z of [577, 600, 623]) mast([x, z], 9, [x, z], 0.9);
   for (let x = 60; x <= 260; x += 50) for (const z of [575, 625]) mast([x, z], 6 + 15, [x, z], 0.7);
+  return L;
+}
+function buildNight() {
+  for (const o of [...nightG.children]) { nightG.remove(o); if (o.geometry) o.geometry.dispose(); }
+  cabLight.visible = show === "proposed" && !window.SITE_EXPORT;
+  cabLight.position.set(370, 55 + 3.5, 480);
+  if (show !== "proposed") return;
+  const L = nightLights();
+  if (window.SITE_EXPORT) { window.SITE_EXPORT.lights = L; return; }
+  const dots = L.dots.slice();
+  for (const rw of L.runways) runwayDots(rw, (x, y, z, c) => dots.push([x, y, z, c]));
+  for (const m of L.masts) {
+    const pole = new T.Mesh(new T.BoxGeometry(0.6, m.h, 0.6), M.fence); pole.position.set(m.x, m.h / 2, m.z); nightG.add(pole);
+    const head = new T.Mesh(new T.BoxGeometry(3, 0.6, 1.2), M.lamp); head.position.set(m.x, m.h, m.z); nightG.add(head);
+    const sp = new T.SpotLight(DOT[m.col], m.power, m.range, m.cone, 0.7, 1.2);
+    sp.position.set(m.x, m.h - 0.4, m.z); sp.target.position.set(...m.aim); nightG.add(sp, sp.target);
+  }
   const geo = new T.BufferGeometry(), P = [], C = [];
-  for (const [x, y, z, c] of dots) { P.push(x, y, z); const col = new T.Color(c); C.push(col.r, col.g, col.b); }
+  for (const [x, y, z, c] of dots) { P.push(x, y, z); const col = new T.Color(DOT[c]); C.push(col.r, col.g, col.b); }
   geo.setAttribute("position", new T.Float32BufferAttribute(P, 3)); geo.setAttribute("color", new T.Float32BufferAttribute(C, 3));
   nightG.add(new T.Points(geo, dotMat));
-  function mast(at, h, aim, power) {
-    const pole = new T.Mesh(new T.BoxGeometry(0.6, h, 0.6), M.fence); pole.position.set(at[0], h / 2, at[1]); nightG.add(pole);
-    const head = new T.Mesh(new T.BoxGeometry(3, 0.6, 1.2), M.lamp); head.position.set(at[0], h, at[1]); nightG.add(head);
-    put(at[0], h, at[1], DOT.apron);
-    const sp = new T.SpotLight(0xe6eeff, power, h * 3.2, 0.95, 0.7, 1.2);
-    sp.position.set(at[0], h - 0.4, at[1]); sp.target.position.set(aim[0], 0, aim[1]); nightG.add(sp, sp.target);
-  }
 }
 // Day or night: the sky, the sun or the moon, the exposure, the lamps' glow, and the rooms. Inside surfaces glow warm at
 // night, standing in for the game's room light behind the glass.

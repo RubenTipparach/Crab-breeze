@@ -214,6 +214,21 @@ Night button), in its own group outside what `export_sites.cjs` reads:
   with it; its navigation lights are glow dots (no light source).
 - **Estimated:** about 40 masts and 100 lamps a full port; about 15 deck lamps and 4 dots a large ship, 4 a small one.
 
+**Built (owner, 2026-10-29: "Everything looks good in mockups. Send it").** One implementation of where every light
+stands: each page's `nightLights()` returns its lights as data (masts with their head height, aim, power, reach, cone
+and colour; glow dots; runways), the page draws that list, and `tools/buildings/export_sites.cjs` writes the same list
+into the site's table (`site.json`'s `lights`). `cb_core::world::sites` reads it, `lamps::place` turns each mast into a
+`LampKind::Mast` lamp (sharing the street lamps' tiles, heads, far glows and pool of real lights, in its own colour:
+`halide_colour`, or the street lamps' sodium), and `lamps::place_dots` lists the glow dots: the site's own and every
+runway's by one rule (`lamps::runway_dots`, the airport's two exported runways and each air base's), drawn with the
+lamps' glow shader one draw per tile and colour. A light carrying a `lot` (on a ship or a gantry) goes out once that lot
+is damaged. Site kits bake every room `ALWAYS_LIT` and a control tower's top 5 m of rooms `ALWAYS_ON`
+(`small_buildings::RoomCells`); the shader lights them from the glass's night share and `rooms.w` (`cab_gain`).
+- The site kits carry no far window panes (`glassFar`), so a terminal seen past its LOD0 distance shows no lit rooms;
+  its masts and dots still show. Open.
+- The airport's pad stands at y -0.3 m in the shipped table while the page writes 0: after this export the table's
+  -0.3 was put back by hand, so the ground did not move. The page and the table should agree; which is right is open.
+
 **Mockup first** (CLAUDE.md section 4, owner 2026-10-28: "Please make mockups before editing game code"):
 `docs/mockups/airport.html` (Night), the approved airport page; the first stand-in, `docs/mockups/runway_lights.html`, is superseded by it. A 2,000 m runway at night with every light group, the taxiway, a terminal
 with its apron masts and car park, and a seaport shed lit, from final approach, on the ground and from above, beside the Foreman and a pilot. No game
