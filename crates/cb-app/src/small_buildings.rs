@@ -816,7 +816,7 @@ impl Interior {
             if !FLOORS.contains(&p.surface.as_str()) {
                 continue;
             }
-            for t in o.tri.chunks_exact(3) {
+            for t in o.tri.as_chunks::<3>().0 {
                 let [a, b, c] = [t[0], t[1], t[2]].map(|i| Vec3::from(o.pos[i as usize]));
                 if (b - a).cross(c - a).normalize_or_zero().y.abs() < 0.7 || o.nrm[t[0] as usize][1] < 0.5 {
                     continue;
@@ -1204,11 +1204,15 @@ fn furniture_mesh(
 ) -> Option<Mesh> {
     let real = kind.real;
     let mut c = Corners::new();
+    // The pieces drawn from their models: every other piece is drawn from its blocks (a site's building models only
+    // some of its pieces, its shops'; owner, 2026-10-29: "the js version isnt empty bro, why is it empty").
+    let mut modelled = std::collections::HashSet::new();
     if real {
         for f in &kit.furniture {
             let Some(src) = models.get(&f.item) else {
                 continue;
             };
+            modelled.insert(f.piece);
             // Local (x, z) lies at (-z, x) for each quarter turn (the kit's `placeItems`): a turn of -90 degrees.
             let turn = Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2 * f.quarter_turns as f32);
             let a = slot(base, f.piece);
@@ -1222,7 +1226,8 @@ fn furniture_mesh(
                 c.col.push([tint.x, tint.y, tint.z, a]);
             }
         }
-    } else {
+    }
+    {
         for (pi, p) in furn.iter().enumerate() {
             let Some(src) = p.src.as_deref() else {
                 continue;
@@ -1233,6 +1238,9 @@ fn furniture_mesh(
             let pieces = piece_of_triangles(kit, Node::Furn, pi, src.tri.len() / 3);
             for (t, tri) in src.tri.as_chunks::<3>().0.iter().enumerate() {
                 let s = pieces[t];
+                if modelled.contains(&s) {
+                    continue;
+                }
                 let a = if s == u32::MAX { 0.0 } else { slot(base, s) };
                 // Each triangle's metre UVs from its own corner, two metres across the swatch.
                 let lo = tri
@@ -1471,9 +1479,7 @@ fn furnish(
             };
             let want = if d > reach {
                 None
-            } else if on_foot && d <= REAL_FURNITURE_M && !lots.kits.kits[lot.kit as usize].furniture.is_empty() {
-                // Modelled pieces only where the kit lists some: a site's building is furnished with its blocks alone
-                // (owner, 2026-10-29: its hall stood empty from inside, where the modelled pieces were asked for).
+            } else if on_foot && d <= REAL_FURNITURE_M {
                 Some(Furnished {
                     real: true,
                     lit: !live.structures.houses.states.contains_key(&l),
