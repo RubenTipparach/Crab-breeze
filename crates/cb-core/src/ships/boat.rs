@@ -244,6 +244,19 @@ impl Boat {
         false
     }
 
+    /// Takes a hit to a boat whose hull decides when it sinks (its kind's `sink_hull_share` above 0, drawn from its
+    /// kit): its hit points fall by the vehicles' rule and stop at none, and it sails on until its hull is holed enough.
+    /// True when it did damage.
+    pub fn hit_hull(&mut self, penetration_mm: f32, damage: f32, spec: &BoatSpec) -> bool {
+        if !self.afloat() {
+            return false;
+        }
+        let before = self.hp;
+        armour_hit(&mut self.hp, penetration_mm, damage, spec.armour_mm);
+        self.hp = self.hp.max(0.0);
+        self.hp < before
+    }
+
     /// Swamped or holed past saving: it sinks now. False when it was not afloat.
     pub fn founder(&mut self) -> bool {
         if !self.afloat() {

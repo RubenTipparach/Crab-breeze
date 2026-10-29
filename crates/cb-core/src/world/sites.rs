@@ -845,6 +845,7 @@ mod tests {
             model: String::new(),
             tint: [0.2, 0.26, 0.34],
             burns: false,
+            sink_hull_share: 0.25,
         };
         let mut b = Boat::new(
             7,
@@ -870,10 +871,32 @@ mod tests {
         let top = b.kit_pose(&k).transform_point3(high);
         assert!(!b.break_sphere(&k, top, 1.5).pieces.is_empty(), "a shot where it is breaks it");
         assert!(b.afloat(), "broken above its waterline it sails on");
-        // Holed at its waterline: it founders and goes down whole, as a ship at the quays does.
-        let side = b.kit_pose(&k).transform_point3(Vec3::new(k.hi.x, w, mid));
-        assert!(!b.break_sphere(&k, side, 2.0).pieces.is_empty());
-        assert!(matches!(b.phase, Phase::Sinking { .. }), "holed at its waterline it founders");
+        // A cargo ship takes a quarter of its hull at and under its waterline gone before it goes down (ships.ron's
+        // `sink_hull_share`): one hole and it sails on; holed along its side until a quarter is gone, it founders and
+        // goes down whole, as a ship at the quays does.
+        let mut k = k;
+        k.sink_share = 0.25;
+        let side = |b: &Boat, z: f32| b.kit_pose(&k).transform_point3(Vec3::new(k.hi.x, w * 0.5, z));
+        assert!(!b.break_sphere(&k, side(&b, mid), 2.0).pieces.is_empty());
+        assert!(b.afloat(), "one hole in a cargo ship and it sails on");
+        let mut z = k.lo.z + 2.0;
+        let mut x = k.hi.x;
+        while b.afloat() {
+            let at = b.kit_pose(&k).transform_point3(Vec3::new(x, w * 0.5, z));
+            b.break_sphere(&k, at, 3.0);
+            z += 4.0;
+            if z > k.hi.z {
+                z = k.lo.z + 2.0;
+                x -= 4.0;
+                assert!(x > k.lo.x - 4.0, "holed through and through it never sank");
+            }
+        }
+        let share = super::super::small_buildings::damage::holed_share(&k, &b.pieces.as_ref().unwrap().alive).unwrap();
+        assert!(
+            (0.25..0.5).contains(&share),
+            "it went down at a quarter of its hull gone, not {share}"
+        );
+        assert!(matches!(b.phase, Phase::Sinking { .. }), "holed enough it founders");
         let mut steps = 0;
         while b.phase != Phase::Gone && steps < 60 * 60 * 20 {
             b.step_kit(&k, -20.0, 1.0 / 60.0);

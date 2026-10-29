@@ -275,17 +275,19 @@ impl Breakable<'_> {
             }
             return Broken::default();
         }
-        // A ship holed at or under its waterline goes down, whole (it never collapses as a building does).
-        if let Some(w) = kit.waterline_m
-            && state.sinking.is_none()
-            && pieces.iter().any(|&i| i < n && kit.pieces[i].lo.y < w + SINK_HOLED_M)
-        {
-            state.sinking = Some(Sinking::start(kit, self.parity));
-        }
         let mut collapsed = false;
         let stands = standing(kit, &state.alive);
         for (a, s) in state.alive.iter_mut().zip(&stands) {
             *a = *a && *s;
+        }
+        // A ship holed at or under its waterline goes down, whole (it never collapses as a building does): at the first
+        // hole, or once its kit's `sink_share` of that hull is gone (a tanker or a freighter takes a quarter).
+        if state.sinking.is_none()
+            && let Some(share) = holed_share(kit, &state.alive)
+            && share > 0.0
+            && share >= kit.sink_share
+        {
+            state.sinking = Some(Sinking::start(kit, self.parity));
         }
         let wall: f32 = kit
             .pieces
@@ -363,6 +365,23 @@ impl Breakable<'_> {
         }
         true
     }
+}
+
+/// The share of a ship's hull at and under its waterline (pieces whose foot is under `SINK_HOLED_M` over it) that is
+/// gone, by volume; `None` for a kit that does not float.
+pub fn holed_share(kit: &Kit, alive: &[bool]) -> Option<f32> {
+    let w = kit.waterline_m?;
+    let (mut all, mut gone) = (0.0f32, 0.0f32);
+    for (p, a) in kit.pieces.iter().zip(alive) {
+        if p.lo.y < w + SINK_HOLED_M {
+            let v = (p.hi - p.lo).max(Vec3::ZERO).element_product();
+            all += v;
+            if !*a {
+                gone += v;
+            }
+        }
+    }
+    Some(if all > 0.0 { gone / all } else { 0.0 })
 }
 
 /// A lot's kit frame in the world: its centre at its ground, turned by its heading.

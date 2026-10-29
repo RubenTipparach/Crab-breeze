@@ -180,6 +180,11 @@ pub struct Kit {
     pub access: Access,
     /// A ship's waterline over its keel (its frame's y = 0), metres; `None` for anything that does not float.
     pub waterline_m: Option<f32>,
+    /// The share of its hull at and under its waterline (pieces reaching under `SINK_HOLED_M` over it, by volume) that
+    /// must be gone before it goes down, 0..1: 0 sinks it at the first hole. Its kind's `sink_hull_share` in
+    /// `ships.ron` (owner, 2026-10-29: tankers and cargo ships "need about 25% of their underwater hull portion
+    /// destroyed before they sink").
+    pub sink_share: f32,
 }
 
 /// How a kit is reached from the road (openspec change `lot-access`), in its frame.
@@ -557,6 +562,7 @@ fn kit_of(t: TypeJson, table: &str, what: &str, folder: &str) -> Result<Kit, Str
         wall_area_m2,
         access,
         waterline_m: t.waterline_m.filter(|w| w.is_finite() && *w >= 0.0 && kind == Kind::Ship),
+        sink_share: 0.0,
     })
 }
 

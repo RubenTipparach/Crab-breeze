@@ -788,8 +788,15 @@ fn hit_boats(
             let Some(spec) = cfg.kinds.get(&b.kind) else { continue };
             let crewed = b.crewed();
             let hp = b.hp;
-            let mut sank = b.hit(pen, dmg, spec);
-            if let Some(k) = plan.small.kits.ship(&b.kind) {
+            // A kind whose hull decides (a tanker, a freighter) is not sunk by its hit points.
+            let kit = plan.small.kits.ship(&b.kind);
+            let mut sank = if kit.is_some() && spec.sink_hull_share > 0.0 {
+                b.hit_hull(pen, dmg, spec);
+                false
+            } else {
+                b.hit(pen, dmg, spec)
+            };
+            if let Some(k) = kit {
                 let afloat = b.afloat() || sank;
                 live.new_chunks
                     .extend(b.break_sphere(&plan.small.kits.kits[k], hit.at, reach).chunks);

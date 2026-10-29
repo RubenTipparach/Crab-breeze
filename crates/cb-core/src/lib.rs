@@ -130,6 +130,14 @@ impl GameData {
             path: sites_dir.clone(),
             reason,
         })?;
+        // The boats' kinds, read here so each ship kit takes its kind's hull share before the kits are shared.
+        let ships_path = root.join("world/ships.ron");
+        let ships: ships::ShipsConfig = data::load_ron(&ships_path)?;
+        for k in kits.kits.iter_mut().filter(|k| k.kind == world::small_buildings::kit::Kind::Ship) {
+            if let Some(spec) = ships.kinds.get(&k.id) {
+                k.sink_share = spec.sink_hull_share;
+            }
+        }
         world.small_kits = std::sync::Arc::new(kits);
         let audio = audio::AudioData {
             cues: data::load_ron(&root.join("audio/cues.ron"))?,
@@ -181,8 +189,6 @@ impl GameData {
         grass
             .validate_with(&world)
             .map_err(|reason| data::DataError { path: grass_path, reason })?;
-        let ships_path = root.join("world/ships.ron");
-        let ships: ships::ShipsConfig = data::load_ron(&ships_path)?;
         let units: units::UnitsConfig = data::load_ron(&root.join("world/units.ron"))?;
         // The gunboat is a vehicle in a fight and a boat when it sinks: one size in both files.
         if let (Some(u), Some(b)) = (units.units.get(ships::GUNBOAT), ships.kinds.get(ships::GUNBOAT))
