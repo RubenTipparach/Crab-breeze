@@ -5,7 +5,9 @@ are no inverted faces, I saw some on the center wood beam on the house").
     python tools/build/check_winding.py assets/models/small_buildings --list 20
 
 A triangle is inverted when its winding (glTF's front face is counter-clockwise) points against the normals stored on
-its corners: lit as if it faced one way, culled as if it faced the other. A piece is inside out when it is closed (every
+its corners: lit as if it faced one way, culled as if it faced the other. Slivers under `SLIVER_M2` are left out: at a
+bevel's corner the smoothed normals lean across a triangle of a few square centimetres while its winding faces out (the
+mechs' first count, 80 on Foreman, was nearly all those). A piece is inside out when it is closed (every
 edge shared by two of its triangles) and its signed volume is negative, or, open or closed, when most of its area faces
 in towards its own centre (a box, a beam or a plank missing its ends; a curved or concave piece can trip it, so it is
 reported apart and does not fail the check). A node mirrored by a negative scale flips the
@@ -19,6 +21,8 @@ import sys
 from collections import defaultdict
 
 import numpy as np
+
+SLIVER_M2 = 0.0025
 
 COMPONENT = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
 WIDTH = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}
@@ -126,7 +130,7 @@ def check_primitive(pos, nrm, idx, flip):
     inverted = 0
     if nrm is not None:
         nv = nrm[tris[:, 0]] + nrm[tris[:, 1]] + nrm[tris[:, 2]]
-        inverted = int(np.sum((np.einsum("ij,ij->i", g, nv) < 0) & live))
+        inverted = int(np.sum((np.einsum("ij,ij->i", g, nv) < 0) & live & (area2 * 0.5 > SLIVER_M2)))
     # Welded by position, so a piece split for its UVs or normals still closes.
     key = {}
     weld = np.array([key.setdefault(tuple(np.round(p, 5)), len(key)) for p in pos])

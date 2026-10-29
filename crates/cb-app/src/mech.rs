@@ -1060,7 +1060,7 @@ pub fn step_mech(
     mut fx: MessageWriter<Fx>,
     // The pilot's targets, and the fog an enemy pod locks on the pilot through (survey F2).
     (targeting, fog_now): (Res<crate::targeting::TargetState>, Res<crate::ground_fog::FogNow>),
-    mut contacts: MessageWriter<GroundContact>,
+    (mut contacts, mut shake_kicks): (MessageWriter<GroundContact>, MessageWriter<crate::pilot::ShakeKick>),
 ) {
     let _t = crate::perf_hud::slow("step_mech");
     let _all = crate::perf_hud::section("step_mech");
@@ -1526,6 +1526,10 @@ pub fn step_mech(
                 "muzzle_autocannon"
             };
             fx.write(Fx::new(recipe, muzzle).toward(dir));
+            // The pilot's own gun kicks back through the cockpit (openspec change `cockpit-shake`).
+            if piloted {
+                shake_kicks.write(crate::pilot::ShakeKick(data.0.fx.shake.recoil(w.penetration_mm)));
+            }
         }
 
         // Footfalls: spray and ripples in water; on dry ground a contact for the ground marks, which

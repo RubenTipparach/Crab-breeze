@@ -987,19 +987,17 @@ def lift(I):
             y = 0.5 + k * 0.18
             I.add(box((xi - s * 0.13 - 0.01, y, 0.09), (xi - s * 0.13 + 0.01, y + 0.04, 0.12)), "metal", 0x8A8E92)
         for zs in (-1, 1):  # the arms: outer box, telescoping inner box, screw pad
-            parts = [("metal", grey, box((-0.05, 1.60, 0.0), (0.05, 1.70, 0.74), 0.006, 1)),
-                     ("metal", 0x6A6E72, box((-0.036, 1.612, 0.70), (0.036, 1.688, 1.06), 0.004, 1)),
-                     ("metal", 0x8A8E92, cyl("y", (0, 0, 1.025), 0.035, 1.688, 1.73, seg=12)),
-                     ("rubber", pad, cyl("y", (0, 0, 1.025), 0.065, 1.73, 1.755, seg=16)),
+            # Each arm built along its own side (z times zs) and swung by the angle times zs, so no part is mirrored:
+            # turned half round and mirrored in x, the far arms came out inside out, ten pieces drawn from inside
+            # (tools/build/check_winding.py, 2026-10-28). The same shape as before.
+            parts = [("metal", grey, box((-0.05, 1.60, min(0.0, 0.74 * zs)), (0.05, 1.70, max(0.0, 0.74 * zs)), 0.006, 1)),
+                     ("metal", 0x6A6E72, box((-0.036, 1.612, min(0.70 * zs, 1.06 * zs)), (0.036, 1.688, max(0.70 * zs, 1.06 * zs)), 0.004, 1)),
+                     ("metal", 0x8A8E92, cyl("y", (0, 0, 1.025 * zs), 0.035, 1.688, 1.73, seg=12)),
+                     ("rubber", pad, cyl("y", (0, 0, 1.025 * zs), 0.065, 1.73, 1.755, seg=16)),
                      ("metal", grey, cyl("y", (0, 0, 0.0), 0.06, 1.58, 1.72, seg=14))]
-            ang = math.degrees(math.atan2(0.50, 0.96)) * (-s)
+            ang = math.degrees(math.atan2(0.50, 0.96)) * (-s) * zs
             for surf, col, bm in parts:
-                if zs < 0:
-                    rot(bm, "y", 180)
-                    rot(bm, "y", ang)
-                    bm.transform(Matrix.Scale(-1, 4, Vector((1, 0, 0))))
-                else:
-                    rot(bm, "y", ang)
+                rot(bm, "y", ang)
                 bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
                 move(bm, (xi + s * 0.02, 0, zs * 0.11))
                 I.add(bm, surf, col, sharp=50 if surf == "rubber" else None)
@@ -1653,7 +1651,9 @@ def build_all(quick):
             atlas[k][y:y + side, x:x + side] = a
         print(f"BAKED {name} at {x},{y} side {side} px")
     swatches = {}
-    sw = SWATCH // 4 if quick else SWATCH
+    # The swatch row is laid out on the full grid (`rect` keeps UVs as its fractions) and drawn at the atlas's scale:
+    # the 2048 px cap halved the atlas and the full-size row ran off its edge.
+    sw = SWATCH // shrink
     for i, surf in enumerate(SWATCH_KEYS):
         o = swatch_object(surf)
         baked = bake_passes([o], sw, 4)

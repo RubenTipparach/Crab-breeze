@@ -29,7 +29,44 @@
     max_fireballs: 64,
     // Blasts nearby shake the view (owner, 2026-10-24): up to 1.2 degrees, within 60 m per cube
     // root of the blast's megajoules (120 m for an 8 MJ shell), dying away over 0.7 s.
-    shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
+    shake: (
+        max_deg: 1.2,
+        reach_m_per_cbrt_mj: 60.0,
+        decay_s: 0.7,
+        // The mech's own body (openspec change cockpit-shake; owner, 2026-10-28: "thruster shakes, impact shakes,
+        // skate shakes", "I want to the player to feel the weight of this mech when it hits things", "When mech gets
+        // shot and punches stuff"). Seated only; footsteps never move the view. Provisional, for the owner to tune.
+        // A landing from 3 m/s down kicks 0.06 a m/s over it and dips the eye 0.12 m/s per m/s of its speed; a ram
+        // (speed lost in one step beyond 2 m/s) 0.08 a m/s over it.
+        land_from_m_s: 3.0,
+        land_per_m_s: 0.06,
+        ram_from_m_s: 2.0,
+        ram_per_m_s: 0.08,
+        // Shot: 0.08 a megajoule of blast and 0.0015 a millimetre of penetration (a 300 mm shell with 8 MJ: full).
+        hit_per_mj: 0.08,
+        hit_per_mm: 0.0015,
+        // The mech's own guns: 0.0006 a millimetre of penetration a round.
+        recoil_per_mm: 0.0006,
+        // A punch landing: a hard kick and a 0.6 m/s dip.
+        melee_kick: 0.45,
+        melee_jolt_m_s: 0.6,
+        ignite_kick: 0.15,
+        // The jets' and skates' rumble: up to 0.25 degrees at 23 Hz, swelling and fading over 0.3 s; the jets 0.7 of
+        // it, the skates 0.5 at 30 m/s on dirt and half that on paving.
+        rumble_deg: 0.25,
+        rumble_hz: 23.0,
+        rumble_ease_s: 0.3,
+        jets_rumble: 0.7,
+        skate_rumble: 0.5,
+        skate_full_m_s: 30.0,
+        paved_share: 0.5,
+        // The eye's dip springs back at 1.6 Hz, damped 0.45 of critical, never more than 0.25 m: a 12 m/s landing dips it
+        // about 9 cm.
+        jolt_per_m_s: 0.12,
+        jolt_max_m: 0.25,
+        jolt_hz: 1.6,
+        jolt_damping: 0.45,
+    ),
     // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
     // jet's flame while it fires, a wreck's fire while it burns, a boarding vent while it vents.
     // Big translucent clouds drawn apart, each in a stable order (merged, their particles reorder

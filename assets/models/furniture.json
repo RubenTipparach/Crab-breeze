@@ -4,9 +4,9 @@
     "normal": "textures/furniture/normal.png (tangent space, OpenGL, +Y up)",
     "orm": "textures/furniture/orm.png (R occlusion, G roughness, B metal)",
     "sha256": {
-      "albedo": "4c0b93281610f8fa59f34d65ecd9f9006ab1d158a3a35e8eee43f67d22ce349d",
-      "normal": "9799eb6f33d7fb9ebcea846d00dd09f27a99ee970cd727faada1d50c1360fb06",
-      "orm": "e0b03e0d21dfa766a1e6f0db6be74fbdd687f6be6e1b1a05bf5ebcf974e340f4"
+      "albedo": "c6d26ec317f5586add9ec83be2f16cf61047dcdc6c6572288efebe773792c99a",
+      "normal": "7da77622fdf1dc5d3b7710432899a23acd3548ed486948ecbffca6bbe0cfbf30",
+      "orm": "b762e4631856e868cdd600a2795ee2987e94418c77f07956a877b6d463ee61b1"
     },
     "size_px": 4096,
     "texel_density_px_per_m": {
@@ -30,10 +30,10 @@
         "washer": 175,
         "workbench": 149
       },
-      "planned": 175
+      "planned": 87
     }
   },
-  "blender": "5.1.2",
+  "blender": "4.4.3",
   "colour": "COLOR_0 VEC4: rgb 1, alpha 1 on the tinted surface (the placement's tint multiplies the albedo) and 0 elsewhere",
   "format": "crabbreeze.furniture/2",
   "frame": "metres, glTF axes: y up, front toward +z, origin on the floor at the block item's local origin",
@@ -42,15 +42,15 @@
     "aisle": {
       "atlas_px": [
         0,
-        1442,
-        1041,
-        1041
+        2770,
+        520,
+        520
       ],
       "atlas_rect": [
         0.0,
-        0.352051,
-        0.25415,
-        0.606201
+        0.67627,
+        0.126953,
+        0.803223
       ],
       "baked_surfaces": [
         "metal",
@@ -83,23 +83,23 @@
       "budget_tris": 6000,
       "bytes": 506932,
       "file": "furniture/aisle.glb",
-      "sha256": "a49fee72422674c2f0b306dd1a4fc25292261d1de74a806623fc48ba0de37a0c",
+      "sha256": "cf8738f46f997cdb54884117dab85bd23d9bcb844929cd4f8a3bb1260c23bfbd",
       "tint_surface": null,
       "triangles": 5884,
       "what": "Store gondola: three shelves a side of boxes, cans, bottles and bags"
     },
     "bed": {
       "atlas_px": [
-        2010,
-        1629,
-        854,
-        854
+        1005,
+        2863,
+        427,
+        427
       ],
       "atlas_rect": [
-        0.490723,
-        0.397705,
-        0.699219,
-        0.606201
+        0.245361,
+        0.698975,
+        0.349609,
+        0.803223
       ],
       "baked_surfaces": [
         "wood",
@@ -133,23 +133,23 @@
       "budget_tris": 6000,
       "bytes": 213884,
       "file": "furniture/bed.glb",
-      "sha256": "e0662b7c442e3f54c4341537caffc8b6332cbd1b44a802d2abd32ed14b798e23",
+      "sha256": "612b99f20b020f44c59a76edac86afa65020048567b6e55ceb4d8747c5a10983",
       "tint_surface": "fabric",
       "triangles": 3488,
       "what": "Double bed: panelled headboard with turned posts, footboard, bedspread, turned-down sheet, two pillows"
     },
     "booth": {
       "atlas_px": [
-        1353,
-        2665,
-        1171,
-        1171
+        676,
+        3381,
+        585,
+        585
       ],
       "atlas_rect": [
-        0.330322,
-        0.650635,
-        0.616211,
-        0.936523
+        0.165039,
+        0.825439,
+        0.307861,
+        0.968262
       ],
       "baked_surfaces": [
         "metal",
@@ -186,23 +186,23 @@
       "budget_tris": 6000,
       "bytes": 305848,
       "file": "furniture/booth.glb",
-      "sha256": "a209d546dc022621589e838b8f93d907743e209eefae2cd3065acc3555ce97de",
+      "sha256": "1fe34f23a02d1cede45a245c3b8394aaee1112618515757a4d1e710b83964b63",
       "tint_surface": "fabric",
       "triangles": 5718,
       "what": "Diner booth: channel-tufted benches, chrome-banded table on a pedestal, condiments"
     },
     "chair": {
       "atlas_px": [
-        1717,
-        160,
-        472,
-        472
+        858,
+        2128,
+        236,
+        236
       ],
       "atlas_rect": [
-        0.419189,
-        0.039062,
-        0.534424,
-        0.154297
+        0.209473,
+        0.519531,
+        0.26709,
+        0.577148
       ],
       "baked_surfaces": [
         "metal",
@@ -236,23 +236,23 @@
       "budget_tris": 6000,
       "bytes": 235636,
       "file": "furniture/chair.glb",
-      "sha256": "4bc4f68c06f0a7f52935a3b2b08f39d2f8c95bc9c27e6cb963773956808b85f5",
+      "sha256": "00a0e6131032f76cef684c49ac1f6505dec90e20b8ade7ad0895d6325c2c2cd9",
       "tint_surface": "fabric",
       "triangles": 4488,
       "what": "Salon hydraulic chair: chrome base and pump, channelled back, arms, footrest"
     },
     "cooler": {
       "atlas_px": [
-        1045,
-        1522,
-        961,
-        961
+        522,
+        2810,
+        480,
+        480
       ],
       "atlas_rect": [
-        0.255127,
-        0.371582,
-        0.489746,
-        0.606201
+        0.127441,
+        0.686035,
+        0.244629,
+        0.803223
       ],
       "baked_surfaces": [
         "metal",
@@ -286,23 +286,23 @@
       "budget_tris": 6000,
       "bytes": 492116,
       "file": "furniture/cooler.glb",
-      "sha256": "c99d555242736bbc469ade30fbf52ed34263392c245a196078d447ba34ce561c",
+      "sha256": "e14bd410def684dc77a4446d08d95331f8bc43148d75b4bed4b4a29a83854868",
       "tint_surface": null,
       "triangles": 5510,
       "what": "Three-door glass drinks cooler with lit header, shelves of bottles, cartons and cans"
     },
     "counter": {
       "atlas_px": [
-        2528,
-        2678,
-        1158,
-        1158
+        1264,
+        3387,
+        579,
+        579
       ],
       "atlas_rect": [
-        0.617188,
-        0.653809,
-        0.899902,
-        0.936523
+        0.308594,
+        0.826904,
+        0.449951,
+        0.968262
       ],
       "baked_surfaces": [
         "trim",
@@ -338,23 +338,23 @@
       "budget_tris": 6000,
       "bytes": 279648,
       "file": "furniture/counter.glb",
-      "sha256": "3f1573a3eca05927fd9a133800f898f2433a7d24da58bb1733e2c6070b8cc0b3",
+      "sha256": "8542e02c63608d322981d9f29c8d54079a7929456d9fbad4a07e2342edafe2f8",
       "tint_surface": "trim",
       "triangles": 2574,
       "what": "Shop counter, panelled front, open shelves behind, chrome-edged top, cash register"
     },
     "desk": {
       "atlas_px": [
-        3122,
-        731,
-        707,
-        707
+        1561,
+        2414,
+        353,
+        353
       ],
       "atlas_rect": [
-        0.762207,
-        0.178467,
-        0.934814,
-        0.351074
+        0.381104,
+        0.589355,
+        0.467285,
+        0.675537
       ],
       "baked_surfaces": [
         "wood",
@@ -390,9 +390,9 @@
         ]
       },
       "budget_tris": 6000,
-      "bytes": 346040,
+      "bytes": 345984,
       "file": "furniture/desk.glb",
-      "sha256": "8b0981417a942abcd1c82740814063ab63417a577780404dfe3c590a188de17d",
+      "sha256": "aa5f06ae3b340d7adfba1a1481ef66715c0a816f0d454e3379c9332fd7ee7c69",
       "tint_surface": null,
       "triangles": 4516,
       "what": "Pedestal desk, beige home computer with monitor and keyboard, office chair"
@@ -400,15 +400,15 @@
     "kitchen": {
       "atlas_px": [
         0,
-        2487,
-        1349,
-        1349
+        3292,
+        674,
+        674
       ],
       "atlas_rect": [
         0.0,
-        0.607178,
-        0.329346,
-        0.936523
+        0.803711,
+        0.164551,
+        0.968262
       ],
       "baked_surfaces": [
         "trim",
@@ -443,23 +443,23 @@
       "budget_tris": 6000,
       "bytes": 456964,
       "file": "furniture/kitchen.glb",
-      "sha256": "786fadbfd8e34a0d83b92cfaa5293f9349806ea0cd4103e06dcd480053123fbd",
+      "sha256": "dc96552f3e1bbe14198aa6f65f08e54fc8984a889cf62489b3cc853ca3fec636",
       "tint_surface": "trim",
       "triangles": 5732,
       "what": "Kitchen run: raised-panel cabinets, laminate top, double steel sink and faucet, almond fridge"
     },
     "lift": {
       "atlas_px": [
-        2372,
-        692,
-        746,
-        746
+        1186,
+        2394,
+        373,
+        373
       ],
       "atlas_rect": [
-        0.579102,
-        0.168945,
-        0.76123,
-        0.351074
+        0.289551,
+        0.584473,
+        0.380615,
+        0.675537
       ],
       "baked_surfaces": [
         "metal",
@@ -493,23 +493,23 @@
       "budget_tris": 6000,
       "bytes": 260316,
       "file": "furniture/lift.glb",
-      "sha256": "216ae8c0a8d03ab86e3116e2d504f24c07b3bf68a68bfd3285e95bf5e7807c7f",
+      "sha256": "71f7676fdf69c8d1ed54b2a06346db0e167efa7c8d655df0ee8b0771478b1c15",
       "tint_surface": null,
       "triangles": 3244,
       "what": "Two-post car lift: channel posts, carriages, telescoping arms with pads, overhead beam, power unit"
     },
     "shelf": {
       "atlas_px": [
-        806,
-        646,
-        792,
-        792
+        403,
+        2371,
+        396,
+        396
       ],
       "atlas_rect": [
-        0.196777,
-        0.157715,
-        0.390137,
-        0.351074
+        0.098389,
+        0.578857,
+        0.195068,
+        0.675537
       ],
       "baked_surfaces": [
         "wood",
@@ -542,7 +542,7 @@
       "budget_tris": 6000,
       "bytes": 377560,
       "file": "furniture/shelf.glb",
-      "sha256": "e3cdd9a95b6c99e047696b0c68ba19d7127113264ccc50e680158b4fcf5649fa",
+      "sha256": "7549c56e8272f85f97b474a217b5380f560347d7323b275c31288cc537d3c7f7",
       "tint_surface": null,
       "triangles": 3408,
       "what": "Bookcase with crown and plinth, five shelves of books, a vase and a photo"
@@ -550,15 +550,15 @@
     "sofa": {
       "atlas_px": [
         0,
-        636,
-        802,
-        802
+        2366,
+        401,
+        401
       ],
       "atlas_rect": [
         0.0,
-        0.155273,
-        0.195801,
-        0.351074
+        0.577637,
+        0.0979,
+        0.675537
       ],
       "baked_surfaces": [
         "wood",
@@ -589,25 +589,25 @@
         ]
       },
       "budget_tris": 6000,
-      "bytes": 219236,
+      "bytes": 219820,
       "file": "furniture/sofa.glb",
-      "sha256": "bd4ba1cc76ede97f01a7de6bc346f71873daf1bdf89fe77d09db8cb3c5531b3c",
+      "sha256": "60f2734b6aef4e18e0498c1de44b5eb860ee124ffcdbf3465e2d47888ff39e57",
       "tint_surface": "fabric",
-      "triangles": 4520,
+      "triangles": 4524,
       "what": "Sofa: skirted base, rolled arms, two seat and two back cushions, wooden feet"
     },
     "stool": {
       "atlas_px": [
-        2193,
-        332,
-        300,
-        300
+        1096,
+        2214,
+        150,
+        150
       ],
       "atlas_rect": [
-        0.5354,
-        0.081055,
-        0.608643,
-        0.154297
+        0.267578,
+        0.540527,
+        0.304199,
+        0.577148
       ],
       "baked_surfaces": [
         "metal",
@@ -640,23 +640,23 @@
       "budget_tris": 6000,
       "bytes": 85472,
       "file": "furniture/stool.glb",
-      "sha256": "1a333f504709e7cf27f74cf674565a4c7edfedbc11fdb44c7089344e1430db07",
+      "sha256": "6e3cba5ac48245c17f2a362eaa6b92b617fa627cb24ce125609a514ac3f60e41",
       "tint_surface": "fabric",
       "triangles": 1442,
       "what": "Diner counter stool: chrome pedestal and foot ring, piped vinyl seat"
     },
     "table": {
       "atlas_px": [
-        633,
-        86,
-        546,
-        546
+        316,
+        2091,
+        273,
+        273
       ],
       "atlas_rect": [
-        0.154541,
-        0.020996,
-        0.287842,
-        0.154297
+        0.077148,
+        0.510498,
+        0.143799,
+        0.577148
       ],
       "baked_surfaces": [
         "wood"
@@ -688,23 +688,23 @@
       "budget_tris": 6000,
       "bytes": 152128,
       "file": "furniture/table.glb",
-      "sha256": "2c6b98fc1753c9447abcc276d270d12ab097c17e197c831fb8f6e53792f5ddb8",
+      "sha256": "118c0570aafd6b04cf8f046a9e3906552b77ae1f97d43ec03521ef5f26da0e45",
       "tint_surface": null,
       "triangles": 2676,
       "what": "Dining table with turned legs and a spindle-back chair at each end"
     },
     "tires": {
       "atlas_px": [
-        1602,
-        672,
-        766,
-        766
+        801,
+        2384,
+        383,
+        383
       ],
       "atlas_rect": [
-        0.391113,
-        0.164062,
-        0.578125,
-        0.351074
+        0.195557,
+        0.582031,
+        0.289062,
+        0.675537
       ],
       "baked_surfaces": [
         "rubber"
@@ -736,7 +736,7 @@
       "budget_tris": 6000,
       "bytes": 241504,
       "file": "furniture/tires.glb",
-      "sha256": "330ef213246a6758f7486d9a8e882dd549341c0634fb81015640b23bb625547f",
+      "sha256": "fd979628adc593d30007f6ad6dfbd71d9eb98352b07e6ae92bb94d2b43ee4aa9",
       "tint_surface": null,
       "triangles": 4576,
       "what": "Stack of four tyres with tread grooves"
@@ -744,15 +744,15 @@
     "tv": {
       "atlas_px": [
         0,
-        3,
-        629,
-        629
+        2050,
+        314,
+        314
       ],
       "atlas_rect": [
         0.0,
-        0.000732,
-        0.153564,
-        0.154297
+        0.500488,
+        0.07666,
+        0.577148
       ],
       "baked_surfaces": [
         "wood",
@@ -788,23 +788,23 @@
       "budget_tris": 6000,
       "bytes": 159076,
       "file": "furniture/tv.glb",
-      "sha256": "f75d5c8d4fa2b26d518aaa85aeb2c2e72e51692ea128971a623b8b4c50725304",
+      "sha256": "68624e823c5314a4c894159ed7ca7b7d6dada3bb6f660f6734172e6faa01e1f3",
       "tint_surface": null,
       "triangles": 2476,
       "what": "TV stand with a VCR, tapes and a console, and a CRT set with dials"
     },
     "washer": {
       "atlas_px": [
-        1183,
-        102,
-        530,
-        530
+        591,
+        2099,
+        265,
+        265
       ],
       "atlas_rect": [
-        0.288818,
-        0.024902,
-        0.418213,
-        0.154297
+        0.144287,
+        0.512451,
+        0.208984,
+        0.577148
       ],
       "baked_surfaces": [
         "metal",
@@ -840,23 +840,23 @@
       "budget_tris": 6000,
       "bytes": 132928,
       "file": "furniture/washer.glb",
-      "sha256": "cd215761010548a9861f6ed5086141f9ceb8a456a4fc146ef6f70ce4aba92328",
+      "sha256": "79e6b3455618ee5b1bc4c481e062aeb8c5bf2c86104e3e2b3e6ea42b1cbea7fa",
       "tint_surface": null,
       "triangles": 2070,
       "what": "Laundromat front-loader: coin slide, dial, lamps, chrome porthole door"
     },
     "workbench": {
       "atlas_px": [
-        2868,
-        1646,
-        837,
-        837
+        1434,
+        2872,
+        418,
+        418
       ],
       "atlas_rect": [
-        0.700195,
-        0.401855,
-        0.904541,
-        0.606201
+        0.350098,
+        0.701172,
+        0.452148,
+        0.803223
       ],
       "baked_surfaces": [
         "metal",
@@ -890,7 +890,7 @@
       "budget_tris": 6000,
       "bytes": 306004,
       "file": "furniture/workbench.glb",
-      "sha256": "5ddfdb6f050593ef88e53b5e096f780607bb50dc16750874214f9f981a0e13da",
+      "sha256": "d6698cb32f6ae2d1c49004dd1f97a2207cb99ebeae0952b5dcda34cbe755cc40",
       "tint_surface": null,
       "triangles": 3420,
       "what": "Garage bench: angle-iron frame, plank top, pegboard with tools, cabinet, vise, toolbox"

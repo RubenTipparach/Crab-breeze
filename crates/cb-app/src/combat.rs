@@ -311,10 +311,11 @@ pub fn fly_shots(
     mut fortress_hits: MessageWriter<crate::fortress::FortressHit>,
     (mut cars, piloted): (ResMut<crate::traffic::TrafficSim>, Query<&MechId, With<crate::mech::Piloted>>),
     mut civil: crate::air_traffic::CivilHits,
-    (boats, mut boat_hits, mut drawn): (
+    (boats, mut boat_hits, mut drawn, mut shake_kicks): (
         Option<Res<crate::boats::Boats>>,
         MessageWriter<crate::boats::BoatHit>,
         ResMut<BeamsDrawn>,
+        MessageWriter<crate::pilot::ShakeKick>,
     ),
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
@@ -438,6 +439,10 @@ pub fn fly_shots(
                 by_player: Some(blow.owner) == me,
                 owner: blow.owner,
             };
+            // The pilot's own punch landing comes back up the arm (openspec change `cockpit-shake`).
+            if power.by_player {
+                shake_kicks.write(crate::pilot::ShakeKick(data.0.fx.shake.melee()));
+            }
             let dir = (blow.to - blow.from).normalize_or(Vec3::NEG_Z);
             land(
                 struck,

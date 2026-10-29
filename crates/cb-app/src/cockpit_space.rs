@@ -189,6 +189,7 @@ fn place_cockpit_camera(
     transforms: Query<&Transform, (Without<PilotCamera>, Without<StandIn>, Without<CockpitCamera>)>,
     parents: Query<&ChildOf>,
     eye: Single<(Entity, &Transform), With<PilotCamera>>,
+    shake: Res<crate::pilot::Shake>,
     mut cockpit: Single<
         (Entity, &mut Transform, Option<&ChildOf>, Option<&mut GeneratedEnvironmentMapLight>),
         (With<CockpitCamera>, Without<PilotCamera>, Without<StandIn>),
@@ -199,7 +200,8 @@ fn place_cockpit_camera(
     let seat = sealed_in(&pilot, &data, &mech).and_then(|(root, rig, root_at)| {
         let s = rig.socket("EYE_pilot")?;
         let local = crate::mech::chain_steady(rig, s, Some(root), &transforms, &parents)?;
-        Some((local.translation, root_at.rotation))
+        // The view's jolt (`cockpit-shake`): the same dip as the world's eye, so cabin and world move as one.
+        Some((local.translation - Vec3::Y * shake.dip_m(), root_at.rotation))
     });
     match seat {
         Some((eye_local, heading)) => {

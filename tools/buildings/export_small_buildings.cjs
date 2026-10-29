@@ -108,7 +108,10 @@ function farShapes(B, pieces) {
       const a = along ? [v.x0 + h, r, mz] : [mx, r, v.z0 + h], b = along ? [v.x1 - h, r, mz] : [mx, r, v.z1 - h];
       const c00 = [v.x0, v.top, v.z0], c10 = [v.x1, v.top, v.z0], c11 = [v.x1, v.top, v.z1], c01 = [v.x0, v.top, v.z1];
       if (along) { F.poly(v.mat, [c01, c11, b, a], [0, 1, 1]); F.poly(v.mat, [c10, c00, a, b], [0, 1, -1]); F.poly(v.mat, [c00, c01, a], [-1, 1, 0]); F.poly(v.mat, [c11, c10, b], [1, 1, 0]); }
-      else { F.poly(v.mat, [c11, c10, b, a], [1, 1, 0]); F.poly(v.mat, [c00, c01, a, b], [-1, 1, 0]); F.poly(v.mat, [c01, c11, a], [0, 1, 1]); F.poly(v.mat, [c10, c00, b], [0, 1, -1]); }
+      // Ridge along z: a is the ridge's z0 end, b its z1 end. Each side runs round its corners in order and each end
+      // meets its own end of the ridge (it took them crossed: each side a bow-tie, half of it facing in, and each end
+      // reaching to the far end of the ridge; tools/build/check_winding.py, 2026-10-28).
+      else { F.poly(v.mat, [c11, c10, a, b], [1, 1, 0]); F.poly(v.mat, [c00, c01, b, a], [-1, 1, 0]); F.poly(v.mat, [c01, c11, b], [0, 1, 1]); F.poly(v.mat, [c10, c00, a], [0, 1, -1]); }
     } else { // gable, ridge along x or z
       const alongZ = v.ridge === 'z';
       const r0 = alongZ ? [mx, r, v.z0] : [v.x0, r, mz], r1 = alongZ ? [mx, r, v.z1] : [v.x1, r, mz];

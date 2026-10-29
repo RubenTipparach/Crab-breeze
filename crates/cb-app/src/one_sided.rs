@@ -6,9 +6,9 @@
 //! See-through and cut-out materials (glass, decals) keep both sides: they are often single cards seen from behind.
 //! `CB_DOUBLE_SIDED=1` leaves the imports as they are (an instrument, to measure it).
 //!
-//! The mechs are left double-sided for now: `tools/build/check_winding.py` finds triangles wound against their own
-//! normals in their livery and hazard bands (Foreman 80, Iron Horse 74, Stevedore 32, Roustabout 10), which would
-//! vanish drawn one-sided. They join once the mech generator winds them the right way and they are rebuilt.
+//! `tools/build/check_winding.py` finds the models whose winding is wrong; the lift is kept double-sided until
+//! it is rebuilt. (The mechs' first count was bevel-corner slivers whose smoothed normals lean across them while
+//! their winding faces out: they are drawn one-sided with the rest.)
 
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
@@ -26,9 +26,7 @@ impl Plugin for OneSidedPlugin {
 
 /// Models with faces wound against their normals (`check_winding.py`), kept double-sided until they are rebuilt.
 fn wound_wrong(path: &std::path::Path) -> bool {
-    path.file_name()
-        .and_then(|n| n.to_str())
-        .is_some_and(|n| n.starts_with("mech_") || n == "tv.glb" || n == "lift.glb")
+    path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n == "lift.glb")
 }
 
 /// Whether a material read from a glTF file is turned one-sided: opaque and drawn both sides.
@@ -87,8 +85,8 @@ mod tests {
         assert!(!turns(&decal));
         assert!(!turns(&StandardMaterial::default()), "one-sided already");
         assert!(
-            wound_wrong(std::path::Path::new("models/mech_foreman.glb")),
-            "the mechs wait for their rebuild"
+            wound_wrong(std::path::Path::new("models/furniture/lift.glb")),
+            "the lift waits for its rebuild"
         );
         assert!(!wound_wrong(std::path::Path::new("models/cockpit_panorama/cockpit_panorama.gltf")));
     }

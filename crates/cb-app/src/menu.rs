@@ -123,6 +123,7 @@ pub(crate) enum MenuButton {
     Sfx(i32),
     /// Music volume down or up a step.
     Music(i32),
+    Shake(i32),
     Invert,
     Shadows,
     Vsync,
@@ -396,6 +397,7 @@ fn press(
         MenuButton::Fov(n) => changed(p, |s| s.nudge_fov(n)),
         MenuButton::Sfx(n) => changed(p, |s| s.nudge_sfx(n)),
         MenuButton::Music(n) => changed(p, |s| s.nudge_music(n)),
+        MenuButton::Shake(n) => changed(p, |s| s.nudge_shake(n)),
         MenuButton::Invert => changed(p, |s| s.invert_pitch ^= true),
         MenuButton::Shadows => changed(p, |s| s.shadows ^= true),
         MenuButton::Vsync => changed(p, |s| s.vsync ^= true),
@@ -683,6 +685,12 @@ fn draw(
                     "Music",
                     format!("{:.0} %", s.music_volume * 100.0),
                     &[("-", MenuButton::Music(-1)), ("+", MenuButton::Music(1))],
+                );
+                option_row(
+                    p,
+                    "Camera shake",
+                    format!("{:.0} %", s.camera_shake * 100.0),
+                    &[("-", MenuButton::Shake(-1)), ("+", MenuButton::Shake(1))],
                 );
                 option_row(p, "Shadows", on(s.shadows), &[("Flip", MenuButton::Shadows)]);
                 option_row(p, "Vsync", on(s.vsync), &[("Flip", MenuButton::Vsync)]);
