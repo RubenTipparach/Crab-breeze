@@ -96,14 +96,38 @@
     </div>
   </section>
 
+  <section id="night">
+    <h2>At night</h2>
+    <p class="note">The suburbs held still from the cockpit (suburb-stand), the clock held at noon or midnight, each suspect switched off alone, three rounds interleaved. Shadows are the one steady cost: with them off, midnight ran fastest in every round, faster than noon too. Midnight against noon on its own moved with the round, so it is not a result. The street lamps' real lights are not the cost.</p>
+    <div class="card">
+      <div class="tablebox">
+        <table data-source="night_suburb" data-row-key="variant,round">
+          <thead><tr><th data-field="variant">Variant</th><th data-field="round">Round</th><th data-field="p50_ms">Median ms</th><th data-field="p95_ms">p95 ms</th><th data-field="over_16_7_pct">Frames over 16.7 ms, %</th></tr></thead>
+          <tbody data-draw="nightRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <h3>The moon's own shadows</h3>
+    <p class="note">The moon now casts in 2 cascades out to 250 m instead of the sun's 3 out to 700 m. Old build against new at midnight in the suburbs, each on its own data, one game at a time: as fast or faster and fewer frames over 16.7 ms in every round, but the median gain is about the spread between rounds, so it is a small gain, not a proven one.</p>
+    <div class="card">
+      <div class="tablebox">
+        <table data-source="night_moon" data-row-key="build,round">
+          <thead><tr><th data-field="build">Build</th><th data-field="round">Round</th><th data-field="p50_ms">Median ms</th><th data-field="p95_ms">p95 ms</th><th data-field="over_16_7_pct">Frames over 16.7 ms, %</th></tr></thead>
+          <tbody data-draw="moonRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <section id="next">
     <h2>Next</h2>
     <ol class="steps">
-      <li>Every 4096 px texture to 2048 px, the cockpits first; then measure the capital again.</li>
-      <li>Until then, close the browsers and launchers while playing: about 2.5 GB back.</li>
+      <li>Done: every texture capped at 2048 px, against the video-memory spill above.</li>
+      <li>Warm up the shaders the loading screen misses: 35 compiled in the first second of a run (a 2.1 s stall) and more at the first shots.</li>
+      <li>Shadows: about 1.5 ms of the frame on the CPU at any hour in the suburbs, every house, tree and patch of grass drawn into each cascade.</li>
       <li>Then the CPU: about 15 ms a frame in the render world (6 000 draws, mesh uploads as buildings are dressed) and the cockpit's screens cube, redrawn about 60 times a second.</li>
     </ol>
-    <p class="note">Full write-up: docs/benchmarks/2026-10-28-city/report.md on branch perf-probe (PR #94). Measured on an RTX 3070, i7-9700F, 32 GB, Windows 10, Vulkan, 1920 x 1080, vsync off.</p>
+    <p class="note">Full write-ups: docs/benchmarks/2026-10-28-city/report.md and openspec/changes/night-frame/design.md on branch perf-probe (PR #94). Measured on an RTX 3070, i7-9700F, 32 GB, Windows 10, Vulkan, 1920 x 1080, vsync off.</p>
   </section>
 </div>
 
@@ -272,4 +296,19 @@
       tbody.appendChild(tr);
     });
   });
+  function tableRows(id, keys, fmt) {
+    return (tbody) => {
+      const rows = rowsOf(id);
+      tbody.replaceChildren();
+      (rows || []).forEach((r) => {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-key', keys.map((k) => encodeURIComponent(r[k])).join(','));
+        fmt(r).forEach((v) => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+        tbody.appendChild(tr);
+      });
+    };
+  }
+  const ms1 = (v) => d3.format('.1f')(num(v));
+  dash.draw('nightRows', tableRows('night_suburb', ['variant', 'round'], (r) => [r.variant, r.round, ms1(r.p50_ms), ms1(r.p95_ms), ms1(r.over_16_7_pct)]));
+  dash.draw('moonRows', tableRows('night_moon', ['build', 'round'], (r) => [r.build, r.round, ms1(r.p50_ms), ms1(r.p95_ms), ms1(r.over_16_7_pct)]));
 </script>

@@ -1,0 +1,13 @@
+variant,round,p50_ms,p95_ms,over_16_7_pct
+Noon,1,13.74,16.75,5.2
+Noon,2,14.72,17.74,11.4
+Noon,3,14.76,17.49,10.7
+Midnight,1,16.2,22.99,41.2
+Midnight,2,15.18,18.73,20.3
+Midnight,3,14.81,17.6,10.4
+"Midnight, lamp lights off",1,15.07,19.06,16.7
+"Midnight, lamp lights off",2,16.59,20.21,47.1
+"Midnight, lamp lights off",3,17.93,24.36,75.6
+"Midnight, shadows off",1,13.51,16.98,6.0
+"Midnight, shadows off",2,13.31,16.74,5.1
+"Midnight, shadows off",3,13.38,16.41,4.2
