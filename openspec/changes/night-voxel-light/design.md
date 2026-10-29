@@ -32,8 +32,14 @@ Owner: "I dont want the glass itself to glow, I want to see the room lits". So:
 - **How much of a lit room shows through.**
   - The day glass lets 8 % of what is behind it through (alpha 0.92), chosen so unlit interiors read dark by
     day. At night that leaves a lit room faint.
-  - The glass's alpha follows the clock: 0.92 by day, 0.75 at night (25 % through), over the same curve.
-    Provisional, survey N12.
+  - The glass's alpha follows the clock: 0.92 by day, 0.75 at night, so 25 % shows through (owner,
+    2026-10-29: "25% is the ticket").
+  - **Gradual** (owner: "I expect this transition to happen gradually as it gets dark"). The alpha and the
+    night map's share both follow one smoothstep of the sun's height, from +4 degrees (all day) to -8 degrees
+    (all night).
+    - That is 12 degrees of sun travel, about 1.6 minutes of play at 24 minutes a day.
+    - The rooms come on one by one by the window rule (17:30-20:00, `day-night-cycle` section 6), so a tower
+      lights up through dusk instead of switching on at once.
   - In the mockup a lit office reads clearly at 25 % and faintly at 8 %
     (`docs/screenshots/night-light/*-c.png` against `*-c25.png`).
 
@@ -183,15 +189,50 @@ attribute. It returns the colour to add after `apply_pbr_lighting`:
 
 ## 6. Costs
 
+**Per frame: about nothing.** The baked light is two numbers on each vertex and a multiply-add in the shader.
+The night map is one more cube read on reflecting pixels. Cutting the real lamps from 96 to 32 (N9) should save
+more than all of that costs. That is an estimate, to be measured on the owner's machine (task 4.2).
+
+**The bake: once per building, cached.** Measured in the comparison mockup: JavaScript in a cloud container,
+5 runs each, medians, 0.5 m voxels. Only the ratios carry over to the game.
+
+| Bake | Measured | Per source |
+| --- | --- | --- |
+| Room light, 75,944 room vertices by distance from their point | 4.7 ms (3.3-14.2) | 62 ns a vertex |
+| 8 street lamps, 26 m reach | 545 ms (487-634) | 68 ms a lamp |
+| Spill of 37 lit rooms, 26 m reach | 1,507 ms (1,430-1,763) | 41 ms a room |
+
+**Scaled to a city at the design's voxel sizes** (estimated). A source's cost goes with the voxels it reaches,
+so 2 m lamp voxels reach 64 times fewer than 0.5 m, and 4 m spill voxels 512 times fewer. Rust runs about 5
+times faster than this JavaScript (to be measured).
+- **Lamps:** about 220 a city at about 0.2 ms each in Rust. About 50 ms.
+- **Spill:** about 30,000 facade cells a city at about 0.02 ms each. About 0.6 s.
+- **Room light:** rooms are built only within 250 m, about 40 buildings at a time, at about 12 ns a vertex in
+  Rust. Under 1 ms a building, done in the job that builds its rooms.
+- Together, under a second of one worker per city on its first load, spread over the city's buildings as they
+  stream in.
+
+**Cached per building** (owner: "I also assume this would get cashed per building in the city").
+- **What is cached.** A building's two light channels per vertex, lamp and spill, for each of its meshes, kept
+  beside the meshes in `BuildingStates`.
+- **Key.** The world seed, the building id, the bake's data version, and a damage stamp of the buildings within
+  its spill reach. The voxels are dropped once the vertices hold the result.
+- **Kept on disk** under the world's cache directory, keyed the same way, as the horizon map plans to be
+  (`day-night-cycle` section 4). The second visit to a city reads it back instead of baking.
+- **What a cache hit costs.** A city that streams back in costs only the read: about 4 bytes a vertex, about
+  2 MB for a downtown block.
+- **When a building is damaged.** Only the buildings within its spill reach rebake, on a worker. Its own
+  windows go dark at once.
+- **Room light is not cached.** At 62 ns a vertex it is cheaper to compute than to read, so it is redone
+  whenever a building's rooms are built.
+
 | Item | GPU | CPU | Memory |
 | --- | --- | --- | --- |
 | Diffuse term | one multiply-add a pixel on the static world | none | none |
-| Vertex attribute | 4 bytes a vertex fetched | none | 4 bytes a vertex (about 4 MB for 1 M vertices in view) |
-| Bake | none | 0.2-0.4 s per city on a streaming worker; rebake of a damaged building under 20 ms | 3 MB peak per city, freed |
+| Night map | one cube read on reflecting pixels, crossfaded | none | one 512 px cube, about 12 MB filtered |
+| Vertex attribute | 4 bytes a vertex fetched | none | 4 bytes a vertex |
+| Bake | none | under 1 s per city on its first load (estimated); a cache read after | voxels freed after |
 | Tier 1 from 96 to 32 real lamps (N9) | saves an estimated 0.3-1.0 ms at 1080p in a street | less clustering | none |
-
-**Net, estimated:** cheaper than today at night, because fewer real lights are clustered and shaded. To be
-measured (task 4.2) before it is called a speedup.
 
 ## 7. Determinism and tests
 
@@ -209,6 +250,6 @@ measured (task 4.2) before it is called a speedup.
 | --- | --- | --- | --- |
 | N9 | What lights moving things (cars, people, the mech) at night? | Keep 32 real lamps within 120 m | open (survey) |
 | N10 | Does a lit room's light spill out of its window onto the street and the facing buildings? | Yes | open (survey) |
-| N12 | How much of a lit room shows through the glass at night: 8 % as by day, or 25 %? | 25 % at night | open (survey) |
+| N12 | How much of a lit room shows through the glass at night? | 25 % at night, 8 % by day, gradual through dusk | owner, 2026-10-29: "25% is the ticket", "I expect this transition to happen gradually as it gets dark" |
 | N13 | A far window (past 250 m, no room geometry): an interior-mapped lit room, or the glass glowing as today? | Interior-mapped room | owner, 2026-10-29: "I dont want the glass itself to glow, I want to see the room lits" (provisional on the far tier) |
 | N11 | Lamp pools everywhere, seen from the air too (replaces N4's "pools only within 250 m")? | Everywhere | open (survey) |

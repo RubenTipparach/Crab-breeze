@@ -46,7 +46,8 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
   vertex brightened by its distance from its room's light point when the room mesh is built (owner: "brighten
   them by distance from a point"), gated by its room slot through `WindowLights` (tests: a dark room's vertices
   get no light at any hour; the light falls with distance from the fitting; rooms of one flat switch together)
-- [ ] 3.10 A night reflection cube from a CC0 night HDRI, crossfaded with the day sky by the sun's height; the glass's alpha 0.92 by day, 0.75 at night (N12)
+- [ ] 3.10 A night reflection cube from a CC0 night HDRI, crossfaded with the day sky, and the glass's alpha 0.92 by day to 0.75 at night (N12, owner: "25% is the ticket"), both on one smoothstep of the sun's height from +4 to -8 degrees ("gradually as it gets dark"); test: the alpha and the mix at noon, at -2 degrees and at midnight
+- [ ] 3.11 The building light cache: each building's lamp and spill channels kept beside its meshes and on disk, keyed by seed, building id, bake version and the damage stamp of its neighbours in reach; a damaged building rebakes only those in reach (tests: a second load of a city reads the cache and bakes nothing; a damaged building invalidates its neighbours in reach and no others)
 - [ ] 3.8 Past 250 m the glass draws an interior-mapped room per window cell, lit by the same rule
 - [ ] 3.9 Glass is air to light in the voxels, so a room spills out of its window (test: the street in front of
   a lit room's window is lit, the street in front of a solid wall is not)
