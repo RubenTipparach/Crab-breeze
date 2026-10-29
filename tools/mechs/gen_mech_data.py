@@ -59,7 +59,28 @@ def kneel_arms():
     return out
 
 
+def kneel_arm_base():
+    """The kneel's own arm pose every mech takes, from the mockup's `sitPose` (radians at full sit):
+    {"out": shoulder outward, "fwd": shoulder side-axis swing, "elb": elbow bend}, in the same terms as
+    `KNEEL_ARMS`, so a mech's arms are this plus its own row."""
+    src = open(MECH_POSE_JS).read()
+    body = re.search(r"function sitPose\(P, b, k\) \{(.*?)\n\}", src, re.S)
+    if not body:
+        raise SystemExit(f"{MECH_POSE_JS}: no sitPose")
+    num = r"(-?[\d.]+) \* e"
+    sh = re.search(rf'P\.add\("shL", {num}, 0, {num}\); P\.add\("shR", {num}, 0, -{num}\);', body.group(1))
+    el = re.search(rf'P\.add\("elbL", {num}\); P\.add\("elbR", {num}\);', body.group(1))
+    if not sh or not el:
+        raise SystemExit(f"{MECH_POSE_JS}: sitPose's shoulder and elbow lines are not in the shape this reads")
+    fwd, out, fwd_r, out_r = (float(v) for v in sh.groups())
+    elb, elb_r = (float(v) for v in el.groups())
+    if (fwd, out, elb) != (fwd_r, out_r, elb_r):
+        raise SystemExit(f"{MECH_POSE_JS}: sitPose's left and right arms are not mirrors")
+    return {"out": out, "fwd": fwd, "elb": elb}
+
+
 KNEEL_ARMS = kneel_arms()
+KNEEL_ARM_BASE = kneel_arm_base()
 # The boarding crane reaches out past everything below the hatch on the rope's line (a strip this wide either side of
 # the centre line), plus a margin for the knees coming forward in the kneel (owner, 2026-10-24: "extend a crane out
 # then lower the rope").
@@ -459,12 +480,12 @@ def vent_stages(m, cockpit, tracks, ready_s):
 
 
 def sit_arms(mid):
-    """The sit's arm offset fields for this mech's `sit:` line, in degrees; empty when it has none."""
-    h = KNEEL_ARMS.get(mid)
-    if not h:
-        return ""
-    return (f", arm_out_deg: {f(math.degrees(h['out']), 1)}, arm_forward_deg: {f(math.degrees(h['fwd']), 1)}, "
-            f"elbow_deg: {f(math.degrees(h['elb']), 1)}")
+    """The sit's arm fields for this mech's `sit:` line, in degrees: the kneel's own arm pose every mech takes
+    (`KNEEL_ARM_BASE`) plus this mech's clearance row (`KNEEL_ARMS`), summed per axis as the page adds them."""
+    h = KNEEL_ARMS.get(mid, {})
+    a = {k: KNEEL_ARM_BASE[k] + h.get(k, 0.0) for k in ("out", "fwd", "elb")}
+    return (f", arm_out_deg: {f(math.degrees(a['out']), 1)}, arm_forward_deg: {f(math.degrees(a['fwd']), 1)}, "
+            f"elbow_deg: {f(math.degrees(a['elb']), 1)}")
 
 
 def boarding_ron(mid, m, name, size, tracks, cockpit):

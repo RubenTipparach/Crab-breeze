@@ -20,14 +20,16 @@ pub struct SitPose {
     pub hock_angle_deg: f32,
     /// Torso bow forward when sat.
     pub torso_bow_deg: f32,
-    /// The kneel's arm offset (openspec change `mech-arm-clearance`), whole when sat and scaled by
-    /// the sit, so a standing mech is untouched: the shoulders swing outward by this much (the
-    /// right shoulder the mirror way), about each shoulder's own forward axis.
+    /// The kneel's arm pose (openspec change `mech-arm-clearance`), whole when sat and scaled by
+    /// the sit, so a standing mech is untouched: the Mechs page's own kneel arms every mech takes
+    /// plus the mech's clearance row, summed by `tools/mechs/gen_mech_data.py` from
+    /// `tools/mockups/mech_pose.js`. The shoulders swing outward by this much (the right shoulder
+    /// the mirror way), about each shoulder's own forward axis.
     pub arm_out_deg: f32,
-    /// The shoulders' extra swing about their own side axis when sat (negative swings the arm
-    /// forward and up, as the mockup's `fwd`).
+    /// The shoulders' swing about their own side axis when sat, the same axis and sign as the
+    /// mockup's shoulder x and its `fwd`.
     pub arm_forward_deg: f32,
-    /// The elbows' extra bend when sat, about each forearm's own side axis (negative bends further).
+    /// The elbows' bend when sat, about each forearm's own side axis (negative bends further).
     pub elbow_deg: f32,
 }
 

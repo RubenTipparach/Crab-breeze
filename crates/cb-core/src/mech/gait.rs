@@ -86,8 +86,9 @@ impl MechPose {
     }
 }
 
-/// The kneel's arm offset at sit amount `s` (0 standing, 1 sat), as the Mechs page's `sitPose`
-/// adds it (tools/mockups/mech_pose.js `KNEEL_ARMS`): each shoulder turns `arm_forward_deg` about
+/// The kneel's arm pose at sit amount `s` (0 standing, 1 sat), as the Mechs page's `sitPose`
+/// adds it (tools/mockups/mech_pose.js: its own arm pose every mech takes, plus the mech's
+/// `KNEEL_ARMS` clearance row, summed in the data by `gen_mech_data.py`): each shoulder turns `arm_forward_deg` about
 /// its own side axis then `arm_out_deg` outward about its own forward axis (the right shoulder the
 /// mirror way), and each forearm bends `elbow_deg` about its side axis, all scaled by `s`. Each is
 /// a turn in the bone's own rest axes, the way the page adds Euler angles to the node's rest.
@@ -365,6 +366,43 @@ mod tests {
         );
         let plain = pose(&s, &GaitConfig::default(), &rig(), &SitPose::default(), 0.0);
         assert_eq!(standing, plain, "standing, the offset changes nothing");
+    }
+
+    #[test]
+    fn every_mech_kneels_with_the_pages_shared_arm_pose_and_only_the_clearance_four_add_to_it() {
+        let sit_of = |id: &str| {
+            let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../data/mechs/{id}/boarding.ron"));
+            let tl: crate::boarding::BoardingTimeline = crate::data::load_ron(&path).unwrap_or_else(|e| panic!("{e}"));
+            tl.sit
+        };
+        let arms = |s: &SitPose| (s.arm_out_deg, s.arm_forward_deg, s.elbow_deg);
+        let base = arms(&sit_of("driller"));
+        assert!(
+            base.0 > 0.0 && base.1 > 0.0 && base.2 < 0.0,
+            "the shared kneel swings the shoulders and folds the elbows: {base:?}"
+        );
+        for id in ["ironhorse", "picket", "sapper"] {
+            assert_eq!(
+                arms(&sit_of(id)),
+                base,
+                "{id} has no clearance row, so it kneels with the shared arms"
+            );
+        }
+        for id in ["foreman", "harrow", "roustabout", "mule"] {
+            assert_ne!(arms(&sit_of(id)), base, "{id} adds its clearance row to the shared arms");
+        }
+        let foreman = sit_of("foreman");
+        let o = kneel_arm_offsets(&foreman, 1.0);
+        let want = Quat::from_rotation_x(foreman.arm_forward_deg.to_radians()) * Quat::from_rotation_z(foreman.arm_out_deg.to_radians());
+        assert!(
+            o[0].1.angle_between(want) < 1e-5,
+            "the Foreman's left shoulder turns forward then out"
+        );
+        assert!(
+            o[0].1.angle_between(Quat::IDENTITY) > 0.4,
+            "sat, the shoulders come in: {:?}",
+            o[0].1
+        );
     }
 
     #[test]
