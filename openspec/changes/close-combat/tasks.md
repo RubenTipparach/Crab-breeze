@@ -10,3 +10,4 @@
 - [x] 2.4 The game plays the lab's moves on `shoulder_*` and `forearm_*` (not `upper_arm_*`, which carries no mesh), read from data written from the lab: `data/combat/melee_moves.ron` by `tools/mockups/export_melee_moves.mjs`, played by `cb_core::mech::melee_moves`; Z and V throw the jab (the other moves are in the data, not yet on keys)
 - [x] 2.5 Each gun shot plays the recoil move on its arm (`recoil_L`/`recoil_R`, over the aimed arm; a back unit's or pod's own barrel does not kick)
 - [ ] 3.1 Playtest: a close fight seen from the cockpit
+- [x] 2.6 No close-combat mode (owner, 2026-10-29: "remove melee toggle, always allo z/v to punch"): Z and V punch at any time from the seat, the guns firing on; the Tab binding, `CloseCombat` and the MELEE MODE sign are gone

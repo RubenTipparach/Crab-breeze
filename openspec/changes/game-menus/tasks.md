@@ -11,3 +11,4 @@
   effect at once, a fading music cue included (owner, 2026-10-28: "game needs options in main menu")
 - [ ] 2.4 New career and Continue on the title menu (career)
 - [ ] 2.3 Rebinding from the Controls page, written to the bindings data
+- [x] 2.8 Menu buttons answer the pointer (owner, 2026-10-29: "also need hover/click feedback from ui buttons, please implement sfx for those too"): the border lights under the pointer with a quiet tick (`ui_hover`), a press clicks (`ui_click`); `cb-app::ui_feedback`, cues `Space::Ui` in `data/audio/cues.ron`

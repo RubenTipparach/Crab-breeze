@@ -18,3 +18,4 @@
 - [ ] 3.1 Screenshots (main session, with the owner's permission): on foot facing the sun; the sun half behind a building's edge; seated with the sun in the front screen; seated with a pillar over the sun; the sun just off the edge; under water facing up toward the sun; in cloud
 - [ ] 3.2 Measure (`perf-measure`): default against `CB_NO_FLARE=1` and `CB_NO_BLOOM=1`, seated, facing the sun
 - [ ] 3.3 Settle the open questions in the survey; move the requirements into `openspec/specs/sun-flare/spec.md` once a playtest shows them
+- [x] 2.9 A tap past the screen's edge reads the edge pixel instead of counting clear (owner, 2026-10-29: "lensflare depth test not working when it shows on edge of screen"; test `tap_uvs_centre_on_the_sun_and_read_the_edge_for_the_ones_off_screen`)
