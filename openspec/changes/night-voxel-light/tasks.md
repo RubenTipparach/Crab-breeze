@@ -47,7 +47,7 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
 
 ## 3e. Airports, seaports and runway lights (owner: "airports and seaports lit like this at all times", "runway lights ... just light dots")
 
-- [ ] 3.15 Mockup `docs/mockups/runway_lights.html`, published, looked at by the owner before 3.16 and 3.17
+- [x] 3.15 Mockup `docs/mockups/runway_lights.html`, published (https://claude.ai/artifact/CyXuvuLXdAoWfqcctdUKkr); waiting for the owner's look before 3.16-3.19
 - [ ] 3.16 Site buildings (Airport, Seaport zones) carry `ALWAYS_LIT`: lit through dusk and all night, no share
 - [ ] 3.19 The control towers' cabs `ALWAYS_ON`, lit day and night at twice a room's brightness (owner: "top control towers should always be lit")
 - [ ] 3.18 Apron masts and car-park lamps as lamp kinds placed from the sites' layouts (design section 2d)
@@ -73,6 +73,9 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
   sides of the street, some on, some off; far towers keep their painted windows. `ingame-2200-house-near.png`: the
   whole house lit from inside behind its windows. Room light 12 cd/m2 (3 read dim behind the 25 % night glass).
   `CB_STILLS_SETTLE_S` lets a view settle until late pipelines are in (a late road pipeline showed as pale fog).
+
+- [x] 3.20 House stills at 22:00 in game: `ingame-2200-house-near.png` (the towers' glass, the lit room behind it:
+  `ingame-house-glass-before-after.png`), `ingame-2200-house-far.png` (far shells' windows lit house by house)
 
 ## 4. Proof
 

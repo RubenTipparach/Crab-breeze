@@ -49,7 +49,7 @@ aside h2 { font: 700 20px/1.1 var(--display); letter-spacing: 0.03em; margin: 0;
     <aside>
       <h2>Views</h2>
       <div class="row" role="group" aria-label="View">
-        <button id="v-final" data-view="final">On final, 3 km out</button>
+        <button id="v-final" data-view="final">On final, 600 m out</button>
         <button id="v-apron" data-view="apron">On the apron</button>
         <button id="v-tower" data-view="tower">From the tower cab</button>
         <button id="v-above" data-view="above">From above</button>
@@ -208,7 +208,7 @@ groups.dots.add(new THREE.Points(dg, dotMat));
 
 // ---- views and layers ----
 const VIEWS = {
-  final: { eye: [-RW.half - 3000, 160, -40], at: [0, 0, 0], label: "on final, 3 km out, 160 m up (a 3 degree glide path)" },
+  final: { eye: [-RW.half - 600, 32, -6], at: [-RW.half + 500, 0, 0], label: "on final, 600 m out, 32 m up (a 3 degree glide path)" },
   apron: { eye: [120, 1.7, SITE_Z + 80], at: [-200, 6, -20], label: "on foot on the apron, eye 1.7 m" },
   tower: { eye: [372, 41, SITE_Z + 112], at: [-300, 0, 0], label: "from the tower cab, 41 m" },
   above: { eye: [700, 900, 1400], at: [0, 0, 100], label: "from above, about 1.6 km off" },
