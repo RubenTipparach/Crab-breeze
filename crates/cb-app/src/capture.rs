@@ -1502,6 +1502,51 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // Close on the seaport's ships and quays (owner, 2026-10-29: "No closeups of seaport or boats"): the container
+    // ship at its berth, the quay under the gantries at eye height, the ferry, the tugs, the trawlers, the tanker and
+    // the fish market, each a few tens of metres off.
+    View {
+        name: "seaport-ship",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-quay",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-ferry",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-tugs",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-trawlers",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-tanker",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-market",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Straight down on each site from 1,100 m, its whole footprint in frame, to lay beside its page's plan.
     View {
         name: "airport-plan",
@@ -2123,6 +2168,48 @@ fn run_weather_script(
                 cb_core::world::sites::SiteKind::Airport,
                 [150.0, 1.85, 452.0],
                 [150.0, 3.0, 400.0],
+            ),
+            "seaport-ship" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-630.0, 14.0, 215.0],
+                [-660.0, 8.0, 170.0],
+            ),
+            "seaport-quay" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-700.0, 4.3, 145.0],
+                [-640.0, 9.0, 175.0],
+            ),
+            "seaport-ferry" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-85.0, 12.0, 205.0],
+                [-120.0, 7.0, 160.0],
+            ),
+            "seaport-tugs" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [50.0, 7.0, 145.0],
+                [30.0, 4.0, 116.0],
+            ),
+            "seaport-trawlers" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [548.0, 5.0, 82.0],
+                [530.0, 3.0, 45.0],
+            ),
+            "seaport-tanker" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [240.0, 14.0, 500.0],
+                [200.0, 8.0, 454.0],
+            ),
+            "seaport-market" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [515.0, 4.3, 15.0],
+                [515.0, 6.0, -45.0],
             ),
             "airport-plan" => site_view(
                 &plan,

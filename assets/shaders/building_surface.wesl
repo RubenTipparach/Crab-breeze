@@ -12,8 +12,10 @@ import bevy_pbr::render::mesh_view_bindings::view;
 
 // 1 for glass: no screen-space ambient occlusion. `FAR_WINDOW` for a house's far window pane, lit at night.
 @group(constants::MATERIAL_BIND_GROUP) @binding(105) var<uniform> no_ssao: u32;
-// `small_buildings::FAR_WINDOW_FLAG` (a test holds the two together).
+// `small_buildings::FAR_WINDOW_FLAG` and `FURNITURE_FLAG` (a test holds them together). The furniture keeps its
+// occlusion, and its pieces' own slots do not mark it a damaged building's: its room light is baked dark instead.
 const FAR_WINDOW: u32 = 2u;
+const FURNITURE: u32 = 4u;
 // The windows at night (`building_windows`): the glass no longer glows (owner, 2026-10-29: "I dont want the glass
 // itself to glow, I want to see the room lits"); the rooms behind it light instead. y: a house's far window's
 // brightness, cd/m2.
@@ -28,11 +30,11 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     var v = in;
     var damaged = false;
     @if(VERTEX_COLORS) {
-        damaged = in.color.a > 1.5;
+        damaged = in.color.a > 1.5 && no_ssao != FURNITURE;
         v.color.a = 1.0;
     }
     var pbr = pbr_input_from_standard_material(v, is_front);
-    if no_ssao != 0u {
+    if no_ssao != 0u && no_ssao != FURNITURE {
         pbr.diffuse_occlusion = vec3<f32>(1.0);
         pbr.specular_occlusion = 1.0;
     }

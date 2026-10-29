@@ -345,18 +345,19 @@ fn spawn_lamps(
     });
 }
 
-/// The nearest lamps that light, to `eye` within `reach_m`, nearest first (ties by id), at most `n`, leaving out any
-/// `dark` says is out (one on a damaged lot).
-pub fn nearest(lamps: &Lamps, eye: Vec3, reach_m: f32, n: usize, dark: impl Fn(&Lamp) -> bool) -> Vec<(u32, f32)> {
+/// The nearest lamps that light, each within its kind's `reach_m` of `eye`, nearest first (ties by id), at most `n`,
+/// leaving out any `dark` says is out (one on a damaged lot).
+pub fn nearest(lamps: &Lamps, eye: Vec3, reach_m: impl Fn(LampKind) -> f32, n: usize, dark: impl Fn(&Lamp) -> bool) -> Vec<(u32, f32)> {
     let (cx, cz) = cell_of(eye);
-    let r = (reach_m / CELL_M).ceil() as i32;
+    let widest = reach_m(LampKind::Street).max(reach_m(LampKind::Mast));
+    let r = (widest / CELL_M).ceil() as i32;
     let mut found: Vec<(u32, f32)> = Vec::new();
     for x in cx - r..=cx + r {
         for z in cz - r..=cz + r {
             for &id in lamps.cells.get(&(x, z)).map_or(&[][..], |v| v.as_slice()) {
                 let l = &lamps.list[id as usize];
                 let d = l.head.distance(eye);
-                if d <= reach_m && !dark(l) {
+                if d <= reach_m(l.kind) && !dark(l) {
                     found.push((id, d));
                 }
             }
@@ -432,7 +433,7 @@ fn light_lamps(
             .is_some_and(|lot| live.as_ref().is_some_and(|live| live.structures.houses.states.contains_key(&lot)))
     };
     let near = if on > 0.0 {
-        nearest(&lamps, eye.translation, cfg.real_m, cfg.real_lamps as usize, damaged)
+        nearest(&lamps, eye.translation, |k| cfg.real_m_of(k), cfg.real_lamps as usize, damaged)
     } else {
         Vec::new()
     };
@@ -465,8 +466,9 @@ fn light_lamps(
         };
         let lamp = &lamps.list[id as usize];
         p.admitted = (p.admitted + dt / ADMIT_S).min(1.0);
-        let d = wanted.get(&id).copied().unwrap_or(cfg.real_m);
-        let far = 1.0 - cb_core::world::terrain::smoothstep(cfg.real_m - cfg.fade_m, cfg.real_m, d);
+        let reach = cfg.real_m_of(lamp.kind);
+        let d = wanted.get(&id).copied().unwrap_or(reach);
+        let far = 1.0 - cb_core::world::terrain::smoothstep(reach - cfg.fade_m, reach, d);
         let (lumens, inner) = if lamp.kind == LampKind::Mast {
             // A floodlight's soft edge: the cone's inner 30 % at full (the pages' penumbra 0.7).
             (cfg.mast_lumens, lamp.cone_rad * 0.3)

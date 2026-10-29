@@ -80,6 +80,9 @@ const WINDOW_GLASS: [&str; 2] = ["glass", "glassShop"];
 const FAR_WINDOW: &str = "glassFar";
 /// `ElementState::no_ssao` for a far window pane: no screen-space occlusion, and its house's light added as emission.
 const FAR_WINDOW_FLAG: u32 = 2;
+/// `ElementState::no_ssao` for the furniture: occlusion as usual, and its pieces' own slots are not a damaged building's
+/// (its room light, baked dark once its building is damaged, is drawn).
+const FURNITURE_FLAG: u32 = 4;
 
 /// Surfaces inside a building (finishes): they carry their room's light at night (`night-voxel-light` section 2b).
 const INSIDE: [&str; 5] = ["plaster", "floorWood", "floorTile", "carpet", "woodInt"];
@@ -147,11 +150,12 @@ pub struct HouseKits {
     grounds: Vec<Vec<(Handle<Mesh>, Handle<StandardMaterial>)>>,
 }
 
-/// Which furniture a building draws.
+/// Which furniture a building draws: the modelled pieces or the blocks, and lit by its rooms at night or dark (its
+/// building damaged: "If the building is damaged all of its lights turn off").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Furnished {
-    Blocks,
-    Real,
+struct Furnished {
+    real: bool,
+    lit: bool,
 }
 
 /// A dressed lot's entities.
@@ -627,7 +631,7 @@ fn bind(
         },
         extension: ElementState {
             standing: states.handle.clone(),
-            no_ssao: 0,
+            no_ssao: FURNITURE_FLAG,
             windows: Vec4::ZERO,
             rooms: Vec4::ZERO,
             room_colour: Vec4::ZERO,
@@ -1194,10 +1198,11 @@ fn furniture_mesh(
     furn: &[Prim],
     models: &HashMap<String, Arc<Owned>>,
     base: u32,
-    real: bool,
+    kind: Furnished,
     lights: &RoomLights,
     cells: RoomCells,
 ) -> Option<Mesh> {
+    let real = kind.real;
     let mut c = Corners::new();
     if real {
         for f in &kit.furniture {
@@ -1252,7 +1257,12 @@ fn furniture_mesh(
         return None;
     }
     let mut m = c.mesh();
-    light_house_rooms_keep_slots(&mut m, lights, cells);
+    if kind.lit {
+        light_house_rooms_keep_slots(&mut m, lights, cells);
+    } else {
+        let n = m.count_vertices();
+        m.insert_attribute(Mesh::ATTRIBUTE_UV_1, vec![[0.0, 0.0]; n]);
+    }
     if let Err(e) = m.generate_tangents() {
         warn!("small buildings: furniture tangents: {e}");
     }
@@ -1438,6 +1448,7 @@ fn furnish(
     mut buffers: ResMut<Assets<ShaderBuffer>>,
     camera: Query<&GlobalTransform, With<PilotCamera>>,
     data: Res<crate::sim::Data>,
+    live: Res<crate::world::Live>,
 ) {
     let Ok(eye) = camera.single() else { return };
     if kits.furniture_material.is_none() {
@@ -1461,9 +1472,15 @@ fn furnish(
             let want = if d > reach {
                 None
             } else if on_foot && d <= REAL_FURNITURE_M {
-                Some(Furnished::Real)
+                Some(Furnished {
+                    real: true,
+                    lit: !live.structures.houses.states.contains_key(&l),
+                })
             } else {
-                Some(Furnished::Blocks)
+                Some(Furnished {
+                    real: false,
+                    lit: !live.structures.houses.states.contains_key(&l),
+                })
             };
             (l, d, want)
         })
@@ -1498,7 +1515,7 @@ fn furnish(
         );
         let lights = data.0.day_night.rooms.clone();
         let task = AsyncComputeTaskPool::get()
-            .spawn(async move { furniture_mesh(&all.kits[k], &all, &furn, &models, base, kind == Furnished::Real, &lights, cells) });
+            .spawn(async move { furniture_mesh(&all.kits[k], &all, &furn, &models, base, kind, &lights, cells) });
         houses.jobs.furniture.insert(lot, (kind, task));
         built += 1;
     }
@@ -1708,8 +1725,12 @@ mod tests {
     #[test]
     fn the_far_window_flag_matches_the_shader() {
         let wesl = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/shaders/building_surface.wesl")).unwrap();
-        let want = format!("const FAR_WINDOW: u32 = {FAR_WINDOW_FLAG}u;");
-        assert!(wesl.contains(&want), "building_surface.wesl must say `{want}`");
+        for want in [
+            format!("const FAR_WINDOW: u32 = {FAR_WINDOW_FLAG}u;"),
+            format!("const FURNITURE: u32 = {FURNITURE_FLAG}u;"),
+        ] {
+            assert!(wesl.contains(&want), "building_surface.wesl must say `{want}`");
+        }
     }
 
     #[test]

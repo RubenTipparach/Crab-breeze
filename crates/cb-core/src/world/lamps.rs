@@ -219,6 +219,9 @@ pub struct LampConfig {
     pub halide_colour: [f32; 3],
     /// A mast's light per unit of its power, lumens.
     pub mast_lumens: f32,
+    /// A mast is made a real light within this of the eye, metres (`real_m` is a street lamp's): a 35 m yard mast
+    /// lights stacks seen from across the basin.
+    pub mast_real_m: f32,
     /// A glow dot's heart, times its colour, on screen.
     pub dot_brightness: f32,
     /// A glow dot's size in the world, metres (at least `glow_px` on screen).
@@ -254,6 +257,7 @@ impl Default for LampConfig {
             glow_from_m: 300.0,
             halide_colour: [0.86, 0.92, 1.0],
             mast_lumens: 60000.0,
+            mast_real_m: 700.0,
             dot_brightness: 2.0,
             dot_m: 0.8,
             signal_colours: SignalColours::default(),
@@ -302,6 +306,7 @@ impl Validate for LampConfig {
             within("lamps colours", *c, 0.0, 1.0)?;
         }
         within("lamps.mast_lumens", self.mast_lumens, 0.0, 1.0e8)?;
+        within("lamps.mast_real_m", self.mast_real_m, 0.0, 5000.0)?;
         within("lamps.dot_brightness", self.dot_brightness, 0.0, 100.0)?;
         within("lamps.dot_m", self.dot_m, 0.0, 100.0)?;
         let r = &self.runway;
@@ -319,6 +324,11 @@ impl Validate for LampConfig {
 }
 
 impl LampConfig {
+    /// How far from the eye a lamp of `kind` is made a real light, metres.
+    pub fn real_m_of(&self, kind: LampKind) -> f32 {
+        if kind == LampKind::Mast { self.mast_real_m } else { self.real_m }
+    }
+
     /// How far on the lamps are with the sun at `sun_deg`: 0 by day, 1 from dusk.
     pub fn on_share(&self, sun_deg: f32) -> f32 {
         1.0 - super::terrain::smoothstep(self.on_deg[0], self.on_deg[1], sun_deg)

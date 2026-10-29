@@ -68,6 +68,9 @@
         // apron mast is 1.6), placed from the sites' tables with the street lamps and lit from dusk with them.
         halide_colour: (0.86, 0.92, 1.0),
         mast_lumens: 60000.0,
+        // A mast is a real light within 700 m (a street lamp within real_m): the yard's 35 m masts light its stacks
+        // seen from across the basin, which they did not at 250 m (2026-10-29 still).
+        mast_real_m: 700.0,
         // The glow dots: lights that light nothing (runway, approach and taxiway lights, ships' anchor and navigation
         // lights; "not actual lights, just light dots"), 0.8 m and at least glow_px across, twice their colour at
         // their heart, on with the lamps.
