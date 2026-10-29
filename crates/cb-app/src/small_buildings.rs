@@ -1471,7 +1471,9 @@ fn furnish(
             };
             let want = if d > reach {
                 None
-            } else if on_foot && d <= REAL_FURNITURE_M {
+            } else if on_foot && d <= REAL_FURNITURE_M && !lots.kits.kits[lot.kit as usize].furniture.is_empty() {
+                // Modelled pieces only where the kit lists some: a site's building is furnished with its blocks alone
+                // (owner, 2026-10-29: its hall stood empty from inside, where the modelled pieces were asked for).
                 Some(Furnished {
                     real: true,
                     lit: !live.structures.houses.states.contains_key(&l),
