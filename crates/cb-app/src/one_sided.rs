@@ -6,9 +6,8 @@
 //! See-through and cut-out materials (glass, decals) keep both sides: they are often single cards seen from behind.
 //! `CB_DOUBLE_SIDED=1` leaves the imports as they are (an instrument, to measure it).
 //!
-//! `tools/build/check_winding.py` finds the models whose winding is wrong; the lift is kept double-sided until
-//! it is rebuilt. (The mechs' first count was bevel-corner slivers whose smoothed normals lean across them while
-//! their winding faces out: they are drawn one-sided with the rest.)
+//! `tools/build/check_winding.py` keeps them honest: a face wound the wrong way vanishes drawn one-sided, so the
+//! models are fixed at their generators (the far hip roofs and the lift's arms were, 2026-10-28).
 
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
@@ -22,11 +21,6 @@ impl Plugin for OneSidedPlugin {
             app.add_systems(PreUpdate, one_sided);
         }
     }
-}
-
-/// Models with faces wound against their normals (`check_winding.py`), kept double-sided until they are rebuilt.
-fn wound_wrong(path: &std::path::Path) -> bool {
-    path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n == "lift.glb")
 }
 
 /// Whether a material read from a glTF file is turned one-sided: opaque and drawn both sides.
@@ -43,10 +37,9 @@ fn one_sided(
     let before = *count;
     for ev in added.read() {
         let AssetEvent::Added { id } = ev else { continue };
-        let from_gltf = assets.get_path(*id).is_some_and(|p| {
-            let path = p.path();
-            matches!(path.extension().and_then(|e| e.to_str()), Some("glb" | "gltf")) && !wound_wrong(path)
-        });
+        let from_gltf = assets
+            .get_path(*id)
+            .is_some_and(|p| matches!(p.path().extension().and_then(|e| e.to_str()), Some("glb" | "gltf")));
         if !from_gltf || !materials.get(*id).is_some_and(turns) {
             continue;
         }
@@ -84,10 +77,5 @@ mod tests {
         };
         assert!(!turns(&decal));
         assert!(!turns(&StandardMaterial::default()), "one-sided already");
-        assert!(
-            wound_wrong(std::path::Path::new("models/furniture/lift.glb")),
-            "the lift waits for its rebuild"
-        );
-        assert!(!wound_wrong(std::path::Path::new("models/cockpit_panorama/cockpit_panorama.gltf")));
     }
 }
