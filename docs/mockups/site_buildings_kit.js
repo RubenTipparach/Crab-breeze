@@ -690,14 +690,16 @@
     const step = Math.min(5, L / 8), n = Math.ceil(L / step - 1e-6), zs = Array.from({ length: n + 1 }, (_, i) => z0 + L * i / n);
     const yK = -s.draft, lifts = [yK]; for (let y = yK + 4; y < 0.4 - 0.5; y += 4) lifts.push(y); lifts.push(0.4); for (let y = 0.4 + 4; y < s.bulwark - 0.5; y += 4) lifts.push(y); lifts.push(s.bulwark);
     const T = 0.25;   // plating
-    // the clear half-width inside the plating at height y over z0..z1 (the narrowest there: the bow and the bilge taper)
-    const clear = (za, zb, y) => { let w = 1e9; for (let z = za; z <= zb + 1e-6; z += Math.max(0.25, (zb - za) / 4)) w = Math.min(w, half(Math.max(z0, Math.min(z1, z)))); return w * (y < 0 ? 0.9 + 0.1 * Math.max(0, y - yK) / -yK : 1) - T - 0.15; };
+    // the clear half-width inside the plating over za..zb (the narrowest there: the bow taper)
+    const clear = (za, zb) => { let w = 1e9; for (let z = za; z <= zb + 1e-6; z += Math.max(0.25, (zb - za) / 4)) w = Math.min(w, half(Math.max(z0, Math.min(z1, z)))); return w - T - 0.15; };
     for (let i = 0; i < n; i++) {
       const za = zs[i], zb = zs[i + 1], wa = half(za), wb = half(zb);
       // the keel plate, both sides' plating in lifts (red below the waterline), the inner decks, the main deck
-      B.color(C.bottom); prism(B, 'metal', [[-(wa * 0.9 - T), za], [wa * 0.9 - T, za], [wb * 0.9 - T, zb], [-(wb * 0.9 - T), zb]], yK, yK + 0.3);   // inside the plating, no shared face
+      B.color(C.bottom); prism(B, 'metal', [[-(wa - T), za], [wa - T, za], [wb - T, zb], [-(wb - T), zb]], yK, yK + 0.3);   // the keel plate, inside the plating
       for (const sx of [-1, 1]) for (let k = 0; k + 1 < lifts.length; k++) {
-        const ya = lifts[k], yb = lifts[k + 1], wka = wa * (ya < 0 ? 0.9 + 0.1 * (ya - yK) / -yK : 1), wkb = wb * (ya < 0 ? 0.9 + 0.1 * (ya - yK) / -yK : 1);
+        // straight sides from keel to bulwark: every lift in the same plane as the next, so no deck edge pokes through and
+        // no slit opens at a seam (owner, 2026-10-29: "Ship hull interior is showing through the hull on all large ships")
+        const ya = lifts[k], yb = lifts[k + 1], wka = wa, wkb = wb;
         B.color(yb <= 0.41 ? C.bottom : C[s.hull]);
         prism(B, 'metal', sx < 0 ? [[-wka, za], [-wka + T, za], [-wkb + T, zb], [-wkb, zb]] : [[wka - T, za], [wka, za], [wkb, zb], [wkb - T, zb]], ya, yb);
       }
@@ -708,7 +710,7 @@
     // the transom
     const zt = s.bow < 0 ? z1 : z0, wt = half(zt);
     B.color(C[s.hull]); B.box('metal', -wt, 0.4, Math.min(zt, zt - s.bow * T) , wt, s.bulwark, Math.max(zt, zt - s.bow * T));
-    B.color(C.bottom); B.box('metal', -wt * 0.9, yK, Math.min(zt, zt - s.bow * T), wt * 0.9, 0.4, Math.max(zt, zt - s.bow * T));
+    B.color(C.bottom); B.box('metal', -wt, yK, Math.min(zt, zt - s.bow * T), wt, 0.4, Math.max(zt, zt - s.bow * T));
     // bulkheads (every 12 m, every 6 m in a tanker's tanks), the engine room aft, the holds' cargo
     const every = s.cargo === 'oil' ? 6 : 12;
     for (let z = z0 + every; z < z1 - 2; z += every) { const w = half(z) - T; if (w < 1) continue; B.color(C.inner); for (let y = yK + 0.3; y < s.sheer - 0.4; y += 2.8) B.box('ribbed', -w, y, z - 0.1, w, Math.min(s.sheer - 0.3, y + 2.8), z + 0.1); }
