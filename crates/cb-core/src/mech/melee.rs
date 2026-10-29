@@ -165,20 +165,22 @@ impl Strikes {
     }
 }
 
-/// Drawn back, the upper arm swings this far behind its rest, and the forearm curls this far.
+/// Drawn back, the arm swings at the shoulder this far behind its rest, and the forearm curls this far.
 const DRAW_UPPER_RAD: f32 = 0.52;
 const DRAW_FORE_RAD: f32 = -0.35;
-/// Thrown, the upper arm swings forward to about level and the forearm straightens along it.
+/// Thrown, the arm swings forward at the shoulder to about level and the forearm straightens along it.
 const THROW_UPPER_RAD: f32 = -1.4;
 const THROW_FORE_RAD: f32 = 1.05;
 
 /// The arm bones' model-space rotations for a swing (see [`Strikes::swing`]) of each arm, under the
-/// torso's rotation `torso`: the upper arm turns about the shoulder's side axis (+x in model space,
-/// +z forward) and the forearm turns with it and about the elbow. An arm at rest (swing 0) is left
-/// to follow the torso and is not listed.
+/// torso's rotation `torso`: the shoulder turns about its side axis (+x in model space, +z forward),
+/// carrying the upper arm, and the forearm turns with it and about the elbow. The shoulder, not
+/// `upper_arm_*`, which carries no mesh: turning that swung the forearm away from the upper arm's
+/// plating (openspec change `arm-aim`). An arm at rest (swing 0) is left to follow the torso and is
+/// not listed.
 pub fn arm_rotations(torso: Quat, swing: [f32; 2]) -> Vec<(&'static str, Quat)> {
     let mut out = Vec::new();
-    for (arm, (upper, fore)) in [("upper_arm_L", "forearm_L"), ("upper_arm_R", "forearm_R")].into_iter().enumerate() {
+    for (arm, (upper, fore)) in [("shoulder_L", "forearm_L"), ("shoulder_R", "forearm_R")].into_iter().enumerate() {
         let s = swing[arm];
         if s == 0.0 || !s.is_finite() {
             continue;
@@ -304,9 +306,14 @@ mod tests {
     }
 
     #[test]
-    fn a_thrown_arm_points_its_hanging_upper_arm_forward() {
+    fn a_thrown_arm_turns_its_shoulder_and_points_the_hanging_arm_forward() {
         let r = arm_rotations(Quat::IDENTITY, [1.0, 0.0]);
         assert_eq!(r.len(), 2, "only the swinging arm is posed");
+        assert_eq!(
+            [r[0].0, r[1].0],
+            ["shoulder_L", "forearm_L"],
+            "the strike turns the shoulder, which carries the upper arm's mesh, and the forearm"
+        );
         let down = glam::Vec3::NEG_Y;
         let thrown = r[0].1 * down;
         assert!(thrown.z > 0.95, "forward is +z in model space: {thrown:?}");

@@ -61,6 +61,10 @@ pub struct MechSim {
     pub strikes_prev: cb_core::mech::Strikes,
     /// The arms' strikes at the latest step.
     pub strikes: cb_core::mech::Strikes,
+    /// The gun arms' aim at the step before, [left, right], for drawing between steps (arm-aim).
+    pub aim_prev: [cb_core::mech::ArmAim; 2],
+    /// The gun arms' aim at the latest step.
+    pub aim: [cb_core::mech::ArmAim; 2],
     /// The torso is gone: the mech is a wreck.
     pub dead: bool,
     /// It took a hit since its last step (its AI evades).
@@ -127,6 +131,8 @@ pub struct MechRig {
     bones: Vec<BoneBind>,
     sockets: HashMap<&'static str, Entity>,
     rest: RigRest,
+    /// Every bone's and both muzzles' rest pose in model space, for composing the pose and the arm aim.
+    frames: cb_core::mech::RestFrames,
     hatch_nodes: Vec<HatchNode>,
     /// Every named node under the model, for cutting parts off by bone name.
     named: HashMap<String, Entity>,
@@ -542,6 +548,8 @@ fn spawn_mech_entity(
                 close: Default::default(),
                 strikes_prev: Default::default(),
                 strikes: Default::default(),
+                aim_prev: Default::default(),
+                aim: Default::default(),
                 dead: false,
                 took_hit: false,
             },
@@ -739,6 +747,16 @@ fn bind_rig(
             pelvis: at("pelvis"),
             legs: [leg("L"), leg("R")],
         };
+        // The barrels: each muzzle socket's position and +z, measured off the model (arm-aim).
+        let muzzle = |n: &str| {
+            let t = model_space(found[n], mech.model, &transforms, &parents);
+            (t.translation, t.rotation * Vec3::Z)
+        };
+        let frames = cb_core::mech::RestFrames {
+            pos: std::array::from_fn(|i| at(BONES[i].name)),
+            rot: std::array::from_fn(|i| bones[i].rest_model_rot),
+            muzzles: [muzzle("MUZZLE_L"), muzzle("MUZZLE_R")],
+        };
         info!(
             "mech rig bound: {} bones, {} sockets, {} hatch nodes",
             bones.len(),
@@ -753,6 +771,7 @@ fn bind_rig(
             bones,
             sockets,
             rest,
+            frames,
             hatch_nodes,
             named,
         });
@@ -906,6 +925,32 @@ fn bind_interior(
     }
 }
 
+/// The pose beneath the arm aim for state `s` at boarding time `hatch_t_s` with the arms' strike swings `swing`:
+/// the walk, the kneel and the strikes, and each bone's model-space rotation from rest. The one composition the
+/// drawing and the arm aim's solve both read (arm-aim).
+fn rig_pose(
+    s: &MechState,
+    hatch_t_s: f32,
+    swing: [f32; 2],
+    spec: &MechConfig,
+    rig: &MechRig,
+    tl: &cb_core::boarding::BoardingTimeline,
+) -> (cb_core::mech::MechPose, [Quat; BONES.len()]) {
+    // No legs left: it sits (mech-damage design section 2).
+    let sit_amount = if s.legs_lost == [true, true] {
+        1.0
+    } else {
+        tl.sit_amount(hatch_t_s)
+    };
+    let p = pose(s, &spec.gait, &rig.rest, &tl.sit, sit_amount);
+    let mut rotations = p.rotations().to_vec();
+    // A striking arm swings over the torso (close-combat).
+    rotations.extend(cb_core::mech::arm_rotations(p.torso, swing));
+    // The kneel's arm offset is a turn in the bone's own rest axes (mech-arm-clearance).
+    let d = cb_core::mech::rig::bone_deltas(&rotations, &p.arms, &rig.frames.rot);
+    (p, d)
+}
+
 /// Lerps between two fixed steps for drawing.
 fn lerp_state(a: &MechState, b: &MechState, t: f32) -> MechState {
     use std::f32::consts::{PI, TAU};
@@ -941,9 +986,18 @@ fn drive_mech(
             t.rotation = Quat::from_rotation_y(s.heading_rad);
         }
         let Some(mut rig) = rig else { continue };
-        // No legs left: it sits (mech-damage design section 2).
-        let sit_amount = if s.legs_lost == [true, true] { 1.0 } else { tl.sit_amount(t) };
-        let p = pose(&s, &spec.gait, &rig.rest, &tl.sit, sit_amount);
+        let m = &spec.melee;
+        let swing = [0, 1].map(|a| {
+            let (from, to) = (sim.strikes_prev.swing(m, a), sim.strikes.swing(m, a));
+            from + (to - from) * alpha
+        });
+        let (p, base) = rig_pose(&s, t, swing, spec, &rig, tl);
+        // The gun arms turn over that toward the aim point (arm-aim).
+        let aim: Vec<(&str, Quat)> = [0, 1]
+            .into_iter()
+            .flat_map(|a| cb_core::mech::arm_aim::turns(a, cb_core::mech::ArmAim::drawn(&sim.aim_prev[a], &sim.aim[a], alpha)))
+            .collect();
+        let d = cb_core::mech::rig::turned_deltas(&base, &aim, &rig.frames.rot);
         for n in &rig.hatch_nodes {
             let stage = &tl.stages[n.stage];
             let m = &stage.motions[n.motion];
@@ -954,31 +1008,14 @@ fn drive_mech(
                 tr.translation = n.rest.translation + n.rest.rotation * Vec3::from_array(m.translate_m) * k;
             }
         }
-        let mut d = [Quat::IDENTITY; BONES.len()];
-        let mut rotations = p.rotations().to_vec();
-        // A striking arm swings over the torso (close-combat).
-        let m = &spec.melee;
-        let swing = [0, 1].map(|a| {
-            let (from, to) = (sim.strikes_prev.swing(m, a), sim.strikes.swing(m, a));
-            from + (to - from) * alpha
-        });
-        rotations.extend(cb_core::mech::arm_rotations(p.torso, swing));
         let mut walk_local = Vec3::ZERO;
         for (i, spec) in BONES.iter().enumerate() {
-            let parent = spec.parent.and_then(|pn| BONES.iter().position(|b| b.name == pn));
-            let inherited = parent.map(|pi| d[pi]).unwrap_or(Quat::IDENTITY);
-            let own = rotations.iter().find(|(n, _)| *n == spec.name).map(|(_, q)| *q);
-            d[i] = own.unwrap_or(inherited);
+            let d_parent = cb_core::mech::rig::parent_index(i).map_or(Quat::IDENTITY, |pi| d[pi]);
             let bind = &rig.bones[i];
-            // The kneel's arm offset is a turn in the bone's own rest axes (mech-arm-clearance).
-            if let Some((_, off)) = p.arms.iter().find(|(n, q)| *n == spec.name && *q != Quat::IDENTITY) {
-                d[i] = d[i] * bind.rest_model_rot * *off * bind.rest_model_rot.inverse();
-            }
             if rig.cut[i] {
                 continue;
             }
             let Ok(mut t) = transforms.get_mut(bind.entity) else { continue };
-            let d_parent = inherited;
             t.rotation = (d_parent * bind.parent_rest_model_rot).inverse() * d[i] * bind.rest_model_rot;
             t.translation = bind.rest_local.translation;
             if spec.name == "pelvis" {
@@ -1434,6 +1471,23 @@ pub fn step_mech(
                 penetration_mm: cfg.melee.penetration_mm,
                 damage: cfg.melee.damage,
             });
+        }
+        // The gun arms aim their barrels at the aim point, the AI's as the pilot's; a striking or lost arm
+        // lets go (arm-aim).
+        sim.aim_prev = sim.aim;
+        {
+            let swing = [0, 1].map(|a| sim.strikes.swing(&cfg.melee, a));
+            let (p, base) = rig_pose(&sim.curr, sim.hatch.t_s, swing, cfg, rig, tl);
+            let walk = if piloted { p.walk_offset } else { Vec3::ZERO };
+            let pos = cb_core::mech::rig::bone_positions(&base, &rig.frames.pos, p.pelvis_offset - walk);
+            // World to model space: the root stands at the feet turned to the heading, the model half a turn in it.
+            let to_model = Quat::from_rotation_y(sim.curr.heading_rad + std::f32::consts::PI).inverse();
+            let target = aim_at.map(|t| to_model * (t - sim.curr.pos));
+            for (a, lost) in arm_lost.into_iter().enumerate() {
+                let frame = cb_core::mech::ArmFrame::new(&rig.frames, a, &base, &pos);
+                let release = sim.strikes.t_s[a].is_some() || lost;
+                sim.aim[a].step(&frame, target, release, dt, &cfg.arm_aim);
+            }
         }
         // Guns: fire from the muzzle toward the aim point; a lost arm's gun is gone.
         // The pilot's left mouse fires the selected station; the enemy AI fires by group (weapon-select).
