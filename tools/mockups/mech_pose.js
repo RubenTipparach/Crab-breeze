@@ -92,6 +92,15 @@ function sitPose(P, b, k) {
   P.add("elbL", -0.6 * e); P.add("elbR", -0.6 * e);
 }
 
+// Crab Breeze: how a mech holds its arms (openspec change mech-arm-clearance; owner, 2026-10-29: "mech poses need to be
+// updated so their arms don't go into their legs"). Per mech, radians: the shoulders turned out from the body (`out`),
+// swung forward (`fwd`) and the elbows bent (`elb`), laid over every other layer so the arms stay clear of the legs.
+function armHold(P, b) {
+  const h = b.armHold; if (!h) return;
+  P.add("shL", h.fwd || 0, 0, h.out || 0); P.add("shR", h.fwd || 0, 0, -(h.out || 0));
+  P.add("elbL", h.elb || 0); P.add("elbR", h.elb || 0);
+}
+
 function applyPose(b, P) {
   for (const n in b.rest) {
     const o = b.nodes[n], r = b.rest[n], a = P.m.get(n);

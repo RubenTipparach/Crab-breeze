@@ -26,18 +26,17 @@ import struct
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MODELS = os.path.join(ROOT, "assets", "models")
-# CB_MECH_STAGE=<dir>: detailed mechs rebuilt there (build_mechs.py with the same variable) are shown instead of the
-# committed ones, so the owner can look at a change on the page before it reaches the game (CLAUDE.md section 4).
-STAGE = os.environ.get("CB_MECH_STAGE")
 
-
-def mech_file(name):
-    """A detailed mech's file: the staged copy when there is one, else the committed one."""
-    staged = os.path.join(STAGE, name) if STAGE else None
-    return staged if staged and os.path.exists(staged) else os.path.join(MODELS, name)
 OUT = os.path.join(ROOT, "docs", "mockups", "mech_designs.html")
 SITE = os.path.join(ROOT, "output", "mech_site")
 HUD = os.path.join(ROOT, "assets", "textures", "cockpit", "displays", "hud.png")
+# How each mech holds its arms, radians (mech_pose.js armHold; openspec change mech-arm-clearance): the shoulders out
+# and forward, the elbows bent, so the arms stay clear of the legs. Measured with MOCKUP.clearance.
+ARM_HOLD = {
+    "harrow": {"out": 0.8},                            # gun pods kept pointing ahead: 0.38 m clear, mid-stride
+    "roustabout": {"out": 0.55},                       # 0.71 m clear, mid-stride
+    "mule": {"out": 0.6, "fwd": -0.3},                 # fists up in a guard: 0.53 m clear, idle
+}
 ORDER = ["foreman", "ironhorse", "harrow", "roustabout", "driller", "mule", "picket", "sapper"]
 # the block-outs the owner picked to build (2026-10-24: "1,2,6,8,11,12 start building them") keep their numbers
 NUMBERS = dict(harrow=1, roustabout=2, driller=6, mule=8, picket=11, sapper=12)
@@ -242,6 +241,8 @@ __MECH_BUTTONS__
 const META = __META__;
 const INTERIOR = __INTERIOR__;
 const ORDER = __ORDER__;
+// How each mech holds its arms (mech_pose.js armHold), measured clear of its legs with MOCKUP.clearance.
+const ARM_HOLD = __ARM_HOLD__;
 const HUD_SRC = "data:image/png;base64,__HUD__";
 const T = THREE, TAU = Math.PI * 2;
 __MECH_POSE__
@@ -336,7 +337,7 @@ const loadOne = (id, idx) => loader.loadAsync(`mech_${id}.gltf.json`).then(g => 
   const x = (nodes.root && nodes.root.userData) || {};
   const b = { id, root, nodes, cores, halos, seed: idx * 7 + 3, ph: 0, t: hash(idx) * 10, scale: x.scale || 0.13,
     legSegs: parseX(x.legSegs), footH: x.footH, walk: parseX(x.walk), idleP: parseX(x.idle), hitT: 9, hitSide: 1, wWalk: 0, wTurn: 0, wSkate: 0, rest: {},
-    board: parseX(x.boarding) || { tracks: [] }, cockpit: parseX(x.cockpit) || {}, vents: [], restT: {}, inner: [], interior: null };
+    armHold: ARM_HOLD[id] || null, board: parseX(x.boarding) || { tracks: [] }, cockpit: parseX(x.cockpit) || {}, vents: [], restT: {}, inner: [], interior: null };
   for (const n in nodes) if (MAPPED.has(n)) { const o = nodes[n]; b.rest[n] = { e: new T.Euler().setFromQuaternion(o.quaternion, "XYZ"), p: o.position.clone() }; }
   for (const n in nodes) { const o = nodes[n]; b.restT[n] = { q: o.quaternion.clone(), p: o.position.clone() }; if (n.startsWith("VENT_")) b.vents.push(o); }
   b.timeline = timeline(b);
@@ -617,6 +618,7 @@ function animate(b, dt, Tm) {
   P.w = b.wTurn * (1 - b.wWalk); turnStep(P, b);
   P.w = b.wSkate; skatePose(P, b);
   P.w = 1; sitPose(P, b, b.sitK);
+  P.w = 1; armHold(P, b);
   if (b.hitT < 0.9) { P.w = 1; hitGeneric(P, b.hitT, b); }
   applyPose(b, P);
   if (b.wTurn > 0.05) b.root.rotation.y += dt * 0.6 * b.wTurn; else b.root.rotation.y *= Math.max(0, 1 - dt * 2);
@@ -724,6 +726,7 @@ window.MOCKUP = {
   // any leg surface, standing (idle), walking, turning, skating and crouching, posed by the pose layer the game mirrors;
   // 0 where they intersect. Triangle against triangle through three-mesh-bvh, which the measuring run loads into the
   // page (window.MeshBVHLib); the page itself never needs it.
+  setHold(id, h) { if (mechs[id]) mechs[id].armHold = h; },
   clearance(id) {
     const L = window.MeshBVHLib, b = mechs[id]; if (!L || !b) return null;
     const meshes = names => { const out = []; for (const n of names) { const o = b.nodes[n]; if (o) o.traverse(m => { if (m.isMesh && m.geometry && m.visible) out.push(m); }); } return out; };
@@ -746,7 +749,7 @@ window.MOCKUP = {
         }
       }
     };
-    const pose = (name, fn) => { const P = new Pose(); P.w = 1; fn(P); applyPose(b, P); check(name); };
+    const pose = (name, fn) => { const P = new Pose(); P.w = 1; fn(P); armHold(P, b); applyPose(b, P); check(name); };
     const ph0 = b.ph;
     pose("rest", () => {});
     for (let t = 0; t < 10; t += 0.9) pose("idle", P => idleGeneric(P, t, b));
@@ -1005,7 +1008,7 @@ def files(meta, inside):
     out = {}
     for k in ORDER:
         rel = f"mech_{k}.gltf.json"
-        as_json_gltf(mech_file(meta[k]["file"]), os.path.join(SITE, rel))
+        as_json_gltf(os.path.join(MODELS, meta[k]["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
     for m in json.load(open(os.path.join(MODELS, "mech_blockouts.json")))["mechs"] + json.load(open(os.path.join(MODELS, "mech_combat.json")))["mechs"] + \
             json.load(open(os.path.join(MODELS, "mech_crabs.json")))["mechs"]:
@@ -1026,7 +1029,7 @@ def files(meta, inside):
 
 
 def main():
-    meta = json.load(open(mech_file("mechs.json")))
+    meta = json.load(open(os.path.join(MODELS, "mechs.json")))
     inside = interiors(meta)
     for key in ORDER:
         v = meta[key].get("cockpit_variant")
@@ -1043,7 +1046,7 @@ def main():
             .replace("__MECH_COMBAT__", json.dumps(blockouts_for_page("mech_combat.json")))
             .replace("__MECH_CRABS__", json.dumps(blockouts_for_page("mech_crabs.json")))
             .replace("__META__", json.dumps({k: meta[k] for k in ORDER}))
-            .replace("__INTERIOR__", json.dumps(inside)).replace("__ORDER__", json.dumps(ORDER)).replace("__HUD__", hud))
+            .replace("__ARM_HOLD__", json.dumps(ARM_HOLD)).replace("__INTERIOR__", json.dumps(inside)).replace("__ORDER__", json.dumps(ORDER)).replace("__HUD__", hud))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as f:
         f.write(html)

@@ -36,9 +36,7 @@ from mech_kit import Kit, Node, leg_height  # noqa: E402
 from mathutils import Vector  # noqa: E402
 
 PI = math.pi
-# CB_MECH_STAGE=<dir> builds into a staging folder instead of the game's assets, for the mockup to show before the
-# owner approves (tools/mockups/gen_mech_designs.py reads the same variable).
-OUT = os.environ.get("CB_MECH_STAGE") or os.path.join(K.ROOT, "assets", "models")
+OUT = os.path.join(K.ROOT, "assets", "models")
 MANIFEST = os.path.join(OUT, "mechs.json")
 
 
@@ -46,22 +44,10 @@ def N(name):
     return Node(name, K.Matrix.Identity(4))
 
 
-# Where each mech's arms hang so they clear its legs standing, walking, turning, skating and crouching with 0.3 m to
-# spare (owner, 2026-10-29: "mech poses need to be updated so their arms don't go into their legs"; measured with
-# MOCKUP.clearance on the Crab Breeze Mechs page): the shoulders set this much further out and higher, metres, and the
-# arms turned this far out from the body, radians; a strut on the chest carries each shoulder out. Each forearm's lower
-# edge met the top of its thigh's armour.
-HARROW_PUSH_M, HARROW_LIFT_M, HARROW_SPLAY = 1.6, 1.0, 0.12
-ROUSTABOUT_PUSH_M, ROUSTABOUT_LIFT_M, ROUSTABOUT_SPLAY = 1.3, 1.2, 0.12
-MULE_PUSH_M, MULE_LIFT_M, MULE_SPLAY = 1.6, 1.5, 0.12
-
-
-def contract_arm(k, chest, S, x, y, z, rx, elb_y, elb_rx, splay=0.0):
-    """sh -> (upper_arm) -> elb, as the contract wants: the upper arm is a joint at the shoulder. `splay` turns the
-    hanging arm out from the body, radians, so it clears the legs (the pose layer never drives the upper arm)."""
+def contract_arm(k, chest, S, x, y, z, rx, elb_y, elb_rx):
+    """sh -> (upper_arm) -> elb, as the contract wants: the upper arm is a joint at the shoulder."""
     sh = k.J(f"shoulder_{S}", chest, x, y, z, rx)
-    side = 1 if S == "L" else -1
-    ua = k.J(f"upper_arm_{S}", sh, 0, 0, 0, 0, 0, side * splay)
+    ua = k.J(f"upper_arm_{S}", sh)
     elb = k.J(f"forearm_{S}", ua, 0, elb_y, 0, elb_rx)
     return sh, elb
 
@@ -1155,16 +1141,11 @@ def walker_legs(k, body, hip_w, segs, look):
     k.legs(body, hip_w, segs, [thigh, shin] + ([hock] if len(segs) == 3 else []), foot)
 
 
-def walker_arm(k, chest, S, s, x, y, z, a=1.0, upper=9.0, elb_rx=-1.3, splay=0.0, mount_m=0.0):
+def walker_arm(k, chest, S, s, x, y, z, a=1.0, upper=9.0, elb_rx=-1.3):
     """An arm for the 24 m round: shoulder ball, a raked pauldron with its hazard edge, the upper arm, the elbow drum,
-    an armoured forearm. `mount_m` metres of armoured strut on the chest carry a shoulder set out from the body.
-    Returns (shoulder, elbow, hand): weapons hang on the hand along its -y, +z up."""
+    an armoured forearm. Returns (shoulder, elbow, hand): weapons hang on the hand along its -y, +z up."""
     M = k.M
-    if mount_m > 0:
-        L = mount_m / k.s
-        k.box(L, 2.6 * a, 3.2 * a, M["frame"], chest, x - s * L / 2, y, z)
-        k.pl(L * 0.9, 1.0 * a, 3.8 * a, M["armor"], chest, x - s * L / 2, y + 1.6 * a, z)
-    sh, elb = contract_arm(k, chest, S, x, y, z, -0.05, -upper * a, elb_rx, splay)
+    sh, elb = contract_arm(k, chest, S, x, y, z, -0.05, -upper * a, elb_rx)
     k.sph(3.0 * a, M["frame"], sh, 0, 0, 0)
     k.pl(6.2 * a, 4.4 * a, 7.4 * a, M["armor"], sh, s * 1.6 * a, 2.2 * a, 0, 0, 0, s * 0.2)
     k.box(0.6, 3.2 * a, 6.2 * a, M["hazard"], sh, s * 4.75 * a, 1.9 * a, 0, 0, 0, s * 0.2)
@@ -1417,7 +1398,7 @@ def harrow(k):
     walker_head(k, chest, at[0] - 1.9 * U, at[1] + Yt * U + 0.4, at[2] - 1.6 * U, "mast", 1.1)
     sy, sz = at[1] + 1.2 * U, at[2] - 1.4 * U
     for S, s in (("L", 1), ("R", -1)):
-        sh_, elb, hand = walker_arm(k, chest, S, s, s * (out["hw"] + 3.0 + HARROW_PUSH_M / k.s), sy + HARROW_LIFT_M / k.s, sz, 0.95, 7.0, -1.45, splay=HARROW_SPLAY, mount_m=HARROW_PUSH_M + 0.6)
+        sh_, elb, hand = walker_arm(k, chest, S, s, s * (out["hw"] + 3.0), sy, sz, 0.95, 7.0, -1.45)
         k.cyl(4.2, 4.2, 5, M["frame"], sh_, 0, 0, 0, 0, 0, PI / 2, 20)
         missile_rack(k, sh_, s * 0.6, 7.8, 0.4, 3, 2, 2.0, -0.25, 0, f"MISSILE_{S}")
         # the gun pod is the forearm: a long armoured housing fed from the outside
@@ -1455,7 +1436,7 @@ def roustabout(k):
     back_jets(k, cp, (1.4 * U, -1.4 * U), -1.4 * U, -3.6 * U, 2.2)
     sy, sz = at[1] + 2.4 * U, at[2] - 0.6 * U
     for S, s in (("L", 1), ("R", -1)):
-        sh_, elb, hand = walker_arm(k, chest, S, s, s * (out["hw"] + 3.2 + ROUSTABOUT_PUSH_M / k.s), sy + ROUSTABOUT_LIFT_M / k.s, sz, 1.05, 8.0, splay=ROUSTABOUT_SPLAY, mount_m=ROUSTABOUT_PUSH_M + 0.6)
+        sh_, elb, hand = walker_arm(k, chest, S, s, s * (out["hw"] + 3.2), sy, sz, 1.05, 8.0)
         if s < 0:
             rifle(k, hand, S, 16, 1.1)
         else:
@@ -1542,7 +1523,7 @@ def mule(k):
     walker_head(k, chest, 2.2 * U, at[1] + ry, at[2] - 0.4 * U, "mast", 1.0)
     sy, sz = at[1] + 2.0 * U, at[2] - 0.6 * U
     for S, s in (("L", 1), ("R", -1)):
-        sh_, elb, hand = walker_arm(k, chest, S, s, s * (out["hw"] + 3.4 + MULE_PUSH_M / k.s), sy + MULE_LIFT_M / k.s, sz, 1.2, 7.0, splay=MULE_SPLAY, mount_m=MULE_PUSH_M + 0.6)
+        sh_, elb, hand = walker_arm(k, chest, S, s, s * (out["hw"] + 3.4), sy, sz, 1.2, 7.0)
         fist(k, elb, hand, S, 1.2)
         rk = k.g(sh_, s * 0.6, 8.4, -1.0)                               # the rocket pod: a drum of tubes
         k.cyl(3.0, 3.0, 7, M["armor"], rk, 0, 0, 0, PI / 2, seg=18)

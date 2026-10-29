@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: A mech's arms clear its legs
-A detailed mech's arms SHALL keep clear of its legs, with no surface of an arm intersecting a surface of a leg, standing,
+A detailed mech's arms SHALL be held clear of its legs by its pose, its model unchanged, with no surface of an arm intersecting a surface of a leg, standing,
 walking, turning, skating and crouching.
 
 #### Scenario: The Harrow walks
