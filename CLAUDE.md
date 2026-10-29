@@ -505,6 +505,9 @@ Before claiming anything is done, run what applies:
 | `panel-textures` | Star Crew's textures skill: cockpit panels modelled in Blender and baked to PBR maps (section 10). |
 | `light-baking` | Star Crew's light baking: the cockpit's lamps, sky and occlusion baked into atlases (section 10). |
 | `music-authoring` | Tom Lander's music pipeline: motifs in notes, Strudel scores, multitrack MIDI, LMMS headless with real instruments (section 1). |
+| `combined-lowpoly-vehicle` | Game-ready vehicles (cars, trucks, aircraft, tracked) from blueprints in headless bpy: measured, gated and checked (section 10). |
+| `lowpoly-car-surface-shell` | A hero car body as an open shell with sharp crease loops and framed openings (section 10). |
+| `lowpoly-car-interior` | Vehicle cabins seen through the glass: dash, console, door cards, seats (section 10). |
 
 Provenance for every skill is in `.claude/skills/PROVENANCE.md`.
 
