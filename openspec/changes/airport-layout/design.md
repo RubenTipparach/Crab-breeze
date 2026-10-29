@@ -106,6 +106,13 @@ Per base, block-out geometry:
 About 25 000 triangles a base, in 6 draws (concrete, asphalt, white paint, yellow paint, lamps, aircraft). Nothing per
 frame. Not measured: the cloud session has no GPU.
 
+## 5b. Junctions and the crossing
+
+A taxiway meets a runway or the parallel taxiway on curved fillets (25 m radius, 12 m at the runway's end links so none
+runs past an end), its end tucked 30 m under what it meets, so no square corner shows (owner, 2026-10-29: "need proper
+merge"). Where the secondary runway passes under the main one, its markings stop at the main runway's edges, as at a real
+crossing, so no paint lies in the main runway's surface (owner, 2026-10-29: "zfighting").
+
 ## 6. Every building breaks
 
 Owner, 2026-10-29: "use our breakable framework, all buildings are destructible". Every airport building (both

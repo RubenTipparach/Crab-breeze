@@ -1471,9 +1471,10 @@ function beam(g, P, Q, w, h, m, shadow = true) {
   mesh.position.copy(p).add(q).multiplyScalar(0.5); mesh.lookAt(q);
   mesh.castShadow = shadow; mesh.receiveShadow = true; g.add(mesh); if (BLD) addPiece(mesh); return mesh;
 }
+const stroke = (g, p, q, w, y, m) => strokeAt(g, p, q, w, y, m);
 // Paving from p to q ([x, z]), w wide, flush with the runway.
 const pave = (g, p, q, w, m, top = TOP.taxi) => beam(g, [p[0], top - 0.31, p[1]], [q[0], top - 0.31, q[1]], w, 0.62, m, false);
-function stroke(g, p, q, w, y, m) {
+function strokeAt(g, p, q, w, y, m) {
   const dx = q[0] - p[0], dz = q[1] - p[1], len = Math.hypot(dx, dz) || 1;
   const mesh = new T.Mesh(new T.PlaneGeometry(len + w, w), m);
   mesh.rotation.x = -PI / 2; mesh.rotation.z = -Math.atan2(dz, dx);
@@ -1609,8 +1610,26 @@ function runway(R) {
 const SEG = [[0, 9, 5, 9], [5, 4.5, 5, 9], [5, 0, 5, 4.5], [0, 0, 5, 0], [0, 0, 0, 4.5], [0, 4.5, 0, 9], [0, 4.5, 5, 4.5]];
 const ON = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
 const BLAST = 60, AIM = 400;
-function drawRunway(g, rw, full, top) {
+// `under`, if given, is a runway this one passes beneath: this one's markings stop at its edges, as at a real crossing
+// (the higher runway's markings run through), so no paint lies in the other's surface.
+function drawRunway(g, rw, full, top, under) {
   pave(g, rw.a, rw.b, rw.w, M.asphalt, top);
+  let hole = null;
+  if (under) {   // the stretch of this runway's centre line, in metres from rw.a, whose width overlaps `under`
+    const n = under.right, off = q => (q[0] - under.a[0]) * n[0] + (q[1] - under.a[1]) * n[1];
+    const o0 = off(rw.a), dO = rw.d[0] * n[0] + rw.d[1] * n[1], reach = under.w2 + 2 + Math.abs(rw.right[0] * n[0] + rw.right[1] * n[1]) * rw.w2;
+    if (Math.abs(dO) > 1e-6) { const u1 = (-reach - o0) / dO, u2 = (reach - o0) / dO; hole = [Math.min(u1, u2), Math.max(u1, u2)]; }
+  }
+  const stroke = (g2, P, Q, w2, y2, m) => {
+    if (!hole) return strokeAt(g2, P, Q, w2, y2, m);
+    const u = q => (q[0] - rw.a[0]) * rw.d[0] + (q[1] - rw.a[1]) * rw.d[1], uP = u(P), uQ = u(Q);
+    const lerp = t => [P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t];
+    const lo = Math.min(uP, uQ), hi = Math.max(uP, uQ);
+    if (hi <= hole[0] || lo >= hole[1]) return strokeAt(g2, P, Q, w2, y2, m);
+    const t = v => (v - uP) / ((uQ - uP) || 1e-9);
+    if (lo < hole[0]) strokeAt(g2, lerp(t(lo)), lerp(t(hole[0])), w2, y2, m);
+    if (hi > hole[1]) strokeAt(g2, lerp(t(hole[1])), lerp(t(hi)), w2, y2, m);
+  };
   const y = top + 0.06, yc = top + 0.03, w = rw.w2;
   stroke(g, rw.at(0, w - 1), rw.at(rw.len, w - 1), 0.45, y, M.white);
   stroke(g, rw.at(0, -w + 1), rw.at(rw.len, -w + 1), 0.45, y, M.white);
@@ -1646,6 +1665,32 @@ function drawRunway(g, rw, full, top) {
 }
 // A taxi way: paving and its yellow centre line.
 function taxi(g, p, q, w = TAXI_W) { pave(g, p, q, w, M.taxi); stroke(g, p, q, 0.3, PAINT, M.yellow); }
+// Where a taxiway meets a paved edge (a runway's or the parallel taxiway's), it widens into it on curved fillets, as a
+// real junction does. p is where the centre line meets the edge, dir the taxiway's direction away from the edge, e the
+// edge's direction; R the fillet radius. Laid just under the taxiway's top so it never shares its plane.
+function fillet(g, p, dir, e, w = TAXI_W, R = 25) {
+  const n = [-dir[1], dir[0]], cross2 = (a, b) => a[0] * b[1] - a[1] * b[0], pts = [];
+  for (const s of [1, -1]) {
+    const S0 = [p[0] + n[0] * s * w / 2, p[1] + n[1] * s * w / 2];
+    const den = cross2(dir, e); if (Math.abs(den) < 1e-6) return;
+    const t = cross2([p[0] - S0[0], p[1] - S0[1]], e) / den, C = [S0[0] + dir[0] * t, S0[1] + dir[1] * t];
+    const out = (e[0] * n[0] + e[1] * n[1]) * s > 0 ? 1 : -1;
+    const A = [C[0] + dir[0] * R, C[1] + dir[1] * R], B = [C[0] + e[0] * out * R, C[1] + e[1] * out * R], side = [];
+    for (let k = 0; k <= 10; k++) { const u = k / 10, a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
+      side.push([a * B[0] + b * C[0] + c * A[0], a * B[1] + b * C[1] + c * A[1]]); }
+    pts.push(...(s === 1 ? side : side.reverse()));
+  }
+  const shape = new T.Shape(pts.map(q => new T.Vector2(q[0], -q[1])));
+  const mesh = new T.Mesh(new T.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: false }), M.taxi);
+  mesh.rotation.x = -PI / 2; mesh.position.y = TOP.taxi - 0.03 - 0.5; mesh.receiveShadow = true; g.add(mesh);
+}
+// A taxiway from a paved edge at p to another at q: its ends tucked 30 m under what it meets and filleted into it.
+function link(g, p, q, eP, eQ, w = TAXI_W, R = 25) {
+  const len = Math.hypot(q[0] - p[0], q[1] - p[1]), d = [(q[0] - p[0]) / len, (q[1] - p[1]) / len];
+  pave(g, [p[0] - d[0] * 30, p[1] - d[1] * 30], q, w, M.taxi); stroke(g, p, q, 0.3, PAINT, M.yellow);
+  fillet(g, p, d, eP, w, R);
+  if (eQ) fillet(g, q, [-d[0], -d[1]], eQ, w, R);
+}
 // A holding position across a taxiway at p, the line across `across` (unit), w wide: two solid, two dashed.
 function hold(g, p, along, w = TAXI_W) {
   const across = [-along[1], along[0]], a = [p[0] - across[0] * w / 2, p[1] - across[1] * w / 2], b = [p[0] + across[0] * w / 2, p[1] + across[1] * w / 2];
@@ -1798,14 +1843,20 @@ function buildProposed(g, labels) {
   // the flattened strips round the runways
   beam(g, [MAIN.a[0] - 90, TOP.stripMain - 0.15, 0], [MAIN.b[0] + 90, TOP.stripMain - 0.15, 0], 150, 0.3, mat(0x6a7046), false);
   beam(g, [CROSS.a[0] - cross.d[0] * 60, TOP.stripCross - 0.15, CROSS.a[1] - cross.d[1] * 60], [CROSS.b[0], TOP.stripCross - 0.15, CROSS.b[1]], 110, 0.3, mat(0x66703f), false);
-  drawRunway(g, main, true, TOP.main); drawRunway(g, cross, true, TOP.cross);
+  drawRunway(g, main, true, TOP.main); drawRunway(g, cross, true, TOP.cross, main);
   labels.push([`Runway ${String(main.des[0]).padStart(2, "0")}/${main.des[1]}`, main.at(BLAST + 60, 0), 4]);
   labels.push([`Secondary runway ${cross.des[0]}/${cross.des[1]}`, cross.at(300, 0), 4]);
   labels.push(["Approach lights", main.at(-150, 0), 4]); labels.push(["PAPI", main.at(BLAST + AIM, -main.w2 - 28), 3]);
   // the parallel taxiway, its links, rapid exits and holding points
-  taxi(g, [-1000, TAXI_Z], [1000, TAXI_Z]);
-  for (const x of [-988, 0, 988]) { taxi(g, [x, main.w2], [x, TAXI_Z]); hold(g, [x, main.w2 + 50], [0, 1]); }
-  for (const [x0, x1] of [[-560, -305], [560, 305]]) taxi(g, [x0, main.w2], [x1, TAXI_Z]);   // rapid exits, 30 degrees
+  taxi(g, [-988, TAXI_Z], [988, TAXI_Z]);
+  // the links and rapid exits meet the runway's edge and the parallel taxiway's near edge, filleted into both
+  const tEdge = TAXI_Z - TAXI_W / 2;
+  // the end links sit in from the runway's ends by their own half width and fillet, so no fillet runs past an end
+  for (const x of [-976, 0, 976]) { link(g, [x, main.w2], [x, tEdge], [1, 0], [1, 0], TAXI_W, x ? 12 : 25); hold(g, [x, main.w2 + 50], [0, 1]); }
+  for (const [x0, x1] of [[-560, -305], [560, 305]]) {   // rapid exits, 30 degrees
+    const dz = TAXI_Z - main.w2, f = (tEdge - main.w2) / dz;
+    link(g, [x0, main.w2], [x0 + (x1 - x0) * f, tEdge], [1, 0], [1, 0]);
+  }
   taxi(g, CROSS.b, [CROSS.b[0], TAXI_Z]); hold(g, [CROSS.b[0], TAXI_Z - 18], [0, 1]);
   labels.push(["Parallel taxiway", [600, TAXI_Z], 4]); labels.push(["Rapid exit taxiway", [430, 90], 4]); labels.push(["Holding point", [0, main.w2 + 50], 3]);
   // arrester gear: a cable across the runway near each end, a housing either side
@@ -1887,15 +1938,15 @@ function buildProposed(g, labels) {
 
   // ---- the military side: the mech base, its link and hold, dispersal pans, the readiness platform, the fire station
   mechBase(g, false, labels);
-  taxi(g, [500, -main.w2], [500, MIL.z1]); hold(g, [500, -main.w2 - 50], [0, -1]);
+  link(g, [500, -main.w2], [500, MIL.z1], [1, 0], null); hold(g, [500, -main.w2 - 50], [0, -1]);
   for (const z of [-400, -480, -560, -640]) { taxi(g, [MIL.x1, z], [1060, z], 18); slab(g, rect(1040, z - 22, 1100, z + 22), -0.5, TOP.apron, M.mil); }
   taxi(g, [1060, -380], [1060, -660], 18);
   labels.push(["Dispersal hard standings", [1070, -520], 6]);
-  slab(g, rect(880, -125, 990, -45), -0.5, TOP.apron, M.mil); taxi(g, [960, -45], [960, -main.w2]);
+  slab(g, rect(880, -125, 990, -45), -0.5, TOP.apron, M.mil); link(g, [960, -main.w2], [960, -45], [1, 0], null);
   labels.push(["Operational readiness platform", [935, -85], 5]);
   building("Fire station", () => { box(g, [-60, 0, -165], [20, 9, -125], M.terminal);
   for (let i = 0; i < 4; i++) box(g, [-56 + i * 19, 0.12, -125], [-42 + i * 19, 6.5, -124.9], M.red, false); });
-  taxi(g, [-20, -main.w2], [-20, -125], 18); labels.push(["Fire station", [-20, -145], 12]);
+  link(g, [-20, -main.w2], [-20, -125], [1, 0], null, 18); labels.push(["Fire station", [-20, -145], 12]);
   // ---- the fence, outside the landside road kept clear
   const F = [[-1150, -840], [1150, -840], [1150, 508], [-1150, 508]], posts = [];
   for (let i = 0; i < 4; i++) { const p = F[i], q = F[(i + 1) % 4], n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 10);
