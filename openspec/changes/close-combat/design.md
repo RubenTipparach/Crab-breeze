@@ -53,6 +53,51 @@ While a strike runs, the arm's shoulder and elbow bones are posed over the gait 
 The pilot sees the arm swing past the screens: every mesh of the mech is on the cockpit layer while
 seated.
 
+### 3a. The moves, designed in the mech artifact (owner, 2026-10-29)
+
+Owner, 2026-10-29: "I will need your help desigining melee animaitons in the mech artifact" and "shooting
+guns should cause mech arm to recoil". The moves are designed on the Crab Breeze Mechs page (Melee bar),
+where they play on any of the eight detailed mechs against a sparring partner that takes the hit, and
+where each key can be posed and saved. The page's moves are the one source:
+`tools/mockups/mech_melee.js` holds the defaults, the page's database (collection `melee`, one
+document per move) holds the owner's edits, and the game's moves are written from those, never typed
+again by hand.
+
+A move is a list of keys. Each key has a time in seconds and, for each bone, an offset over the gait
+pose: three turns in radians about the bone's own axes, and optionally three slides in metres. A key can
+also set `crouch`, how far the legs fold (the boarding sit's leg fold, 0 standing to 1.25 sat). Between
+keys the offsets ease (smoothstep). The first and last keys are rest, so a move starts and ends on the
+gait. `hit_s` is when the blow lands.
+
+| Move | Arm | Lands at | Length | What the pilot sees and feels |
+|---|---|---|---|---|
+| Jab | L or R | 0.45 s | 0.95 s | the arm cocks back 0.35 s, then the torso turns 0.3 rad and the arm shoots out level, with a 1.2 m lunge |
+| Hook | L or R | 0.55 s | 1.15 s | the arm swings out wide and the torso winds 0.45 rad away, then sweeps across the chest; the target is knocked sideways |
+| Uppercut | L or R | 0.55 s | 1.2 s | a deep crouch with the forearm upright, then the arm drives up past the screens as the legs straighten |
+| Overhead smash | both | 0.85 s | 1.8 s | both arms rise overhead as the torso leans back, then come down together with a crouch and a 2 m surge |
+| Shoulder charge | both | 0.7 s | 1.5 s | the torso turns 0.85 rad to lead with the left shoulder, arms tucked, and the mech drives 4.5 m forward |
+| Stomp kick | L or R | 0.7 s | 1.45 s | one leg lifts and drives forward; the torso leans back to balance |
+| Gun recoil | L or R | (each shot) | 0.32 s | the forearm jerks up 0.16 rad and the gun slides 0.7 m back along its length in 35 ms, settling in 0.3 s with one small overshoot |
+
+The left-handed moves are made from the right-handed ones by mirroring (bone names swapped, turns and
+slides across the body negated), never authored twice. Recoil is a move like the others, layered over
+whatever the arm is doing, so a gun fired mid-walk or mid-swing still kicks.
+
+The bones' axes, read off all eight rigs: every contract bone's x axis lies along the mech's left, so a
+negative turn about x swings a bone's far end forward and up (the shoulder reaches the arm out ahead,
+the forearm lifts the gun), a positive turn about y turns toward the mech's left, and a shoulder lifts
+its arm out to the side with a negative z turn on the right and a positive one on the left.
+
+**Found while designing:** the upper arm's mesh hangs on the `shoulder_*` bone, and `upper_arm_*` carries
+no mesh (measured on the Foreman, the Sapper and the Mule). `cb_core::mech::arm_rotations` turns
+`upper_arm_*`, so in the game a strike swings the forearm and gun about the shoulder while the upper arm's
+plating stays where it was: the arm comes apart at the elbow. The moves above pose `shoulder_*` and
+`forearm_*`, which keeps the arm whole. Task 2.4 below moves the game onto them.
+
+Cost: a move is at most a few dozen numbers, sampled once per frame per mech that is striking: under a
+microsecond of CPU, nothing on the GPU. Not measured (a cloud session has no GPU and this is not yet
+game code).
+
 ## 4. Input
 
 Owner, 2026-10-25, choosing "Guns keep firing in close combat, and punches move to other keys",
@@ -73,4 +118,6 @@ Earlier design (replaced):
 | --- | --- | --- | --- |
 | G17 | What the triggers do in close combat | Arm strikes on the mouse buttons, guns hold | decided (survey G17) |
 | G18 | Melee range | 80 m (owner, 2026-10-25: "range should be 80m instead"; was 30 m) | decided |
+| G20 | Which moves the game plays, and on which keys | The jab on Z and V as now; the others once the owner has shaped them in the Melee lab | provisional |
+| G21 | Does every gun shot kick the arm | Yes: each shot plays the recoil move on its arm, layered over the gait and any strike | provisional (owner, 2026-10-29: "shooting guns should cause mech arm to recoil") |
 | G19 | What a strike does | Same damage rules as a shot (300 mm, 60), breaks cells and trees, and knocks an enemy mech down for about 3 s | decided (survey G19) |
