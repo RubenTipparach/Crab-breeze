@@ -20,6 +20,7 @@ Run after build_mechs.py:
 import json
 import math
 import os
+import re
 import struct
 import sys
 
@@ -36,6 +37,50 @@ STRIDE_PER_HIP = 13.0 / 5.9          # the stand-in's 13 m stride on its 5.9 m h
 SIT_BEND = 1.25
 SIT_MULT = [0.5, 1.0, 0.8]
 SIT_BOW_RAD = 0.28 + 0.12
+# The kneel's arm offset (openspec change mech-arm-clearance; owner, 2026-10-29: "ONLY MODDIFYING THE KNEELING POSE"): read
+# from the mockup's own table (tools/mockups/mech_pose.js `KNEEL_ARMS`, radians), so the page and the game share one
+# source. `out` swings the shoulders outward, `fwd` forward, `elb` bends the elbows (negative bends further).
+MECH_POSE_JS = os.path.join(ROOT, "tools", "mockups", "mech_pose.js")
+
+
+def kneel_arms():
+    """`KNEEL_ARMS` from the mockup: {mech id: {"out": rad, "fwd": rad, "elb": rad}}, missing keys 0."""
+    src = open(MECH_POSE_JS).read()
+    block = re.search(r"const KNEEL_ARMS = \{(.*?)\n\};", src, re.S)
+    if not block:
+        raise SystemExit(f"{MECH_POSE_JS}: no KNEEL_ARMS table")
+    out = {}
+    for mid, body in re.findall(r"(\w+):\s*\{([^}]*)\}", block.group(1)):
+        vals = dict((k, float(v)) for k, v in re.findall(r"(\w+):\s*(-?[\d.]+)", body))
+        unknown = set(vals) - {"out", "fwd", "elb"}
+        if unknown:
+            raise SystemExit(f"{MECH_POSE_JS}: KNEEL_ARMS.{mid} has unknown keys {sorted(unknown)}")
+        out[mid] = {k: vals.get(k, 0.0) for k in ("out", "fwd", "elb")}
+    return out
+
+
+def kneel_arm_base():
+    """The kneel's own arm pose every mech takes, from the mockup's `sitPose` (radians at full sit):
+    {"out": shoulder outward, "fwd": shoulder side-axis swing, "elb": elbow bend}, in the same terms as
+    `KNEEL_ARMS`, so a mech's arms are this plus its own row."""
+    src = open(MECH_POSE_JS).read()
+    body = re.search(r"function sitPose\(P, b, k\) \{(.*?)\n\}", src, re.S)
+    if not body:
+        raise SystemExit(f"{MECH_POSE_JS}: no sitPose")
+    num = r"(-?[\d.]+) \* e"
+    sh = re.search(rf'P\.add\("shL", {num}, 0, {num}\); P\.add\("shR", {num}, 0, -{num}\);', body.group(1))
+    el = re.search(rf'P\.add\("elbL", {num}\); P\.add\("elbR", {num}\);', body.group(1))
+    if not sh or not el:
+        raise SystemExit(f"{MECH_POSE_JS}: sitPose's shoulder and elbow lines are not in the shape this reads")
+    fwd, out, fwd_r, out_r = (float(v) for v in sh.groups())
+    elb, elb_r = (float(v) for v in el.groups())
+    if (fwd, out, elb) != (fwd_r, out_r, elb_r):
+        raise SystemExit(f"{MECH_POSE_JS}: sitPose's left and right arms are not mirrors")
+    return {"out": out, "fwd": fwd, "elb": elb}
+
+
+KNEEL_ARMS = kneel_arms()
+KNEEL_ARM_BASE = kneel_arm_base()
 # The boarding crane reaches out past everything below the hatch on the rope's line (a strip this wide either side of
 # the centre line), plus a margin for the knees coming forward in the kneel (owner, 2026-10-24: "extend a crane out
 # then lower the rope").
@@ -434,7 +479,16 @@ def vent_stages(m, cockpit, tracks, ready_s):
     return stages
 
 
-def boarding_ron(m, name, size, tracks, cockpit):
+def sit_arms(mid):
+    """The sit's arm fields for this mech's `sit:` line, in degrees: the kneel's own arm pose every mech takes
+    (`KNEEL_ARM_BASE`) plus this mech's clearance row (`KNEEL_ARMS`), summed per axis as the page adds them."""
+    h = KNEEL_ARMS.get(mid, {})
+    a = {k: KNEEL_ARM_BASE[k] + h.get(k, 0.0) for k in ("out", "fwd", "elb")}
+    return (f", arm_out_deg: {f(math.degrees(a['out']), 1)}, arm_forward_deg: {f(math.degrees(a['fwd']), 1)}, "
+            f"elbow_deg: {f(math.degrees(a['elb']), 1)}")
+
+
+def boarding_ron(mid, m, name, size, tracks, cockpit):
     stages = []
     for t in sorted(tracks, key=lambda t: (t["t0"], t["node"])):
         start, d = CHEST_AT_S + t["t0"], t["d"]
@@ -461,7 +515,7 @@ def boarding_ron(m, name, size, tracks, cockpit):
 // open with these stages. The steam and mist are the glb's and the interior's own `VENT_*` empties (openspec change
 // boarding-vents). Edit the generator or the mech, not this file.
 (
-    sit: (duration_s: {f(SIT_S, 1)}, pelvis_height_m: {f(pelvis)}, hock_angle_deg: {f(hock_deg, 1)}, torso_bow_deg: {f(math.degrees(SIT_BOW_RAD), 1)}),
+    sit: (duration_s: {f(SIT_S, 1)}, pelvis_height_m: {f(pelvis)}, hock_angle_deg: {f(hock_deg, 1)}, torso_bow_deg: {f(math.degrees(SIT_BOW_RAD), 1)}{sit_arms(mid)}),
     stages: [
 {body}
     ],
@@ -487,7 +541,7 @@ def generate(mid):
     with open(os.path.join(out, f"{mid}.ron"), "w") as fh:
         fh.write(mech_ron(mid, meta["name"], size, cockpit))
     with open(os.path.join(out, mid, "boarding.ron"), "w") as fh:
-        fh.write(boarding_ron(m, meta["name"], size, tracks, cockpit))
+        fh.write(boarding_ron(mid, m, meta["name"], size, tracks, cockpit))
     print(f"{mid}: {size['top']:.2f} m tall, hips {size['hip']:.2f} m, eyes {size['eye']:.2f} m, "
           f"half width {size['half_width']:.2f} m, {len(tracks)} chest tracks, interior {cockpit.get('variant')}")
 

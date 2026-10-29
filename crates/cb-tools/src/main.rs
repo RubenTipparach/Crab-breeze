@@ -152,6 +152,37 @@ fn main() -> ExitCode {
         }
         // A measurement instrument (openspec change `city-defence`): each city's size, buildings
         // and destructible cells for a seed, and how far it is from the start.
+        // A measurement instrument (openspec changes `airport-layout`, `seaport-layout`): where the sites stand on a
+        // seed, and when no airport fits, how many candidates each rule turned down.
+        Some("sites") => {
+            let seed = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(42);
+            let data = match GameData::load(&PathBuf::from("data"), "mechs/placeholder.ron") {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let plan = cb_core::world::generate(seed, &data.world);
+            for s in &plan.sites {
+                let f = s.footprint();
+                println!(
+                    "{:?}: origin ({:.0}, {:.0}), turn {}, ground {:.1} m, city {}, footprint {:.0} x {:.0} m, {} lots",
+                    s.template.kind,
+                    s.origin.x,
+                    s.origin.y,
+                    s.turn,
+                    s.ground_m,
+                    s.city,
+                    f.size().x,
+                    f.size().y,
+                    s.template.placements.len()
+                );
+            }
+            let [c, b, w, st, wa, r] = plan.airport_rejections;
+            println!("airport candidates turned down: cities {c}, bases {b}, off dry land {w}, steep {st}, water {wa}, highways {r}");
+            ExitCode::SUCCESS
+        }
         Some("cities") => {
             let seed = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(42);
             let data = match GameData::load(&PathBuf::from("data"), "mechs/placeholder.ron") {

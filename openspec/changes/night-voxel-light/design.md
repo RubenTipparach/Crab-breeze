@@ -132,6 +132,63 @@ carry a second UV. So the room light uses that second UV's spare half, with no n
 - **Not exact.** A vertex on the line between two rooms belongs to the one its normal faces. A floor bay
   spanning a lit and a dark room shades from one to the other across the bay.
 
+## 2d. Airports, seaports and runway lights (owner, 2026-10-29: "I also want to see airports and seaports lit like this at all times. runways will need runway lights as well (not actual lights, just light dots)")
+
+**The sites' buildings are always lit at night.**
+- The airport's and seaport's buildings are kit lots of the `Airport` and `Seaport` zones, drawn by the houses'
+  code (`small_buildings`), so they already carry rooms and far windows (section 2b).
+- Their rooms and far windows carry one more index, `ALWAYS_LIT` (4095, the last a mesh can number). The vertex
+  shader lights it whenever it is getting dark, with no hash and no hourly share. Its light is scaled by the
+  glass's night share (`rooms.z`), so a terminal comes on through dusk and stays on all night.
+- They use the same glass (25 % through at night), the same room light and the same far windows as a house: one
+  look for every lit building.
+
+**The control towers' cabs are always lit** (owner, 2026-10-29: "top control towers should always be lit").
+- The glazed cab on top of the airport's control tower, and the air bases' towers, carry `ALWAYS_ON` (4094): lit
+  at full by day and night, with no hash, share or dusk curve.
+- The cab is lit at twice a room's brightness, so on a dark field it is the brightest building, as in the
+  owner's reference.
+- By day it shows as a lit cab behind the mirror glass's 8 %; at night it shows through the 25 %.
+
+**Runway lights are dots, not lights.**
+- Each is a glow quad like a street lamp's far glow (`lamp_glow.wesl`):
+  - at least 3 px across on screen, 0.6 m in the world;
+  - coloured, and lit by no light source, so they cost nothing in the lighting;
+  - on with the street lamps at dusk (`lamps.on_deg`).
+- **Where**, on each runway (2,000 x 45 m and 1,500 x 45 m, `air_bases`) and the airport's (ICAO's pattern, cut to
+  what reads):
+
+| Lights | Where | Colour |
+| --- | --- | --- |
+| Runway edge | every 60 m along both edges, 3 m outside the paved edge | white; yellow over the last 600 m (caution) |
+| Threshold | across each threshold, every 3 m | green |
+| Runway end | across each end, every 3 m | red |
+| Centre line | every 30 m on the centre line | white |
+| Approach | on the existing approach posts' crossbars (`airport-layout` section 3), five a post | white |
+| PAPI | the four existing boxes | two red, two white (on the glide path) |
+| Taxiway edge | every 30 m along both edges of the parallel taxiway and its links | blue |
+
+- **Drawing.** One mesh of quads per site and runway, coloured per vertex, built with the runway. One draw each.
+- **Cost:** a 2,000 m runway with its taxiway is about 70 edge lights, 30 threshold, 30 end, 67 centre line,
+  100 approach and about 140 taxiway: about 440 quads. Under 3,000 for the island.
+
+**The apron and car parks get lamps** (owner, 2026-10-29: "area near terminals should probably be lit with parking
+lot lamps", with a reference of a terminal apron at night: tall white masts along the stands).
+- **Apron masts:** 25 m, every 60 m along the terminal's apron edge and between stand rows, each head a cluster
+  of four floodlights. White mercury (survey N5: "white mercury at the air bases"), against the town's orange
+  sodium.
+- **Car-park lamps:** 9 m poles every 30 m along each car park's aisles, white.
+- **Light.** Both are `cb_core::world::lamps` kinds, placed from the site's layout with the street lamps, so they
+  are drawn, switched at dusk, made real lights near the eye (tier 1), glow dots far off (tier 3), and later baked
+  into pools (section 3), with no new code path. On every night, as the sites' buildings are.
+- **Estimated:** about 40 masts and 60 car-park lamps an airport, about 30 and 20 a seaport. That adds about 150
+  lamps to the island's 5,241.
+
+**Mockup first** (CLAUDE.md section 4, owner 2026-10-28: "Please make mockups before editing game code"):
+`docs/mockups/runway_lights.html`. A 2,000 m runway at night with every light group, the taxiway, a terminal
+with its apron masts and car park, and a seaport shed lit, from final approach, on the ground and from above, beside the Foreman and a pilot. No game
+code for this until the owner has looked at it.
+
 ## 2. Voxels
 
 - Each city gets an axis-aligned box: its square, plus 40 m round it, from the ground's lowest point to its

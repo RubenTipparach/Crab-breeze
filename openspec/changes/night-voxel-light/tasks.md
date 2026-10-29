@@ -45,6 +45,14 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
 - [x] 3.13 Houses' inside surfaces and furniture carry the room light from 4 m cells a storey; a whole house is
   lit or dark by a hash of its lot (owner: "consider an entire house lit or unlit"; design section 2b)
 
+## 3e. Airports, seaports and runway lights (owner: "airports and seaports lit like this at all times", "runway lights ... just light dots")
+
+- [ ] 3.15 Mockup `docs/mockups/runway_lights.html`, published, looked at by the owner before 3.16 and 3.17
+- [ ] 3.16 Site buildings (Airport, Seaport zones) carry `ALWAYS_LIT`: lit through dusk and all night, no share
+- [ ] 3.19 The control towers' cabs `ALWAYS_ON`, lit day and night at twice a room's brightness (owner: "top control towers should always be lit")
+- [ ] 3.18 Apron masts and car-park lamps as lamp kinds placed from the sites' layouts (design section 2d)
+- [ ] 3.17 Runway, threshold, end, centre line, approach, PAPI and taxiway lights as glow dots (design section 2d)
+
 ## 3b. Lit rooms (owner: "I dont want the glass itself to glow, I want to see the room lits")
 
 - [x] 3.6 The glass loses its night emission (`window_light` off in `building_array.wesl` and `building_surface.wesl`)
