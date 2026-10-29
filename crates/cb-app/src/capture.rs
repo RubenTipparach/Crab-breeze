@@ -1818,7 +1818,7 @@ fn city_view(plan: &crate::world::Plan, air: bool) -> ([f32; 3], [f32; 3]) {
     ([start.x, ground + 2.0, start.y], [ahead.x, ground + 8.0, ahead.y])
 }
 
-/// `off_m` off the house lot nearest the largest city's middle, at eye height (10 m up past 100 m), looking at its
+/// `off_m` off the house lot nearest the largest city's middle, at eye height (25 m up past 100 m, from the side away from the city), looking at its
 /// middle 3 m up: at 22 m its rooms and furniture are drawn (`small_buildings`, within 150 m), at 300 m its far shell.
 fn house_view(plan: &crate::world::Plan, off_m: f32) -> ([f32; 3], [f32; 3]) {
     let c = plan
@@ -1834,11 +1834,16 @@ fn house_view(plan: &crate::world::Plan, off_m: f32) -> ([f32; 3], [f32; 3]) {
     else {
         return ([c.x, 2.0, c.y], [c.x + 100.0, 2.0, c.y]);
     };
-    let front = Vec2::new(lot.heading_rad.sin(), lot.heading_rad.cos());
+    // Near, from its front; far, from the side away from the city (the city's towers would stand between).
+    let front = if off_m > 100.0 {
+        (lot.centre - c).normalize_or(Vec2::X)
+    } else {
+        Vec2::new(lot.heading_rad.sin(), lot.heading_rad.cos())
+    };
     let eye = lot.centre + front * off_m;
     let ground = plan.terrain.height_at(eye.x, eye.y);
     info!("house view: lot at {} kit {}", lot.centre, lot.kit);
-    let up = if off_m > 100.0 { 10.0 } else { 1.7 };
+    let up = if off_m > 100.0 { 25.0 } else { 1.7 };
     ([eye.x, ground + up, eye.y], [lot.centre.x, lot.ground_m + 3.0, lot.centre.y])
 }
 

@@ -1,0 +1,238 @@
+<title>Airfield at Night</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: the night airfield fills the stage; the view and layer buttons below it, the key to the light colours beside.
+   One dark look on purpose: it is a field at night. */
+:root {
+  --bg: #090c12;
+  --panel: #121722;
+  --line: #243046;
+  --fg: #dde3ee;
+  --dim: #8b96ab;
+  --amber: #f2b45c;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 32px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 14px; }
+h1 { font: 700 34px/1.05 var(--display); letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+.lead { color: var(--dim); max-width: 75ch; margin: 0; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; align-items: start; }
+@media (max-width: 880px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.stage { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: #03050a; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.stage .tag { position: absolute; left: 10px; top: 8px; font: 400 12px var(--mono); color: var(--dim); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 500 14px var(--body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 7px 11px; cursor: pointer; }
+button:hover { border-color: var(--dim); }
+button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+button[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+aside { display: grid; gap: 12px; min-width: 0; }
+aside h2 { font: 700 20px/1.1 var(--display); letter-spacing: 0.03em; margin: 0; }
+.key { display: grid; grid-template-columns: 14px 1fr; gap: 5px 9px; font: 400 12.5px var(--mono); align-items: center; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.note { font: 400 12.5px var(--mono); color: var(--dim); border-top: 1px solid var(--line); padding-top: 10px; margin: 0; }
+</style>
+
+<div class="wrap">
+  <h1>Airfield at night</h1>
+  <p class="lead">A 2,000 x 45 m runway and its parallel taxiway at 22:00, with the terminal and its apron, the control tower and
+  a seaport shed beside it, at true size beside the Foreman (24 m) and a pilot (1.8 m). Every runway and taxiway light is a
+  glowing dot, not a light. The apron masts and car-park lamps are real lamps, drawn here as their pools. Buildings are
+  lit inside every night; the tower's cab is always lit. openspec/changes/night-voxel-light section 2d.</p>
+  <div class="main">
+    <div class="stage" id="stage"><div class="tag" id="tag"></div></div>
+    <aside>
+      <h2>Views</h2>
+      <div class="row" role="group" aria-label="View">
+        <button id="v-final" data-view="final">On final, 3 km out</button>
+        <button id="v-apron" data-view="apron">On the apron</button>
+        <button id="v-tower" data-view="tower">From the tower cab</button>
+        <button id="v-above" data-view="above">From above</button>
+        <button id="v-port" data-view="port">The seaport shed</button>
+      </div>
+      <h2>Layers</h2>
+      <div class="row" role="group" aria-label="Layers">
+        <button id="l-dots" data-layer="dots" aria-pressed="true">Runway dots</button>
+        <button id="l-lamps" data-layer="lamps" aria-pressed="true">Apron and car-park lamps</button>
+        <button id="l-rooms" data-layer="rooms" aria-pressed="true">Lit buildings</button>
+      </div>
+      <h2>Lights</h2>
+      <div class="key">
+        <span class="dot" style="background:#fff6e8"></span><span>Runway edge, every 60 m; centre line, every 30 m</span>
+        <span class="dot" style="background:#ffc640"></span><span>Runway edge, last 600 m (caution)</span>
+        <span class="dot" style="background:#37e07a"></span><span>Threshold, across, every 3 m</span>
+        <span class="dot" style="background:#ff3a2e"></span><span>Runway end, across, every 3 m</span>
+        <span class="dot" style="background:#fff0d6"></span><span>Approach, 300 m out, 5 a crossbar</span>
+        <span class="dot" style="background:linear-gradient(90deg,#ff3a2e 50%,#fff6e8 50%)"></span><span>PAPI, 2 red 2 white on the glide path</span>
+        <span class="dot" style="background:#4a7dff"></span><span>Taxiway edge, every 30 m</span>
+        <span class="dot" style="background:#dfe9ff"></span><span>Apron mast (25 m, white) and car-park lamp (9 m)</span>
+      </div>
+      <p class="note">Drag to orbit, scroll to zoom. A dot is at least 3 px wide however far away it is, as the street lamps' far glow.</p>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Metres. x along the runway (its threshold ends at x = +-1000), z across: runway centre z = 0, the taxiway on +z,
+// the site beyond it. Numbers from airport-layout design section 2: taxiway 23 m wide, 62 m from the runway's edge,
+// the site 15 m past the taxiway.
+const RW = { half: 1000, w: 45 }, TX = { z: 22.5 + 62 + 11.5, w: 23 }, SITE_Z = TX.z + 11.5 + 15;
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060a14);
+scene.fog = new THREE.FogExp2(0x0a1222, 0.00022);
+const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.5, 20000);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+scene.add(new THREE.HemisphereLight(0x223355, 0x05070a, 0.35));
+const moon = new THREE.DirectionalLight(0x8899cc, 0.25); moon.position.set(-1, 2, 1); scene.add(moon);
+
+const groups = { dots: new THREE.Group(), lamps: new THREE.Group(), rooms: new THREE.Group() };
+Object.values(groups).forEach(g => scene.add(g));
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, metalness: 0, ...o });
+function box(w, h, d, x, y, z, m, parent = scene) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y + h / 2, z); parent.add(b); return b;
+}
+// ground, runway, taxiway and links, the site's apron
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), mat(0x0d1a10)); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const asphalt = mat(0x1b1c1f), concrete = mat(0x34363a), paint = new THREE.MeshBasicMaterial({ color: 0x8a8c90 });
+box(2 * RW.half + 120, 0.05, RW.w, 0, 0, 0, asphalt);
+box(2 * RW.half, 0.05, TX.w, 0, 0, TX.z, asphalt);
+for (const x of [-RW.half + 40, 0, RW.half - 40]) box(TX.w, 0.04, TX.z, x, 0, TX.z / 2, asphalt);
+box(900, 0.06, 300, -50, 0, SITE_Z + 150, concrete);
+for (let x = -RW.half + 60; x < RW.half - 60; x += 50) box(30, 0.07, 0.9, x + 15, 0, 0, paint);   // centre line dashes
+for (const s of [-1, 1]) for (let i = 0; i < 8; i++) box(30, 0.07, 1.8, s * (RW.half - 75), 0, -19 + i * 5.4, paint);   // threshold bars
+
+// ---- lit buildings: a box whose glazed sides show lit rooms (a warm interior behind tinted glass, mullions) ----
+function litBuilding(w, h, d, x, z, opts = {}) {
+  const g = new THREE.Group(); g.position.set(x, 0, z);
+  box(w, h, d, 0, 0, 0, mat(opts.wall || 0x2a2d33), g);
+  const storey = opts.storey || 4.5, bay = opts.bay || 4;
+  const glow = new THREE.MeshBasicMaterial({ color: opts.cab ? 0xfff2d6 : 0xffd9a0 });
+  const dark = new THREE.MeshBasicMaterial({ color: 0x0b0f16 });
+  for (const side of opts.sides || ["-z", "+z"]) {
+    const along = side.endsWith("z") ? w : d, sgn = side[0] === "-" ? -1 : 1;
+    for (let y = 1.2; y + storey * 0.6 < h; y += storey) for (let a = -along / 2 + bay / 2; a < along / 2; a += bay) {
+      const lit = opts.always || Math.sin(a * 12.9898 + y * 78.233 + x) * 43758.5 % 1 > -0.6;
+      const m = lit ? glow : dark, ww = bay * 0.82, hh = storey * 0.62;
+      const q = new THREE.Mesh(new THREE.PlaneGeometry(ww, hh), m);
+      if (side.endsWith("z")) { q.position.set(a, y + hh / 2, sgn * (d / 2 + 0.05)); if (sgn < 0) q.rotation.y = Math.PI; }
+      else { q.position.set(sgn * (w / 2 + 0.05), y + hh / 2, a); q.rotation.y = sgn * Math.PI / 2; }
+      // A lit window goes in the lit-buildings layer, placed in the world; a dark one stays with its building.
+      if (lit) { q.position.add(g.position); groups.rooms.add(q); } else g.add(q);
+    }
+  }
+  scene.add(g); return g;
+}
+// terminal, its long glazed front to the apron (toward the runway), every room lit at night
+litBuilding(320, 16, 45, -60, SITE_Z + 230, { sides: ["-z", "+z", "-x", "+x"], always: true });
+// a hangar and the fire station, partly lit
+litBuilding(80, 18, 60, 300, SITE_Z + 220, { sides: ["-z"], storey: 6, bay: 8 });
+// the control tower: a shaft and its glazed cab, always lit, day and night
+box(7, 38, 7, 380, 0, SITE_Z + 120, mat(0x3a3d44));
+const cab = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 6.5, 5, 8), new THREE.MeshBasicMaterial({ color: 0xfff0cc }));
+cab.position.set(380, 40.5, SITE_Z + 120); groups.rooms.add(cab);
+box(16, 1.2, 16, 380, 43, SITE_Z + 120, mat(0x22252b));
+// the seaport shed, along the shore 700 m east
+const water = new THREE.Mesh(new THREE.PlaneGeometry(1500, 1500), mat(0x050b16, { roughness: 0.15, metalness: 0.3 }));
+water.rotation.x = -Math.PI / 2; water.position.set(1900, 0.02, SITE_Z + 300); scene.add(water);
+box(300, 0.06, 200, 1050, 0, SITE_Z + 220, concrete);
+litBuilding(140, 14, 40, 1050, SITE_Z + 250, { sides: ["-z", "+x"], storey: 7, bay: 6, always: true });
+
+// ---- lamps: apron masts (25 m) and car-park lamps (9 m), white, drawn as their pools on the ground ----
+const poolTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
+  const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.45, "rgba(255,255,255,0.45)"); g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+function lamp(x, z, h, radius, colour) {
+  box(0.5, h, 0.5, x, 0, z, mat(0x30333a), groups.lamps);
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2),
+    new THREE.MeshBasicMaterial({ map: poolTex, color: colour, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+  pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.12, z); groups.lamps.add(pool);
+  heads.push([x, h, z, colour]);
+}
+const heads = [];
+for (let x = -480; x <= 380; x += 60) lamp(x, SITE_Z + 25, 25, 32, 0xdfe9ff);          // apron edge masts
+for (let x = -450; x <= 350; x += 60) lamp(x, SITE_Z + 150, 25, 32, 0xdfe9ff);         // between the stand rows
+for (let x = -200; x <= 80; x += 30) for (const z of [SITE_Z + 268, SITE_Z + 290]) lamp(x, z, 9, 13, 0xeef2ff);   // car park
+for (let x = 960; x <= 1180; x += 60) lamp(x, SITE_Z + 150, 25, 32, 0xdfe9ff);         // seaport quay masts
+// stand-ins on the apron: aircraft as slabs, the Foreman and a pilot for scale
+for (let i = 0; i < 6; i++) { const x = -200 + i * 55; box(38, 4, 6, x, 2, SITE_Z + 120, mat(0xbfc4cc)); box(6, 2, 36, x + 4, 3, SITE_Z + 120, mat(0xbfc4cc)); }
+box(6, 24, 4, 180, 0, SITE_Z + 60, mat(0x6d6248));   // the Foreman, 24 m
+box(0.5, 1.8, 0.3, 172, 0, SITE_Z + 60, mat(0xc9b28a));   // a pilot, 1.8 m
+
+// ---- runway, approach, PAPI and taxiway lights: dots at least 3 px across, additive, no light cast ----
+const DOT = { white: 0xfff6e8, caution: 0xffc640, green: 0x37e07a, red: 0xff3a2e, approach: 0xfff0d6, blue: 0x4a7dff };
+const dots = [];
+const put = (x, y, z, c) => dots.push([x, y, z, c]);
+// Edge lights every 60 m on both edges; the last 600 m before the far (+x) end shows caution yellow to a pilot rolling
+// toward it.
+for (let x = -RW.half; x <= RW.half + 0.1; x += 60) for (const zEdge of [-(RW.w / 2 + 3), RW.w / 2 + 3]) {
+  put(x, 0.4, zEdge, x > RW.half - 600 ? DOT.caution : DOT.white);
+}
+for (let x = -RW.half + 60; x <= RW.half - 60; x += 30) put(x, 0.15, 0, DOT.white);
+for (const s of [-1, 1]) for (let z = -RW.w / 2; z <= RW.w / 2 + 0.1; z += 3) { put(s * RW.half, 0.3, z, DOT.red); put(s * (RW.half - 60), 0.3, z, DOT.green); }
+for (const s of [-1, 1]) for (let k = 1; k <= 10; k++) {
+  const x = s * (RW.half + 30 * k), wide = k % 3 === 0 ? 2.2 : 1;
+  for (let i = -2; i <= 2; i++) put(x, 2.5, i * 3 * wide, DOT.approach);
+}
+for (const s of [-1, 1]) for (let i = 0; i < 4; i++) put(s * (RW.half - 60 - 400), 1, -(RW.w / 2 + 15 + 9 * i), i < 2 ? DOT.red : DOT.white);
+for (let x = -RW.half; x <= RW.half; x += 30) for (const z of [TX.z - TX.w / 2 - 1.5, TX.z + TX.w / 2 + 1.5]) put(x, 0.4, z, DOT.blue);
+for (const [x, h, z, c] of heads) put(x, h, z, c);   // every lamp head glows too
+const dg = new THREE.BufferGeometry(), dp = [], dc = [];
+for (const [x, y, z, c] of dots) { dp.push(x, y, z); const col = new THREE.Color(c); dc.push(col.r, col.g, col.b); }
+dg.setAttribute("position", new THREE.Float32BufferAttribute(dp, 3));
+dg.setAttribute("color", new THREE.Float32BufferAttribute(dc, 3));
+const dotMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true,
+  uniforms: { scale: { value: 500 } },
+  vertexShader: `uniform float scale; varying vec3 vC;
+    void main() { vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv;
+      gl_PointSize = max(3.0, 0.9 * scale / -mv.z); }`,
+  fragmentShader: `varying vec3 vC;
+    void main() { float r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.0, r);
+      gl_FragColor = vec4(vC * (a * a * 2.2 + smoothstep(0.35, 0.0, r)), 1.0); }`,
+});
+groups.dots.add(new THREE.Points(dg, dotMat));
+
+// ---- views and layers ----
+const VIEWS = {
+  final: { eye: [-RW.half - 3000, 160, -40], at: [0, 0, 0], label: "on final, 3 km out, 160 m up (a 3 degree glide path)" },
+  apron: { eye: [120, 1.7, SITE_Z + 80], at: [-200, 6, -20], label: "on foot on the apron, eye 1.7 m" },
+  tower: { eye: [372, 41, SITE_Z + 112], at: [-300, 0, 0], label: "from the tower cab, 41 m" },
+  above: { eye: [700, 900, 1400], at: [0, 0, 100], label: "from above, about 1.6 km off" },
+  port: { eye: [880, 12, SITE_Z + 60], at: [1060, 6, SITE_Z + 240], label: "the seaport shed and its quay masts" },
+};
+let view = "final";
+function setView(v) {
+  view = v; const V = VIEWS[v]; camera.position.set(...V.eye); controls.target.set(...V.at); controls.update();
+  document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === v)));
+  document.getElementById("tag").textContent = `${V.label} · 22:00`;
+}
+function setLayer(name, on) {
+  groups[name].visible = on;
+  document.querySelector(`[data-layer="${name}"]`).setAttribute("aria-pressed", String(on));
+}
+document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+document.querySelectorAll("[data-layer]").forEach(b => b.addEventListener("click", () => setLayer(b.dataset.layer, !groups[b.dataset.layer].visible)));
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  dotMat.uniforms.scale.value = h * renderer.getPixelRatio() / (2 * Math.tan(camera.fov * Math.PI / 360));
+}
+new ResizeObserver(resize).observe(stage);
+setView("final"); resize();
+(function loop() { renderer.render(scene, camera); requestAnimationFrame(loop); })();
+window.MOCKUP = { setView, setLayer }; window.MOCKUP_READY = true;
+</script>
