@@ -3061,6 +3061,11 @@ td.n { font-family: var(--mono); white-space: nowrap; }
     const zt = s.bow < 0 ? z1 : z0, wt = half(zt);
     B.color(C[s.hull]); B.box('metal', -wt, 0.4, Math.min(zt, zt - s.bow * T) , wt, s.bulwark, Math.max(zt, zt - s.bow * T));
     B.color(C.bottom); B.box('metal', -wt, yK, Math.min(zt, zt - s.bow * T), wt, 0.4, Math.max(zt, zt - s.bow * T));
+    // the stem: the side plates stop a few per cent of the beam apart at the very bow, so a plate closes the slot between
+    // them, keel to bulwark (owner, 2026-10-29: "The bow of the ship doesn't quite close")
+    const zst = s.bow < 0 ? z0 : z1, wst = half(zst) + 0.02, zsa = Math.min(zst, zst - s.bow * (T + 0.6)), zsb = Math.max(zst, zst - s.bow * (T + 0.6));
+    B.color(C[s.hull]); B.box('metal', -wst, 0.4, zsa, wst, s.bulwark, zsb);
+    B.color(C.bottom); B.box('metal', -wst, yK, zsa, wst, 0.4, zsb);
     // bulkheads (every 12 m, every 6 m in a tanker's tanks), the engine room aft, the holds' cargo
     const every = s.cargo === 'oil' ? 6 : 12;
     for (let z = z0 + every; z < z1 - 2; z += every) { const w = half(z) - T; if (w < 1) continue; B.color(C.inner); for (let y = yK + 0.3; y < s.sheer - 0.4; y += 2.8) B.box('ribbed', -w, y, z - 0.1, w, Math.min(s.sheer - 0.3, y + 2.8), z + 0.1); }
