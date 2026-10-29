@@ -204,10 +204,11 @@ __SITE_KIT__
 // half its load-bearing walls comes down, the rubble settles in piles.
 const S = window.SiteBuildings;
 const E = BuildingEngine({ THREE: T, K: window.SmallBuildings, scene, ground: () => 0.05 });
-// One building of the site kit at (x, z), turned by quarter turns (1: its front, +z, to +x), standing at y.
-function put(name, draw, x = 0, z = 0, turn = 0, y = 0) {
+// One building of the site kit at (x, z), turned by quarter turns (1: its front, +z, to +x), standing at y; info overrides
+// the building's own (maxSide: a machine's longer reach).
+function put(name, draw, x = 0, z = 0, turn = 0, y = 0, info = {}) {
   const B = new SmallBuildings.Builder(); draw(B);
-  const id = E.building({ name, base: y }); E.add(B, { x, y, z, turn, bld: id }); return id;
+  const id = E.building(Object.assign({ name, base: y }, info)); E.add(B, { x, y, z, turn, bld: id }); return id;
 }
 // A turning thing (a radar antenna) on top of a building: shown while the piece under it stands.
 let spinners = [];

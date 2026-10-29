@@ -573,6 +573,21 @@
       dustAt(c.x, 0.5, c.z, 120, Math.max(4, len * 0.3), [0.85, 0.88, 0.9]);
       return n;
     }
+    // A shot on a sinking hulk tears out its plating there: every triangle within the blast is dropped from it.
+    const _inv = new THREE.Matrix4(), _lp = new THREE.Vector3();
+    function blastHulks(p, r) {
+      for (const H of HULKS) {
+        H.grp.updateMatrixWorld(true); _inv.copy(H.grp.matrixWorld).invert(); _lp.copy(p).applyMatrix4(_inv);
+        for (const m of H.grp.children) {
+          const a = m.geometry.attributes.position, A = a.array; let any = false;
+          for (let i = 0; i < A.length; i += 9) {
+            const cx = (A[i] + A[i + 3] + A[i + 6]) / 3 - _lp.x, cy = (A[i + 1] + A[i + 4] + A[i + 7]) / 3 - _lp.y, cz = (A[i + 2] + A[i + 5] + A[i + 8]) / 3 - _lp.z;
+            if (cx * cx + cy * cy + cz * cz < r * r && (A[i] || A[i + 1] || A[i + 2])) { A.fill(0, i, i + 9); any = true; }
+          }
+          if (any) a.needsUpdate = true;
+        }
+      }
+    }
     function stepHulks(dt) {
       for (let i = HULKS.length - 1; i >= 0; i--) {
         const H = HULKS[i], p = H.grp.position, floor = ground(p.x, p.z);
@@ -715,6 +730,7 @@
         breakOff(pid, v, 0, p);
       }
       let fell = 0;
+      if (HULKS.length) blastHulks(p, r);
       for (const b of hitB) fell += settleBuilding(b);
       flushHidden();
       return { hit, fell };
@@ -877,7 +893,7 @@
     function fireAt(ndc, camera, wkey, extra = []) {
       if (!fxReady) addFx();
       ray.setFromCamera(ndc, camera);
-      const targets = Object.values(MESH).filter((m) => !TRANSPARENT.has(m.userData.key) || m.userData.key === 'glass' || m.userData.key === 'glassShop').concat(extra);
+      const targets = Object.values(MESH).filter((m) => !TRANSPARENT.has(m.userData.key) || m.userData.key === 'glass' || m.userData.key === 'glassShop').concat(HULKS.map((H) => H.grp), extra);   // a sinking ship can still be shot
       const hits = ray.intersectObjects(targets, true);
       let p = hits.length ? hits[0].point : null;
       if (!p) { const t = -ray.ray.origin.y / ray.ray.direction.y; if (t > 0 && t < 4000) p = ray.ray.origin.clone().addScaledVector(ray.ray.direction, t); }

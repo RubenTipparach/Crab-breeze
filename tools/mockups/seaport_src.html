@@ -400,7 +400,6 @@ function buildProposed(g, labels) {
   put("Loading arms", B => { for (const x of [175, 195, 215, 235]) { B.color(0x6b7178); S.run(B, "metal", x - 1, 0, 432, x + 1, 10.5, 434, 6); S.member(B, "metal", [x, 10.5, 433], [x, 3.5, 444], 0.8, 0.8); } }, 0, 0, 0, 5.5);
   put("Jetty control house", B => S.hut(B, E.M, { w: 16, d: 10, h: 4.5 }), 158, 427, 0, 5.5);
   ship(g, "tanker", [200, 454], [1, 0]);
-  model(g, "tanker", [200, 454], [1, 0]);
   tankFarm(g, labels);
   labels.push(["Tanker jetty", [200, 430], 20]); labels.push(["tanker", [260, 454], 26, "standin"]);
 

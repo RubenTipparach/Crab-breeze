@@ -262,7 +262,7 @@
     if (use === 'jobs' || use === 'customs') {
       for (let x = x0 + 2; x < x1 - 2; x += 3.1) place(B, x, g, z1 - 4, 0, FURN.counter(use === 'jobs' ? 0x2f5f8f : 0x3a5a3a));
       for (let x = x0 + 2; x < x1 - 2; x += 3) place(B, x, g, z1 - 1.6, 0, bench(0x8a6a46));
-      if (use === 'jobs') { for (const [x, r] of [[x0 + 0.12, 1], [x1 - 0.12, 3]]) for (let z = z0 + 2; z < z1 - 5; z += 3) place(B, x, g, z, r, board()); }
+      if (use === 'jobs') { for (const [x, r] of [[x0 + 0.06, 1], [x1 - 0.06, 3]]) for (let z = z0 + 2; z < z1 - 5; z += 3) place(B, x, g, z, r, board()); }
       else for (let x = x0 + 2.5; x < x1 - 2; x += 3.5) place(B, x, g, z1 - 6.8, 0, steelTable());
       desks(g, z0 + 2.5, z1 - 7.5);
     } else if (use === 'pilot') {
@@ -690,6 +690,8 @@
     const step = Math.min(5, L / 8), n = Math.ceil(L / step - 1e-6), zs = Array.from({ length: n + 1 }, (_, i) => z0 + L * i / n);
     const yK = -s.draft, lifts = [yK]; for (let y = yK + 4; y < 0.4 - 0.5; y += 4) lifts.push(y); lifts.push(0.4); for (let y = 0.4 + 4; y < s.bulwark - 0.5; y += 4) lifts.push(y); lifts.push(s.bulwark);
     const T = 0.25;   // plating
+    // the clear half-width inside the plating at height y over z0..z1 (the narrowest there: the bow and the bilge taper)
+    const clear = (za, zb, y) => { let w = 1e9; for (let z = za; z <= zb + 1e-6; z += Math.max(0.25, (zb - za) / 4)) w = Math.min(w, half(Math.max(z0, Math.min(z1, z)))); return w * (y < 0 ? 0.9 + 0.1 * Math.max(0, y - yK) / -yK : 1) - T - 0.15; };
     for (let i = 0; i < n; i++) {
       const za = zs[i], zb = zs[i + 1], wa = half(za), wb = half(zb);
       // the keel plate, both sides' plating in lifts (red below the waterline), the inner decks, the main deck
@@ -717,9 +719,9 @@
       const yy = lv === 0 ? yK + 0.3 : yK + 2.8 * lv, above = yK + 2.8 * (lv + 1) < s.sheer - 1.6 ? yK + 2.8 * (lv + 1) - 0.2 : s.sheer - 0.3, room = Math.min(2.4, above - yy);
       if (room < 0.8) continue;
       for (let z = z0 + 1; z < z1 - 1; z += 2.2) {
-        const w = half(z) - T - 0.3; if (w < 0.8) continue;
+        const w = clear(z - 1.25, z + 1.25, yy); if (w < 1.0) continue;   // every box below stays inside the plating
         const aft = fromStern(z) < L * 0.2;
-        for (let x = -w + 0.6; x < w - 0.6; x += 2.0) {
+        for (let x = -w + 0.95; x <= w - 0.95 + 1e-6; x += 2.0) {
           const r = h(Math.round(z * 10) * 31 + Math.round(x * 10) + lv * 977);
           if (aft) {   // the engine room: engines, generators, pumps and pipes
             if (lv === 0 && r < 0.5) { B.color(r < 0.25 ? 0x3a3d42 : 0x5a6a7a); B.box('metal', x - 0.8, yy, z - 0.9, x + 0.8, yy + Math.min(room, 1.4 + r * 2), z + 0.9); }
@@ -727,7 +729,7 @@
           } else if (s.cargo === 'boxes' && r < 0.75) { B.color([0x2f5f8f, 0xa8322a, 0x3f6e3a, 0x8a8a84, 0xc0682a, 0x6b4a2e][Math.floor(r * 60) % 6]); B.box('corrugated', x - 0.9, yy, z - 1.0, x + 0.9, yy + Math.min(room, 1.2 + r * 1.3), z + 1.0); }
           else if (s.cargo === 'fish' && r < 0.6) { place(B, x, yy, z, 0, [['paint', -0.6, 0, -0.4, 0.6, 0.3, 0.4, 0x2f6f9f], ['paint', -0.6, 0.32, -0.4, 0.6, 0.62, 0.4, 0xe8e8e2], ['paint', -0.6, 0.64, -0.4, 0.6, 0.94, 0.4, 0x2f6f9f]]); }
         }
-        if (s.cargo === 'cars' && lv === decks.length - 1 && !aft) for (const x of [-w + 1.2, -1.1, 1.1, w - 1.2]) if (Math.abs(x) < w - 0.9 && ((z - z0) / 2.2 | 0) % 3 === 0) carAt(B, x, yy, z + 1.2, 0, [0x8a2c2a, 0xd8d2c0, 0x2c4a7a, 0x6a6a5a][Math.floor(h(z * 7 + x) * 4)]);
+        if (s.cargo === 'cars' && lv === decks.length - 1 && !aft) for (const x of [-w + 1.2, -1.1, 1.1, w - 1.2]) if (Math.abs(x) <= w - 1.0 && clear(z - 1.3, z + 3.7, yy) >= Math.abs(x) + 1.0 && ((z - z0) / 2.2 | 0) % 3 === 0) carAt(B, x, yy, z + 1.2, 0, [0x8a2c2a, 0xd8d2c0, 0x2c4a7a, 0x6a6a5a][Math.floor(h(z * 7 + x) * 4)]);
       }
     }
     // on deck: hatch covers, the pipe rack, the stern ramp, masts, the A-frame, the gun
@@ -740,7 +742,8 @@
     if (s.aframe) { B.color(C.yellow); for (const sx of [-1, 1]) tubes(B, 'paint', [sx * 2.8, s.sheer, s.aframe], [sx * 0.6, 6.2, s.aframe + 0.4], 0.18, 2, 6); tube(B, 'paint', [-0.8, 6.2, s.aframe + 0.4], [0.8, 6.2, s.aframe + 0.4], 0.2, 6); }
     if (s.gun) { B.color(C.grey); B.cyl('metal', 'y', [0, 0, s.gun], 1.1, s.sheer, s.sheer + 1.0, 12); B.color(C.black); B.box('metal', -0.6, s.sheer + 1.0, s.gun - 0.7, 0.6, s.sheer + 1.8, s.gun + 0.7); tube(B, 'metal', [0, s.sheer + 1.4, s.gun - 0.6], [0, s.sheer + 1.6, s.gun - 4.2], 0.1, 6); }
     // the superstructure: a hall of floors 2.8 m apart, the top one the bridge, glazed to the bow
-    const H = s.house; if (!H) return;
+    const H0 = s.house; if (!H0) return;
+    const H = Object.assign({}, H0, { w: Math.min(H0.w, hb - T - 0.2) });   // the house stands inside the bulwarks, never in their plane
     const fl = []; for (let y = s.sheer; y < H.top - 1.0; y += H.small ? H.top - s.sheer : 2.8) fl.push([y, Math.min(H.top, y + (H.small ? H.top - s.sheer : 2.8))]);
     if (fl.length && H.top - fl[fl.length - 1][1] > 0.3) fl[fl.length - 1][1] = H.top;
     const nf = fl.length, bridgeSpec = (i, st) => (st === nf - 1 ? 'glazed' : H.passengers ? 'ribbon' : 'windows');
