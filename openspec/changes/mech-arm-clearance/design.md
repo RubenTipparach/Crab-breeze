@@ -35,6 +35,14 @@ offset is whole when sat. A grid search took the smallest change that leaves at 
 | Roustabout | out 0.6, fwd -0.25 | 0.37 m | the arms brace out past the knees |
 | Mule | out 0.6, fwd -0.5 | 0.30 m | the fists brace out past the knees |
 
+## The shoulder axles
+
+The shoulder joint (`contract_arm`) stands off the torso by 3 to 5.5 kit units on every mech, and the arm's parts are all
+on the shoulder's side of it, so the arm floats beside the torso. `axle` adds a cylinder on the chest along x, from 0.55 of
+the joint's offset (inside the torso) out to the joint: radius 3.2 kit units on the Foreman, 3.0 on the Ironhorse, 2.0 x
+the arm's scale on the walkers (0.64 to 0.93 m). It turns nothing and moves nothing; the shoulder still pivots at the joint,
+which is now the axle's end. 136 triangles a mech. Built only with `CB_SHOULDER_AXLES=1` until approved.
+
 ## In the game (after approval)
 
 The game's kneel is `SitPose` (`cb_core::boarding`), blended by the leg solver (`cb_core::mech::gait::pose`, `sit_amount`);

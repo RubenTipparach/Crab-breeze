@@ -36,6 +36,9 @@ from mech_kit import Kit, Node, leg_height  # noqa: E402
 from mathutils import Vector  # noqa: E402
 
 PI = math.pi
+# Crab Breeze: the shoulder axles (contract_arm) wait for the owner's approval on the Mechs page; the page is built with
+# CB_SHOULDER_AXLES=1, the game's assets without, until it is approved.
+AXLES = os.environ.get("CB_SHOULDER_AXLES") == "1"
 OUT = os.path.join(K.ROOT, "assets", "models")
 MANIFEST = os.path.join(OUT, "mechs.json")
 
@@ -44,8 +47,14 @@ def N(name):
     return Node(name, K.Matrix.Identity(4))
 
 
-def contract_arm(k, chest, S, x, y, z, rx, elb_y, elb_rx):
-    """sh -> (upper_arm) -> elb, as the contract wants: the upper arm is a joint at the shoulder."""
+def contract_arm(k, chest, S, x, y, z, rx, elb_y, elb_rx, axle=0.0):
+    """sh -> (upper_arm) -> elb, as the contract wants: the upper arm is a joint at the shoulder.
+    Crab Breeze: `axle`, a radius, adds the shoulder's axle housing on the chest, from well inside the torso out to the
+    joint, so the arm turns on something instead of floating off the torso's side (owner, 2026-10-29: "mechs arms arent
+    attached"). The arm itself is unchanged."""
+    if axle and AXLES:
+        inner = x * 0.55
+        k.cyl(axle, axle, abs(x - inner), k.M["frame"], chest, (x + inner) / 2, y, z, 0, 0, PI / 2, 18)
     sh = k.J(f"shoulder_{S}", chest, x, y, z, rx)
     ua = k.J(f"upper_arm_{S}", sh)
     elb = k.J(f"forearm_{S}", ua, 0, elb_y, 0, elb_rx)
@@ -875,7 +884,7 @@ def foreman(k):
     # arms: shoulders are boom feet with their rams
     sy = 5 + out["y1"] - 9
     for S, s in (("L", 1), ("R", -1)):
-        sh_, elb = contract_arm(k, chest, S, s * (out["hw"] + 5.5), sy, 2, -0.05, -15, -1.2)
+        sh_, elb = contract_arm(k, chest, S, s * (out["hw"] + 5.5), sy, 2, -0.05, -15, -1.2, axle=3.2)
         k.cyl(5, 5, 7, M["frame"], sh_, 0, 0, 0, 0, 0, PI / 2, 18)
         k.pl(9, 7, 13, M["armor"], sh_, s * 2, 4, 0, 0, 0, s * 0.2)
         k.box(1.0, 5, 11, M["hazard"], sh_, s * 6.6, 4, 0)
@@ -1038,7 +1047,7 @@ def ironhorse(k):
         k.sock(f"JET_{S}", on_torso(k, cp), s * 1.4 * U, 0.0, -2.2 * U - 5, PI)
     sy = 4 + cy + R * 0.35
     for S, s in (("L", 1), ("R", -1)):
-        sh_, elb = contract_arm(k, chest, S, s * (R + 4.5), sy, 3, -0.08, -13, -1.35)
+        sh_, elb = contract_arm(k, chest, S, s * (R + 4.5), sy, 3, -0.08, -13, -1.35, axle=3.0)
         k.sph(4.4, M["frame"], sh_, 0, 0, 0)
         k.pl(8, 6, 11, M["armor"], sh_, s * 1.8, 3.6, 0, 0, 0, s * 0.25)
         k.box(0.8, 4, 9, M["hazard"], sh_, s * 5.8, 3.6, 0)
@@ -1145,7 +1154,7 @@ def walker_arm(k, chest, S, s, x, y, z, a=1.0, upper=9.0, elb_rx=-1.3):
     """An arm for the 24 m round: shoulder ball, a raked pauldron with its hazard edge, the upper arm, the elbow drum,
     an armoured forearm. Returns (shoulder, elbow, hand): weapons hang on the hand along its -y, +z up."""
     M = k.M
-    sh, elb = contract_arm(k, chest, S, x, y, z, -0.05, -upper * a, elb_rx)
+    sh, elb = contract_arm(k, chest, S, x, y, z, -0.05, -upper * a, elb_rx, axle=2.0 * a)
     k.sph(3.0 * a, M["frame"], sh, 0, 0, 0)
     k.pl(6.2 * a, 4.4 * a, 7.4 * a, M["armor"], sh, s * 1.6 * a, 2.2 * a, 0, 0, 0, s * 0.2)
     k.box(0.6, 3.2 * a, 6.2 * a, M["hazard"], sh, s * 4.75 * a, 1.9 * a, 0, 0, 0, s * 0.2)
