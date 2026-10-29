@@ -904,6 +904,46 @@ mod tests {
     }
 
     #[test]
+    fn both_sites_carry_their_pages_night_lights() {
+        let (kits, sites) = shipped();
+        let (airport, seaport) = (sites.airport.unwrap(), sites.seaport.unwrap());
+        assert_eq!(airport.lights.runways.len(), 2, "the main and the cross runway");
+        assert!(
+            airport.lights.masts.iter().filter(|m| m.h_m >= 25.0).count() >= 10,
+            "a mast at every gate"
+        );
+        assert!(airport.lights.dots.iter().any(|d| d.colour == LightColour::Blue), "taxiway lights");
+        assert!(seaport.lights.runways.is_empty());
+        // Every ship's lights stand on that ship.
+        for (i, p) in seaport.placements.iter().enumerate().filter(|(_, p)| p.ship) {
+            let on = seaport.lights.dots.iter().filter(|d| d.lot == Some(i as u32)).count();
+            assert!(on > 0, "{} carries its lights", kits.kits[p.kit].id);
+        }
+        for d in &seaport.lights.dots {
+            if let Some(lot) = d.lot {
+                let p = &seaport.placements[lot as usize];
+                let k = &kits.kits[p.kit];
+                let reach = (k.hi - k.lo).length() + 5.0;
+                assert!(Vec2::new(d.at.x, d.at.z).distance(p.at) < reach, "a light of {} stands on it", k.id);
+            }
+        }
+    }
+
+    #[test]
+    fn a_light_naming_a_placement_past_the_last_is_refused() {
+        let j: LightsJson =
+            serde_json::from_str(r#"{"masts": [], "dots": [{"at": [0, 1, 0], "colour": "red", "lot": 3}], "runways": []}"#).unwrap();
+        assert!(lights_of(&j, 3).is_err());
+        assert!(lights_of(&j, 4).is_ok());
+    }
+
+    #[test]
+    fn an_unknown_light_colour_is_refused() {
+        let j = serde_json::from_str::<LightsJson>(r#"{"masts": [], "dots": [{"at": [0, 1, 0], "colour": "mauve"}], "runways": []}"#);
+        assert!(j.is_err());
+    }
+
+    #[test]
     fn every_site_building_stands_as_built() {
         let (kits, sites) = shipped();
         for t in [sites.airport.unwrap(), sites.seaport.unwrap()] {

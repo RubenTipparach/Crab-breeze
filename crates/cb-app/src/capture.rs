@@ -1450,6 +1450,44 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // The airport's gates and the seaport's container quay from their pages' own views (night-voxel-light section
+    // 2d: the masts at the jet bridges, the lit terminal, the runway dots; the yard's masts, the gantries, the ship).
+    View {
+        name: "airport-gates",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-terminals",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-container",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-fishing",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-overview",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-overview",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // A dune suburb from 900 m, where the ground is drawn at step 2: its streets lie on that ground
     // (lot-access task 2.3; seed 42's street that floated highest, 2.7 m, measured 2026-10-28).
     View {
@@ -1847,6 +1885,17 @@ fn house_view(plan: &crate::world::Plan, off_m: f32) -> ([f32; 3], [f32; 3]) {
     ([eye.x, ground + up, eye.y], [lot.centre.x, lot.ground_m + 3.0, lot.centre.y])
 }
 
+/// A view of the placed site of `kind` from `eye` to `at`, points of its frame as its page's views give them.
+fn site_view(plan: &crate::world::Plan, kind: cb_core::world::sites::SiteKind, eye: [f32; 3], at: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+    let Some(site) = plan.sites.iter().find(|s| s.template.kind == kind) else {
+        warn!("site view: no {kind:?} on this island");
+        return ([0.0, 100.0, 0.0], [100.0, 0.0, 100.0]);
+    };
+    let (e, a) = (site.point_to_world(Vec3::from(eye)), site.point_to_world(Vec3::from(at)));
+    info!("site view: {kind:?} at {}", site.origin);
+    (e.to_array(), a.to_array())
+}
+
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
 fn city_up_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
     // The city with the most cloud overhead (the storm decks are where the cloud's base shows).
@@ -2006,6 +2055,42 @@ fn run_weather_script(
             "house-near" => house_view(&plan, 22.0),
             "house-far" => house_view(&plan, 300.0),
             "city-air" => city_view(&plan, true),
+            "airport-gates" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [160.0, 40.0, 300.0],
+                [160.0, 6.0, 420.0],
+            ),
+            "airport-terminals" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [150.0, 90.0, 120.0],
+                [380.0, 8.0, 400.0],
+            ),
+            "seaport-container" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-480.0, 80.0, 360.0],
+                [-660.0, 20.0, 100.0],
+            ),
+            "seaport-fishing" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [660.0, 45.0, 320.0],
+                [570.0, 0.0, 80.0],
+            ),
+            "airport-overview" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [-1500.0, 1300.0, 1700.0],
+                [0.0, 0.0, -100.0],
+            ),
+            "seaport-overview" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-1500.0, 1250.0, 2000.0],
+                [0.0, 0.0, 150.0],
+            ),
             "suburb-far" => {
                 let at = Vec2::new(-6939.0, -3000.0);
                 let eye = at + Vec2::new(600.0, 600.0);

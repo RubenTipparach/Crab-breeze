@@ -19,7 +19,7 @@ use bevy::pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin}
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError};
 use bevy::shader::ShaderRef;
-use cb_core::world::lamps::{GlowDot, Lamp, LampKind, LightColour, place, place_dots};
+use cb_core::world::lamps::{Lamp, LampKind, LightColour, place, place_dots};
 use std::collections::HashMap;
 
 /// A tile of merged poles, metres.
