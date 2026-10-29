@@ -1388,6 +1388,9 @@ td.n { font-family: var(--mono); white-space: nowrap; }
       <button data-view="coastguard">Coast guard</button><button data-view="tower">Port control</button>
       <button data-view="cockpit">From the cockpit</button><button data-view="foot">On foot</button>
     </div>
+    <div class="bar"><span class="lbl">Time</span>
+      <button data-time="day" aria-pressed="true">Day</button><button data-time="night">Night, 22:00</button>
+    </div>
     <div class="bar"><span class="lbl">Fire</span>
       <button data-gun="cannon">Autocannon</button><button data-gun="shell" aria-pressed="true">120 mm shell</button><button data-gun="missile">Missile</button><button data-gun="demo">Demolition</button>
       <button id="repair">Repair all</button><span class="stat" id="shotstat"></span>
@@ -4475,7 +4478,7 @@ const camera = new T.PerspectiveCamera(40, 1.6, 0.3, 30000);
 const controls = new T.OrbitControls(camera, canvas);
 controls.enableDamping = true;
 Object.assign(controls, { minDistance: 3, maxDistance: 7000, maxPolarAngle: PI * 0.495 });
-scene.add(new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.85));
+const hemi = new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.85); scene.add(hemi);
 const sun = new T.DirectionalLight(0xffe8cc, 2.2);
 sun.position.set(-700, 1200, 900); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
 Object.assign(sun.shadow.camera, { left: -1300, right: 1300, top: 1300, bottom: -1300, near: 10, far: 4000 });
@@ -4644,6 +4647,7 @@ function luffing(g, c, out) { put("Luffing crane", B => S.luffingCrane(B), c[0],
 // cabins, mess and bridge. Its bow along `heading` as the model's would be; `y` is its waterline.
 function ship(g, id, c, heading, y = 0) {
   const turn = ((Math.round(Math.atan2(heading[0], heading[1]) / (PI / 2)) % 4) + 4) % 4;
+  SHIPLIST.push({ id, c, turn, y });
   put(id, B => S.ship(B, E.M, id), c[0], c[1], turn, y, Object.assign({ base: y - S.SHIPS[id].draft, anchorBuilt: true, collapse: SINKS, sink: true }, MACHINE));
 }
 // A tug of the 1980s, 28 x 9 m (no model of its own yet: the kit's ship at those sizes).
@@ -4662,10 +4666,12 @@ function shed(g, name, x0, z0, x1, z1, h, m, labels, label) {
 }
 function gantry(g, x, zLand, zSea, labels, name) {
   put("Container gantry", B => S.gantry(B, { gauge: zSea - zLand }), x, zLand, 0, DECK, MACHINE);
+  GANTRIES.push([x, zLand, zSea - zLand]);
   if (name) labels.push([name, [x, zSea + 20], 74]);
 }
 function straddle(g, c) { put("Straddle carrier", B => S.straddle(B), c[0], c[1], 0, DECK, MACHINE); }
 function stackBlock(g, x0, z0, cols, rows, rnd) { put("Container stack", B => S.stackBlock(B, { cols, rows }, rnd), x0, z0, 0, DECK + 0.05); }
+const SHIPLIST = [], GANTRIES = [];
 function lightTower(g, c, lamp, name, labels) {
   put(name, B => S.lightTower(B, { red: lamp === M.lampRed }), c[0], c[1], 0, 6);
   labels.push([name, c, 24]);
@@ -4816,6 +4822,117 @@ function buildToday(g, labels) {
   labels.push(["Pier and head on piles", [0, 215], 6, "today"]); labels.push(["Warehouses", [0, -83], 18, "today"]);
 }
 
+
+// ---------------------------------------------------------------- night (openspec/changes/night-voxel-light section 2d)
+// Owner, 2026-10-29: "airports and seaports lit like this at all times", then "what about seaport and boats should have
+// lights on all the time as well". The port works all night: its buildings are lit, the quays, yards, jetty and dock
+// are under floodlight masts, the gantries carry boom lights and a red obstruction lamp, and every ship shows its
+// lights (lit cabins and bridge, deck floodlights, anchor lights; the tugs and gunboats, ready to sail, their sidelights).
+// Drawn in its own group, never in `built`: tools/buildings/export_sites.cjs takes `built` only.
+const nightG = new T.Group(); scene.add(nightG);
+let night = false;
+// The glow dots: at least 3 px across however far, additive, lighting nothing (as the airport's runway lights).
+const dotMat = new T.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: T.AdditiveBlending, vertexColors: true, uniforms: { scale: { value: 500 } },
+  vertexShader: "#include <common>\n#include <logdepthbuf_pars_vertex>\nuniform float scale; varying vec3 vC; void main() { vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = max(3.0, 0.9 * scale / -mv.z);\n#include <logdepthbuf_vertex>\n}",
+  fragmentShader: "#include <logdepthbuf_pars_fragment>\nvarying vec3 vC; void main() {\n#include <logdepthbuf_fragment>\nfloat r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.0, r); gl_FragColor = vec4(vC * (a * a * 2.2 + smoothstep(0.35, 0.0, r)), 1.0); }",
+});
+// Metal halide on the quays and cranes, sodium on the roads, the car park and the fishing boats' work lights.
+const DOT = { white: 0xfff6e8, red: 0xff3a2e, green: 0x37e07a, halide: 0xe6eeff, sodium: 0xffb35a, cabin: 0xffd9a0 };
+const cabLight = new T.PointLight(0xfff0d0, 2.2, 22, 1.2); scene.add(cabLight);   // port control's top floor, always lit
+function buildNight() {
+  for (const o of [...nightG.children]) { nightG.remove(o); if (o.geometry) o.geometry.dispose(); }
+  cabLight.visible = show === "proposed" && !window.SITE_EXPORT;
+  cabLight.position.set(78, DECK + 32 - 2.5, 38);
+  if (show !== "proposed" || window.SITE_EXPORT) return;
+  const dots = [], dot = (x, y, z, c) => dots.push([x, y, z, c]);
+  // A mast from `base`, its head at h over it, its floodlights aimed down at `aim` ([x, z], at `aimY`).
+  function mast(at, h, aim, power, o = {}) {
+    const base = o.base ?? DECK, col = o.col ?? DOT.halide, top = base + h;
+    const pole = new T.Mesh(new T.BoxGeometry(0.6, h, 0.6), M.fence); pole.position.set(at[0], base + h / 2, at[1]); nightG.add(pole);
+    const hs = Math.min(1, h / 12), head = new T.Mesh(new T.BoxGeometry(3 * hs, 0.6 * hs, 1.2 * hs), M.lamp); head.position.set(at[0], top, at[1]); nightG.add(head);
+    dot(at[0], top, at[1], col);
+    if (!power) return;
+    const sp = new T.SpotLight(col, power, o.range ?? h * 3.2, 0.95, 0.7, 1.2);
+    sp.position.set(at[0], top - 0.4, at[1]); sp.target.position.set(aim[0], o.aimY ?? DECK, aim[1]); nightG.add(sp, sp.target);
+  }
+  const self = (at, h, power, o) => mast(at, h, at, power, o);
+  // ---- the container terminal: 35 m high masts in the lanes between the stack blocks
+  for (const x of [-806, -714, -622, -530]) for (const z of [39, 75]) self([x, z], 35, 2.2);
+  // the gantries: lamps along the boom, a floodlight under the boom's sea end onto the ship, red on the apex
+  for (const [x, z, g] of GANTRIES) {
+    for (let u = -25; u <= g + 55; u += 10) for (const s of [-4, 4]) dot(x + s, DECK + 42.6, z + u, DOT.halide);
+    dot(x, DECK + 70.6, z + g / 2, DOT.red);
+    const sp = new T.SpotLight(DOT.halide, 1.6, 90, 0.6, 0.7, 1.2); sp.position.set(x, DECK + 42, z + g + 10); sp.target.position.set(x, DECK + 4, z + g + 14); nightG.add(sp, sp.target);
+  }
+  // ---- the cargo pier, the ferry terminal and its lanes, the tug quay
+  for (const [x, z] of [[-350, 15], [-290, 15], [-350, 285], [-290, 285]]) self([x, z], 25, 1.6);
+  mast([-105, 80], 15, [-75, 80], 1.2); mast([-45, 80], 15, [-75, 80], 1.2); mast([-128, 110], 12, [-120, 125], 1.0);
+  mast([45, 90], 15, [45, 116], 1.0);
+  // ---- the tanker jetty: sodium lamps along the trestle, floodlights on its head over the loading arms
+  for (let z = 30; z <= 400; z += 40) mast([196.2, z], 6, [196, z], 0, { base: 4, col: DOT.sodium });
+  mast([150, 436], 15, [200, 446], 1.6, { base: 5.5 }); mast([250, 436], 15, [200, 446], 1.6, { base: 5.5 });
+  // ---- the tank farm's corners and the dry dock, lit down onto its floor
+  for (const at of [[113, -272], [307, -272], [113, -108], [307, -108]]) mast(at, 15, [210, -190], 1.2);
+  for (const at of [[334, -195], [386, -195], [334, -6], [386, -6]]) mast(at, 20, [360, -100], 1.8, { aimY: DOCK.floor, range: 170 });
+  dot(360, DECK + 65.6, -110, DOT.red);   // the goliath's obstruction lamp
+  // ---- the fishing harbour: the mole's floodlights, lamps along the pontoons, the fish market's front
+  mast([447, 50], 12, [560, 60], 1.2); mast([447, 170], 12, [560, 140], 1.2); mast([515, -12], 10, [515, 0], 0.9, { col: DOT.sodium });
+  for (const x of [500, 560, 620]) for (let z = 20; z <= 145; z += 25) mast([x, z], 3.5, [x, z], 0, { base: 0.9, col: DOT.sodium });
+  // ---- the coast guard quay and the mech slipway
+  for (const at of [[745, 90], [835, 90], [838, 2], [902, 2]]) self(at, 15, 1.3);
+  // ---- landside: the port road's sodium lamps every 40 m (a floodlight every fourth), the car park, the warehouses
+  for (let x = -1180, i = 0; x <= 1180; x += 40, i++) mast([x, -321], 10, [x, -330], i % 4 ? 0 : 1.0, { col: DOT.sodium });
+  for (const at of [[-172, -200], [-118, -200], [-172, -150], [-118, -150]]) self(at, 10, 0.9, { col: DOT.sodium });
+  for (const x of [-815, -695, -575]) mast([x, -174], 10, [x, -170], 0.9, { col: DOT.sodium });
+  // ---- every ship's lights
+  for (const sh of SHIPLIST) shipLights(sh);
+  function shipLights(sh) {
+    const s = S.SHIPS[sh.id], L = s.len, H = s.house, a = sh.turn * PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+    const at = (x, y, z) => [sh.c[0] + x * ca + z * sa, sh.y + y, sh.c[1] - x * sa + z * ca];
+    const D = (x, y, z, c) => { const p = at(x, y, z); dot(p[0], p[1], p[2], c); };
+    const bowZ = s.bow < 0 ? -L / 2 : L / 2, sternZ = -bowZ, hw = Math.min(H.w, s.beam / 2 - 0.45);
+    const bridgeZ = s.bow < 0 ? H.z0 : H.z1, mastTop = H.small ? 0 : Math.max(H.top + 4, s.sheer + 8);
+    // anchor (all-round white) lights on the masts, or the house top and the stern
+    for (const z of s.masts || []) D(0, mastTop + 0.3, z, DOT.white);
+    if (!s.masts) { D(0, H.top + 1.2, (H.z0 + H.z1) / 2, DOT.white); }
+    // ready to sail (the tugs and gunboats): sidelights at the bridge wings, the stern light
+    if (sh.id === "tug" || sh.id === "gunboat") {
+      const stbd = s.bow < 0 ? 1 : -1;
+      D(stbd * (hw + 0.2), H.top - 0.8, bridgeZ, DOT.green); D(-stbd * (hw + 0.2), H.top - 0.8, bridgeZ, DOT.red);
+      D(0, s.sheer + 0.8, sternZ, DOT.white);
+    }
+    // deck lights along both rails, sodium on the fishing boats
+    const step = Math.max(6, L / 8), col = sh.id === "fishing_boat" || sh.id === "launch" ? DOT.sodium : DOT.halide;
+    if (L >= 20) for (let z = -L / 2 + step / 2; z < L / 2; z += step) if (z < H.z0 - 1 || z > H.z1 + 1) for (const sx of [-1, 1]) D(sx * (s.beam / 2 - 0.6), s.bulwark + 1.2, z, col);
+    if (s.aframe) D(0, 6.4, s.aframe + 0.4, DOT.sodium);
+    // the big ships' deck floodlights, from the front of the house onto the deck before it, and from the foremast
+    if (L >= 60) {
+      const p = at(0, H.top + 0.8, bridgeZ + (s.bow < 0 ? -0.3 : 0.3)), q = at(0, s.sheer, (bridgeZ + bowZ) / 2);
+      const sp = new T.SpotLight(DOT.halide, 1.4, L * 1.1, 0.5, 0.6, 1.2); sp.position.set(...p); sp.target.position.set(...q); nightG.add(sp, sp.target);
+    }
+  }
+  const geo = new T.BufferGeometry(), P = [], C = [];
+  for (const [x, y, z, c] of dots) { P.push(x, y, z); const col = new T.Color(c); C.push(col.r, col.g, col.b); }
+  geo.setAttribute("position", new T.Float32BufferAttribute(P, 3)); geo.setAttribute("color", new T.Float32BufferAttribute(C, 3));
+  nightG.add(new T.Points(geo, dotMat));
+}
+// Day or night: the sky, the sun or the moon, the exposure, the lamps' glow, and the rooms. Inside surfaces glow warm at
+// night, standing in for the game's room light behind the glass: the offices, the terminal, port control and every
+// ship's cabins, mess and bridge (their floors are floorWood).
+const INSIDE = ["plaster", "floorTile", "floorWood", "carpet", "laminate", "wallTile", "counter", "fabric"];
+function setNight(on) {
+  night = on;
+  scene.background = lin(on ? 0x070b16 : 0xbfcdd9); scene.fog.color = lin(on ? 0x0a1222 : 0xbfcdd9);
+  hemi.intensity = on ? 0.1 : 0.85; hemi.color.set(on ? 0x2a3a66 : 0xbfd4ee);
+  sun.intensity = on ? 0.18 : 2.2; sun.color.set(on ? 0x8899cc : 0xffe8cc); sun.castShadow = !on;
+  renderer.toneMappingExposure = on ? 1.35 : 1;
+  for (const [m, day, , nite] of E.glows) m.emissiveIntensity = on ? nite : day;
+  for (const k of INSIDE) { const m = E.materials[k]; if (m) { m.emissive = new T.Color(on ? 0xffc98a : 0x000000); m.emissiveIntensity = on ? 0.32 : 0; } }
+  nightG.visible = on;
+  document.querySelectorAll("[data-time]").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.time === "night") === on)));
+}
+
 // ---------------------------------------------------------------- yardsticks: the Foreman and a pilot
 const yardG = new T.Group(); scene.add(yardG);
 pending++;
@@ -4829,16 +4946,17 @@ box(yardG, [FOREMAN[0] - 18.5, DECK, FOREMAN[1] - 0.25], [FOREMAN[0] - 18, DECK 
 // ---------------------------------------------------------------- scene state, labels, views
 let show = "proposed", built = null, labels = [], labelReach = null, gun = "shell";
 // Every model is in: make the engine's meshes and support graphs.
-function finishSite() { E.finish(); const u = E.unheld(); if (u.length) console.log("unheld", JSON.stringify(u)); }
+function finishSite() { E.finish(); const u = E.unheld(); if (u.length) console.log("unheld", JSON.stringify(u)); if (typeof setNight === "function") setNight(night); }
 const statEl = document.getElementById("shotstat");
 controls.addEventListener("start", () => { labelReach = null; });
 const tagsEl = document.getElementById("tags");
 function rebuild() {
   if (built) { scene.remove(built); built.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   built = new T.Group(); scene.add(built); labels = []; tagsEl.innerHTML = "";
-  E.clear(); GROUNDS = []; statEl.textContent = ""; gen++; modelsLeft = 1;
+  E.clear(); GROUNDS = []; SHIPLIST.length = 0; GANTRIES.length = 0; statEl.textContent = ""; gen++; modelsLeft = 1;
   if (show === "today") buildToday(built, labels); else buildProposed(built, labels);
   if (--modelsLeft === 0) finishSite();
+  buildNight(); setNight(night);
   labels.push(["Foreman, 24 m", FOREMAN, 28]);
   for (const l of labels) { const el = document.createElement("div"); el.className = "tag " + (l[3] || ""); el.textContent = l[0]; tagsEl.appendChild(el); l.el = el; }
   document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
@@ -4864,11 +4982,12 @@ function view(name) {
 }
 document.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { show = b.dataset.show; rebuild(); });
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.dataset.view));
+document.querySelectorAll("[data-time]").forEach(b => b.onclick = () => setNight(b.dataset.time === "night"));
 document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = b.dataset.gun;
   document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
 document.getElementById("repair").onclick = () => { E.reset(); statEl.textContent = ""; };
 E.bindFire(canvas, camera, () => gun);
-window.MOCKUP = { view, blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), show: s => { show = s; rebuild(); },
+window.MOCKUP = { view, setNight, blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), show: s => { show = s; rebuild(); },
   unheld: () => E.unheld(), engine: E,
   buildings: () => E.BLD.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.pieces.filter(p => E.PIECES[p].alive).length, collapsed: B.collapsed, anchored: B.anchored })) };
 canvas.addEventListener("keydown", e => {
@@ -4894,7 +5013,8 @@ document.querySelector("#pieces tbody").innerHTML = [
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) {
-    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    dotMat.uniforms.scale.value = h * renderer.getPixelRatio() / (2 * Math.tan(camera.fov * PI / 360)); }
 }
 const tmp = new T.Vector3();
 let last = 0;

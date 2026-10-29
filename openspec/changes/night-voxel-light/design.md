@@ -191,6 +191,29 @@ gate's stand. They are drawn on the approved airport page itself (`tools/mockups
 button), so the game takes their positions from the same layout as the bridges (`export_sites.cjs`). The page draws
 the night in its own group, outside what the export reads, until the owner approves it.
 
+**The seaport works all night, and every ship shows its lights** (owner, 2026-10-29: "what about seaport and boats
+should have lights on all the time as well"). Drawn on the approved seaport page (`tools/mockups/seaport_src.html`, the
+Night button), in its own group outside what `export_sites.cjs` reads:
+- **Buildings:** the sheds, offices, terminal, customs and port control carry `ALWAYS_LIT` as the airport's do; port
+  control's top floor is `ALWAYS_ON`, like a tower cab.
+- **Masts, white (metal halide)** on the working quays, aimed down: 35 m in the container yard's lanes (8), 25 m on the
+  cargo pier's corners (4), 15 m on the ferry lanes, the linkspan, the tug quay, the tanker jetty's head (2), the tank
+  farm's corners (4) and the coast guard quay and mech slipway (4), 20 m round the dry dock, aimed onto its floor (4),
+  12 m on the fishing mole (2).
+- **Lamps, orange (sodium)**: 10 m every 40 m along the port road (about 60), the car park (4), the warehouses' fronts
+  (3), the fish market; 6 m along the tanker trestle every 40 m (10); 3.5 m along the fishing pontoons (18).
+- **Cranes:** each gantry carries lamps along both boom girders every 10 m and a floodlight under its sea end onto
+  the ship; a red obstruction lamp on each gantry's apex and the goliath's girder.
+- **Ships, every one, moored or not:** their cabins, mess and bridge lit behind their windows by the same room light
+  as a building (`ALWAYS_LIT`: a ship's rooms are the kit's, section 2b); white anchor lights on the masts (or the
+  house top); deck lights along both rails, white, sodium on the trawlers and launches, and a work light on a trawler's
+  A-frame; on the ships of 60 m and more a floodlight from the front of the house onto the deck before it. The tugs and
+  gunboats are ready to sail and show their sidelights (red to port, green to starboard, at the bridge wings) and a
+  stern light. Ships under way in the game's harbour traffic show sidelights, masthead and stern lights the same way.
+- **Light:** the masts and lamps are `lamps` kinds as at the airport; a ship's lamps are lamp kinds on its kit, carried
+  with it; its navigation lights are glow dots (no light source).
+- **Estimated:** about 40 masts and 100 lamps a full port; about 15 deck lamps and 4 dots a large ship, 4 a small one.
+
 **Mockup first** (CLAUDE.md section 4, owner 2026-10-28: "Please make mockups before editing game code"):
 `docs/mockups/airport.html` (Night), the approved airport page; the first stand-in, `docs/mockups/runway_lights.html`, is superseded by it. A 2,000 m runway at night with every light group, the taxiway, a terminal
 with its apron masts and car park, and a seaport shed lit, from final approach, on the ground and from above, beside the Foreman and a pilot. No game

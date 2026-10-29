@@ -1,5 +1,6 @@
-// Screenshot the airport page at night (docs/mockups/airport.html, the Night button), one PNG per view.
-//   NODE_PATH=$(npm root -g) node tools/mockups/shoot_airport_night.mjs docs/mockups/airport.html docs/screenshots/night-light
+// Screenshot a site page at night (docs/mockups/airport.html or seaport.html, the Night button), one PNG per view, named
+// <page>-night-<view>.png.
+//   VIEWS=gates,pier NODE_PATH=$(npm root -g) node tools/mockups/shoot_site_night.mjs docs/mockups/airport.html docs/screenshots/night-light
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 import path from "node:path";
@@ -19,7 +20,7 @@ for (const view of (process.env.VIEWS || "gates,pier,terminals,tower,final,overv
   await page.evaluate(v => window.MOCKUP.view(v), view);
   await page.waitForTimeout(2500);
   const box = await page.locator("canvas#view").boundingBox();
-  await page.screenshot({ path: path.join(outDir, `airport-night-${view}.png`), clip: box, timeout: 300000 });
+  await page.screenshot({ path: path.join(outDir, `${path.basename(page_, ".html")}-night-${view}.png`), clip: box, timeout: 300000 });
   console.log("shot", view);
 }
 await browser.close();
