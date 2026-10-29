@@ -232,20 +232,27 @@
           cells.get(ck).push({ key, col, pts: poly, n });
         }
       };
-      const I_ = o.interior, hullTris = [];
+      const I_ = o.interior, hullTris = [], houseTris = [];
+      let meshNo = 0;
       const inner = I_ ? (I_.inner || '#4a4844') : null, ins = I_ ? (I_.surface || 'metal') : null;
       obj.traverse((m) => {
         if (!m.isMesh || !m.visible) return;
         const g = m.geometry, P = g.attributes.position, I = g.index, mm = new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld);
         const col = (m.material && m.material.color) ? '#' + m.material.color.getHexString() : '#888888';
         const key = o.surface ? o.surface(m) : 'paint';
-        const isHull = I_ && I_.hull && I_.hull.test((m.material && m.material.name) || '');
+        const mname = (m.material && m.material.name) || '';
+        const isHull = I_ && I_.hull && I_.hull.test(mname), isHouse = I_ && I_.house && I_.house.test(mname);
+        // Each mesh of the model stands 6 mm further out along its faces' normals than the one before, so two parts whose
+        // faces share a plane (a house flush with the hull's side, a deck on its sheer) never z-fight.
+        const nudge = 0.006 * (meshNo++ % 5);
         const n = I ? I.count : P.count;
         for (let t = 0; t + 2 < n; t += 3) {
           for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(P, I ? I.getX(t + k) : t + k).applyMatrix4(mm);
-          const tri = v.map((q) => [q.x, q.y, q.z]);
+          let tri = v.map((q) => [q.x, q.y, q.z]);
           const c = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0]));
           const nrm = [c.x, c.y, c.z];
+          if (nudge) { const l = Math.hypot(...nrm) || 1; tri = tri.map((q) => [q[0] + nrm[0] / l * nudge, q[1] + nrm[1] / l * nudge, q[2] + nrm[2] / l * nudge]); }
+          if (isHouse) houseTris.push(tri);
           put(key, col, tri, nrm);
           if (I_ && key !== 'glassDark') {   // the inside of the plate, 3 cm in
             const l = Math.hypot(...nrm) || 1, d = nrm.map((x) => -x / l * 0.03);
@@ -271,24 +278,75 @@
           }
           return t - b > 1 ? [b, t] : null;
         };
-        const S = new Map();
-        for (let x = lo[0]; x < hi[0]; x += step) for (let z = lo[2]; z < hi[2]; z += step) S.set(x + ',' + z, span(x + step / 2, z + step / 2));
-        for (const [k, sp] of S) {
+        const spanIn = (tris) => (x, z) => { const old = hullTris.slice(); hullTris.length = 0; hullTris.push(...tris); const r = span(x, z); hullTris.length = 0; hullTris.push(...old); return r; };
+        const houseSpan = spanIn(houseTris);
+        const hash = (a, b, c) => { let h = Math.imul(Math.round(a * 7) * 73856093 ^ Math.round(b * 7) * 19349663 ^ Math.round(c * 7) * 83492791, 0x27d4eb2d); h ^= h >>> 15; return ((h >>> 0) % 1000) / 1000; };
+        // a box of the fit-out, its six faces cut into the cells like everything else
+        const box = (x0, y0, z0, x1, y1, z1, col, key = 'paint') => {
+          const c = [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]];
+          for (const [f, n] of [[[4, 5, 6, 7], [0, 1, 0]], [[0, 1, 2, 3], [0, -1, 0]], [[1, 2, 6, 5], [1, 0, 0]], [[0, 3, 7, 4], [-1, 0, 0]], [[3, 2, 6, 7], [0, 0, 1]], [[0, 1, 5, 4], [0, 0, -1]]]) put(key, col, f.map((i) => c[i]), n);
+        };
+        // the stern is the end the house stands at; the engine room is the hull's last fifth there
+        let hc = 0, hn = 0; for (const t of houseTris) for (const q of t) { hc += alongX ? q[0] : q[2]; hn++; }
+        const a0lo = alongX ? lo[0] : lo[2], a0hi = alongX ? hi[0] : hi[2], L = a0hi - a0lo;
+        const sternAtHi = hn ? hc / hn > (a0lo + a0hi) / 2 : true;
+        const fromStern = (a) => (sternAtHi ? a0hi - a : a - a0lo) / L;
+        const S = new Map(), key = (x, z) => x.toFixed(2) + ',' + z.toFixed(2);
+        for (let x = lo[0]; x < hi[0] + step; x += step) for (let z = lo[2]; z < hi[2] + step; z += step) S.set(key(x, z), span(x, z));
+        // a deck tile at y over the column at (x, z) only where all four of its corners are inside the hull at that height,
+        // pulled 15 cm in from the plating, so no deck pokes through the bilge or the sheer
+        const inside = (x, z, y) => { for (const [dx, dz] of [[0, 0], [step, 0], [step, step], [0, step]]) { const q = S.get(key(x + dx, z + dz)); if (!q || y < q[0] + 0.3 || y > q[1] - 0.3) return false; } return true; };
+        const cargoCols = [0x2f5f8f, 0xa8322a, 0x3f6e3a, 0x8a8a84, 0xc0682a, 0x6b4a2e];
+        for (let x = lo[0]; x < hi[0]; x += step) for (let z = lo[2]; z < hi[2]; z += step) {
+          const sp = span(x + step / 2, z + step / 2);
           if (!sp) continue;
-          const [x, z] = k.split(',').map(Number);
-          // decks: tiles every 2.8 m up from the bottom, both sides
-          for (let y = sp[0] + 1.2; y < sp[1] - 1.0; y += 2.8) {
-            const q = [[x, y, z], [x + step, y, z], [x + step, y, z + step], [x, y, z + step]];
+          const e = 0.02, a = alongX ? x + step / 2 : z + step / 2, f = fromStern(a);
+          let level = 0;
+          for (let y = sp[0] + 1.2; y < sp[1] - 1.0; y += 2.8, level++) {
+            if (!inside(x, z, y)) continue;
+            const q = [[x + e, y, z + e], [x + step - e, y, z + e], [x + step - e, y, z + step - e], [x + e, y, z + step - e]];
             put(ins, deckCol, q, [0, 1, 0]); put(ins, inner, q.map((p) => [p[0], p[1] - 0.05, p[2]]), [0, -1, 0]);
+            const r = hash(x, y, z), top = Math.min(y + 2.6, sp[1] - 0.4);
+            if (f < 0.2) {   // the engine room: the engines, pumps and their pipes
+              if (level === 0 && r < 0.55) box(x + 0.15, y, z + 0.15, x + step - 0.15, Math.min(top, y + 1.6 + r * 1.2), z + step - 0.15, r < 0.3 ? 0x3a3d42 : 0x5a6a7a, 'metal');
+              else if (r < 0.15) box(x + 0.5, y, z + 0.5, x + step - 0.5, top, z + step - 0.5, 0x8d9196, 'metal');
+            } else if (I_.cargo !== 'oil' && r < 0.7) {   // the holds: crates and boxes of cargo
+              box(x + 0.1, y, z + 0.1, x + step - 0.1, Math.min(top, y + 0.9 + r * 1.6), z + step - 0.1, cargoCols[Math.floor(r * 97) % cargoCols.length], 'board');
+            }
           }
-          // bulkheads every 12 m along the hull, across it
-          const a0 = alongX ? x : z, fromStart = a0 - (alongX ? lo[0] : lo[2]);
-          if (Math.floor(fromStart / 12) !== Math.floor((fromStart + step) / 12)) {
-            const at = (alongX ? lo[0] : lo[2]) + Math.floor((fromStart + step) / 12) * 12;
-            const q = alongX ? [[at, sp[0] + 0.1, z], [at, sp[0] + 0.1, z + step], [at, sp[1] - 0.1, z + step], [at, sp[1] - 0.1, z]]
-              : [[x, sp[0] + 0.1, at], [x + step, sp[0] + 0.1, at], [x + step, sp[1] - 0.1, at], [x, sp[1] - 0.1, at]];
-            const nn = alongX ? [1, 0, 0] : [0, 0, 1];
-            put(ins, wallCol, q, nn); put(ins, wallCol, q, nn.map((c) => -c));
+          // bulkheads across the hull every 12 m (every 6 m in a tanker's tanks), inset from the plating
+          const at0 = a - step / 2, every = I_.cargo === 'oil' ? 6 : 12, fs = at0 - a0lo;
+          if (Math.floor(fs / every) !== Math.floor((fs + step) / every)) {
+            const at = a0lo + Math.floor((fs + step) / every) * every, q0 = sp[0] + 0.3, q1 = sp[1] - 0.3;
+            const ok = inside(x, z, q0) || inside(x, z, (q0 + q1) / 2);
+            if (ok) {
+              const q = alongX ? [[at, q0, z + e], [at, q0, z + step - e], [at, q1, z + step - e], [at, q1, z + e]] : [[x + e, q0, at], [x + step - e, q0, at], [x + step - e, q1, at], [x + e, q1, at]];
+              const nn = alongX ? [1, 0, 0] : [0, 0, 1];
+              put(ins, wallCol, q, nn); put(ins, wallCol, q.map((p) => alongX ? [p[0] - 0.05, p[1], p[2]] : [p[0], p[1], p[2] - 0.05]), nn.map((c) => -c));
+            }
+          }
+        }
+        // the house: a floor every 2.8 m, cabins (bunks, lockers, tables) below, the bridge's consoles on top
+        if (houseTris.length) {
+          let hb = 1e9, ht = -1e9; for (const t of houseTris) for (const q of t) { hb = Math.min(hb, q[1]); ht = Math.max(ht, q[1]); }
+          const levels = []; for (let y = hb + 0.05; y < ht - 2.2; y += 2.8) levels.push(y);
+          for (let x = lo[0]; x < hi[0]; x += step) for (let z = lo[2]; z < hi[2]; z += step) {
+            const hs = houseSpan(x + step / 2, z + step / 2);
+            if (!hs) continue;
+            const e = 0.25;
+            levels.forEach((y, li) => {
+              if (y < hs[0] - 0.1 || y > hs[1] - 2.2) return;
+              const hs2 = [houseSpan(x + e, z + e), houseSpan(x + step - e, z + step - e)];
+              if (!hs2[0] || !hs2[1]) return;   // a column on the house's edge: its wall, no floor through it
+              const q = [[x + 0.02, y, z + 0.02], [x + step - 0.02, y, z + 0.02], [x + step - 0.02, y, z + step - 0.02], [x + 0.02, y, z + step - 0.02]];
+              if (li) { put(ins, '#8a7a66', q, [0, 1, 0]); put(ins, inner, q.map((p) => [p[0], p[1] - 0.05, p[2]]), [0, -1, 0]); }
+              const r = hash(x, y + 1, z), bridge = li === levels.length - 1 || y + 2.8 > hs[1] - 2.2;
+              if (bridge) {   // consoles with their screens, a chart table
+                if (r < 0.45) { box(x + 0.2, y, z + 0.4, x + step - 0.2, y + 1.0, z + step - 0.4, 0x5a5f66, 'trim'); box(x + 0.35, y + 1.0, z + 0.55, x + step - 0.35, y + 1.45, z + step - 0.55, 0x2a3a44, 'glassDark'); }
+              } else if (r < 0.3) { box(x + 0.15, y, z + 0.3, x + step - 0.15, y + 0.45, z + step - 0.3, 0x6a4a30, 'wood'); box(x + 0.2, y + 0.45, z + 0.35, x + step - 0.2, y + 0.6, z + step - 0.35, 0xe8e2d0, 'fabric'); }
+              else if (r < 0.45) { box(x + 0.4, y, z + 0.4, x + step - 0.4, y + 0.75, z + step - 0.4, 0x8a6a46, 'wood'); }
+              else if (r < 0.55) { box(x + 0.5, y, z + 0.2, x + step - 0.5, y + 1.9, z + 0.75, 0x5a6a7a, 'metal'); }
+            });
           }
         }
       }

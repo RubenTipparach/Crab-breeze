@@ -296,12 +296,15 @@ function model(g, id, c, heading, y = 0, info = {}) {
 // further from its support than masonry: a machine's reach is MACHINE.
 const MACHINE = { maxSide: 40 };
 function luffing(g, c, out) { put("Luffing crane", B => S.luffingCrane(B), c[0], c[1], out[0] < 0 ? 1 : out[0] > 0 ? 3 : out[1] > 0 ? 2 : 0, DECK, MACHINE); }
-const ship = (g, id, c, heading, y = 0) => model(g, id, c, heading, y, { name: id, collapse: SINKS, sink: true });
-// A tug: the kit's block-out stand-in (no model yet), 28 x 9 m.
-function tug(g, c, heading, labels, name) {
-  put("Tug", B => S.tug(B), c[0], c[1], heading[0] > 0 ? 1 : heading[0] < 0 ? 3 : heading[1] < 0 ? 2 : 0, 0, { base: -3.5, collapse: SINKS, sink: true });
-  if (name) labels.push([name, c, 10, "standin"]);
+// A ship: built on the kit like a building, at its model's sizes and colours (owner, 2026-10-29: "ships need the same
+// interior principles as buildings"): plating, decks, bulkheads, holds with cargo, an engine room, a superstructure of
+// cabins, mess and bridge. Its bow along `heading` as the model's would be; `y` is its waterline.
+function ship(g, id, c, heading, y = 0) {
+  const turn = ((Math.round(Math.atan2(heading[0], heading[1]) / (PI / 2)) % 4) + 4) % 4;
+  put(id, B => S.ship(B, E.M, id), c[0], c[1], turn, y, Object.assign({ base: y - S.SHIPS[id].draft, anchorBuilt: true, collapse: SINKS, sink: true }, MACHINE));
 }
+// A tug of the 1980s, 28 x 9 m (no model of its own yet: the kit's ship at those sizes).
+function tug(g, c, heading, labels, name) { ship(g, "tug", c, heading); if (name) labels.push([name, c, 10, "standin"]); }
 
 // ---------------------------------------------------------------- buildings
 // A shed, a warehouse or an office from its footprint: clad halls get roll doors to the front (+z, or +x when it runs
