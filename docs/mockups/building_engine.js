@@ -152,7 +152,8 @@
     // ---------------------------------------------------------------- buildings, pieces and the merged meshes
     // A building: { name, base (the height its ground floor stands on), lo, hi, pieces, walls, wallArea, collapsed,
     // collapse (null: the kit's walls rule, half the load-bearing wall area lost; or { test(P), frac }),
-    // anchorBuilt (true: what the rule would not hold as drawn is held as built, see buildGraph) }.
+    // anchorBuilt (true: what the rule would not hold as drawn is held as built, see buildGraph),
+    // sink (true: a ship; when it collapses it goes down whole, see sinkHulk) }.
     const BLD = [];
     // Every piece: { bld (-1 cannot break), alive, ranges, lo, hi, meta }.
     const PIECES = [];
@@ -198,6 +199,16 @@
     // matrix is applied, so place it with add()), cut into pieces of about `cell` metres by where each triangle lies,
     // each triangle in the 'paint' surface tinted with its material's colour. The pieces then stand and fall by the
     // same rule as a building's.
+    // Sutherland-Hodgman: the part of a polygon on the keep side of the plane x[axis] = at (keep +1: >=, -1: <=).
+    function clipPoly(poly, axis, at, keep) {
+      const out = [], inside = (p) => (p[axis] - at) * keep >= -1e-9;
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i], b = poly[(i + 1) % poly.length], ia = inside(a), ib = inside(b);
+        if (ia) out.push(a);
+        if (ia !== ib) { const t = (at - a[axis]) / (b[axis] - a[axis]); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]); }
+      }
+      return out;
+    }
     function fromObject(obj, cell = 6, o = {}) {
       const B = new K.Builder();
       obj.updateMatrixWorld(true);
@@ -211,11 +222,21 @@
         const n = I ? I.count : P.count;
         for (let t = 0; t + 2 < n; t += 3) {
           for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(P, I ? I.getX(t + k) : t + k).applyMatrix4(mm);
-          const c = [(v[0].x + v[1].x + v[2].x) / 3, (v[0].y + v[1].y + v[2].y) / 3, (v[0].z + v[1].z + v[2].z) / 3];
-          const ck = [Math.floor(c[0] / cell), Math.floor(c[1] / cell), Math.floor(c[2] / cell)].join(',');
-          if (!cells.has(ck)) cells.set(ck, []);
+          const tri = v.map((q) => [q.x, q.y, q.z]);
           const nrm = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0]));
-          cells.get(ck).push({ key, col, pts: v.map((q) => [q.x, q.y, q.z]), n: [nrm.x, nrm.y, nrm.z] });
+          const lo = [0, 1, 2].map((a) => Math.floor(Math.min(tri[0][a], tri[1][a], tri[2][a]) / cell));
+          const hi = [0, 1, 2].map((a) => Math.floor((Math.max(tri[0][a], tri[1][a], tri[2][a]) - 1e-6) / cell));
+          // A triangle is clipped to every cell it crosses, so a cell's piece is exactly that cell of the model (no long
+          // slivers reaching out of it when it falls).
+          for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let kk = lo[2]; kk <= hi[2]; kk++) {
+            let poly = tri;
+            const cmin = [i * cell, j * cell, kk * cell];
+            for (let a = 0; a < 3 && poly.length >= 3; a++) { poly = clipPoly(poly, a, cmin[a], 1); if (poly.length >= 3) poly = clipPoly(poly, a, cmin[a] + cell, -1); }
+            if (poly.length < 3) continue;
+            const ck = i + ',' + j + ',' + kk;
+            if (!cells.has(ck)) cells.set(ck, []);
+            cells.get(ck).push({ key, col, pts: poly, n: [nrm.x, nrm.y, nrm.z] });
+          }
         }
       });
       // each cell's tint is the model's own colour factor, as its material draws it
@@ -261,7 +282,7 @@
       for (const k of Object.keys(MESH)) { delete MESH[k]; delete ORIG[k]; }
       for (const k of Object.keys(INST)) delete INST[k];
       for (const k of Object.keys(RUBBLE)) delete RUBBLE[k];
-      PIECES.length = 0; BLD.length = 0; FALLING.length = 0; SCORCH.length = 0; rubbleDirty.clear(); dirtyKeys.clear();
+      PIECES.length = 0; BLD.length = 0; FALLING.length = 0; HULKS.length = 0; SCORCH.length = 0; rubbleDirty.clear(); dirtyKeys.clear();
       GRID.clear(); stats.rubbleTris = 0;
       if (fxReady) addFx();
     }
@@ -279,7 +300,7 @@
         // it stays up until something it rests on is shot away.
         b.anchored = 0;
         if (b.info.anchorBuilt) {
-          const st = K.standing(rel, links, rel.map(() => true));
+          const st = K.standing(rel, links, rel.map(() => true), b.info.maxSide);
           rel.forEach((q, i) => { if (!st.has(i)) { b.anchored++; rel[i] = { lo: [q.lo[0], 0, q.lo[2]], hi: q.hi }; } });
         }
         b.rel = rel;
@@ -401,6 +422,61 @@
       const size = [P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]];
       FALLING.push({ kind: 'mesh', obj: grp, pos: grp.position, q: grp.quaternion, size, h: size.map((s) => s / 2), v, w: spin(size), delay, still: 0 });
       stats.rubbleTris += P.ranges.reduce((s, r) => s + r.count, 0);
+    }
+    // A holed ship (info.sink) goes down whole, at once and slowly as befits its size (owner, 2026-10-29: "ships empty on the inside, I expect them
+    // to sink right away, when they touch sea floor they should just sink in to the ground slowly and despawn"): what is
+    // left of it becomes one hulk that drops through the water, settles a little bow or stern first, then sinks into the
+    // seabed at a crawl and is gone.
+    const HULKS = [];
+    // A big ship goes down slowly: its sinking speed falls with its length (a 120 m freighter at 0.25 m/s, a launch at 2).
+    const HULK = { speed_m: 30, minV: 0.25, maxV: 2, accel: 0.15, bury: 0.4, tilt: 0.12 };
+    function sinkHulk(B) {
+      const c = new THREE.Vector3((B.lo[0] + B.hi[0]) / 2, B.base, (B.lo[2] + B.hi[2]) / 2);
+      const grp = new THREE.Group(); grp.position.copy(c); grp.userData.debris = true;
+      const byKey = {};
+      let n = 0, minY = 1e9, maxY = -1e9;
+      for (const pid of B.pieces) {
+        const P = PIECES[pid];
+        if (!P.alive) continue;
+        P.alive = false; hide(pid); n++;
+        for (const r of P.ranges) (byKey[r.key] = byKey[r.key] || []).push(r);
+      }
+      for (const [key, rs] of Object.entries(byKey)) {
+        const g = MESH[key].geometry, O = ORIG[key], pos = [], nrm = [], uv = [], col = [];
+        for (const r of rs) {
+          for (let i = r.start * 9; i < (r.start + r.count) * 9; i += 3) { pos.push(O[i] - c.x, O[i + 1] - c.y, O[i + 2] - c.z); minY = Math.min(minY, O[i + 1] - c.y); maxY = Math.max(maxY, O[i + 1] - c.y); }
+          nrm.push(...g.attributes.normal.array.slice(r.start * 9, (r.start + r.count) * 9));
+          uv.push(...g.attributes.uv.array.slice(r.start * 6, (r.start + r.count) * 6));
+          col.push(...g.attributes.color.array.slice(r.start * 9, (r.start + r.count) * 9));
+        }
+        const ng = new THREE.BufferGeometry();
+        ng.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ng.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+        ng.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ng.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        const mm = new THREE.Mesh(ng, material(key)); mm.castShadow = mm.receiveShadow = true; grp.add(mm);
+      }
+      group.add(grp);
+      const len = Math.max(B.hi[0] - B.lo[0], B.hi[2] - B.lo[2]), alongX = B.hi[0] - B.lo[0] > B.hi[2] - B.lo[2];
+      const t = (Math.random() < 0.5 ? -1 : 1) * HULK.tilt * Math.min(1, 40 / Math.max(10, len));
+      const vMax = Math.min(HULK.maxV, Math.max(HULK.minV, HULK.speed_m / len));
+      HULKS.push({ grp, v: 0, vMax, minY, maxY, phase: 'water', tiltTo: alongX ? [0, 0, t] : [t, 0, 0], roll: (Math.random() - 0.5) * 0.1 });
+      dustAt(c.x, 0.5, c.z, 120, Math.max(4, len * 0.3), [0.85, 0.88, 0.9]);
+      return n;
+    }
+    function stepHulks(dt) {
+      for (let i = HULKS.length - 1; i >= 0; i--) {
+        const H = HULKS[i], p = H.grp.position, floor = ground(p.x, p.z);
+        if (H.phase === 'water') {
+          H.v = Math.min(H.vMax, H.v + HULK.accel * dt);
+          p.y -= H.v * dt;
+          const k = Math.min(1, dt * 0.15);
+          H.grp.rotation.x += (H.tiltTo[0] - H.grp.rotation.x) * k; H.grp.rotation.z += (H.tiltTo[2] + H.roll - H.grp.rotation.z) * k;
+          if (Math.random() < dt * 6 && p.y + H.maxY > -2) dustAt(p.x + (Math.random() - 0.5) * 10, 0.3, p.z + (Math.random() - 0.5) * 10, 3, 2, [0.85, 0.88, 0.9]);
+          if (p.y + H.minY <= floor) { H.phase = 'bury'; dustAt(p.x, floor + 0.5, p.z, 60, 6, [0.62, 0.56, 0.44]); }
+        } else {
+          p.y -= H.vMax * HULK.bury * dt;
+          if (p.y + H.maxY < floor - 0.5) { group.remove(H.grp); H.grp.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); HULKS.splice(i, 1); }
+        }
+      }
     }
     // What a destroyed piece becomes: dust, chunks of its material, or itself falling whole.
     function breakOff(pid, vel, delay, from, chunk = CHUNK) {
@@ -541,6 +617,7 @@
       const frac = B.collapse ? B.collapse.frac : 0.5;
       if (B.walls.length && left < B.wallArea * frac) {
         B.collapsed = true;
+        if (B.info.sink) return sinkHulk(B);
         let n = 0;
         for (const pid of B.pieces) {
           const P = PIECES[pid];
@@ -554,7 +631,7 @@
       }
       const L = B.pieces, idx = new Map(L.map((pid, i) => [pid, i]));
       const local = { up: L.map((pid) => PIECES[pid].up.map((q) => idx.get(q))), side: L.map((pid) => PIECES[pid].side.map((q) => idx.get(q))) };
-      const st = K.standing(B.rel, local, L.map((pid) => PIECES[pid].alive));
+      const st = K.standing(B.rel, local, L.map((pid) => PIECES[pid].alive), B.info.maxSide);
       const best = new Set([...st.keys()].map((i) => L[i]));
       let n = 0;
       for (const pid of B.pieces) {
@@ -572,7 +649,7 @@
       for (const B of BLD) {
         const L = B.pieces, idx = new Map(L.map((pid, i) => [pid, i]));
         const local = { up: L.map((pid) => PIECES[pid].up.map((q) => idx.get(q))), side: L.map((pid) => PIECES[pid].side.map((q) => idx.get(q))) };
-        const st = K.standing(B.rel, local, L.map(() => true));
+        const st = K.standing(B.rel, local, L.map(() => true), B.info.maxSide);
         const n = L.length - st.size;
         if (n) out.push({ name: B.name, unheld: n, of: L.length });
       }
@@ -681,7 +758,7 @@
         if (k >= 1) { group.remove(m.obj); MISSILES.splice(MISSILES.indexOf(m), 1); blast(m.b, m.w); }
       }
     }
-    function step(dt) { stepDebris(dt); stepFx(dt); }
+    function step(dt) { stepDebris(dt); stepHulks(dt); stepFx(dt); }
 
     // ---------------------------------------------------------------- firing where the player points
     const ray = new THREE.Raycaster();
@@ -728,7 +805,7 @@
       for (const b of BLD) b.collapsed = false;
       for (const f of FALLING) if (f.kind === 'mesh') group.remove(f.obj);
       for (const R of Object.values(RUBBLE)) { if (R.mesh) group.remove(R.mesh); R.p = []; R.n = []; R.u = []; R.c = []; R.mesh = null; }
-      FALLING.length = 0;
+      FALLING.length = 0; HULKS.length = 0;
       group.children.filter((o) => o.userData.debris).forEach((o) => group.remove(o));
       for (const I of Object.values(INST)) { I.used = 0; I.mesh.count = 0; }
       stats.rubbleTris = 0;
@@ -737,7 +814,7 @@
       resetGrid();
     }
     return {
-      GEN, makeTex, normalFrom, material, materials, glows, M, TRANSPARENT, MESH, PIECES, BLD, WEAPONS, FALLING, stats,
+      GEN, makeTex, normalFrom, material, materials, glows, M, TRANSPARENT, MESH, PIECES, BLD, WEAPONS, FALLING, HULKS, stats,
       building, add, boundsOf, fromObject, finish, clear, reset, blast, fireAt, bindFire, step, unheld, gridAt, dustAt,
     };
   }

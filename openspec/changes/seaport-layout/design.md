@@ -39,14 +39,23 @@ pier, pontoon, linkspan, dock gate, light, buoy, fender, bollard, crown wall and
 kit's Builder by `docs/mockups/site_buildings_kit.js` and broken by `docs/mockups/building_engine.js`, the street's
 engine. Each stands on its own ground (a shed on the 2.5 m quay, a jetty's piles on the seabed, a pontoon on the water).
 
-- **Ships and the luffing cranes** are their own glb models (`assets/models/boats`), cut by the engine into 6 m cells
-  (`BuildingEngine.fromObject`), each cell a piece in the model's own colours, held as built. A ship goes down once it has
-  lost 40% of its hull within 4 m of its keel: its pieces break off and sink slowly through the water to the seabed. A
-  demolition charge on the container ship's side sinks it (measured: 27 pieces blown out, the other 88 go down).
-- **Measured on the mockup:** 103 breakable things, 15 022 pieces, 218 934 triangles in 26 draws; nothing the rule would
-  not hold as built (114 pieces of the models and the fenders are held as drawn). Destroying the legs on both rails of a
-  gantry drops its girder and boom (21 of its 29 pieces); a demolition charge at the port control tower's foot brings
-  296 of its pieces down.
+- **The luffing cranes** are the kit's, at the harbours change's model's sizes, every member short round tubes (owner:
+  "these cranes break in a weird way, they should be made of smaller cylinders"): a shot takes out a length of steel and
+  what hangs beyond it falls. Steel machines (the luffing cranes, gantries, the goliath) hang up to 40 pieces from their
+  support (`maxSide`) where masonry hangs 3.
+- **Ships** are their own glb models (`assets/models/boats`), cut by the engine into 6 m cells, each triangle clipped to
+  the cells it crosses so a piece is exactly its cell (no slivers), in the model's own colours. A ship is a hollow hull:
+  holed within 4 m of its keel it goes down at once and whole, slowly for its size (a 120 m freighter at 0.25 m/s, a launch
+  at 2 m/s), tilting a little, settles into the seabed at 40% of that speed and is gone (owner: "I expect them to sink right
+  away, when they touch sea floor they should just sink in to the ground slowly and despawn", "slow sinking (they are
+  big)"). Measured by stepping the page: the freighter reaches the seabed about 45 s after the hit.
+- **Fitted out** (owner: "ferry terminals and warehouses are empty", "fishmarket also pretty empty"): the ferry terminal
+  has check-in islands, waiting seats, a food court and shops; warehouses and the transit shed rows of pallet racking,
+  pallets and forklifts; the fish market stands in aisles, fish boxes, an ice machine and the auction ring; the shipyard
+  shop workbenches and plate stacks; the boathouse launches on cradles.
+- **Measured on the mockup:** 102 breakable things, 18 338 pieces, 578 849 triangles in 30 draws; nothing the rule would
+  not hold as built. Destroying the legs on both rails of a gantry drops its girder and boom; a demolition charge at the
+  port control tower's foot brings most of it down.
 - Rubble rests on the deck over land and quays, the floor in the dry dock and the seabed elsewhere.
 
 ## 3. In the game (after approval)
@@ -58,8 +67,8 @@ the port's footprint are shaped to it (SP2): quays and breakwaters stand on the 
 
 ## 4. Cost
 
-Per full port, as the mockup draws it: about 15 000 breakable pieces in 26 merged draws (one a material), about 219 000
-triangles; the breakwaters, quays and paint about 60 draws more. Support links are computed once at load, per building
+Per full port, as the mockup draws it: about 18 000 breakable pieces in 30 merged draws (one a material), about 579 000
+triangles (most of them furniture); the breakwaters, quays and paint about 60 draws more. Support links are computed once at load, per building
 (the largest, the transit shed, 1 707 pieces). Not
 measured: the cloud session has no GPU.
 

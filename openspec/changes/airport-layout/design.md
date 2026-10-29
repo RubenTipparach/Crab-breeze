@@ -134,8 +134,14 @@ or through at most `MAX_SIDE` (3) pieces beside it. A piece lost from under othe
   its load-bearing walls coming down whole, the rubble settling in piles at the angle of repose, dust, fire and flashes.
 - **Built to the rule.** Every piece is held as built: `MOCKUP.unheld()` reports none, the node check of every building
   type in the kit reports none.
-- **Measured on the mockup** (block-out art, no GPU here): 34 buildings, 30 249 pieces, 496 568 triangles in 26 draws (one
-  a material); the largest building, the car park, 6 874 pieces. Support links are computed once at load, per building.
+- **Fitted out** (owner: "terminals are empty in airport, more furniitures!", "samer with control tower"): the terminals
+  have check-in islands with baggage belts and queue posts, a baggage hall with carousels and trolleys, waiting seats,
+  and upstairs gate lounges, a food court, shops with shelves and coolers and departure boards; the pier its seats,
+  kiosks and booths; the tower's cab its consoles round the glass and the supervisor's desk, its base a reception,
+  briefing room, offices, equipment room and crew room, its shaft landings and stairs; sheds their racking, pallets and
+  forklifts.
+- **Measured on the mockup** (block-out art, no GPU here): 34 buildings, 31 048 pieces, 1 200 740 triangles in 29 draws
+  (one a material); about 700 000 of the triangles are furniture. The largest building is Terminal 2, 7 201 pieces. Support links are computed once at load, per building.
   A demolition charge at Terminal 1's face takes out 99 pieces; what they held falls.
 - **In the game** each building becomes a breakable kit set (the small buildings' path: `kit.rs` pieces, `damage.rs`),
   with its colliders from the same pieces, so AP2 is answered: solid and breakable from the start.

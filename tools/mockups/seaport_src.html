@@ -220,8 +220,9 @@ function put(name, draw, x = 0, z = 0, turn = 0, y = DECK, info = {}) {
   const B = new SmallBuildings.Builder(); draw(B);
   const id = E.building(Object.assign({ name, base: y }, info)); E.add(B, { x, y, z, turn, bld: id }); return id;
 }
-// A ship sinks once it has lost 40% of its hull below 4 m over its keel.
-const SINKS = { test: (P, r) => r.lo[1] < 4, frac: 0.6 };
+// A ship is a hollow hull: once holed below 4 m over its keel it goes down at once, whole, slowly for its size, and
+// settles into the seabed (owner, 2026-10-29: "I expect them to sink right away", "slow sinking (they are big)").
+const SINKS = { test: (P, r) => r.lo[1] < 4, frac: 0.98 };
 
 // ---------------------------------------------------------------- the ground and the water
 // A breakwater: a rubble mound from the seabed (50 m wide) to a 12 m crest 6 m over the water, with a concrete crown wall
@@ -290,27 +291,31 @@ function model(g, id, c, heading, y = 0, info = {}) {
     done();
   }, done);
 }
-// A luffing crane (the harbours change's model), its jib out over the water along `out`.
-function luffing(g, c, out) { model(g, "crane", c, [-out[0], -out[1]], DECK, { name: "Luffing crane" }); }
-const ship = (g, id, c, heading, y = 0) => model(g, id, c, heading, y, { name: id, collapse: SINKS });
+// A luffing crane, its jib out over the water along `out`: the kit's, made of short tubes at the harbours change's model's
+// sizes (owner, 2026-10-29: "these cranes break in a weird way, they should be made of smaller cylinders"). Steel hangs
+// further from its support than masonry: a machine's reach is MACHINE.
+const MACHINE = { maxSide: 40 };
+function luffing(g, c, out) { put("Luffing crane", B => S.luffingCrane(B), c[0], c[1], out[0] < 0 ? 1 : out[0] > 0 ? 3 : out[1] > 0 ? 2 : 0, DECK, MACHINE); }
+const ship = (g, id, c, heading, y = 0) => model(g, id, c, heading, y, { name: id, collapse: SINKS, sink: true });
 // A tug: the kit's block-out stand-in (no model yet), 28 x 9 m.
 function tug(g, c, heading, labels, name) {
-  put("Tug", B => S.tug(B), c[0], c[1], heading[0] > 0 ? 1 : heading[0] < 0 ? 3 : heading[1] < 0 ? 2 : 0, 0, { base: -3.5, collapse: { test: (P, r) => r.lo[1] < 2, frac: 0.6 } });
+  put("Tug", B => S.tug(B), c[0], c[1], heading[0] > 0 ? 1 : heading[0] < 0 ? 3 : heading[1] < 0 ? 2 : 0, 0, { base: -3.5, collapse: { test: (P, r) => r.lo[1] < 2, frac: 0.98 }, sink: true });
   if (name) labels.push([name, c, 10, "standin"]);
 }
 
 // ---------------------------------------------------------------- buildings
 // A shed, a warehouse or an office from its footprint: clad halls get roll doors to the front (+z, or +x when it runs
 // along z), offices are block or brick with windows round.
+const USES = { "Fish market": "fish", "Shipyard shop": "shop", "Coast guard boathouse": "boats" };   // else a store
 function shed(g, name, x0, z0, x1, z1, h, m, labels, label) {
   const along = z1 - z0 > x1 - x0, w = along ? z1 - z0 : x1 - x0, d = along ? x1 - x0 : z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
   const office = m === M.brick || m === M.white;
   put(name, B => office ? S.hut(B, E.M, { w, d, h: h + 0.15, wall: m === M.brick ? "brick" : "stucco", tint: 0xffffff, name: label && label.length < 16 ? label.toUpperCase() : null })
-    : S.cargoShed(B, E.M, { w, d, h, tint: m === M.clad ? 0x9aa4ad : 0x8d8a7c, doorH: Math.min(6, h - 2) }), cx, cz, along ? 1 : 0);
+    : S.cargoShed(B, E.M, { w, d, h, tint: m === M.clad ? 0x9aa4ad : 0x8d8a7c, doorH: Math.min(6, h - 2), use: USES[name] }), cx, cz, along ? 1 : 0);
   if (label) labels.push([label, [cx, cz], h + 6]);
 }
 function gantry(g, x, zLand, zSea, labels, name) {
-  put("Container gantry", B => S.gantry(B, { gauge: zSea - zLand }), x, zLand);
+  put("Container gantry", B => S.gantry(B, { gauge: zSea - zLand }), x, zLand, 0, DECK, MACHINE);
   if (name) labels.push([name, [x, zSea + 20], 74]);
 }
 function straddle(g, c) { put("Straddle carrier", B => S.straddle(B), c[0], c[1]); }
@@ -374,7 +379,6 @@ function buildProposed(g, labels) {
     for (const s of [-1, 1]) { B.color(0x2a2d31); S.column(B, "metal", -120 + s * 12, 128, 1.5, BED - DECK, 2, 12, 6); }
     B.color(0xf2c02a); S.run(B, "metal", -133.5, 2, 127, -106.5, 3.5, 129, 7); }, 0, 0, 0, DECK, { base: BED, anchorBuilt: true });
   ship(g, "ferry", [-120, 160], [0, 1]);
-  model(g, "ferry", [-120, 160], [0, 1]);
   labels.push(["Ferry terminal", [-150, 24], 16]); labels.push(["Linkspan", [-120, 120], 6]); labels.push(["Marshalling lanes", [-75, 80], 5]);
 
   // ---- the harbour office (the jobs terminal, as today), port control, the pilot station and the tugs
@@ -407,7 +411,7 @@ function buildProposed(g, labels) {
   put("Keel blocks", B => { B.color(0x2a2d31); for (let z = DOCK.z0 + 30; z < -30; z += 12) B.box("concrete", 358, 0, z, 362, 1.5, z + 3); }, 0, 0, 0, DOCK.floor);
   put("Dock gate", B => { B.color(0x6b7178); for (let x = DOCK.x0 - 4; x < DOCK.x1 + 4 - 1e-6; x += 8) for (let y = BED; y < DECK - 1e-6; y += 5.5) B.box("ribbed", x, y, 0, Math.min(DOCK.x1 + 4, x + 8), Math.min(DECK, y + 5.5), 4); }, 0, 0, 0, 0, { base: BED });
   ship(g, "freighter", [360, -100], [0, 1], DOCK.floor + 1.5 + 7);
-  put("Goliath crane", B => S.goliath(B, { span: 68 }), 360, -110);
+  put("Goliath crane", B => S.goliath(B, { span: 68 }), 360, -110, 0, DECK, MACHINE);
   labels.push(["Dry dock", [360, -170], 6]); labels.push(["Goliath crane", [360, -110], 64]);
   shed(g, "Shipyard shop", 400, -260, 470, -150, 18, M.clad, labels, "Shipyard shop");
 

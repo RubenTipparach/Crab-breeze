@@ -43,6 +43,21 @@
     const n = norm(cross(s, d));
     plate(B, mat, mul(add(p, q), 0.5), [d, n, s], [len(sub(q, p)), h, w]);
   }
+  // A round tube from p to q, radius r, as one piece (it falls as itself, not as a box of its material).
+  function tube(B, mat, p, q, r, seg = 8) {
+    const d = norm(sub(q, p)); let u = cross(d, [0, 1, 0]); if (len(u) < 1e-6) u = [1, 0, 0]; u = norm(u); const w = cross(d, u);
+    const ring = (c) => Array.from({ length: seg }, (_, i) => { const a = 2 * Math.PI * i / seg; return add(c, add(mul(u, Math.cos(a) * r), mul(w, Math.sin(a) * r))); });
+    B.group(() => {
+      const A = ring(p), Q = ring(q);
+      for (let i = 0; i < seg; i++) { const j = (i + 1) % seg, m = norm(add(sub(A[i], p), sub(A[j], p))); B.poly(mat, [A[i], A[j], Q[j], Q[i]], m); }
+      B.poly(mat, A.slice().reverse(), mul(d, -1)); B.poly(mat, Q, d);
+    });
+  }
+  // A tube from p to q cut into lengths of at most `piece` metres, each its own piece, overlapping 5 cm so they touch.
+  function tubes(B, mat, p, q, r, piece = 3, seg = 8) {
+    const L = len(sub(q, p)), n = Math.max(1, Math.ceil(L / piece - 1e-6)), u = norm(sub(q, p));
+    for (let i = 0; i < n; i++) tube(B, mat, add(p, mul(u, Math.max(0, L * i / n - 0.05))), add(p, mul(u, Math.min(L, L * (i + 1) / n + 0.05))), r, seg);
+  }
   // A vertical cylinder from y0 to y1 cut into lifts of at most `lift` metres, each a piece.
   function column(B, mat, x, z, r, y0, y1, seg = 12, lift = 6) {
     const n = Math.max(1, Math.ceil((y1 - y0) / lift - 1e-6));
@@ -134,6 +149,104 @@
     for (let r = 0; r < n; r++) for (let x = x0; x + 0.6 <= x1; x += 0.62) place(B, x + 0.3, y, z + r * 1.8, 2, FURN.chair(0x2f5f8f));
   }
 
+  // ---------------------------------------------------------------- fitting out (owner, 2026-10-29: "ferry terminals and
+  // warehouses are empty, need furniture"). Each item is one piece, placed with the kit's place() like the houses' rooms.
+  const hash = (a, b) => { let n = Math.imul((a * 73856093) ^ (b * 19349663), 0x27d4eb2d); n ^= n >>> 15; return ((n >>> 0) % 1000) / 1000; };
+  const GOODS = [0xb08a5a, 0x9a7448, 0x2f5f8f, 0xc23b30, 0x3f6e3a, 0xd8d2c0, 0x6b4a2e];
+  // One bay of pallet racking, 2.7 m along x, 1.1 m deep, three levels, with loaded pallets.
+  const rackBay = (k) => {
+    const it = [['metal', -1.35, 0, -0.55, -1.27, 5.6, -0.47, 0x2f5f9a], ['metal', 1.27, 0, -0.55, 1.35, 5.6, -0.47, 0x2f5f9a],
+      ['metal', -1.35, 0, 0.47, -1.27, 5.6, 0.55, 0x2f5f9a], ['metal', 1.27, 0, 0.47, 1.35, 5.6, 0.55, 0x2f5f9a]];
+    for (const [lv, y] of [[0, 0], [1, 1.9], [2, 3.8]]) {
+      if (lv) it.push(['metal', -1.27, y - 0.12, -0.55, 1.27, y, 0.55, 0xe07a2a]);
+      for (const sx of [-0.65, 0.65]) {
+        if (hash(k * 7 + lv, sx > 0 ? 3 : 1) < 0.18) continue;
+        const h = 0.7 + hash(k, lv * 5 + (sx > 0 ? 2 : 0)) * 0.8, c = GOODS[Math.floor(hash(k + lv, sx * 10) * GOODS.length)];
+        it.push(['wood', sx - 0.55, y, -0.45, sx + 0.55, y + 0.14, 0.45, 0x9a7a52], ['board', sx - 0.52, y + 0.14, -0.42, sx + 0.52, y + 0.14 + h, 0.42, c]);
+      }
+    }
+    return it;
+  };
+  // A forklift of the 1980s: body, counterweight, mast and forks, the overhead guard.
+  const forklift = () => [['paint', -0.55, 0.25, -1.1, 0.55, 1.2, 0.9, 0xf2c02a], ['paint', -0.55, 0.25, -1.4, 0.55, 1.5, -1.1, 0x3a3a3a],
+    ['metal', -0.5, 0.2, 0.9, -0.4, 2.6, 1.0, 0x3a3a3a], ['metal', 0.4, 0.2, 0.9, 0.5, 2.6, 1.0, 0x3a3a3a], ['metal', -0.35, 0.1, 1.0, -0.2, 0.15, 2.1, 0x3a3a3a], ['metal', 0.2, 0.1, 1.0, 0.35, 0.15, 2.1, 0x3a3a3a],
+    ['metal', -0.55, 1.2, -0.7, -0.5, 2.3, -0.65, 0x3a3a3a], ['metal', 0.5, 1.2, -0.7, 0.55, 2.3, -0.65, 0x3a3a3a], ['metal', -0.55, 1.2, 0.55, -0.5, 2.3, 0.6, 0x3a3a3a], ['metal', 0.5, 1.2, 0.55, 0.55, 2.3, 0.6, 0x3a3a3a], ['metal', -0.58, 2.3, -0.72, 0.58, 2.36, 0.62, 0x3a3a3a],
+    ['rubber', -0.6, 0, 0.3, -0.45, 0.5, 0.8, 0x1c1c1c], ['rubber', 0.45, 0, 0.3, 0.6, 0.5, 0.8, 0x1c1c1c], ['rubber', -0.6, 0, -1.2, -0.45, 0.45, -0.75, 0x1c1c1c], ['rubber', 0.45, 0, -1.2, 0.6, 0.45, -0.75, 0x1c1c1c]];
+  // A loaded pallet on the floor, k picks its load.
+  const pallet = (k) => { const h = 0.6 + hash(k, 9) * 1.0, c = GOODS[Math.floor(hash(k, 4) * GOODS.length)]; return [['wood', -0.6, 0, -0.5, 0.6, 0.14, 0.5, 0x9a7a52], ['board', -0.57, 0.14, -0.47, 0.57, 0.14 + h, 0.47, c]]; };
+  // A fish market's stand: a table of crates on ice.
+  const fishStand = () => { const it = [['metal', -1.5, 0, -0.5, 1.5, 0.85, 0.5, 0xd8dcde], ['stainless', -1.5, 0.85, -0.5, 1.5, 0.9, 0.5, 0xe8eef0]];
+    for (const x of [-1.05, 0, 1.05]) it.push(['paint', x - 0.45, 0.9, -0.35, x + 0.45, 1.15, 0.35, 0x2f6f9f], ['paint', x - 0.4, 1.12, -0.3, x + 0.4, 1.16, 0.3, 0xd8e6ea]); return it; };
+  // A stack of fish boxes, 3 to 6 high.
+  const crates = (k) => { const it = [], h = 3 + Math.floor(hash(k, 3) * 4), c = [0x2f6f9f, 0xc23b30, 0xe8e8e2][Math.floor(hash(k, 6) * 3)];
+    for (let i = 0; i < h; i++) it.push(['paint', -0.6, i * 0.32, -0.4, 0.6, i * 0.32 + 0.3, 0.4, c]); return it; };
+  // A stack of steel plate on bearers, for a shipyard's shop.
+  const plates = (k) => [['wood', -2.5, 0, -1.1, -2.2, 0.2, 1.1, 0x6b4a2e], ['wood', 2.2, 0, -1.1, 2.5, 0.2, 1.1, 0x6b4a2e], ['metal', -3, 0.2, -1.25, 3, 0.2 + 0.3 + hash(k, 2) * 0.5, 1.25, 0x7a6a5a]];
+  // A bank of waiting-hall seats, back to back, 6 m long.
+  const seatBank = (c) => { const it = [['metal', -3, 0, -0.1, 3, 0.4, 0.1, 0x8d9196]];
+    for (let x = -2.7; x < 2.8; x += 0.6) for (const sz of [-1, 1]) it.push(['fabric', x - 0.25, 0.4, sz < 0 ? -0.6 : 0.1, x + 0.25, 0.48, sz < 0 ? -0.1 : 0.6, c], ['fabric', x - 0.25, 0.48, sz < 0 ? -0.18 : 0.1, x + 0.25, 1.05, sz < 0 ? -0.1 : 0.18, c]);
+    return it; };
+  // A shed's floor fitted out by its use, over the hall's inside x0..x1, z0..z1 (doors to +z) at floor height y.
+  function fitOut(B, use, x0, x1, z0, z1, y) {
+    if (use === 'fish') {
+      // stands in aisles, crate stacks and an ice machine along the back, the auction ring, a forklift by the doors
+      for (let z = z0 + 5; z < z1 - 8; z += 3.6) for (let x = x0 + 5; x < x1 - 5; x += 3.6) place(B, x, y, z, 0, fishStand());
+      let k = 0;
+      for (let x = x0 + 1.5; x < x1 - 1.5; x += 1.3) place(B, x, y, z0 + 1.2, 0, crates(k++));
+      for (let z = z0 + 4; z < z1 - 4; z += 1.3) { place(B, x0 + 1.2, y, z, 1, crates(k++)); place(B, x1 - 1.2, y, z, 1, crates(k++)); }
+      place(B, x1 - 4, y, z0 + 3.2, 0, [['metal', -1.4, 0, -0.8, 1.4, 2.2, 0.8, 0xd8dcde], ['metal', -1.2, 2.2, -0.6, 1.2, 2.6, 0.6, 0x8d9196]]);
+      for (let x = x0 + 8; x < x1 - 8; x += 14) place(B, x, y, z1 - 4, 0, [['wood', -2.5, 0, -0.6, 2.5, 0.4, 0.6, 0x6b4a2e], ['wood', -2.5, 0.4, 0.4, 2.5, 1.0, 0.6, 0x6b4a2e], ['metal', -0.3, 0, -1.6, 0.3, 1.1, -1.0, 0xd8dcde], ['metal', -0.4, 1.1, -1.7, 0.4, 1.15, -0.9, 0x8d9196]]);
+      place(B, (x0 + x1) / 2, y, z1 - 7, 2, forklift());
+      return;
+    }
+    if (use === 'shop') {
+      for (let z = z0 + 3; z < z1 - 4; z += 6) { place(B, x0 + 1.2, y, z, 1, FURN.workbench()); place(B, x1 - 1.2, y, z, 3, FURN.workbench()); }
+      let k = 0; for (let x = x0 + 8; x < x1 - 8; x += 9) for (let z = z0 + 6; z < z1 - 8; z += 7) place(B, x, y, z, 0, plates(k++));
+      return;
+    }
+    if (use === 'boats') {   // a boathouse: a launch on its cradle each bay, a workbench along the back
+      for (let x = x0 + 8; x < x1 - 6; x += 14) place(B, x, y, (z0 + z1) / 2, 0, [['wood', -1.5, 0, -4, -1.2, 0.8, 4, 0x6b4a2e], ['wood', 1.2, 0, -4, 1.5, 0.8, 4, 0x6b4a2e], ['paint', -1.6, 0.8, -5, 1.6, 2.6, 5, 0xd8d2c0], ['paint', -1.2, 2.6, -1.5, 1.2, 4.2, 2, 0xe8e8e2], ['glassDark', -1.1, 3.4, 2, 1.1, 4.0, 2.02, 0x2a3a44]]);
+      for (let x = x0 + 3; x < x1 - 3; x += 6) place(B, x, y, z0 + 1, 0, FURN.workbench());
+      return;
+    }
+    // warehouse: rows of racking with aisles, a loading area by the doors with pallets and forklifts, a small office
+    let k = 0;
+    for (let z = z0 + 1.0; z < z1 - 12; z += 4.6) for (let x = x0 + 2; x + 2.7 <= x1 - 2; x += 2.7) place(B, x + 1.35, y, z + 0.6, 0, rackBay(k++));
+    for (let x = x0 + 4; x < x1 - 4; x += 3.2) for (const dz of [-6, -8]) if (hash(k++, 5) < 0.45) place(B, x, y, z1 + dz, 0, pallet(k));
+    for (let x = x0 + 12; x < x1 - 6; x += 30) place(B, x, y, z1 - 4, hash(x | 0, 1) < 0.5 ? 0 : 2, forklift());
+    place(B, x0 + 2.5, y, z1 - 3, 1, FURN.desk());
+  }
+  // A terminal's two floors fitted out (owner, 2026-10-29: "terminals are empty in airport, more furniitures!").
+  // Ground floor (landside to +z): check-in islands with their baggage belts and queue posts, a baggage hall with
+  // carousels and trolleys at one end, seating. Upper floor: gate lounges of seat banks, a food court of booths and
+  // counters, shops with shelves and coolers, departure boards.
+  function terminalFloors(B, x0, x1, z0, z1, g, u) {
+    const w = x1 - x0, d = z1 - z0, arr = x0 + Math.min(40, w * 0.25);
+    // check-in islands: a row of desks back to back with a belt between, queue posts in front
+    for (let x = arr + 8; x < x1 - 10; x += 16) {
+      place(B, x, g, z1 - 10, 0, [['trim', -6, 0, -1.2, 6, 1.0, -0.6, 0x2f5f8f], ['trim', -6, 0, 0.6, 6, 1.0, 1.2, 0x2f5f8f], ['rubber', -6, 0, -0.6, 6, 0.6, 0.6, 0x2a2a2a],
+        ['counter', -6.05, 1.0, -1.25, 6.05, 1.05, -0.55, 0xd8cdb0], ['counter', -6.05, 1.0, 0.55, 6.05, 1.05, 1.25, 0xd8cdb0], ['metal', -6, 1.05, -0.05, 6, 3.2, 0.05, 0x2f5f8f]]);
+      for (const sz of [-1, 1]) for (let px = -5; px <= 5; px += 2.5) place(B, x + px, g, z1 - 10 + sz * 4, 0, [['metal', -0.06, 0, -0.06, 0.06, 1.0, 0.06, 0x8d9196], ['metal', -0.2, 0, -0.2, 0.2, 0.05, 0.2, 0x8d9196], ['fabric', 0.06, 0.85, -0.02, 2.44, 0.9, 0.02, 0xc23b30]]);
+    }
+    // the baggage hall: carousels, trolleys along the wall
+    for (let z = z0 + 8; z < z1 - 8; z += 14) place(B, (x0 + arr) / 2, g, z, 0, [['metal', -9, 0, -2.2, 9, 0.5, 2.2, 0x8d9196], ['rubber', -9.1, 0.5, -2.3, 9.1, 0.6, 2.3, 0x2a2a2a], ['metal', -8, 0.6, -1.0, 8, 0.9, 1.0, 0xb8bcc0],
+      ['paint', -6, 0.6, -2.2, -5.2, 1.1, -1.6, 0x2f5f8f], ['paint', -2, 0.6, 1.6, -1.1, 1.0, 2.2, 0xc23b30], ['paint', 3, 0.6, -2.2, 3.9, 1.2, -1.5, 0x3a3a3a]]);
+    for (let z = z0 + 3; z < z1 - 3; z += 1.2) place(B, x0 + 1.5, g, z, 0, [['metal', -0.4, 0, -0.3, 0.4, 0.6, 0.3, 0xb8bcc0], ['metal', -0.4, 0.6, 0.25, 0.4, 1.0, 0.3, 0xb8bcc0]]);
+    waitingHall(B, arr, x1, z0 + 2, z1 - 16, g);
+    // upstairs: gate lounges along the airside, a food court and shops along the landside
+    for (let z = z0 + 3; z < z0 + d * 0.5; z += 3.4) for (let x = x0 + 5; x + 3 < x1 - 5; x += 8) place(B, x + 3, u, z, 0, seatBank(z < z0 + 6 ? 0x2f5f8f : 0x3a5a7a));
+    for (let x = x0 + 4; x < x1 - 12; x += 30) for (let k = 0; k < 4; k++) place(B, x + 3 + (k % 2) * 4, u, z1 - 13 + Math.floor(k / 2) * 3, 0, FURN.booth(0x8a2c2a));
+    for (let x = x0 + 18; x < x1 - 8; x += 30) {
+      place(B, x, u, z1 - 4, 2, FURN.counter(0xc23b30)); place(B, x + 4, u, z1 - 4, 2, FURN.cooler());
+      for (let k = 0; k < 2; k++) place(B, x + 2, u, z1 - 9 - k * 1.6, 0, FURN.aisle(() => hash(x | 0, k + 3)));
+    }
+    for (let x = x0 + 10; x < x1 - 10; x += 40) place(B, x, u, (z0 + z1) / 2, 0, [['metal', -0.1, 0, -0.1, 0.1, 2.4, 0.1, 0x3a3a3a], ['metal', -1.5, 2.4, -0.15, 1.5, 3.4, 0.15, 0x1c1c1c], ['screen', -1.4, 2.5, 0.15, 1.4, 3.3, 0.16, 0xf2c02a]]);
+  }
+  // A ferry or bus waiting hall: banks of seats, ticket counters, a cafe's booths.
+  function waitingHall(B, x0, x1, z0, z1, y) {
+    for (let z = z0 + 4; z < z1 - 4; z += 3.4) for (let x = x0 + 5; x + 3 < x1 - 5; x += 8) place(B, x + 3, y, z, 0, seatBank(0x2f5f8f));
+  }
+
   // ---------------------------------------------------------------- the airport
   // A terminal: two storeys, a glazed airside face with gates, an entrance landside under a canopy, check-in counters,
   // seats at the gates. w along x, d deep, airside to -z (the apron), landside to +z.
@@ -142,8 +255,7 @@
     const top = hall(B, { x0, x1, z0, z1, storeys: [[0.15, 7.15], [7.15, 14.15]], wall: 'ribbed', tint: 0xd9d6cc, col: 12,
       front: (i, st) => (st === 0 ? (i % 4 === 1 ? 'entrance' : 'glazed') : 'ribbon'), back: 'glazed', left: (i, st) => (st === 0 && i === 1 ? 'door' : 'ribbon'), right: (i, st) => (st === 0 && i === 1 ? 'door' : 'ribbon'),
       furnish(B) {
-        for (let x = x0 + 8; x < x1 - 8; x += 14) { place(B, x, 0.15, z1 - 9, 2, FURN.counter(0x2f5f8f)); place(B, x + 4, 0.15, z1 - 9, 2, FURN.counter(0x2f5f8f)); }
-        for (let x = x0 + 4; x < x1 - 10; x += 24) seats(B, x, x + 10, z0 + 6, 7.165, 3);
+        terminalFloors(B, x0, x1, z0, z1, 0.165, 7.165);
       } });
     // the landside canopy on its columns, and the sign
     B.color(0x8d9196); for (let x = x0 + 3; x <= x1 - 3; x += 12) column(B, 'metal', x, z1 + 8, 0.25, 0, 6.5, 10);
@@ -156,7 +268,11 @@
     const w = o.w, d = o.d, x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2;
     return hall(B, { x0, x1, z0, z1, storeys: [[0.15, 5.0], [5.0, 10.0]], wall: 'ribbed', tint: 0xd9d6cc, col: 10,
       front: (i, st) => (st === 1 ? 'glazed' : i % 3 === 0 ? 'roll' : 'blank'), back: (i, st) => (st === 1 ? 'glazed' : i % 3 === 0 ? 'roll' : 'blank'), left: 'glazed', right: 'glazed', doorTint: 0x8d9196, doorH: 3.6,
-      furnish(B) { for (let z = z0 + 6; z < z1 - 12; z += 20) { seats(B, x0 + 3, x0 + 9, z, 5.012, 4); seats(B, x1 - 9, x1 - 3, z, 5.012, 4); } } });
+      furnish(B) {
+        for (let z = z0 + 4; z < z1 - 6; z += 3.4) { place(B, x0 + 6, 5.012, z, 1, seatBank(0x2f5f8f)); place(B, x1 - 6, 5.012, z, 1, seatBank(0x2f5f8f)); }
+        for (let z = z0 + 10; z < z1 - 10; z += 40) { place(B, 0, 5.012, z, 1, FURN.counter(0x2f5f8f)); place(B, 0, 5.012, z + 6, 0, FURN.cooler()); place(B, 0, 5.012, z + 12, 1, FURN.booth(0x8a2c2a)); }
+        for (let z = z0 + 6; z < z1 - 6; z += 12) place(B, 0, 0.165, z, 0, [['paint', -1.2, 0, -3, 1.2, 1.6, 3, 0xf2c02a], ['glassDark', -1.1, 1.6, 1.5, 1.1, 2.4, 2.9, 0x2a3a44], ['paint', -1.2, 2.4, 1.4, 1.2, 2.5, 3, 0xf2c02a]]);
+      } });
   }
   // A jet bridge from a rotunda at `face` ([x, y, z], the terminal's face at the bridge's floor) to an aircraft's door.
   function jetBridge(B, face, door) {
@@ -211,8 +327,20 @@
   // A control tower: a base building, a concrete shaft in lifts, the glazed cab with its catwalk and roof, the mast.
   function tower(B, M, o) {
     const h = o.h;
-    hall(B, { x0: -25, x1: 25, z0: -12, z1: 18, storeys: [[0.15, 5.15], [5.15, 10.15]], wall: 'block', tint: 0xe0dccf, col: 10, front: (i, st) => (st === 0 && i === 4 ? 'entrance' : 'windows'), back: 'windows', left: 'windows', right: 'windows' });
+    hall(B, { x0: -25, x1: 25, z0: -12, z1: 18, storeys: [[0.15, 5.15], [5.15, 10.15]], wall: 'block', tint: 0xe0dccf, col: 10, front: (i, st) => (st === 0 && i === 4 ? 'entrance' : 'windows'), back: 'windows', left: 'windows', right: 'windows',
+      furnish(B) {   // ground: the reception and the briefing room; upstairs: offices, the equipment room, the crew room
+        place(B, 0, 0.165, 13, 2, FURN.counter(0x2f5f8f));
+        for (let x = -20; x <= -6; x += 3.5) for (let z = -8; z <= 4; z += 2.4) place(B, x, 0.165, z, 2, FURN.chair(0x2f5f8f));
+        place(B, -13, 0.165, -10.5, 0, FURN.tv());
+        for (let x = 10; x <= 20; x += 3.5) for (let z = -8; z <= 10; z += 3) place(B, x, 0.165, z, 0, FURN.desk());
+        for (let x = -22; x <= -8; x += 3.2) for (let z = -9; z <= 12; z += 3) place(B, x, 5.162, z, 0, FURN.desk());
+        for (let x = 8; x <= 22; x += 1.0) for (const z of [-9, -6]) place(B, x, 5.162, z, 0, [['metal', -0.45, 0, -0.5, 0.45, 2.1, 0.5, 0x3a3d42], ['glassDark', -0.4, 1.6, 0.5, 0.4, 1.9, 0.505, 0x2aff4a]]);
+        for (let x = 10; x <= 20; x += 5) place(B, x, 5.162, 10, 0, FURN.booth(0x3a5a7a));
+        place(B, 22, 5.162, 3, 3, FURN.kitchen(0xd8d2c0)); place(B, 16, 5.162, 3, 0, FURN.sofa(0x6a4a3a));
+      } });
     B.color(0xd8d4cc);
+    // a landing and a stair flight inside the shaft each 5 m, the lift car
+    for (let y = 10.15; y < h - 2; y += 5) { B.color(0xbab4aa); B.box('concrete', -4.5, y + 4.7, 1.5, 4.5, y + 5, 4.5); place(B, 0, y, -1, 1, [['concrete', -3, 0, -1, 3, 0.3, 1, 0xbab4aa], ['concrete', -1.5, 0.3, -1, 3, 2.4, 1, 0xbab4aa], ['concrete', 0, 2.4, -1, 3, 4.7, 1, 0xbab4aa]]); }
     for (let y = 10.15; y < h - 0.01; y += 5) for (const [a, b] of [[-6, -4.5], [4.5, 6]]) { B.box('concrete', a, y, -6, b, Math.min(h, y + 5), 6); B.box('concrete', -4.5, y, a, 4.5, Math.min(h, y + 5), b); }
     // the cab: a slab, glazed faces all round, the roof
     B.color(0xbab4aa); tiles(B, 'concrete', -10, h - 0.3, -10, 10, h + 0.2, 10, null, 5);
@@ -220,7 +348,17 @@
     face(B, cab, 'x', 9.9, -10, 10, 1, 'glazed'); face(B, cab, 'x', -9.9, -10, 10, -1, 'glazed');
     face(B, cab, 'z', -9.9, -9.8, 9.8, -1, 'glazed'); face(B, cab, 'z', 9.9, -9.8, 9.8, 1, 'glazed');
     B.color(0x6d6a66); tiles(B, 'roofing', -10.6, h + 6.2, -10.6, 10.6, h + 6.6, 10.6, null, 5);
-    B.color(0xe8e2d0); place(B, 0, h + 0.2, 6, 2, FURN.desk()); place(B, -4, h + 0.2, 6, 2, FURN.desk()); place(B, 4, h + 0.2, 6, 2, FURN.desk());
+    // the cab: consoles all round the glass, each with its screens and strips, a chair; the supervisor's desk; radar scopes
+    const console_ = [['trim', -1.4, 0, -0.45, 1.4, 0.95, 0.45, 0x5a5f66], ['counter', -1.45, 0.95, -0.5, 1.45, 1.0, 0.5, 0xd8cdb0], ['metal', -1.2, 1.0, -0.45, -0.2, 1.6, -0.25, 0x2a2a2a],
+      ['glassDark', -1.1, 1.08, -0.25, -0.3, 1.52, -0.24, 0x3aa65a], ['metal', 0.2, 1.0, -0.45, 1.2, 1.6, -0.25, 0x2a2a2a], ['glassDark', 0.3, 1.08, -0.25, 1.1, 1.52, -0.24, 0x3a8ac8],
+      ['paint', -0.9, 1.0, 0.05, 0.9, 1.05, 0.35, 0xf2efe8], ['fabric', -0.3, 0, 0.7, 0.3, 0.5, 1.2, 0x2f5f8f], ['fabric', -0.3, 0.5, 1.12, 0.3, 1.1, 1.2, 0x2f5f8f]];
+    for (const [rot, fx, fz] of [[0, 0, 1], [2, 0, -1], [1, 1, 0], [3, -1, 0]]) for (const s of [-5.5, -2.5, 2.5, 5.5]) {
+      // rot turns the console's back (-z) to the glass on that side
+      const x = fx ? fx * 8.6 : s, z = fz ? fz * 8.6 : s;
+      if (Math.abs(x) < 6.5 && Math.abs(z) < 6.5) continue;
+      place(B, x, h + 0.2, z, (rot + 2) % 4, console_);
+    }
+    place(B, 0, h + 0.2, 0, 0, [['wood', -1.5, 0.72, -0.8, 1.5, 0.78, 0.8, 0x5a3a22], ['trim', -1.4, 0, -0.7, 1.4, 0.72, 0.7, 0x5a5f66], ['metal', -0.9, 0.78, -0.6, 0.9, 1.3, -0.4, 0x2a2a2a], ['glassDark', -0.8, 0.85, -0.4, 0.8, 1.25, -0.39, 0x3aa65a]]);
     B.color(0xe8e8e2); B.box('trim', -0.25, h + 6.6, -0.25, 0.25, h + 14.6, 0.25);
     B.color(0xffffff); B.box('lampGreen', -0.4, h + 14.6, 0.0, 0.4, h + 15.4, 1.2); B.box('lamp', -0.4, h + 14.6, -1.2, 0.4, h + 15.4, 0.0);
   }
@@ -264,7 +402,8 @@
   // A cargo shed: a long clad hall, a dock door in every other bay, an office at one end.
   function cargoShed(B, M, o) {
     const w = o.w, d = o.d, h = o.h || 13;
-    hall(B, { x0: -w / 2, x1: w / 2, z0: -d / 2, z1: d / 2, storeys: [[0.15, h + 0.15]], wall: 'ribbed', tint: o.tint || 0x9aa4ad, col: 18, front: (i) => (i % 2 ? 'roll' : 'blank'), back: (i) => (i % 3 === 1 ? 'roll' : 'blank'), left: (i) => (i === 1 ? 'entrance' : 'ribbon'), right: 'blank', doorH: o.doorH || 6, doorTint: o.doorTint || 0x5a6a7a, inner: false });
+    hall(B, { x0: -w / 2, x1: w / 2, z0: -d / 2, z1: d / 2, storeys: [[0.15, h + 0.15]], wall: 'ribbed', tint: o.tint || 0x9aa4ad, col: 18, front: (i) => (i % 2 ? 'roll' : 'blank'), back: (i) => (i % 3 === 1 ? 'roll' : 'blank'), left: (i) => (i === 1 ? 'entrance' : 'ribbon'), right: 'blank', doorH: o.doorH || 6, doorTint: o.doorTint || 0x5a6a7a, inner: false,
+      furnish: (B) => fitOut(B, o.use || 'store', -w / 2 + 0.3, w / 2 - 0.3, -d / 2 + 0.3, d / 2 - 0.3, 0.162) });
     if (o.name) signBand(B, M, o.name, -w / 2 + 16, h - 2, d / 2 + 0.02, 24, o.sign || '#2c5d9c');
   }
   // A row of T-hangars: a low steel shed, a door in each bay.
@@ -329,6 +468,41 @@
 
   // ---------------------------------------------------------------- the seaport
   // Painted steel (the gantries, the straddles, the goliath) is 'paint': the 'metal' surface reads as bare steel.
+  // A harbour's luffing crane (the harbours change's model, assets/models/boats/crane.glb, at its own sizes): a 12 m portal
+  // on four legs, the slewing house, the tower and a 35 m lattice jib out over -z, every member short round tubes, so a
+  // shot takes out a length of steel and what hangs beyond it falls. A page builds it with a machine's longer reach
+  // (info.maxSide): the jib hangs from the tower by its own steel.
+  function luffingCrane(B, o = {}) {
+    const portal = o.portal || 12, H = o.height || 40, jib = o.jib || 35, p = portal / 2 - 0.6;
+    B.color(0xeab81f);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) column(B, 'paint', sx * p, sz * p, 0.6, 0, 10, 10, 2.5);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { B.color(0x2a2d31); B.box('metal', sx * p - 0.9, 0, sz * p - 0.9, sx * p + 0.9, 0.5, sz * p + 0.9); }
+    B.color(0xeab81f);
+    run(B, 'paint', -portal / 2, 10, -portal / 2, portal / 2, 11.2, -portal / 2 + 1.5, 3); run(B, 'paint', -portal / 2, 10, portal / 2 - 1.5, portal / 2, 11.2, portal / 2, 3);
+    run(B, 'paint', -portal / 2, 10, -portal / 2 + 1.5, -portal / 2 + 1.5, 11.2, portal / 2 - 1.5, 3); run(B, 'paint', portal / 2 - 1.5, 10, -portal / 2 + 1.5, portal / 2, 11.2, portal / 2 - 1.5, 3);
+    run(B, 'paint', -portal / 2 + 1.5, 10, -1, portal / 2 - 1.5, 11.2, 1, 3); run(B, 'paint', -1, 10, -portal / 2 + 1.5, 1, 11.2, -1, 3); run(B, 'paint', -1, 10, 1, 1, 11.2, portal / 2 - 1.5, 3);   // the cross girders under the ring
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) tubes(B, 'paint', [sx * p, 1, sz * p], [0, 10, sz * p * 0.2], 0.15, 3, 6);
+    // the slewing house on its ring, the cab's window to the jib
+    B.color(0x2a2d31); B.cyl('metal', 'y', [0, 0, 0], 3.2, 11.2, 11.6, 16);
+    B.color(0xeab81f); run(B, 'paint', -3, 11.6, -3, 3, 16.8, 5, 3);
+    B.color(0xffffff); B.box('glassDark', -2, 14, -3.05, 2, 15.2, -3.0);
+    B.color(0x1c1c1c); B.box('paint', -1.5, 16.8, 2.5, 1.5, 19.3, 5.5);   // the counterweight
+    B.color(0xeab81f); column(B, 'paint', 0, 0, 1.2, 16.8, H, 10, 2.5);
+    // the jib: two chords and a top chord, braced every 2.5 m
+    const a = 28 * Math.PI / 180, root = [0, H - 3, -0.9], tip = [0, H - 3 + Math.sin(a) * jib, -0.9 - Math.cos(a) * jib];
+    const at = (t, x, y) => [x * (1 - t * 0.7), root[1] + (tip[1] - root[1]) * t + y, root[2] + (tip[2] - root[2]) * t];
+    const n = Math.round(jib / 2.5);
+    for (const sx of [-1, 1]) tubes(B, 'paint', at(0, sx * 0.9, 0), at(1, sx * 0.9, 0), 0.22, 2.5, 6);
+    tubes(B, 'paint', at(0, 0, 1.4), at(1, 0, 0.5), 0.18, 2.5, 6);
+    for (let i = 0; i < n; i++) { const t0 = i / n, t1 = (i + 1) / n;
+      B.color(0xeab81f); tube(B, 'paint', at(t0, -0.9, 0), at(t0, 0.9, 0), 0.08, 5);
+      tube(B, 'paint', at(t0, (i % 2 ? -0.9 : 0.9), 0), at(t1, 0, 1.4 - 0.9 * t1), 0.08, 5); }
+    // the tie from the tower head to the jib tip, the hook
+    B.color(0x8d9196); tubes(B, 'metal', [0, H - 0.2, 0], [tip[0], tip[1] + 0.4, tip[2]], 0.12, 3, 5);
+    B.color(0x2a2d31); B.box('metal', -0.5, tip[1] - 0.4, tip[2] - 0.3, 0.5, tip[1], tip[2] + 0.3);   // the sheave head between the chords
+    tube(B, 'metal', [0, tip[1], tip[2]], [0, tip[1] - 10, tip[2]], 0.05, 4);   // the falls, one piece hung from the sheave head
+    B.box('metal', -0.4, tip[1] - 10.8, tip[2] - 0.4, 0.4, tip[1] - 9.7, tip[2] + 0.4);
+  }
   // A ship-to-shore container gantry of the 1980s: legs on rails `gauge` apart (z), its girder 42 m up running out over
   // the water as the boom, the machinery house, the A-frame and its stays, the trolley and cab. Rigid: a page builds it
   // as a machine (BuildingEngine.building({ rigid: true })).
@@ -429,7 +603,7 @@
   }
 
   root.SiteBuildings = { BAY, TILE, BAYS, plate, member, column, run, face, hall, signBand, seats,
-    terminal, concourse, jetBridge, archHangar, tower, baseTower, sprayBoom, radarMast, fireStation, cargoShed, tHangars, carPark, tank, mechHangar, hut,
-    carAt, gantry, straddle, stackBlock, goliath, lightTower, buoy, pileDeck, quayEdge, pontoon, tug, LINERS };
+    terminal, concourse, jetBridge, fitOut, waitingHall, archHangar, tower, baseTower, sprayBoom, radarMast, fireStation, cargoShed, tHangars, carPark, tank, mechHangar, hut,
+    carAt, tube, tubes, luffingCrane, gantry, straddle, stackBlock, goliath, lightTower, buoy, pileDeck, quayEdge, pontoon, tug, LINERS };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SiteBuildings;
 })(typeof window !== 'undefined' ? window : globalThis);
