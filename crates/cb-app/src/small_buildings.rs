@@ -1131,6 +1131,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_far_window_flag_matches_the_shader() {
+        let wesl = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/shaders/building_surface.wesl")).unwrap();
+        let want = format!("const FAR_WINDOW: u32 = {FAR_WINDOW_FLAG}u;");
+        assert!(wesl.contains(&want), "building_surface.wesl must say `{want}`");
+    }
+
+    #[test]
     fn a_primitives_surface_is_read_from_its_extras() {
         assert_eq!(
             serde_json_surface(r#"{"surface":"brick","triangles":12}"#).as_deref(),

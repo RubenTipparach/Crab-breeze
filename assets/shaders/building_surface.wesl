@@ -10,10 +10,13 @@ import bevy_pbr::render::pbr_fragment::pbr_input_from_standard_material;
 import bevy_pbr::render::pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing};
 import bevy_pbr::render::mesh_view_bindings::view;
 
-// 1 for glass: no screen-space ambient occlusion.
+// 1 for glass: no screen-space ambient occlusion. `FAR_WINDOW` for a house's far window pane, lit at night.
 @group(constants::MATERIAL_BIND_GROUP) @binding(105) var<uniform> no_ssao: u32;
-// The windows at night (`building_windows`): bound, but the glass no longer glows (owner, 2026-10-29: "I dont
-// want the glass itself to glow, I want to see the room lits"); the rooms behind it light instead.
+// `small_buildings::FAR_WINDOW_FLAG` (a test holds the two together).
+const FAR_WINDOW: u32 = 2u;
+// The windows at night (`building_windows`): the glass no longer glows (owner, 2026-10-29: "I dont want the glass
+// itself to glow, I want to see the room lits"); the rooms behind it light instead. y: a house's far window's
+// brightness, cd/m2.
 @group(constants::MATERIAL_BIND_GROUP) @binding(106) var<uniform> windows: vec4<f32>;
 // The lit rooms (`building_state.wesl` decides which): y a lit room's brightness cd/m2 (houses' inside surfaces
 // and furniture).
@@ -37,7 +40,12 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     out.color = apply_pbr_lighting(pbr);
 @if(VERTEX_UVS_B) {
     if (!damaged && in.uv_b.y > 0.0) {
-        out.color = vec4<f32>(out.color.rgb + pbr.material.base_color.rgb * room_colour.rgb * in.uv_b.y * rooms.y * view.exposure, out.color.a);
+        if (no_ssao == FAR_WINDOW) {
+            // A house's far window pane (LOD1): its house lit, it glows as the towers' far walls' lit windows do.
+            out.color = vec4<f32>(out.color.rgb + room_colour.rgb * in.uv_b.y * windows.y * view.exposure, out.color.a);
+        } else {
+            out.color = vec4<f32>(out.color.rgb + pbr.material.base_color.rgb * room_colour.rgb * in.uv_b.y * rooms.y * view.exposure, out.color.a);
+        }
     }
 }
     out.color = main_pass_post_lighting_processing(pbr, out.color);
