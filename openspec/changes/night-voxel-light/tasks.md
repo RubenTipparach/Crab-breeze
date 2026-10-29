@@ -54,7 +54,8 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
 - [x] 3.21 Seaport night on the approved seaport page (Night button): masts, lamps, crane lights, and every ship lit (design section 2d); waiting for the owner's look
 - [x] 3.22 Ships carry their lights: rooms `ALWAYS_LIT`, deck floodlights as masts with no pole, anchor, deck and navigation lights as glow dots, each tied to its ship's lot and dark once it is damaged (design section 2d); the moving harbour traffic's ships are not lit yet (3.24)
 - [x] 3.17 Runway, threshold, end, centre line, approach, PAPI and taxiway lights as glow dots (design section 2d): every runway by one rule (`lamps::runway_dots`, the airport's exported runways and the air bases'), the approach, PAPI and taxiway dots from the airport's table
-- [ ] 3.23 Stills at 22:00 of the airport and seaport in game (headless, lavapipe), and a playtest on the owner's machine
+- [x] 3.23 Stills at 22:00 of the airport and seaport in game (headless, lavapipe): `docs/screenshots/sites-in-game/*-2200.jpg`, and both sites at noon beside their pages from the same views (`*-vs-page.jpg`)
+- [ ] 3.25 A playtest of the sites at night on the owner's machine (frame time with 182 masts in the lamp pool's reach)
 - [ ] 3.24 The harbour traffic's moving ships carry the same lights
 
 ## 3b. Lit rooms (owner: "I dont want the glass itself to glow, I want to see the room lits")
