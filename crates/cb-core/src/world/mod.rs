@@ -273,7 +273,7 @@ impl WorldPlan {
             || self
                 .sites
                 .iter()
-                .any(|s| s.solids.iter().any(|(lo, hi)| q.cmpge(*lo).all() && q.cmple(*hi).all()))
+                .any(|s| s.footprint().distance(q2) <= 0.0 && s.solids.iter().any(|(lo, hi)| q.cmpge(*lo).all() && q.cmple(*hi).all()))
     }
 
     /// The drawn road's surface at `p` (x, z), if a road is there: a city's street at the city's ground plus

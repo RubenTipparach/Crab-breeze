@@ -31,7 +31,9 @@ use bevy::render::storage::ShaderBuffer;
 use cb_core::pilot::PilotMode;
 use cb_core::world::small_buildings::kit::Node;
 use cb_core::world::small_buildings::{HOUSE_CHUNK_BASE, Kits, Lot};
+use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
 /// LOD0, its leaves and its furniture are spawned for lots this near the camera...
 const DRESS_M: f32 = 170.0;
@@ -79,11 +81,14 @@ struct Loading {
     grounds: Vec<Handle<Gltf>>,
 }
 
-/// One primitive of a kit's node: its mesh and its surface.
+/// One primitive of a kit's node: its mesh and its surface, and for LOD0 and FURN its vertices copied once while the
+/// loading screen is up, so a damaged shell or a building's furniture is meshed on the async pool (`Jobs`), never in a
+/// frame (CLAUDE.md section 7: no frame over 16.7 ms; a terminal's furniture is 350 000 triangles).
 #[derive(Clone)]
 struct Prim {
     mesh: Handle<Mesh>,
     surface: String,
+    src: Option<Arc<Owned>>,
 }
 
 /// A kit's meshes by node.
@@ -102,8 +107,8 @@ pub struct HouseKits {
     /// True once everything is in (the loading screen waits for it).
     pub ready: bool,
     kits: Vec<KitDraw>,
-    /// Each modelled item's mesh (main-world copy, for merging).
-    furniture: HashMap<String, Handle<Mesh>>,
+    /// Each modelled item's vertices (a copy, for merging off the main thread).
+    furniture: Arc<HashMap<String, Arc<Owned>>>,
     /// One plain material per surface (shells, whole LOD0s, leaves).
     plain: HashMap<String, Handle<StandardMaterial>>,
     /// One state-reading material per surface (damaged LOD0s).
@@ -135,12 +140,20 @@ struct Dressed {
     version: u32,
 }
 
-/// Every lot's root, and the dressed ones.
+/// Every lot's root, the dressed ones, and the meshes being built for them.
 #[derive(Resource, Default)]
 struct Houses {
     roots: Vec<Entity>,
     far: Vec<Vec<Entity>>,
     dressed: BTreeMap<u32, Dressed>,
+    jobs: Jobs,
+}
+
+/// Meshes being built on the async pool: a damaged lot's own LOD0 (by surface), a dressed lot's furniture.
+#[derive(Default)]
+struct Jobs {
+    lod0: BTreeMap<u32, Task<Vec<(String, Mesh)>>>,
+    furniture: BTreeMap<u32, (Furnished, Task<Option<Mesh>>)>,
 }
 
 /// Draws the houses and small businesses.
@@ -155,7 +168,7 @@ impl Plugin for SmallBuildingsPlugin {
             .add_game_systems(FixedUpdate, sink_ships.in_set(crate::sim::SimSet::World))
             .add_game_systems(
                 Update,
-                (spawn_lots, follow_state, redraw_damaged, dress, furnish, swing_leaves, pose_sinking)
+                (spawn_lots, follow_state, redraw_damaged, dress, furnish, finish_jobs, swing_leaves, pose_sinking)
                     .chain()
                     .in_set(crate::sim::PresentSet::Pose)
                     .run_if(|k: Res<HouseKits>| k.ready),
@@ -335,14 +348,24 @@ fn bind(
                     Prim {
                         mesh: p.mesh.clone(),
                         surface,
+                        src: None,
                     }
                 })
                 .collect();
+            let copied = |prims: Vec<Prim>| {
+                prims
+                    .into_iter()
+                    .map(|mut p| {
+                        p.src = meshes.get(&p.mesh).and_then(owned).map(Arc::new);
+                        p
+                    })
+                    .collect::<Vec<_>>()
+            };
             match name.as_ref() {
-                "LOD0" => d.lod0 = prims,
+                "LOD0" => d.lod0 = copied(prims),
+                "FURN" => d.furn = copied(prims),
                 "LOD1" => d.lod1 = prims,
                 "LOD2" => d.lod2 = prims,
-                "FURN" => d.furn = prims,
                 n if n.starts_with("LEAF") => {
                     let i: usize = n[4..].parse().unwrap_or(0);
                     if d.leaves.len() <= i {
@@ -476,12 +499,21 @@ fn bind(
             windows: Vec4::ZERO,
         },
     }));
+    let mut furniture = HashMap::new();
     for (name, h) in &loading.furniture {
         let Some(g) = gltfs.get(h) else { return };
-        if let Some(mesh) = g.meshes.first().and_then(|m| gltf_meshes.get(m)).and_then(|m| m.primitives.first()) {
-            kits.furniture.insert(name.clone(), mesh.mesh.clone());
+        if let Some(src) = g
+            .meshes
+            .first()
+            .and_then(|m| gltf_meshes.get(m))
+            .and_then(|m| m.primitives.first())
+            .and_then(|p| meshes.get(&p.mesh))
+            .and_then(owned)
+        {
+            furniture.insert(name.clone(), Arc::new(src));
         }
     }
+    kits.furniture = Arc::new(furniture);
     // Each site's ground: its one mesh's primitives in the look its table gives each surface.
     let mut grounds = Vec::with_capacity(loading.grounds.len());
     for (site, h) in plan.sites.iter().zip(&loading.grounds) {
@@ -677,16 +709,16 @@ impl Corners {
     }
 }
 
-/// A source mesh's attributes and triangle list.
-struct Source<'a> {
-    pos: &'a [[f32; 3]],
-    nrm: &'a [[f32; 3]],
-    uv: &'a [[f32; 2]],
+/// A source mesh's attributes and triangle list, copied out of the asset so a pool task can read it.
+struct Owned {
+    pos: Vec<[f32; 3]>,
+    nrm: Vec<[f32; 3]>,
+    uv: Vec<[f32; 2]>,
     col: Vec<[f32; 4]>,
     tri: Vec<u32>,
 }
 
-fn source(m: &Mesh) -> Option<Source<'_>> {
+fn owned(m: &Mesh) -> Option<Owned> {
     let VertexAttributeValues::Float32x3(pos) = m.attribute(Mesh::ATTRIBUTE_POSITION)? else {
         return None;
     };
@@ -705,7 +737,13 @@ fn source(m: &Mesh) -> Option<Source<'_>> {
         Indices::U16(i) => i.iter().map(|&v| v as u32).collect(),
         Indices::U32(i) => i.clone(),
     };
-    Some(Source { pos, nrm, uv, col, tri })
+    Some(Owned {
+        pos: pos.clone(),
+        nrm: nrm.clone(),
+        uv: uv.clone(),
+        col,
+        tri,
+    })
 }
 
 /// Which piece each triangle of primitive `prim` of `node` belongs to (from the kit's runs).
@@ -727,16 +765,10 @@ fn piece_of_triangles(kit: &cb_core::world::small_buildings::Kit, node: Node, pr
 }
 
 /// A damaged building's own LOD0: one mesh per surface, each corner carrying its piece's slot.
-fn own_lod0(
-    kit: &cb_core::world::small_buildings::Kit,
-    draw: &KitDraw,
-    meshes: &Assets<Mesh>,
-    base: u32,
-    textured: &[String],
-) -> Vec<(String, Mesh)> {
+fn own_lod0(kit: &cb_core::world::small_buildings::Kit, lod0: &[Prim], base: u32, textured: &[String]) -> Vec<(String, Mesh)> {
     let mut out = Vec::new();
-    for (pi, p) in draw.lod0.iter().enumerate() {
-        let Some(src) = meshes.get(&p.mesh).and_then(source) else {
+    for (pi, p) in lod0.iter().enumerate() {
+        let Some(src) = p.src.as_deref() else {
             continue;
         };
         let pieces = piece_of_triangles(kit, Node::Lod0, pi, src.tri.len() / 3);
@@ -767,16 +799,15 @@ fn own_lod0(
 fn furniture_mesh(
     kit: &cb_core::world::small_buildings::Kit,
     kits: &Kits,
-    draw: &KitDraw,
-    models: &HashMap<String, Handle<Mesh>>,
-    meshes: &Assets<Mesh>,
+    furn: &[Prim],
+    models: &HashMap<String, Arc<Owned>>,
     base: u32,
     real: bool,
 ) -> Option<Mesh> {
     let mut c = Corners::new();
     if real {
         for f in &kit.furniture {
-            let Some(src) = models.get(&f.item).and_then(|h| meshes.get(h)).and_then(source) else {
+            let Some(src) = models.get(&f.item) else {
                 continue;
             };
             // Local (x, z) lies at (-z, x) for each quarter turn (the kit's `placeItems`): a turn of -90 degrees.
@@ -793,8 +824,8 @@ fn furniture_mesh(
             }
         }
     } else {
-        for (pi, p) in draw.furn.iter().enumerate() {
-            let Some(src) = meshes.get(&p.mesh).and_then(source) else {
+        for (pi, p) in furn.iter().enumerate() {
+            let Some(src) = p.src.as_deref() else {
                 continue;
             };
             let Some(sw) = kits.furniture.swatches.get(&p.surface) else {
@@ -837,14 +868,12 @@ fn furniture_mesh(
 /// hidden for good.
 #[allow(clippy::too_many_arguments)]
 fn redraw_damaged(
-    mut commands: Commands,
     plan: Res<Plan>,
     mut live: ResMut<Live>,
     kits: Res<HouseKits>,
     mut houses: ResMut<Houses>,
     mut states: ResMut<BuildingStates>,
     mut buffers: ResMut<Assets<ShaderBuffer>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut vis: Query<&mut Visibility>,
 ) {
     if live.dirty_houses.is_empty() {
@@ -860,12 +889,7 @@ fn redraw_damaged(
         let base = states.base(key, kit.pieces.len(), &mut buffers);
         let words: Vec<u32> = alive.iter().map(|&a| u32::from(a)).collect();
         states.write(key, &words);
-        for &e in houses.far.get(lot as usize).into_iter().flatten() {
-            if let Ok(mut v) = vis.get_mut(e) {
-                *v = Visibility::Hidden;
-            }
-        }
-        let root = houses.roots[lot as usize];
+        let houses = &mut *houses;
         let entry = houses.dressed.entry(lot).or_insert_with(|| Dressed {
             lod0: Vec::new(),
             own: false,
@@ -873,21 +897,14 @@ fn redraw_damaged(
             furniture: None,
             version: 0,
         });
-        if !entry.own {
-            for e in entry.lod0.drain(..) {
-                commands.entity(e).despawn();
-            }
-            let draw = &kits.kits[plan.small.lots[lot as usize].kit as usize];
-            for (surface, mesh) in own_lod0(kit, draw, &meshes, base, &kits.textured) {
-                let Some(m) = kits.state.get(&surface) else { continue };
-                let h = meshes.add(mesh);
-                let mut e = commands.spawn((Mesh3d(h), MeshMaterial3d(m.clone()), Transform::IDENTITY, ChildOf(root)));
-                if NO_SHADOW.contains(&surface.as_str()) {
-                    e.insert(NotShadowCaster);
-                }
-                entry.lod0.push(e.id());
-            }
-            entry.own = true;
+        // Its own LOD0 (slots per piece) is meshed on the pool; it keeps what it draws until it is in (`finish_jobs`).
+        if !entry.own && !houses.jobs.lod0.contains_key(&lot) {
+            let all = plan.small.kits.clone();
+            let k = plan.small.lots[lot as usize].kit as usize;
+            let lod0 = kits.kits[k].lod0.clone();
+            let textured = kits.textured.clone();
+            let task = AsyncComputeTaskPool::get().spawn(async move { own_lod0(&all.kits[k], &lod0, base, &textured) });
+            houses.jobs.lod0.insert(lot, task);
         }
         // Leaves of broken pieces go.
         for (i, e) in &entry.leaves {
@@ -919,7 +936,7 @@ fn dress(
     let far: Vec<u32> = houses
         .dressed
         .iter()
-        .filter(|(l, d)| !d.own && lots.lots[**l as usize].rect.distance(here) > UNDRESS_M)
+        .filter(|(l, d)| !d.own && !houses.jobs.lod0.contains_key(l) && lots.lots[**l as usize].rect.distance(here) > UNDRESS_M)
         .map(|(l, _)| *l)
         .collect();
     for l in far {
@@ -1009,11 +1026,12 @@ fn furnish(
     pilot: Res<PilotSim>,
     mut states: ResMut<BuildingStates>,
     mut buffers: ResMut<Assets<ShaderBuffer>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     camera: Query<&GlobalTransform, With<PilotCamera>>,
 ) {
     let Ok(eye) = camera.single() else { return };
-    let Some(material) = kits.furniture_material.clone() else { return };
+    if kits.furniture_material.is_none() {
+        return;
+    }
     let here = Vec2::new(eye.translation().x, eye.translation().z);
     let on_foot = pilot.curr.mode == PilotMode::OnFoot;
     let lots = &plan.small;
@@ -1036,24 +1054,89 @@ fn furnish(
     wants.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
     for (lot, _, want) in wants {
         let have = houses.dressed[&lot].furniture.map(|(f, _)| f);
-        if have == want {
+        let pending = houses.jobs.furniture.get(&lot).map(|(f, _)| *f);
+        if have == want || (want.is_some() && pending == want) {
             continue;
         }
-        if want.is_some() && built >= FURNISH_PER_FRAME {
+        if want.is_none() {
+            // Out of reach: none drawn, none coming.
+            houses.jobs.furniture.remove(&lot);
+            if let Some((_, e)) = houses.dressed.get_mut(&lot).and_then(|d| d.furniture.take()) {
+                commands.entity(e).despawn();
+            }
             continue;
         }
+        if built >= FURNISH_PER_FRAME {
+            continue;
+        }
+        let Some(kind) = want else { continue };
+        // Meshed on the pool; the furniture it has stays until the new one is in (`finish_jobs`).
+        let k = lots.lots[lot as usize].kit as usize;
+        let base = states.base(state_key(lot), lots.kits.kits[k].pieces.len(), &mut buffers);
+        let (all, furn, models) = (lots.kits.clone(), kits.kits[k].furn.clone(), kits.furniture.clone());
+        let task = AsyncComputeTaskPool::get()
+            .spawn(async move { furniture_mesh(&all.kits[k], &all, &furn, &models, base, kind == Furnished::Real) });
+        houses.jobs.furniture.insert(lot, (kind, task));
+        built += 1;
+    }
+}
+
+/// Puts the meshes built on the pool in place: a damaged lot's own LOD0 for its shells and plain LOD0 (hidden then for
+/// good), a lot's furniture for the furniture it had. A lot freed meanwhile drops its furniture.
+#[allow(clippy::too_many_arguments)]
+fn finish_jobs(
+    mut commands: Commands,
+    live: Res<Live>,
+    kits: Res<HouseKits>,
+    mut houses: ResMut<Houses>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut vis: Query<&mut Visibility>,
+) {
+    let houses = &mut *houses;
+    let done: Vec<(u32, Vec<(String, Mesh)>)> = houses
+        .jobs
+        .lod0
+        .iter_mut()
+        .filter_map(|(l, t)| check_ready(t).map(|m| (*l, m)))
+        .collect();
+    for (lot, built) in done {
+        houses.jobs.lod0.remove(&lot);
         let root = houses.roots[lot as usize];
-        let d = houses.dressed.get_mut(&lot).expect("dressed");
+        for &e in houses.far.get(lot as usize).into_iter().flatten() {
+            if let Ok(mut v) = vis.get_mut(e) {
+                *v = Visibility::Hidden;
+            }
+        }
+        let Some(entry) = houses.dressed.get_mut(&lot) else { continue };
+        for e in entry.lod0.drain(..) {
+            commands.entity(e).despawn();
+        }
+        for (surface, mesh) in built {
+            let Some(m) = kits.state.get(&surface) else { continue };
+            let mut e = commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(m.clone()), Transform::IDENTITY, ChildOf(root)));
+            if NO_SHADOW.contains(&surface.as_str()) {
+                e.insert(NotShadowCaster);
+            }
+            entry.lod0.push(e.id());
+        }
+        entry.own = true;
+        entry.version = live.structures.houses.version(lot);
+    }
+    let Some(material) = kits.furniture_material.clone() else { return };
+    let done: Vec<(u32, Furnished, Option<Mesh>)> = houses
+        .jobs
+        .furniture
+        .iter_mut()
+        .filter_map(|(l, (k, t))| check_ready(t).map(|m| (*l, *k, m)))
+        .collect();
+    for (lot, kind, mesh) in done {
+        houses.jobs.furniture.remove(&lot);
+        let root = houses.roots[lot as usize];
+        let Some(d) = houses.dressed.get_mut(&lot) else { continue };
         if let Some((_, e)) = d.furniture.take() {
             commands.entity(e).despawn();
         }
-        let Some(kind) = want else { continue };
-        let kit = lots.kit(lot);
-        let base = states.base(state_key(lot), kit.pieces.len(), &mut buffers);
-        let draw = &kits.kits[lots.lots[lot as usize].kit as usize];
-        let Some(mesh) = furniture_mesh(kit, &lots.kits, draw, &kits.furniture, &meshes, base, kind == Furnished::Real) else {
-            continue;
-        };
+        let Some(mesh) = mesh else { continue };
         let e = commands
             .spawn((
                 Mesh3d(meshes.add(mesh)),
@@ -1064,7 +1147,6 @@ fn furnish(
             ))
             .id();
         d.furniture = Some((kind, e));
-        built += 1;
     }
 }
 
