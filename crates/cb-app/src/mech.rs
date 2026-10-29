@@ -197,6 +197,24 @@ pub struct CabinGlass(pub Vec<[Vec3; 3]>);
 /// A layer no camera draws: the hull and the screen wall go there while the pilot sits sealed in an interior.
 const UNSEEN_LAYER: usize = 30;
 
+/// The bones whose plating is the hull around the cabin, hidden from the seat; every other bone (the hips, the legs,
+/// the shoulders, the arms and the weapons they carry) stays in view (owner, 2026-10-28: "I understand hiding the
+/// torso, buat arms, legs and stuff shouldnt be hidden from cockpit view").
+const HULL_BONES: [&str; 3] = ["torso_twist", "torso", "cockpit"];
+
+/// Whether a mesh is hull: the nearest contract bone above it is one of `HULL_BONES`. `bone_of` names an entity's
+/// contract bone, if it is one; `parent` steps up the hierarchy.
+fn is_hull(mesh: Entity, bone_of: impl Fn(Entity) -> Option<&'static str>, parent: impl Fn(Entity) -> Option<Entity>) -> bool {
+    let mut at = parent(mesh);
+    while let Some(e) = at {
+        if let Some(b) = bone_of(e) {
+            return HULL_BONES.contains(&b);
+        }
+        at = parent(e);
+    }
+    false
+}
+
 /// Is this an interior node of the screen wall, a window on the world (material `SCREEN_allview`)? The interior
 /// generator names the wall's mesh nodes `<part>_allview`; its `SCREEN_<name>_screen` nodes are the console's
 /// monitors, which stay in the cabin.
@@ -1998,26 +2016,36 @@ pub(crate) fn cockpit_layer(
     mut commands: Commands,
     pilot: Res<PilotSim>,
     data: Res<Data>,
-    mech: Query<(Entity, &MechSim, Option<&Interior>), With<Piloted>>,
+    mech: Query<(Entity, &MechSim, Option<&Interior>, Option<&MechRig>), With<Piloted>>,
     children: Query<&Children>,
+    parents: Query<&ChildOf>,
     meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, (With<Mesh3d>, Without<OwnLayers>)>,
 ) {
     use bevy::camera::visibility::RenderLayers;
-    let Some((root, sim, interior)) = mech.iter().next() else { return };
+    let Some((root, sim, interior, rig)) = mech.iter().next() else {
+        return;
+    };
     let inside = pilot.curr.mode == PilotMode::Seated && sim.hatch.is_closed(&data.0.boarding);
     // The cabin goes to the cockpit pass by stand-ins in the mech's own frame (`cockpit_space`), fed from its source
     // layer; `CB_COCKPIT_WORLD=1` draws the parts themselves where they stand in the world, as before.
     let cabin = RenderLayers::layer(crate::cockpit_space::cabin_layer());
     let unseen = RenderLayers::layer(UNSEEN_LAYER);
+    let bone_of = |e: Entity| {
+        let rig = rig?;
+        (0..BONES.len()).find(|&i| rig.bone_entity(i) == e).map(|i| BONES[i].name)
+    };
+    let parent = |e: Entity| parents.get(e).ok().map(|p| p.parent());
     for e in children.iter_descendants(root) {
         let Ok(layers) = meshes.get(e) else { continue };
-        // A mech with an interior shows the cabin alone from the seat (mech-roster section 2): the screen wall
-        // and the hull, which stand between the pilot and the world, are not drawn, so the world shows through.
+        // A mech with an interior shows the cabin from the seat (mech-roster section 2): the screen wall and the
+        // hull around the cabin, which stand between the pilot and the world, are not drawn, so the world shows
+        // through; the hips, legs, arms and weapons stay in the world, seen through the screens.
         let want = match (inside, interior) {
             (false, _) => None,
             (true, None) => Some(&cabin),
             (true, Some(i)) if i.meshes.contains(&e) && !i.windows.contains(&e) => Some(&cabin),
-            (true, Some(_)) => Some(&unseen),
+            (true, Some(i)) if i.windows.contains(&e) || is_hull(e, bone_of, parent) => Some(&unseen),
+            (true, Some(_)) => None,
         };
         match (want, layers) {
             (Some(w), Some(l)) if l == w => {}
@@ -2211,4 +2239,33 @@ pub fn chain_steady<F: bevy::ecs::query::QueryFilter>(
         acc = local(at).mul_transform(acc);
     }
     Some(acc)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// From the seat only the torso's plating is hidden: a gun on a shoulder or a forearm, the hips and the legs stay
+    /// in view (owner, 2026-10-28: "this guys gun is NOT visible").
+    #[test]
+    fn only_the_torso_hull_is_hidden_from_the_seat() {
+        // 0 root, 1 pelvis, 2 torso_twist, 3 torso, 4 cockpit, 5 shoulder_L; meshes 10 under the cockpit bone
+        // (through a plain node 20), 11 under the shoulder, 12 under the pelvis, 13 under the root.
+        let e = |i: u32| Entity::from_raw_u32(i + 1).unwrap();
+        let bones = [
+            (1, "pelvis"),
+            (2, "torso_twist"),
+            (3, "torso"),
+            (4, "cockpit"),
+            (5, "shoulder_L"),
+            (0, "root"),
+        ];
+        let bone_of = |x: Entity| bones.iter().find(|(i, _)| e(*i) == x).map(|(_, n)| *n);
+        let up = [(1, 0), (2, 1), (3, 2), (4, 3), (5, 3), (20, 4), (10, 20), (11, 5), (12, 1), (13, 0)];
+        let parent = |x: Entity| up.iter().find(|(c, _)| e(*c) == x).map(|(_, p)| e(*p));
+        assert!(is_hull(e(10), bone_of, parent), "the chest plating");
+        assert!(!is_hull(e(11), bone_of, parent), "the shoulder gun");
+        assert!(!is_hull(e(12), bone_of, parent), "the hips");
+        assert!(!is_hull(e(13), bone_of, parent), "a part on the root");
+    }
 }

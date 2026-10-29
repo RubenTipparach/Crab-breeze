@@ -39,7 +39,10 @@ struct Track {
 /// A cue fading out.
 struct Fading {
     voice: Entity,
-    from_gain: f32,
+    /// Its share of the music's level when it began to fade (0..1): the level itself follows the player's music
+    /// volume as it fades, so Options takes effect at once (owner, 2026-10-28: "audio options should take effect
+    /// right away not when menu is closed"; a fade frozen by the paused menu kept its old gain).
+    from_share: f32,
     from_s: f32,
     fade_s: f32,
 }
@@ -195,10 +198,9 @@ fn choose_and_play(
         let fade_s = rules::fade_s(cfg, player.playing.as_ref().map(|t| &t.now), cue);
         info!("MUSIC cue {:?} at {now:.1} s, on the bar, {fade_s:.1} s crossfade", sw.to);
         if let Some(old) = player.playing.take() {
-            let from_gain = sinks.get(old.voice).map(|s| s.volume().to_linear()).unwrap_or(base);
             player.fading.push(Fading {
                 voice: old.voice,
-                from_gain,
+                from_share: rules::fade_progress(now, old.from_s, old.fade_s),
                 from_s: now,
                 fade_s,
             });
@@ -243,7 +245,7 @@ fn choose_and_play(
             return false;
         }
         if let Ok(mut s) = sinks.get_mut(f.voice) {
-            s.set_volume(Volume::Linear(f.from_gain * (1.0 - k)));
+            s.set_volume(Volume::Linear(base * f.from_share * (1.0 - k)));
         }
         true
     });

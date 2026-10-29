@@ -105,6 +105,8 @@ enum Page {
     PickMech,
     /// Starting this kind new deletes its save: say so first (and the mech picked for free roam, if any).
     Confirm(Kind, Option<usize>),
+    /// The player's settings, the pause menu's Options page (owner, 2026-10-28: "game needs options in main menu").
+    Options,
 }
 
 /// The roster the mech page lists, read once.
@@ -120,6 +122,7 @@ enum Action {
     /// Free roam in this roster mech.
     Mech(usize),
     Start(Kind, Option<usize>),
+    OpenOptions,
     Back,
     Quit,
 }
@@ -162,8 +165,14 @@ fn open(mut commands: Commands, mut page: ResMut<Page>) {
 }
 
 /// Rebuilds the page whenever it changes.
-fn draw(mut commands: Commands, page: Res<Page>, roster: Res<Roster>, roots: Query<Entity, With<Root>>) {
-    if !page.is_changed() {
+fn draw(
+    mut commands: Commands,
+    page: Res<Page>,
+    roster: Res<Roster>,
+    settings: Res<crate::settings::Settings>,
+    roots: Query<Entity, With<Root>>,
+) {
+    if !page.is_changed() && !(settings.is_changed() && *page == Page::Options) {
         return;
     }
     for r in &roots {
@@ -178,6 +187,7 @@ fn draw(mut commands: Commands, page: Res<Page>, roster: Res<Roster>, roots: Que
             }
             buttons.push((Action::New(Kind::FreeRoam), "Free roam".into()));
             buttons.push((Action::New(Kind::Career), "New career".into()));
+            buttons.push((Action::OpenOptions, "Options".into()));
             buttons.push((Action::Quit, "Quit".into()));
         }
         Page::Continue => {
@@ -207,6 +217,10 @@ fn draw(mut commands: Commands, page: Res<Page>, roster: Res<Roster>, roots: Que
                 "Start free roam"
             };
             buttons.push((Action::Start(kind, mech), start.into()));
+            buttons.push((Action::Back, "Back".into()));
+        }
+        Page::Options => {
+            lines.push(("Options", INK));
             buttons.push((Action::Back, "Back".into()));
         }
     }
@@ -239,6 +253,9 @@ fn draw(mut commands: Commands, page: Res<Page>, roster: Res<Roster>, roots: Que
                 p.spawn((Text::new("CRAB BREEZE"), TextFont::from_font_size(64.0), TextColor(INK)));
                 for (line, colour) in lines {
                     p.spawn((Text::new(line), TextFont::from_font_size(26.0), TextColor(colour)));
+                }
+                if *page == Page::Options {
+                    crate::menu::options_rows(p, &settings.0);
                 }
                 for (action, label) in buttons {
                     p.spawn((
@@ -274,6 +291,7 @@ fn press(action: Action, page: &mut Page, roster: &[cb_core::RosterMech], exit: 
     let mech = |i: Option<usize>| i.and_then(|i| roster.get(i)).map(|m| m.file.clone());
     match action {
         Action::OpenContinue => *page = Page::Continue,
+        Action::OpenOptions => *page = Page::Options,
         Action::Back => *page = Page::Main,
         Action::Quit => {
             exit.write(AppExit::Success);

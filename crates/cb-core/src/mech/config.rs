@@ -238,6 +238,9 @@ pub struct SkateConfig {
     pub speed_max_m_s: f32,
     /// Wheel drive from a stand; it fades as `1 - (v / speed_max)^2` toward top speed.
     pub accel_m_s2: f32,
+    /// On the ground the wheels have the road to push on: the drive there is `accel_m_s2` times this (owner,
+    /// 2026-10-28: "4x the acceleration from skate if not in the air"). In the air it is `accel_m_s2` alone.
+    pub ground_accel_scale: f32,
     /// Braking when the throttle asks for less.
     pub brake_m_s2: f32,
     /// How fast the velocity swings onto the heading, per second (low: drifts).
@@ -261,6 +264,7 @@ impl Default for SkateConfig {
             // to build speed": 55 m/s at 5 s, 109 m/s at 15 s.
             speed_max_m_s: 120.0,
             accel_m_s2: 12.0,
+            ground_accel_scale: 4.0,
             brake_m_s2: 15.0,
             grip_per_s: 1.2,
             turn_rate_deg_s: 90.0,
@@ -573,6 +577,7 @@ impl Validate for MechConfig {
         let k = &self.skate;
         positive("skate.speed_max_m_s", k.speed_max_m_s)?;
         positive("skate.accel_m_s2", k.accel_m_s2)?;
+        positive("skate.ground_accel_scale", k.ground_accel_scale)?;
         positive("skate.brake_m_s2", k.brake_m_s2)?;
         positive("skate.grip_per_s", k.grip_per_s)?;
         positive("skate.turn_rate_deg_s", k.turn_rate_deg_s)?;

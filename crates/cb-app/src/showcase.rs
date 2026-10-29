@@ -136,7 +136,8 @@ pub fn walk_to(pilot: &PilotState, target: Vec3, pitch_rad: f32) -> Actions {
 pub(crate) fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>) -> Actions {
     let Some(a) = access else { return Actions::default() };
     match p.mode {
-        PilotMode::OnFoot if p.waiting.is_none() && p.distance_to_stair(a) < 2.5 => Actions {
+        // Inside the 2 m reach of the rope's foot (`board_reach_m`), with room to spare.
+        PilotMode::OnFoot if p.waiting.is_none() && p.distance_to_stair(a) < 1.5 => Actions {
             use_pressed: true,
             ..default()
         },

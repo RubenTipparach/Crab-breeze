@@ -8,3 +8,7 @@
   (`CB_NO_SHADOWS=1`) saves about 4.5 ms of p50 on the fight take; that cost is in the cascades
   near the eye, not their far end.
 - [ ] 3.1 Stills: far ridges casting shade
+- [ ] 4.1 The bake follows the live sun, rebaked off the main thread past `rebake_deg` (design section 5)
+- [ ] 4.2 The far shade as a texture the far ground samples, swapped whole on a rebake
+- [ ] 4.3 The last cascade fades into the baked shade over `fade_m`
+- [ ] 4.4 Stills at dawn and dusk with no line; the cost measured at dusk with the clock running

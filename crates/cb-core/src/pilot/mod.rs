@@ -33,7 +33,7 @@ pub struct PilotConfig {
     pub swim_speed_m_s: f32,
     /// How fast a swimmer under the surface rises to it.
     pub swim_rise_m_s: f32,
-    /// Use reaches the mech from this far from `LADDER_base` (its boarding spot, horizontal).
+    /// Use reaches the mech from this far from `LADDER_base`, the rope's foot (horizontal, metres).
     pub board_reach_m: f32,
     /// Speed of the eyes along the boarding path (climbing the stair).
     pub climb_speed_m_s: f32,
@@ -123,7 +123,7 @@ impl Default for PilotConfig {
             max_wade_depth_m: 1.2,
             swim_speed_m_s: 2.5,
             swim_rise_m_s: 1.5,
-            board_reach_m: 25.0,
+            board_reach_m: 2.0,
             climb_speed_m_s: 7.0,
             seated_look_limit_deg: 90.0,
             exit_hold_s: 1.0,

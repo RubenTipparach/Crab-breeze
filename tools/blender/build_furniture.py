@@ -1637,15 +1637,18 @@ def build_all(quick):
     density, regions = layout(scales)
     real = {name: round(scales[name] * side) for name, (x, y, side) in regions.items()}
     print("TEXEL", real)
+    # The layout stays on the full grid, which every UV, rect and manifest number is a fraction of; only the bake is
+    # drawn at the atlas's size. (Shrinking the layout itself halved every item's UVs against the 2048 px atlas, which
+    # put the TV on another item's tile: owner, 2026-10-28, "something got messed up with the furniture textures".)
     shrink = 4 if quick else max(1, ATLAS // MAX_MAP_PX)
-    if shrink > 1:
-        density, regions = density // shrink, {n: (x // shrink, y // shrink, s // shrink) for n, (x, y, s) in regions.items()}
+    density //= shrink
     size = ATLAS // shrink
     print(f"LAYOUT {density} px/m")
     atlas = {k: np.zeros((size, size, 4), dtype=np.float32) for k in ("albedo", "normal", "rough", "metal", "ao")}
     atlas["normal"][:, :] = (0.5, 0.5, 1.0, 1.0)
     atlas["ao"][:, :] = 1.0
     for name, (x, y, side) in regions.items():
+        x, y, side = x // shrink, y // shrink, side // shrink
         baked = bake_passes([objs[name]], side, 12 if quick else 48)
         for k, a in baked.items():
             atlas[k][y:y + side, x:x + side] = a
