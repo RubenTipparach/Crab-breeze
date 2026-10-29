@@ -56,9 +56,11 @@ seated.
 ### 3a. The moves, designed in the mech artifact (owner, 2026-10-29)
 
 Owner, 2026-10-29: "I will need your help desigining melee animaitons in the mech artifact" and "shooting
-guns should cause mech arm to recoil". The moves are designed on the Crab Breeze Mechs page (Melee bar),
-where they play on any of the eight detailed mechs against a sparring partner that takes the hit, and
-where each key can be posed and saved. The page's moves are the one source:
+guns should cause mech arm to recoil". The moves are designed on the Mech Melee Lab page
+(https://claude.ai/artifact/2tnWFtFr33Q6vyAiCe6f4n, built by `tools/mockups/gen_melee_lab.py`; its own page
+because the mech design page is about 190 MB: owner, "Just make a new one", "It might be too big"), where
+they play on any of the eight detailed mechs against a copy of it that takes the hit, and where each key
+can be posed and saved. The page's moves are the one source:
 `tools/mockups/mech_melee.js` holds the defaults, the page's database (collection `melee`, one
 document per move) holds the owner's edits, and the game's moves are written from those, never typed
 again by hand.

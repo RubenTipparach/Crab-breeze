@@ -103,20 +103,6 @@ aside { display: grid; gap: 12px; min-width: 0; }
 .bop { max-width: 72ch; margin: 0 0 10px }
 .borow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px }
 .bostats { overflow-x: auto; margin-top: 8px }
-/* the melee lab: moves, playback and the keyframe editor */
-.mel-ed { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 10px 12px; margin-bottom: 8px; display: grid; gap: 8px; }
-.mel-ed .row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
-.mel-ed label { font: 500 12px var(--mono); color: var(--muted); display: flex; gap: 6px; align-items: center; }
-.mel-ed select, .mel-ed input[type=number] { font: 500 13px var(--mono); background: var(--bg); color: var(--ink); border: 1px solid var(--edge); border-radius: 3px; padding: 6px; min-height: 34px; }
-.mel-ed input[type=number] { width: 7ch; }
-.mel-ed .sl { display: grid; grid-template-columns: 3ch 1fr 7ch; gap: 8px; align-items: center; flex: 1 1 240px; min-width: 0; }
-.mel-ed .sl input[type=range] { min-width: 0; accent-color: var(--accent); }
-.mel-ed .sl output { font: 500 12px var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
-.mel-ed .keys button { min-height: 32px; padding: 6px 9px; font-size: 13px; }
-.mel-ed .keys button.hit { border-style: dashed; }
-.mel-ed .status { font: 500 12px var(--mono); color: var(--muted); }
-.mel-ed .grid6 { display: flex; flex-wrap: wrap; gap: 6px 18px; }
-.flash { position: absolute; inset: 0; pointer-events: none; }
 [hidden] { display: none !important }
 .bostats table { border-collapse: collapse; font-size: 14px; min-width: 520px }
 .bostats th, .bostats td { text-align: left; padding: 4px 10px; border-bottom: 1px solid rgba(128,128,128,.3) }
@@ -199,38 +185,6 @@ __MECH_BUTTONS__
       <button id="a-skate" data-act="skate">Skate</button>
       <button id="a-hit" data-act="hit">Take a hit</button>
     </div>
-    <!-- the melee lab (owner, 2026-10-29: "I will need your help desigining melee animaitons in the mech artifact",
-         "shooting guns should cause mech arm to recoil"): moves from tools/mockups/mech_melee.js, edited here and saved
-         to this page's database, where Claude reads them back into the close-combat change -->
-    <div class="bar" role="group" aria-label="Melee" id="mel-bar">
-      <span class="lbl">Melee</span>
-    </div>
-    <div class="bar" role="group" aria-label="Melee playback">
-      <span class="lbl">Play</span>
-      <button id="mel-play" class="go">Play</button>
-      <button id="mel-loop" aria-pressed="false">Loop</button>
-      <button id="mel-spar" aria-pressed="true">Sparring partner</button>
-      <button id="mel-edit" aria-pressed="false">Edit keys</button>
-      <label class="lbl" style="display:flex;gap:6px;align-items:center">Speed <select id="mel-speed" style="font:500 13px var(--mono);min-height:34px"><option value="0.1">0.1x</option><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option></select></label>
-      <div class="scrub"><input type="range" id="mel-scrub" min="0" max="1000" value="0" aria-label="Move timeline"><output id="mel-t">0.00 s</output></div>
-    </div>
-    <div class="mel-ed" id="mel-ed" hidden>
-      <div class="row keys" id="mel-keys" aria-label="Keys"></div>
-      <div class="row">
-        <label>Key time <input type="number" id="mel-kt" step="0.01" min="0"></label>
-        <label>Hit lands at <input type="number" id="mel-hit" step="0.01" min="0"></label>
-        <button id="mel-add">Add key here</button>
-        <button id="mel-del">Delete key</button>
-        <label>Bone <select id="mel-bone"></select></label>
-      </div>
-      <div class="grid6" id="mel-sliders"></div>
-      <div class="row">
-        <button id="mel-save" class="go">Save move</button>
-        <button id="mel-reset">Reset to default</button>
-        <button id="mel-copy">Copy JSON</button>
-        <span class="status" id="mel-status">Pick a key, then a bone, and drag. Turns in radians, slides in metres.</span>
-      </div>
-    </div>
     <div class="bar" role="group" aria-label="Board">
       <span class="lbl">Board</span>
       <button id="b-open" class="go">Kneel and open</button>
@@ -259,7 +213,7 @@ __MECH_BUTTONS__
       <div class="load" id="load">Loading the mechs</div>
       <div id="tags"></div>
     </div>
-    <p class="hint">Melee: pick a move and press Play; the sparring partner is struck when the blow lands. Edit keys pauses the move on a key so you can pose it; Save keeps it for everyone. Drag to orbit, scroll or pinch to zoom, right drag to pan. In the cockpit, drag to look around; the view rides the pilot's eye through every move.</p>
+    <p class="hint">Drag to orbit, scroll or pinch to zoom, right drag to pan. In the cockpit, drag to look around; the view rides the pilot's eye through every move.</p>
     <div class="bostats" id="bo-stats" hidden></div>
     <div class="bostats" id="cb-stats" hidden></div>
     <div class="bostats" id="cr-stats" hidden></div>
@@ -282,7 +236,6 @@ const ORDER = __ORDER__;
 const HUD_SRC = "data:image/png;base64,__HUD__";
 const T = THREE, TAU = Math.PI * 2;
 __MECH_POSE__
-__MECH_MELEE__
 
 const canvas = document.getElementById("view");
 const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -478,9 +431,6 @@ function layout() {
   const spread = current === "all";
   ORDER.forEach((id, i) => { const m = mechs[id]; if (!m) return; m.root.visible = spread || id === current; m.root.position.set(spread ? (i - 1) * 17 + Math.max(0, i - 2) * 4 : 0, 0, 0); });
   pilot.position.set(spread ? -9 : 5.5, 0, 7); pilot.rotation.y = -0.6;
-  for (const id of ORDER) if (mechs[id]) mechs[id].yaw0 = 0;
-  const sp = sparring();
-  if (sp) { sp.root.visible = true; sp.yaw0 = Math.PI; sp.root.rotation.y = Math.PI; sp.root.position.set(0, 0, SPAR_M); }
 }
 const cur = () => mechs[current === "all" ? ORDER[0] : current];
 function nodeWorld(b, name) { const p = new T.Vector3(); if (b && b.nodes[name]) b.nodes[name].getWorldPosition(p); return p; }
@@ -659,11 +609,8 @@ function animate(b, dt, Tm) {
   P.w = b.wSkate; skatePose(P, b);
   P.w = 1; sitPose(P, b, b.sitK);
   if (b.hitT < 0.9) { P.w = 1; hitGeneric(P, b.hitT, b); }
-  if (b.hold) { P.w = 1; for (const n in b.hold) { const v = b.hold[n]; P.add(n, v[0], v[1], v[2], v[3], v[4], v[5]); } }
-  if (b === cur() && mel.id && MELEE_MOVES[mel.id]) { P.w = 1; meleePose(P, b, MELEE_MOVES[mel.id], mel.t); }
   applyPose(b, P);
-  const yaw0 = b.yaw0 || 0;
-  if (b.wTurn > 0.05) b.root.rotation.y += dt * 0.6 * b.wTurn; else b.root.rotation.y = yaw0 + (b.root.rotation.y - yaw0) * Math.max(0, 1 - dt * 2);
+  if (b.wTurn > 0.05) b.root.rotation.y += dt * 0.6 * b.wTurn; else b.root.rotation.y *= Math.max(0, 1 - dt * 2);
   for (const c of b.cores) c.rotation.y += dt * 1.4;
   b.root.updateMatrixWorld(true);
   aimRams(b);
@@ -716,7 +663,6 @@ function loop(ms) {
     const prevT = Tb;
     if (Tb < target) Tb = Math.min(target, Tb + dt * rate); else if (Tb > target) Tb = Math.max(target, Tb - dt * rate);
     scrub.value = Math.round(Tb / b.timeline.end * 1000); tlabel.textContent = Tb.toFixed(1) + " s";
-    stepMelee(dt);
     for (const id in mechs) if (mechs[id].root.visible) animate(mechs[id], dt, Tb);
     vent(b, Tb, prevT, dt);
     if (sealPuff > 0) sealPuff -= dt;
@@ -749,179 +695,9 @@ function loadDetailed() {
   loaded.then(() => { document.getElementById("load").remove(); setMech("foreman"); setAct("idle"); setView("orbit"); window.MOCKUP_READY = true; });
   return loaded;
 }
-// ---------- the melee lab ----------
-// One move plays at a time on the selected mech (mel), on its own clock, layered over the gait (so Walk and Fire R is
-// the gun kicking as the mech walks); a gun's recoil is a move like the rest, fired again each loop with a muzzle flash. The sparring partner is the next mech in the line, facing ours SPAR_M ahead,
-// struck (hitGeneric) when a move's hit_s passes. Edits change MELEE_MOVES in place and are saved to the db.
-const SPAR_M = 15;
-const mel = { id: null, t: 0, playing: false, loop: false, spar: true, edit: false, speed: 1, key: 0, bone: "shoulder_R", wait: 0 };
-function sparring() {
-  if (!mel.spar || current === "all" || sceneId !== "detailed") return null;
-  const i = ORDER.indexOf(current), id = ORDER[(i + 1) % ORDER.length];
-  return mechs[id] || null;
-}
-function strike(move) {
-  const sp = sparring(); if (!sp) return;
-  sp.hitT = 0; sp.hitSide = move.side || (Math.random() < 0.5 ? 1 : -1);
-}
-function fire(b, m) {
-  const arms = m.arm === "both" ? ["L", "R"] : [m.arm];
-  for (const a of arms) { const mz = b.nodes["MUZZLE_" + a]; if (mz) flashAt(mz); }
-}
-const flashes = [];
-function flashAt(node) {
-  const s = new T.Sprite(new T.SpriteMaterial({ color: 0xffd28a, transparent: true, opacity: 1, depthWrite: false, blending: T.AdditiveBlending }));
-  s.scale.set(3, 3, 3); node.add(s); flashes.push({ s, t: 0 });
-}
-function stepMelee(dt) {
-  const b = cur(); if (!b) return;
-  for (const f of flashes) { f.t += dt; f.s.material.opacity = Math.max(0, 1 - f.t / 0.08); f.s.scale.setScalar(3 + f.t * 30); }
-  while (flashes.length && flashes[0].t > 0.08) { const f = flashes.shift(); f.s.parent.remove(f.s); f.s.material.dispose(); }
-  const m = mel.id && MELEE_MOVES[mel.id];
-  if (!m || !mel.playing) return;
-  if (mel.wait > 0) { mel.wait -= dt; if (mel.wait <= 0) { mel.t = 0; if (m.fire) fire(b, m); } return; }
-  const t0 = mel.t, end = meleeEnd(m);
-  mel.t += dt * mel.speed;
-  if (!m.fire && t0 < m.hit_s && mel.t >= m.hit_s) strike(m);
-  if (mel.t >= end) {
-    if (mel.loop) { mel.t = end; mel.wait = m.fire ? 0.12 : 0.6; }
-    else { mel.t = end; mel.playing = false; playBtn.textContent = "Play"; }
-  }
-  drawMelee();
-}
-const playBtn = document.getElementById("mel-play"), melScrub = document.getElementById("mel-scrub"), melT = document.getElementById("mel-t");
-function pickMove(id) {
-  mel.id = id; mel.t = 0; mel.key = Math.min(mel.key, MELEE_MOVES[id].keys.length - 1);
-  const m = MELEE_MOVES[id];
-  if (!m.keys.some(k => k.b && k.b[mel.bone])) { const k = m.keys.find(k => k.b && Object.keys(k.b).length); if (k) mel.bone = Object.keys(k.b)[0]; }
-  document.querySelectorAll("[data-mel]").forEach(e => e.setAttribute("aria-pressed", String(e.dataset.mel === id)));
-  playMove();
-}
-function playMove() {
-  const m = mel.id && MELEE_MOVES[mel.id]; if (!m) return;
-  if (mel.edit) setEdit(false);
-  mel.t = 0; mel.wait = 0; mel.playing = true; playBtn.textContent = "Again";
-  layout(); if (m.fire && cur()) fire(cur(), m);
-}
-function drawMelee() {
-  const m = mel.id && MELEE_MOVES[mel.id], end = m ? meleeEnd(m) : 1;
-  melScrub.value = Math.round(Math.min(1, mel.t / Math.max(1e-6, end)) * 1000); melT.textContent = mel.t.toFixed(2) + " s";
-}
-const MOVE_LABEL = { jab_L: "Jab L", jab_R: "Jab R", hook_L: "Hook L", hook_R: "Hook R", uppercut_L: "Uppercut L", uppercut_R: "Uppercut R",
-  smash: "Smash", charge: "Charge", kick_L: "Kick L", kick_R: "Kick R", recoil_L: "Fire L", recoil_R: "Fire R" };
-{
-  const bar = document.getElementById("mel-bar");
-  for (const id of MELEE_ORDER) { const e = document.createElement("button"); e.dataset.mel = id; e.textContent = MOVE_LABEL[id] || id; e.title = MELEE_MOVES[id].name; e.addEventListener("click", () => pickMove(id)); bar.appendChild(e); }
-}
-playBtn.addEventListener("click", () => { if (!mel.id) pickMove("jab_R"); else playMove(); });
-document.getElementById("mel-loop").addEventListener("click", e => { mel.loop = !mel.loop; e.currentTarget.setAttribute("aria-pressed", String(mel.loop)); if (mel.loop && mel.id && !mel.playing) playMove(); });
-document.getElementById("mel-spar").addEventListener("click", e => { mel.spar = !mel.spar; e.currentTarget.setAttribute("aria-pressed", String(mel.spar)); layout(); });
-document.getElementById("mel-speed").addEventListener("change", e => { mel.speed = +e.target.value; });
-melScrub.addEventListener("input", () => { const m = mel.id && MELEE_MOVES[mel.id]; if (!m) return; mel.playing = false; playBtn.textContent = "Play"; mel.t = melScrub.value / 1000 * meleeEnd(m); melT.textContent = mel.t.toFixed(2) + " s"; });
-// ----- the keyframe editor -----
-const ed = document.getElementById("mel-ed"), keysEl = document.getElementById("mel-keys"), boneSel = document.getElementById("mel-bone"),
-  slidersEl = document.getElementById("mel-sliders"), ktIn = document.getElementById("mel-kt"), hitIn = document.getElementById("mel-hit"),
-  stEl = document.getElementById("mel-status");
-for (const n of [...MELEE_BONES, "crouch"]) { const o = document.createElement("option"); o.value = n; o.textContent = n === "crouch" ? "crouch (legs fold)" : n; boneSel.appendChild(o); }
-const MEL_AX = [["rx", -3.2, 3.2, 0.01], ["ry", -3.2, 3.2, 0.01], ["rz", -3.2, 3.2, 0.01], ["px", -6, 6, 0.05], ["py", -6, 6, 0.05], ["pz", -6, 6, 0.05]];
-const sl = MEL_AX.map(([n, lo, hi, st], j) => {
-  const w = document.createElement("div"); w.className = "sl";
-  w.innerHTML = `<span class="lbl">${n}</span><input type="range" min="${lo}" max="${hi}" step="${st}" aria-label="${n}"><output>0</output>`;
-  slidersEl.appendChild(w);
-  const r = w.querySelector("input"), out = w.querySelector("output");
-  r.addEventListener("input", () => { setVal(j, +r.value); out.textContent = (+r.value).toFixed(2); });
-  return { w, r, out };
-});
-function curKey() { const m = MELEE_MOVES[mel.id]; return m && m.keys[mel.key]; }
-function setVal(j, v) {
-  const k = curKey(); if (!k) return;
-  if (mel.bone === "crouch") { k.crouch = v; }
-  else { k.b = k.b || {}; const a = (k.b[mel.bone] || [0, 0, 0, 0, 0, 0]).slice(); while (a.length < 6) a.push(0); a[j] = v; k.b[mel.bone] = a; }
-  dirty(true);
-}
-let isDirty = false;
-function dirty(d) { isDirty = d; stEl.textContent = d ? "Unsaved changes." : stEl.textContent; }
-function drawEditor() {
-  const m = MELEE_MOVES[mel.id]; if (!m) return;
-  keysEl.innerHTML = "";
-  m.keys.forEach((k, i) => { const e = document.createElement("button"); e.textContent = `${i + 1}: ${k.t.toFixed(2)} s`;
-    e.setAttribute("aria-pressed", String(i === mel.key)); if (Math.abs(k.t - m.hit_s) < 1e-3) e.classList.add("hit");
-    e.addEventListener("click", () => { mel.key = i; drawEditor(); }); keysEl.appendChild(e); });
-  const k = m.keys[mel.key]; mel.t = k.t; mel.playing = false; drawMelee();
-  ktIn.value = k.t.toFixed(2); hitIn.value = (m.hit_s || 0).toFixed(2); boneSel.value = mel.bone;
-  const crouch = mel.bone === "crouch", v = crouch ? [k.crouch || 0] : ((k.b && k.b[mel.bone]) || []);
-  sl.forEach((s, j) => { s.w.hidden = crouch && j > 0; s.w.querySelector(".lbl").textContent = crouch ? "k" : MEL_AX[j][0];
-    const x = v[j] || 0; s.r.min = crouch ? 0 : MEL_AX[j][1]; s.r.max = crouch ? 1.25 : MEL_AX[j][2]; s.r.value = x; s.out.textContent = x.toFixed(2); });
-  // the end keys are rest: a move starts and ends at the gait pose
-  const ends = mel.key === 0 || mel.key === m.keys.length - 1;
-  sl.forEach(s => s.r.disabled = ends);
-  if (ends) stEl.textContent = "The first and last keys are rest. Pick a key between them to pose it.";
-}
-function setEdit(on) {
-  if (on && !mel.id) pickMove("jab_R");
-  mel.edit = on; ed.hidden = !on; document.getElementById("mel-edit").setAttribute("aria-pressed", String(on));
-  if (on) { mel.playing = false; playBtn.textContent = "Play"; if (mel.key === 0) mel.key = Math.min(1, MELEE_MOVES[mel.id].keys.length - 1); drawEditor(); }
-}
-document.getElementById("mel-edit").addEventListener("click", () => setEdit(!mel.edit));
-boneSel.addEventListener("change", () => { mel.bone = boneSel.value; drawEditor(); });
-ktIn.addEventListener("change", () => {
-  const m = MELEE_MOVES[mel.id], i = mel.key; if (!m) return;
-  const lo = i > 0 ? m.keys[i - 1].t + 0.01 : 0, hi = i < m.keys.length - 1 ? m.keys[i + 1].t - 0.01 : 10;
-  m.keys[i].t = Math.min(hi, Math.max(lo, +ktIn.value || 0)); dirty(true); drawEditor();
-});
-hitIn.addEventListener("change", () => { const m = MELEE_MOVES[mel.id]; if (!m) return; m.hit_s = Math.max(0, +hitIn.value || 0); dirty(true); drawEditor(); });
-document.getElementById("mel-add").addEventListener("click", () => {
-  const m = MELEE_MOVES[mel.id]; if (!m) return;
-  const t = mel.t, end = meleeEnd(m);
-  if (t <= 0.005 || t >= end - 0.005 || m.keys.some(k => Math.abs(k.t - t) < 0.01)) { stEl.textContent = "Scrub to a time between two keys first."; return; }
-  const smp = meleeSample(m, t), k = { t: +t.toFixed(3), b: {} };
-  for (const [n, v] of smp) { if (n === "crouch") k.crouch = +v[0].toFixed(3); else k.b[n] = v.map(x => +x.toFixed(3)); }
-  m.keys.push(k); m.keys.sort((a, c) => a.t - c.t); mel.key = m.keys.indexOf(k); dirty(true); drawEditor();
-});
-document.getElementById("mel-del").addEventListener("click", () => {
-  const m = MELEE_MOVES[mel.id]; if (!m || mel.key === 0 || mel.key === m.keys.length - 1) return;
-  m.keys.splice(mel.key, 1); mel.key = Math.max(1, mel.key - 1); dirty(true); drawEditor();
-});
-document.getElementById("mel-reset").addEventListener("click", () => {
-  if (!mel.id) return; MELEE_MOVES[mel.id] = JSON.parse(JSON.stringify(MELEE_DEFAULTS[mel.id])); mel.key = 1; dirty(true);
-  stEl.textContent = "Back to the default. Save to keep it that way."; drawEditor();
-});
-document.getElementById("mel-copy").addEventListener("click", async () => {
-  if (!mel.id) return; const txt = JSON.stringify({ [mel.id]: MELEE_MOVES[mel.id] });
-  try { await navigator.clipboard.writeText(txt); stEl.textContent = "Copied."; } catch (e) { stEl.textContent = txt; }
-});
-// ----- saved moves: one document per move in the collection "melee", {move, updated_ms, by} -----
-let melDb = null;
-document.getElementById("mel-save").addEventListener("click", async () => {
-  if (!mel.id) return;
-  if (!melDb) { stEl.textContent = "Saving needs the page opened on claude.ai, signed in. Copy JSON works anywhere."; return; }
-  try {
-    const u = await claude.use("user"), by = u ? await u.id() : "";
-    await melDb.collection("melee").doc(mel.id).set({ move: JSON.parse(JSON.stringify(MELEE_MOVES[mel.id])), updated_ms: Date.now(), by });
-    isDirty = false; stEl.textContent = "Saved " + MELEE_MOVES[mel.id].name + ".";
-  } catch (e) { stEl.textContent = "Could not save: " + (e && (e.code || e.message) || e); }
-});
-(async () => {
-  try {
-    if (!window.claude || !claude.use) return;
-    melDb = await claude.use("db"); if (!melDb) return;
-    melDb.collection("melee").onSnapshot(snap => {
-      for (const d of snap.docs) { const v = d.data(); if (!v || !v.move || !MELEE_DEFAULTS[d.id]) continue;
-        if (mel.edit && mel.id === d.id && isDirty) continue;          // never clobber the move being edited
-        const mv = v.move; if (!Array.isArray(mv.keys) || mv.keys.length < 2) continue;
-        MELEE_MOVES[d.id] = JSON.parse(JSON.stringify(mv)); }
-      if (mel.edit) drawEditor();
-    }, () => {});
-  } catch (e) { melDb = null; }
-})();
 requestAnimationFrame(loop);
 window.MOCKUP = {
   setMech, setView, setAct,
-  // a fixed pose over idle on the current mech, {bone: [rx, ry, rz, px, py, pz]} (null clears): for checking axes
-  hold(map) { cur().hold = map; },
-  // the melee lab: play a move (or pin it at time t, paused), turn the partner on or off
-  melee(id, t) { pickMove(id); if (t !== undefined) { mel.playing = false; mel.t = t; drawMelee(); } },
-  spar(on) { mel.spar = on; layout(); },
   setT(v) { script = null; Tb = target = v; }, open() { document.getElementById("b-open").click(); }, board() { document.getElementById("b-board").click(); },
   end: () => cur().timeline.end,
   look(yaw, pitch, fov) { setView("cockpit"); const e = eyeOf(current), f = fwdOf(cur()), y0 = Math.atan2(f.x, f.z);
@@ -1211,12 +987,11 @@ def main():
         if v in inside:
             meta[key]["interior_tris"] = inside[v]["man"].get("tris")
     pose = open(os.path.join(ROOT, "tools", "mockups", "mech_pose.js")).read()
-    melee = open(os.path.join(ROOT, "tools", "mockups", "mech_melee.js")).read()
     steam = open(os.path.join(ROOT, "tools", "mockups", "steam.js")).read()
     wall = open(os.path.join(ROOT, "tools", "mockups", "screen_wall.js")).read()
     gltf_json = open(os.path.join(ROOT, "tools", "mockups", "gltf_json_loader.js")).read()
     hud = base64.b64encode(open(HUD, "rb").read()).decode("ascii")
-    html = (PAGE.replace("__MECH_POSE__", pose).replace("__MECH_MELEE__", melee).replace("__STEAM__", steam).replace("__SCREEN_WALL__", wall).replace("__GLTF_JSON__", gltf_json)
+    html = (PAGE.replace("__MECH_POSE__", pose).replace("__STEAM__", steam).replace("__SCREEN_WALL__", wall).replace("__GLTF_JSON__", gltf_json)
             .replace("__MECH_BLOCKOUTS__", json.dumps(blockouts_for_page()))
             .replace("__MECH_BUTTONS__", "\n".join(f'      <button id="m-{k}" data-mech="{k}">{(str(NUMBERS[k]) + " ") if k in NUMBERS else ""}{meta[k]["name"]}</button>' for k in ORDER))
             .replace("__MECH_COMBAT__", json.dumps(blockouts_for_page("mech_combat.json")))
