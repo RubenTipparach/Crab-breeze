@@ -51,6 +51,8 @@ pub struct RoomLights {
     pub cab_gain: f32,
     /// A control tower's cab is its rooms whose light is within this of its highest inside surface, metres.
     pub cab_depth_m: f32,
+    /// A window pane seen from inside its building lets this much through (its outer face is mirror glass by day).
+    pub glass_alpha_inside: f32,
 }
 
 impl Default for RoomLights {
@@ -67,6 +69,7 @@ impl Default for RoomLights {
             glass_night_deg: [-8.0, 4.0],
             cab_gain: 2.0,
             cab_depth_m: 5.0,
+            glass_alpha_inside: 0.12,
         }
     }
 }
@@ -86,6 +89,7 @@ impl RoomLights {
         within("rooms.glass_alpha_night", self.glass_alpha_night, 0.0, 1.0)?;
         within("rooms.cab_gain", self.cab_gain, 0.0, LIGHT_SCALE)?;
         within("rooms.cab_depth_m", self.cab_depth_m, 0.0, 50.0)?;
+        within("rooms.glass_alpha_inside", self.glass_alpha_inside, 0.0, 1.0)?;
         within("rooms.glass_night_deg", self.glass_night_deg[0], -90.0, 90.0)?;
         within("rooms.glass_night_deg", self.glass_night_deg[1], -90.0, 90.0)?;
         if self.glass_night_deg[0] < self.glass_night_deg[1] {

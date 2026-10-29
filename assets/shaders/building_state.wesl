@@ -26,8 +26,9 @@ const ALWAYS_LIT: f32 = 4095.0;
 // cab (`ALWAYS_ON`) is on day and night at `rooms.w`. Decided here, per vertex, because an index cannot be blended
 // across a triangle.
 fn room_light(packed: f32, origin: vec3<f32>) -> f32 {
+    // A window pane's inner face carries -1 (`small_buildings::light_glass_sides`): passed on as it is.
     if (packed < 1.0) {
-        return 0.0;
+        return min(packed, 0.0);
     }
     let cell = floor(packed);
     let light = (packed - cell) * LIGHT_SCALE;

@@ -51,5 +51,11 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     }
 }
     out.color = main_pass_post_lighting_processing(pbr, out.color);
+@if(VERTEX_UVS_B) {
+    // A window pane's inner face (its second UV's y -1): clear from inside, at `windows.z`.
+    if (no_ssao == 1u && in.uv_b.y < -0.5) {
+        out.color = vec4<f32>(out.color.rgb, windows.z);
+    }
+}
     return out;
 }

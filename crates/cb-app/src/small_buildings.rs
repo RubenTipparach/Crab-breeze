@@ -124,6 +124,8 @@ struct KitDraw {
     /// For a site's building, by LOD0 primitive: lit by its rooms where it faces into them (`Interior`), though not one
     /// of the `INSIDE` finishes (its columns, counters, partitions and boards).
     site_lit: Vec<bool>,
+    /// By LOD0 primitive: window glass whose inner faces are clear (`light_glass_sides`), drawn with the state material.
+    inner_glass: Vec<bool>,
 }
 
 /// The kits' meshes and the island's materials, once loaded.
@@ -447,6 +449,12 @@ fn bind(
             .iter()
             .map(|p| kit.kind.is_site() && !INSIDE.contains(&p.surface.as_str()) && lightable(&p.surface))
             .collect();
+        let floored = d.lod0.iter().any(|p| FLOORS.contains(&p.surface.as_str()));
+        d.inner_glass = d
+            .lod0
+            .iter()
+            .map(|p| floored && WINDOW_GLASS.contains(&p.surface.as_str()))
+            .collect();
         draws.push(d);
     }
     // Each generator's texture set, where it has been made (one set serves every surface of that generator).
@@ -568,12 +576,24 @@ fn bind(
     for d in &draws {
         // A site building's other surfaces take its rooms' light where they face into them (owner, 2026-10-29, of the
         // terminal's columns standing black in its lit hall at night).
-        if let Some(inside) = d.site_lit.iter().any(|l| *l).then(|| Interior::of(&d.lod0)).flatten() {
+        let interior = Interior::of(&d.lod0);
+        // Its window panes' inner faces are clear: mirror glass by day from outside, a window from inside (owner,
+        // 2026-10-29, of the mountain seen as a wavy reflection from inside the terminal by day).
+        if let Some(inside) = &interior {
+            for (p, _) in d.lod0.iter().zip(&d.inner_glass).filter(|(_, g)| **g) {
+                if let Some(mut m) = meshes.get_mut(&p.mesh)
+                    && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
+                {
+                    light_glass_sides(&mut m, inside);
+                }
+            }
+        }
+        if let Some(inside) = d.site_lit.iter().any(|l| *l).then_some(interior.as_ref()).flatten() {
             for (p, _) in d.lod0.iter().zip(&d.site_lit).filter(|(_, l)| **l) {
                 if let Some(mut m) = meshes.get_mut(&p.mesh)
                     && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
                 {
-                    light_site_surface(&mut m, &data.0.day_night.rooms, d.rooms, &inside);
+                    light_site_surface(&mut m, &data.0.day_night.rooms, d.rooms, inside);
                     lit += 1;
                 }
             }
@@ -879,6 +899,30 @@ fn light_site_surface(m: &mut Mesh, lights: &RoomLights, cells: RoomCells, insid
     }
 }
 
+/// Marks a window pane's faces that look into its building (`Interior`) in the second UV's `y` (-1; 0 for the outer
+/// face), which `building_surface.wesl` draws at `rooms.glass_alpha_inside`; slot 0 (always standing).
+fn light_glass_sides(m: &mut Mesh, inside: &Interior) {
+    let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
+        (m.attribute(Mesh::ATTRIBUTE_POSITION), m.attribute(Mesh::ATTRIBUTE_NORMAL))
+    else {
+        return;
+    };
+    let uv1: Vec<[f32; 2]> = pos
+        .iter()
+        .zip(nrm)
+        .map(|(p, n)| {
+            let inner = inside.contains(Vec3::from(*p) + Vec3::from(*n) * INSIDE_PROBE_M);
+            [0.0, if inner { -1.0 } else { 0.0 }]
+        })
+        .collect();
+    m.insert_attribute(Mesh::ATTRIBUTE_UV_1, uv1);
+    if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+        for c in c.iter_mut() {
+            c[3] = 0.0;
+        }
+    }
+}
+
 /// `light_house_rooms` without touching the slots (furniture carries its pieces' own).
 fn light_house_rooms_keep_slots(m: &mut Mesh, lights: &RoomLights, cells: RoomCells) {
     let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
@@ -926,6 +970,16 @@ fn light_houses(
             m.extension.rooms = rooms;
             m.extension.room_colour = colour;
             m.extension.windows = windows;
+        }
+    }
+    // A pane's inner face (`light_glass_sides`) at its clear alpha.
+    let inner = Vec4::new(0.0, 0.0, data.0.day_night.rooms.glass_alpha_inside, 0.0);
+    for s in WINDOW_GLASS {
+        if let Some(h) = kits.state.get(s)
+            && state.get(h).is_some_and(|m| m.extension.windows != inner)
+            && let Some(mut m) = state.get_mut(h)
+        {
+            m.extension.windows = inner;
         }
     }
     for (surface, day) in &kits.glass_day_alpha {
@@ -1388,7 +1442,9 @@ fn dress(
             // Inside surfaces read the state material, which lights their rooms at night; their shared meshes carry
             // slot 0, so they always stand (a damaged house redraws its own LOD0). So do a site building's surfaces
             // that face into its rooms.
-            let inside = INSIDE.contains(&p.surface.as_str()) || draw.site_lit.get(i).copied().unwrap_or(false);
+            let inside = INSIDE.contains(&p.surface.as_str())
+                || draw.site_lit.get(i).copied().unwrap_or(false)
+                || draw.inner_glass.get(i).copied().unwrap_or(false);
             let mut e = if inside {
                 let Some(m) = kits.state.get(&p.surface) else { continue };
                 commands.spawn((

@@ -2382,8 +2382,8 @@ fn run_weather_script(
             "airport-pier" => site_view(
                 &plan,
                 cb_core::world::sites::SiteKind::Airport,
-                [560.0, 6.7, 290.0],
-                [560.0, 6.7, 420.0],
+                [565.0, 6.7, 410.0],
+                [555.0, 6.7, 290.0],
             ),
             "airport-tower-base" => site_view(
                 &plan,

@@ -128,5 +128,8 @@
         // day and night at twice a room's brightness, its rooms within 5 m of its highest inside surface (ALWAYS_ON; "top control towers should always be lit").
         cab_gain: 2.0,
         cab_depth_m: 5.0,
+        // A window pane of a house or a site's building seen from inside lets 88 % through (its outer face stays the
+        // towers' mirror glass by day; owner, 2026-10-29, of the mountain seen as a wavy reflection from the terminal).
+        glass_alpha_inside: 0.12,
     ),
 )
