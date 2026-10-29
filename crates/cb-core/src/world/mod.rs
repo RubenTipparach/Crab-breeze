@@ -609,7 +609,16 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .collect();
     // The civil airport and the seaport (airport-layout, seaport-layout): their footprints keep the houses and the
     // rivers out, and their pads shape the ground with the lots'.
-    let site_water = |lo: Vec2, hi: Vec2| drainage.water_near(lo, hi, cfg.water.river_city_clearance_m);
+    // A site keeps clear of the lakes. A stream under it runs on in a culvert: its channel is never cut inside a
+    // kept-out footprint (`Waters::channels`), so its water lies under the levelled ground (the island's flat land is
+    // its valleys, and every valley has a stream: on seed 42 all 28 flat, dry, clear airport sites had one).
+    let site_water = |lo: Vec2, hi: Vec2| {
+        let reach = cfg.water.river_city_clearance_m;
+        drainage
+            .basins
+            .iter()
+            .any(|b| (b.centre - b.centre.clamp(lo, hi)).length() < b.radius_m + reach)
+    };
     let site_clear = sites::Clear {
         cities: &cities,
         bases: &bases,

@@ -465,7 +465,7 @@ pub struct Clear<'a> {
     pub bases: &'a [AirBase],
     /// The highways and rivers.
     pub keep: &'a KeepClear<'a>,
-    /// True when a stream or a lake comes near the box from the first corner to the second (the cities' rule).
+    /// True when a lake comes near the box from the first corner to the second.
     pub water_near: &'a dyn Fn(Vec2, Vec2) -> bool,
     /// Built ground is at least this high (above the sea's freeboard).
     pub min_ground_m: f32,
@@ -499,8 +499,7 @@ fn clear_of_bases(r: &Rect, bases: &[AirBase], m: f32) -> bool {
 
 /// The civil airport: beside the largest city it fits by, its middle tried on rings round each city in turn, out from
 /// the square in `airport_step_m` steps to `airport_reach_m`, a step apart round each ring, every quarter turn; on dry
-/// land flat enough to level, clear of the cities, the bases, the highways, and of the streams and lakes by the cities'
-/// own rule (`Clear::water_near`). Its ground is the mean of the land under it.
+/// land flat enough to level, clear of the cities, the bases, the highways and the lakes (`Clear::water_near`). Its ground is the mean of the land under it.
 pub fn place_airport(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Clear, cfg: &SitesConfig) -> Option<PlacedSite> {
     place_airport_counted(shape, tpl, clear, cfg).0
 }
