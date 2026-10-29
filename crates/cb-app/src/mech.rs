@@ -1526,9 +1526,14 @@ pub fn step_mech(
                 "muzzle_autocannon"
             };
             fx.write(Fx::new(recipe, muzzle).toward(dir));
-            // The pilot's own gun kicks back through the cockpit (openspec change `cockpit-shake`).
+            // The pilot's own guns and missiles shake the cockpit as they fire (openspec change `cockpit-shake`).
             if piloted {
-                shake_kicks.write(crate::pilot::ShakeKick(data.0.fx.shake.recoil(w.penetration_mm)));
+                let what = match recipe {
+                    "muzzle_rocket" => cb_core::fx::Fired::Missile,
+                    "muzzle_cannon" => cb_core::fx::Fired::Heavy,
+                    _ => cb_core::fx::Fired::Light,
+                };
+                shake_kicks.write(crate::pilot::ShakeKick(data.0.fx.shake.fired(what)));
             }
         }
 

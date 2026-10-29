@@ -45,8 +45,14 @@
         // Shot: 0.08 a megajoule of blast and 0.0015 a millimetre of penetration (a 300 mm shell with 8 MJ: full).
         hit_per_mj: 0.08,
         hit_per_mm: 0.0015,
-        // The mech's own guns: 0.0006 a millimetre of penetration a round.
-        recoil_per_mm: 0.0006,
+        // Firing (owner, 2026-10-28: "firing guns should also cause some vibrations", "and missiles"): every round
+        // or missile holds the rumble at 0.6 for 0.15 s after it; a cannon round also kicks 0.4 and dips the eye
+        // 0.2 m/s, a missile leaving its rail kicks 0.3.
+        fire_rumble: 0.6,
+        fire_hold_s: 0.15,
+        heavy_kick: 0.4,
+        heavy_jolt_m_s: 0.2,
+        missile_kick: 0.3,
         // A punch landing: a hard kick and a 0.6 m/s dip.
         melee_kick: 0.45,
         melee_jolt_m_s: 0.6,

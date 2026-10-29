@@ -26,7 +26,7 @@ Everything multiplied by the player's `camera_shake` setting (0 to 1, default 1)
 | Landing | `land_per_m_s * v_down` above `land_from_m_s` | `v_down * jolt_per_m_s` | the mech's step: airborne, then grounded, with its vertical speed |
 | Ramming | `ram_per_m_s * dv` above `ram_from_m_s` | `dv * jolt_per_m_s` | the speed lost in one step beyond what the brakes take (a wall, a building, a car) |
 | Hit | `hit_per_mm * penetration + hit_per_mj * blast` | none | combat's hit on the piloted mech |
-| Own gun | `recoil_per_mm * penetration` | none | each round fired |
+| Own gun or missile | the firing rumble held `fire_hold_s` at `fire_rumble`; a heavy round `heavy_kick`, missile `missile_kick` | heavy `heavy_jolt_m_s` | each round or missile fired (owner: "firing guns should also cause some vibrations", "and missiles") |
 | Melee | `melee_kick` | `melee_jolt_m_s` | a strike landing |
 | Jets lighting | `ignite_kick` | none | the jets turning on |
 | Blast nearby | as now | none | `blast::Explosion` |
@@ -40,10 +40,17 @@ app reads the mech's state and messages and draws.
 ## 3. Numbers to start (data `fx.shake`, provisional; tuned by the owner in play)
 
 `max_deg` 1.2, `decay_s` 0.7 (as now); `land_from_m_s` 3, `land_per_m_s` 0.06; `ram_from_m_s` 2, `ram_per_m_s` 0.08;
-`hit_per_mj` 0.08, `hit_per_mm` 0.0015; `recoil_per_mm` 0.0006; `melee_kick` 0.45, `melee_jolt_m_s` 0.6;
+`hit_per_mj` 0.08, `hit_per_mm` 0.0015; `fire_rumble` 0.6, `fire_hold_s` 0.15, `heavy_kick` 0.4,
+`heavy_jolt_m_s` 0.2, `missile_kick` 0.3 (a recoil kick by penetration, felt as the square of the trauma, was too
+small to feel: an autocannon round 0.04, a few hundredths of a degree); `melee_kick` 0.45, `melee_jolt_m_s` 0.6;
 `ignite_kick` 0.15; `rumble_deg` 0.25, `rumble_hz` 23, `rumble_ease_s` 0.3, `jets_rumble` 0.7, `skate_rumble` 0.5,
 `skate_full_m_s` 30, `paved_share` 0.5; `jolt_per_m_s` 0.12, `jolt_max_m` 0.25, `jolt_hz` 1.6, `jolt_damping` 0.45
 (0.04 and 2.2 Hz dipped a 12 m/s landing 2 cm, too little to feel; this is about 9 cm).
+
+Every number is in `data/fx/fx.ron` under `shake`, and any of them may be 0, which turns its part off (owner,
+2026-10-28: "make sure theyre all numbers we can tweak later", "and that 0 works peroperly"): a 0 decay or spring
+rate means no trauma or no dip rather than a division by zero, a 0 ease means at once, a 0 damping rings. A test sets
+every one to 0 on the shipped file and checks it loads, nothing shakes and nothing goes non-finite.
 
 ## 4. Cost
 

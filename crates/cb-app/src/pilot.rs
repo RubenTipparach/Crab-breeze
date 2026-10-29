@@ -302,6 +302,8 @@ fn view(yaw: f32, pitch: f32) -> Quat {
 pub(crate) struct Shake {
     trauma: f32,
     rumble: f32,
+    /// The firing rumble is held until this clock time, seconds.
+    fire_until_s: f32,
     jolt: cb_core::fx::Jolt,
     t_s: f32,
     strength: f32,
@@ -337,10 +339,13 @@ fn shake_on_blasts(
     let dt = time.delta_secs();
     shake.t_s += dt;
     shake.strength = settings.map_or(1.0, |s| s.0.camera_shake);
-    shake.trauma = (shake.trauma - dt / cfg.decay_s).max(0.0);
+    shake.trauma = cfg.decay(shake.trauma, dt);
     let add = |k: cb_core::fx::Kick, shake: &mut Shake| {
         shake.trauma = (shake.trauma + k.trauma).min(1.0);
         shake.jolt.kick(k.jolt_m_s);
+        if k.fire_s > 0.0 {
+            shake.fire_until_s = shake.fire_until_s.max(shake.t_s + k.fire_s);
+        }
     };
     for b in blasts.read() {
         let kick = cfg.kick(b.energy_mj, b.at.distance(camera.translation));
@@ -367,8 +372,13 @@ fn shake_on_blasts(
         }
         _ => 0.0,
     };
-    let k = (dt / cfg.rumble_ease_s).clamp(0.0, 1.0);
-    shake.rumble += (want - shake.rumble) * k;
+    // Firing holds the rumble at least at `fire_rumble` (owner: "firing guns should also cause some vibrations").
+    let want = if shake.t_s < shake.fire_until_s {
+        want.max(cfg.fire_rumble)
+    } else {
+        want
+    };
+    shake.rumble = cfg.ease_rumble(shake.rumble, want, dt);
     let jolt_cfg = cfg.clone();
     shake.jolt.step(&jolt_cfg, dt);
 }

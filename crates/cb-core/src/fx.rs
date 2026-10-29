@@ -280,8 +280,17 @@ pub struct ShakeConfig {
     pub hit_per_mj: f32,
     /// ...and this much a millimetre of the round's penetration.
     pub hit_per_mm: f32,
-    /// The mech's own guns kick this much a millimetre of each round's penetration (recoil).
-    pub recoil_per_mm: f32,
+    /// Firing (owner, 2026-10-28: "firing guns should also cause some vibrations", "and missiles"): every round or
+    /// missile sets the rumble to at least this, 0..1...
+    pub fire_rumble: f32,
+    /// ...held this long after the last one, seconds, then eased away.
+    pub fire_hold_s: f32,
+    /// A heavy round (a cannon, a slug, a shotgun) also kicks this much...
+    pub heavy_kick: f32,
+    /// ...and dips the eye at this speed, metres a second.
+    pub heavy_jolt_m_s: f32,
+    /// A missile leaving its rail kicks this much.
+    pub missile_kick: f32,
     /// The pilot's punch or strike landing kicks this much...
     pub melee_kick: f32,
     /// ...and drops the eye at this speed, metres a second.
@@ -324,7 +333,11 @@ impl Default for ShakeConfig {
             ram_per_m_s: 0.08,
             hit_per_mj: 0.08,
             hit_per_mm: 0.0015,
-            recoil_per_mm: 0.0006,
+            fire_rumble: 0.6,
+            fire_hold_s: 0.15,
+            heavy_kick: 0.4,
+            heavy_jolt_m_s: 0.2,
+            missile_kick: 0.3,
             melee_kick: 0.45,
             melee_jolt_m_s: 0.6,
             ignite_kick: 0.15,
@@ -343,13 +356,27 @@ impl Default for ShakeConfig {
     }
 }
 
-/// What a body event does to the view: a kick to the trauma (0..1) and a drop of the eye, metres a second.
+/// What a body event does to the view: a kick to the trauma (0..1), a drop of the eye, metres a second, and a hold of
+/// the firing rumble, seconds.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Kick {
     /// Added to the trauma.
     pub trauma: f32,
     /// The eye's downward speed it starts, metres a second.
     pub jolt_m_s: f32,
+    /// The firing rumble is held this long from now, seconds (0: none).
+    pub fire_s: f32,
+}
+
+/// What the pilot's own mech fired.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fired {
+    /// A light round (an autocannon's, a machine gun's).
+    Light,
+    /// A heavy round: a cannon's, a slug, a shotgun's.
+    Heavy,
+    /// A missile or rocket.
+    Missile,
 }
 
 /// The eye's dip and its spring back (`ShakeConfig::jolt_*`).
@@ -371,6 +398,11 @@ impl Jolt {
 
     /// `dt_s` of the damped spring back to rest, the dip held within `jolt_max_m`.
     pub fn step(&mut self, cfg: &ShakeConfig, dt_s: f32) {
+        // No spring or no room to dip: the jolt is off.
+        if cfg.jolt_hz <= 0.0 || cfg.jolt_max_m <= 0.0 {
+            *self = Jolt::default();
+            return;
+        }
         if !(dt_s.is_finite() && dt_s > 0.0) {
             return;
         }
@@ -402,6 +434,25 @@ impl FxConfig {
 }
 
 impl ShakeConfig {
+    /// The trauma `dt_s` later: falling by a full shake over `decay_s`; with no decay time there is no trauma at all.
+    pub fn decay(&self, trauma: f32, dt_s: f32) -> f32 {
+        if self.decay_s <= 0.0 || !trauma.is_finite() {
+            return 0.0;
+        }
+        (trauma - dt_s.max(0.0) / self.decay_s).max(0.0)
+    }
+
+    /// The rumble `dt_s` later, eased from `now` toward `want` over `rumble_ease_s` (0: at once).
+    pub fn ease_rumble(&self, now: f32, want: f32, dt_s: f32) -> f32 {
+        let k = if self.rumble_ease_s <= 0.0 {
+            1.0
+        } else {
+            (dt_s.max(0.0) / self.rumble_ease_s).clamp(0.0, 1.0)
+        };
+        let r = now + (want - now) * k;
+        if r.is_finite() { r.clamp(0.0, 1.0) } else { 0.0 }
+    }
+
     /// A landing at `down_m_s`, the downward speed at touchdown.
     pub fn landing(&self, down_m_s: f32) -> Kick {
         let over = (down_m_s - self.land_from_m_s).max(0.0);
@@ -411,6 +462,7 @@ impl ShakeConfig {
         Kick {
             trauma: (over * self.land_per_m_s).min(1.0),
             jolt_m_s: down_m_s * self.jolt_per_m_s,
+            fire_s: 0.0,
         }
     }
 
@@ -423,6 +475,7 @@ impl ShakeConfig {
         Kick {
             trauma: (over * self.ram_per_m_s).min(1.0),
             jolt_m_s: lost_m_s * self.jolt_per_m_s,
+            fire_s: 0.0,
         }
     }
 
@@ -432,15 +485,21 @@ impl ShakeConfig {
         Kick {
             trauma: if k.is_finite() { k.min(1.0) } else { 0.0 },
             jolt_m_s: 0.0,
+            fire_s: 0.0,
         }
     }
 
-    /// A round of `penetration_mm` fired by the pilot's own mech.
-    pub fn recoil(&self, penetration_mm: f32) -> Kick {
-        let k = penetration_mm.max(0.0) * self.recoil_per_mm;
+    /// A round or missile fired by the pilot's own mech: the firing rumble held, and a kick for the heavy ones.
+    pub fn fired(&self, what: Fired) -> Kick {
+        let (trauma, jolt_m_s) = match what {
+            Fired::Light => (0.0, 0.0),
+            Fired::Heavy => (self.heavy_kick, self.heavy_jolt_m_s),
+            Fired::Missile => (self.missile_kick, 0.0),
+        };
         Kick {
-            trauma: if k.is_finite() { k.min(1.0) } else { 0.0 },
-            jolt_m_s: 0.0,
+            trauma,
+            jolt_m_s,
+            fire_s: self.fire_hold_s,
         }
     }
 
@@ -449,6 +508,7 @@ impl ShakeConfig {
         Kick {
             trauma: self.melee_kick,
             jolt_m_s: self.melee_jolt_m_s,
+            fire_s: 0.0,
         }
     }
 
@@ -457,6 +517,7 @@ impl ShakeConfig {
         Kick {
             trauma: self.ignite_kick,
             jolt_m_s: 0.0,
+            fire_s: 0.0,
         }
     }
 
@@ -518,10 +579,21 @@ impl Validate for FxConfig {
         positive("jet_plume_m[0]", self.jet_plume_m[0])?;
         positive("jet_plume_m[1]", self.jet_plume_m[1])?;
         positive("jet_wash_m", self.jet_wash_m)?;
-        positive("shake.max_deg", self.shake.max_deg)?;
-        positive("shake.reach_m_per_cbrt_mj", self.shake.reach_m_per_cbrt_mj)?;
-        positive("shake.decay_s", self.shake.decay_s)?;
+        // Every shake number may be 0, which turns its part off (owner, 2026-10-28: "make sure theyre all numbers we
+        // can tweak later", "and that 0 works peroperly").
         let s = &self.shake;
+        for (name, v) in [
+            ("shake.max_deg", s.max_deg),
+            ("shake.reach_m_per_cbrt_mj", s.reach_m_per_cbrt_mj),
+            ("shake.decay_s", s.decay_s),
+            ("shake.rumble_hz", s.rumble_hz),
+            ("shake.rumble_ease_s", s.rumble_ease_s),
+            ("shake.skate_full_m_s", s.skate_full_m_s),
+            ("shake.jolt_max_m", s.jolt_max_m),
+            ("shake.jolt_hz", s.jolt_hz),
+        ] {
+            within(name, v, 0.0, 1000.0)?;
+        }
         for (name, v) in [
             ("shake.land_from_m_s", s.land_from_m_s),
             ("shake.land_per_m_s", s.land_per_m_s),
@@ -529,7 +601,8 @@ impl Validate for FxConfig {
             ("shake.ram_per_m_s", s.ram_per_m_s),
             ("shake.hit_per_mj", s.hit_per_mj),
             ("shake.hit_per_mm", s.hit_per_mm),
-            ("shake.recoil_per_mm", s.recoil_per_mm),
+            ("shake.fire_hold_s", s.fire_hold_s),
+            ("shake.heavy_jolt_m_s", s.heavy_jolt_m_s),
             ("shake.melee_jolt_m_s", s.melee_jolt_m_s),
             ("shake.rumble_deg", s.rumble_deg),
             ("shake.jolt_per_m_s", s.jolt_per_m_s),
@@ -539,18 +612,16 @@ impl Validate for FxConfig {
         for (name, v) in [
             ("shake.melee_kick", s.melee_kick),
             ("shake.ignite_kick", s.ignite_kick),
+            ("shake.fire_rumble", s.fire_rumble),
+            ("shake.heavy_kick", s.heavy_kick),
+            ("shake.missile_kick", s.missile_kick),
             ("shake.jets_rumble", s.jets_rumble),
             ("shake.skate_rumble", s.skate_rumble),
             ("shake.paved_share", s.paved_share),
         ] {
             within(name, v, 0.0, 1.0)?;
         }
-        positive("shake.rumble_hz", s.rumble_hz)?;
-        positive("shake.rumble_ease_s", s.rumble_ease_s)?;
-        positive("shake.skate_full_m_s", s.skate_full_m_s)?;
-        positive("shake.jolt_max_m", s.jolt_max_m)?;
-        positive("shake.jolt_hz", s.jolt_hz)?;
-        within("shake.jolt_damping", s.jolt_damping, 0.05, 2.0)?;
+        within("shake.jolt_damping", s.jolt_damping, 0.0, 2.0)?;
         positive("burst_range_m", self.burst_range_m)?;
         for (name, per_s) in &self.stream_per_s {
             positive(&format!("stream_per_s.{name}"), *per_s)?;
@@ -603,6 +674,77 @@ pub fn burst_count(count: u32, density: f32, room: u32) -> u32 {
 #[cfg(test)]
 mod tests {
 
+    /// Every shake number at 0 is accepted and turns its part off: nothing shakes, nothing is non-finite.
+    #[test]
+    fn every_shake_number_at_zero_turns_its_part_off() {
+        let z = ShakeConfig {
+            max_deg: 0.0,
+            reach_m_per_cbrt_mj: 0.0,
+            decay_s: 0.0,
+            land_from_m_s: 0.0,
+            land_per_m_s: 0.0,
+            ram_from_m_s: 0.0,
+            ram_per_m_s: 0.0,
+            hit_per_mj: 0.0,
+            hit_per_mm: 0.0,
+            fire_rumble: 0.0,
+            fire_hold_s: 0.0,
+            heavy_kick: 0.0,
+            heavy_jolt_m_s: 0.0,
+            missile_kick: 0.0,
+            melee_kick: 0.0,
+            melee_jolt_m_s: 0.0,
+            ignite_kick: 0.0,
+            rumble_deg: 0.0,
+            rumble_hz: 0.0,
+            rumble_ease_s: 0.0,
+            jets_rumble: 0.0,
+            skate_rumble: 0.0,
+            skate_full_m_s: 0.0,
+            paved_share: 0.0,
+            jolt_per_m_s: 0.0,
+            jolt_max_m: 0.0,
+            jolt_hz: 0.0,
+            jolt_damping: 0.0,
+        };
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/fx/fx.ron");
+        let shipped: FxConfig = load_ron(&root).expect("the shipped fx.ron loads");
+        let fx = FxConfig {
+            shake: z.clone(),
+            ..shipped
+        };
+        fx.validate().expect("zeros are allowed");
+        assert_eq!(z.kick(8.0, 1.0), 0.0);
+        for k in [
+            z.landing(20.0),
+            z.ram(10.0),
+            z.hit(300.0, 8.0),
+            z.melee(),
+            z.ignite(),
+            z.fired(Fired::Heavy),
+            z.fired(Fired::Missile),
+        ] {
+            assert_eq!((k.trauma, k.jolt_m_s, k.fire_s), (0.0, 0.0, 0.0), "{k:?}");
+        }
+        assert_eq!(z.rumble(true, true, 30.0, false), 0.0);
+        assert_eq!(z.decay(0.8, 0.016), 0.0);
+        assert_eq!(z.ease_rumble(0.5, 0.0, 0.016), 0.0, "no ease time: at once");
+        let mut j = Jolt { y: 0.1, v: 1.0 };
+        j.step(&z, 0.016);
+        assert_eq!(j, Jolt::default(), "no spring: no dip");
+        // And the shipped numbers turned off one at a time stay finite.
+        let one = ShakeConfig {
+            jolt_damping: 0.0,
+            ..ShakeConfig::default()
+        };
+        let mut j = Jolt::default();
+        j.kick(1.0);
+        for _ in 0..600 {
+            j.step(&one, 1.0 / 60.0);
+            assert!(j.y.is_finite() && j.y <= one.jolt_max_m + 1e-6);
+        }
+    }
+
     #[test]
     fn a_hard_landing_kicks_and_dips_the_eye_and_a_step_down_does_not() {
         let c = ShakeConfig::default();
@@ -637,7 +779,12 @@ mod tests {
             "a heavy shell shakes more than a bullet"
         );
         assert!(c.melee().trauma > 0.3 && c.melee().jolt_m_s > 0.0, "a punch lands hard");
-        assert!(c.recoil(120.0).trauma < c.melee().trauma, "a gun's recoil is lighter than a punch");
+        assert!(c.fired(Fired::Light).fire_s > 0.0, "every round holds the firing rumble");
+        assert!(
+            c.fired(Fired::Heavy).trauma > 0.0 && c.fired(Fired::Missile).trauma > 0.0,
+            "cannons and missiles kick"
+        );
+        assert_eq!(c.fired(Fired::Light).trauma, 0.0, "a light round only buzzes");
         assert_eq!(c.hit(f32::NAN, 0.0).trauma, 0.0);
     }
 
