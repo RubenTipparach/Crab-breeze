@@ -1488,6 +1488,20 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // Inside Terminal 1 at standing eye height (owner, 2026-10-29: "Inside the airport"): down its hall, and out
+    // through its glass front at the gates.
+    View {
+        name: "airport-inside",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-inside-out",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Straight down on each site from 1,100 m, its whole footprint in frame, to lay beside its page's plan.
     View {
         name: "airport-plan",
@@ -2097,6 +2111,18 @@ fn run_weather_script(
                 cb_core::world::sites::SiteKind::Airport,
                 [-1500.0, 1300.0, 1700.0],
                 [0.0, 0.0, -100.0],
+            ),
+            "airport-inside" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [90.0, 1.85, 446.0],
+                [200.0, 2.4, 450.0],
+            ),
+            "airport-inside-out" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [150.0, 1.85, 452.0],
+                [150.0, 3.0, 400.0],
             ),
             "airport-plan" => site_view(
                 &plan,
