@@ -20,6 +20,17 @@ pub struct SitPose {
     pub hock_angle_deg: f32,
     /// Torso bow forward when sat.
     pub torso_bow_deg: f32,
+    /// The kneel's arm pose (openspec change `mech-arm-clearance`), whole when sat and scaled by
+    /// the sit, so a standing mech is untouched: the Mechs page's own kneel arms every mech takes
+    /// plus the mech's clearance row, summed by `tools/mechs/gen_mech_data.py` from
+    /// `tools/mockups/mech_pose.js`. The shoulders swing outward by this much (the right shoulder
+    /// the mirror way), about each shoulder's own forward axis.
+    pub arm_out_deg: f32,
+    /// The shoulders' swing about their own side axis when sat, the same axis and sign as the
+    /// mockup's shoulder x and its `fwd`.
+    pub arm_forward_deg: f32,
+    /// The elbows' bend when sat, about each forearm's own side axis (negative bends further).
+    pub elbow_deg: f32,
 }
 
 impl Default for SitPose {
@@ -29,6 +40,9 @@ impl Default for SitPose {
             pelvis_height_m: 1.4,
             hock_angle_deg: 90.0,
             torso_bow_deg: 20.0,
+            arm_out_deg: 0.0,
+            arm_forward_deg: 0.0,
+            elbow_deg: 0.0,
         }
     }
 }
@@ -169,6 +183,9 @@ impl Validate for BoardingTimeline {
         finite("sit.pelvis_height_m", self.sit.pelvis_height_m)?;
         within("sit.hock_angle_deg", self.sit.hock_angle_deg, -180.0, 180.0)?;
         within("sit.torso_bow_deg", self.sit.torso_bow_deg, -90.0, 90.0)?;
+        within("sit.arm_out_deg", self.sit.arm_out_deg, -90.0, 90.0)?;
+        within("sit.arm_forward_deg", self.sit.arm_forward_deg, -90.0, 90.0)?;
+        within("sit.elbow_deg", self.sit.elbow_deg, -90.0, 90.0)?;
         positive("ready_s", self.ready_s)?;
         if self.ready_s < self.sit.duration_s {
             return Err("`ready_s` must not come before the sit ends".into());

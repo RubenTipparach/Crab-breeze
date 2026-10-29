@@ -15,6 +15,19 @@ pub enum Kind {
     House,
     /// A business: towns' main streets and roadside stops.
     Business,
+    /// A building of a site (the airport, the seaport: openspec changes `airport-layout`, `seaport-layout`).
+    Building,
+    /// A steel machine of a site (a crane, a gantry, a boom): it hangs further from its support than masonry.
+    Machine,
+    /// A ship (the seaport's): a hollow hull, holed low it goes down (`seaport-layout` section 2).
+    Ship,
+}
+
+impl Kind {
+    /// True for the kinds a site places (not the houses' and businesses' lots).
+    pub fn is_site(self) -> bool {
+        matches!(self, Kind::Building | Kind::Machine | Kind::Ship)
+    }
 }
 
 /// Which node of the glb a piece's triangles are in.
@@ -131,8 +144,10 @@ pub struct FurnDef {
 /// One exported type (or a variant of one).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Kit {
-    /// Its id (`ranch`, `ranch_b`, ...): its glb is `<id>.glb`.
+    /// Its id (`ranch`, `ranch_b`, ...): its glb is `<folder>/<id>.glb`.
     pub id: String,
+    /// The folder of its glb under `assets/models/` (`small_buildings`, `sites/airport`, ...).
+    pub folder: String,
     /// Its name.
     pub name: String,
     /// House or business.
@@ -163,6 +178,13 @@ pub struct Kit {
     pub wall_area_m2: f32,
     /// How it is reached from the road (openspec change `lot-access`).
     pub access: Access,
+    /// A ship's waterline over its keel (its frame's y = 0), metres; `None` for anything that does not float.
+    pub waterline_m: Option<f32>,
+    /// The share of its hull at and under its waterline (pieces reaching under `SINK_HOLED_M` over it, by volume) that
+    /// must be gone before it goes down, 0..1: 0 sinks it at the first hole. Its kind's `sink_hull_share` in
+    /// `ships.ron` (owner, 2026-10-29: tankers and cargo ships "need about 25% of their underwater hull portion
+    /// destroyed before they sink").
+    pub sink_share: f32,
 }
 
 /// How a kit is reached from the road (openspec change `lot-access`), in its frame.
@@ -184,6 +206,8 @@ pub enum Access {
         /// Whether it is striped with stalls.
         stalls: bool,
     },
+    /// A site's: its site lays out its own paving.
+    Site,
 }
 
 impl Kit {
@@ -304,6 +328,7 @@ struct TypeJson {
     id: String,
     name: String,
     kind: String,
+    #[serde(default)]
     biomes: Vec<String>,
     pieces: String,
     bounds_m: BoundsJson,
@@ -311,6 +336,8 @@ struct TypeJson {
     variant_of: Option<String>,
     #[serde(default)]
     access: Option<AccessJson>,
+    #[serde(default)]
+    waterline_m: Option<f32>,
 }
 
 #[derive(Deserialize)]
@@ -396,7 +423,7 @@ fn finite3(v: [f32; 3]) -> bool {
 }
 
 /// One kit from its manifest entry and its piece table's text (`what` names it in errors).
-fn kit_of(t: TypeJson, table: &str, what: &str) -> Result<Kit, String> {
+fn kit_of(t: TypeJson, table: &str, what: &str, folder: &str) -> Result<Kit, String> {
     let table: PiecesJson = serde_json::from_str(table).map_err(|e| format!("{what}: {e}"))?;
     let index: std::collections::HashMap<u32, u32> = table.pieces.iter().enumerate().map(|(i, p)| (p.id, i as u32)).collect();
     let at = |id: u32, field: &str| {
@@ -408,7 +435,10 @@ fn kit_of(t: TypeJson, table: &str, what: &str) -> Result<Kit, String> {
     let kind = match t.kind.as_str() {
         "house" => Kind::House,
         "business" => Kind::Business,
-        k => return Err(format!("{what}: kind `{k}` is neither house nor business")),
+        "building" => Kind::Building,
+        "machine" => Kind::Machine,
+        "ship" => Kind::Ship,
+        k => return Err(format!("{what}: kind `{k}` is not house, business, building, machine or ship")),
     };
     let leaf_of: std::collections::HashMap<u32, u16> = table.leaves.iter().enumerate().map(|(i, l)| (l.piece, i as u16)).collect();
     let mut pieces = Vec::with_capacity(table.pieces.len());
@@ -505,6 +535,7 @@ fn kit_of(t: TypeJson, table: &str, what: &str) -> Result<Kit, String> {
     let access = match (kind, t.access.as_ref()) {
         (Kind::House, Some(AccessJson { drive: Some([x, w]), .. })) if x.is_finite() && *w >= 2.0 => Access::Drive { x_m: *x, width_m: *w },
         (Kind::Business, Some(AccessJson { lot: Some(z), stalls, .. })) if z.is_finite() => Access::Lot { z_m: *z, stalls: *stalls },
+        (k, None) if k.is_site() => Access::Site,
         _ => return Err(format!("{what}: a house needs access.drive [x, width >= 2], a business access.lot")),
     };
     if !(0.0..=1.0).contains(&table.collapse_wall_share) {
@@ -514,6 +545,7 @@ fn kit_of(t: TypeJson, table: &str, what: &str) -> Result<Kit, String> {
     let wall_area_m2 = pieces.iter().map(|p| p.wall_area_m2).sum();
     Ok(Kit {
         id: t.id,
+        folder: folder.to_string(),
         name: t.name,
         kind,
         biomes: t.biomes,
@@ -529,6 +561,8 @@ fn kit_of(t: TypeJson, table: &str, what: &str) -> Result<Kit, String> {
         collapse_wall_share: table.collapse_wall_share,
         wall_area_m2,
         access,
+        waterline_m: t.waterline_m.filter(|w| w.is_finite() && *w >= 0.0 && kind == Kind::Ship),
+        sink_share: 0.0,
     })
 }
 
@@ -569,40 +603,71 @@ impl Kits {
         for t in manifest.types {
             let path = dir.join(&t.pieces);
             let table = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-            kits.push(kit_of(t, &table, &path.display().to_string())?);
+            kits.push(kit_of(t, &table, &path.display().to_string(), "small_buildings")?);
         }
         if kits.is_empty() {
             return Err(format!("{}: no types", manifest_path.display()));
         }
         let furniture = Furniture::load(&dir.join("../furniture.json"))?;
-        // Every block a kit places has its modelled piece, and every surface the blocks use has its swatch.
-        for k in &kits {
+        let me = Self { kits, furniture };
+        me.check_furniture(&manifest_path)?;
+        Ok(me)
+    }
+
+    /// The kit called `id`, by index (the houses' and businesses' ids; a site's kit is `<folder>/<id>`'s, found
+    /// through its site).
+    pub fn index_of(&self, id: &str) -> Option<usize> {
+        self.kits.iter().position(|k| k.id == id && !k.kind.is_site())
+    }
+
+    /// The ship kit a boat of `kind` is drawn and broken from (the seaport's `freighter`, `ferry`...), by index.
+    pub fn ship(&self, kind: &str) -> Option<usize> {
+        self.kits.iter().position(|k| k.kind == Kind::Ship && k.id == kind)
+    }
+
+    /// Adds the kits a site's table lists (`site.json`'s `kits`, each with its piece table beside it), their glbs in
+    /// `folder` under `assets/models/`. Returns the index of each, in the table's order. An error names the file.
+    pub fn add_site(&mut self, dir: &Path, folder: &str, entries: Vec<serde_json::Value>) -> Result<Vec<usize>, String> {
+        let mut out = Vec::with_capacity(entries.len());
+        for e in entries {
+            let t: TypeJson = serde_json::from_value(e).map_err(|err| format!("{}: {err}", dir.join("site.json").display()))?;
+            let path = dir.join(&t.pieces);
+            let table = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let kit = kit_of(t, &table, &path.display().to_string(), folder)?;
+            if !kit.kind.is_site() {
+                return Err(format!("{}: a site's kit is a building, a machine or a ship", path.display()));
+            }
+            out.push(self.kits.len());
+            self.kits.push(kit);
+        }
+        self.check_furniture(&dir.join("site.json"))?;
+        Ok(out)
+    }
+
+    /// Every block a kit places has its modelled piece, and every surface the blocks use has its swatch.
+    fn check_furniture(&self, what: &Path) -> Result<(), String> {
+        for k in &self.kits {
             for f in &k.furniture {
-                if !furniture.items.contains_key(&f.item) {
+                if !self.furniture.items.contains_key(&f.item) {
                     return Err(format!(
                         "{}: {} places a `{}`, which furniture.json does not model",
-                        manifest_path.display(),
+                        what.display(),
                         k.id,
                         f.item
                     ));
                 }
             }
             for s in &k.furn_primitives {
-                if !furniture.swatches.contains_key(s) {
+                if !self.furniture.swatches.contains_key(s) {
                     return Err(format!(
                         "{}: {}'s block furniture is `{s}`, which has no swatch in furniture.json",
-                        manifest_path.display(),
+                        what.display(),
                         k.id
                     ));
                 }
             }
         }
-        Ok(Self { kits, furniture })
-    }
-
-    /// The kit called `id`, by index.
-    pub fn index_of(&self, id: &str) -> Option<usize> {
-        self.kits.iter().position(|k| k.id == id)
+        Ok(())
     }
 }
 

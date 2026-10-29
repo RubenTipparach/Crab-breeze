@@ -81,15 +81,17 @@
     // HB7: real 1980s sizes, (beam, keel to masthead, length). Hit points and armour against the pilot's 35 mm
     // autocannon (90 mm, 4 a round) and 120 mm cannon (260 mm): a fishing boat goes in a burst, a freighter takes a
     // long fight. Models are the block-outs from tools/blender/build_boats.py.
+    // `sink_hull_share`: a kind drawn from a ship kit goes down once that share of its hull at and under its waterline
+    // is gone (owner, 2026-10-29: tankers and cargo ships take about a quarter); 0 or left out, at the first hole.
     kinds: {
         "freighter": (
             size_m: (18.0, 26.0, 120.0), draft_m: 7.0, speed_m_s: 7.0, accel_m_s2: 0.05, turn_deg_s: 2.0,
-            hp: 900.0, armour_mm: 12.0, crew: 18, sink_s: 45.0,
+            hp: 900.0, armour_mm: 12.0, crew: 18, sink_s: 45.0, sink_hull_share: 0.25,
             model: "models/boats/freighter.glb", tint: (0.20, 0.26, 0.34),
         ),
         "tanker": (
             size_m: (24.0, 30.0, 150.0), draft_m: 9.0, speed_m_s: 6.5, accel_m_s2: 0.04, turn_deg_s: 1.6,
-            hp: 1000.0, armour_mm: 12.0, crew: 22, sink_s: 45.0,
+            hp: 1000.0, armour_mm: 12.0, crew: 22, sink_s: 45.0, sink_hull_share: 0.25,
             model: "models/boats/tanker.glb", tint: (0.40, 0.14, 0.12), burns: true,
         ),
         "fishing_boat": (

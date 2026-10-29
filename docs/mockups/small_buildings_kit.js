@@ -1216,13 +1216,14 @@
     return { up, side };
   }
   // Which pieces still stand, given which are alive (an array of booleans).
-  function standing(pieces, links, alive) {
+  // maxSide: how many side steps a piece may hang from (MAX_SIDE for a building; a steel machine's own, longer).
+  function standing(pieces, links, alive, maxSide = MAX_SIDE) {
     const best = new Map(), queue = [];
     pieces.forEach((P, i) => { if (alive[i] && P.lo[1] <= 0.05) { best.set(i, 0); queue.push(i); } });
     for (let qi = 0; qi < queue.length; qi++) {
       const q = queue[qi], lat = best.get(q);
       for (const nb of links.up[q]) if (alive[nb] && (!best.has(nb) || best.get(nb) > 0)) { best.set(nb, 0); queue.push(nb); }
-      if (lat < MAX_SIDE) for (const nb of links.side[q]) if (alive[nb] && (!best.has(nb) || best.get(nb) > lat + 1)) { best.set(nb, lat + 1); queue.push(nb); }
+      if (lat < maxSide) for (const nb of links.side[q]) if (alive[nb] && (!best.has(nb) || best.get(nb) > lat + 1)) { best.set(nb, lat + 1); queue.push(nb); }
     }
     return best;
   }

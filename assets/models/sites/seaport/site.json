@@ -1,0 +1,3949 @@
+{
+ "site": "seaport",
+ "generator": "tools/buildings/export_sites.cjs",
+ "page": "docs/mockups/seaport.html",
+ "units": "metres; the site frame as the page draws it (x east, z south, y up from still water or the airfield ground); a kit stands on y = 0 at (x, base, z), turned by quarter turns (1: its front, +z, to +x)",
+ "marks": {
+  "terminal": [
+   18,
+   35
+  ],
+  "berth": [
+   -510,
+   160
+  ],
+  "mouth": [
+   425,
+   650
+  ]
+ },
+ "pads": [
+  {
+   "lo": [
+    -1005,
+    -280
+   ],
+   "hi": [
+    340,
+    0
+   ],
+   "y": 2.5
+  },
+  {
+   "lo": [
+    380,
+    -280
+   ],
+   "hi": [
+    1005,
+    0
+   ],
+   "y": 2.5
+  },
+  {
+   "lo": [
+    340,
+    -280
+   ],
+   "hi": [
+    380,
+    -200
+   ],
+   "y": 2.5
+  },
+  {
+   "lo": [
+    340,
+    -200
+   ],
+   "hi": [
+    380,
+    0
+   ],
+   "y": -11
+  },
+  {
+   "lo": [
+    -1000,
+    0
+   ],
+   "hi": [
+    1000,
+    650
+   ],
+   "y": -14
+  }
+ ],
+ "kits": [
+  {
+   "id": "crown_wall",
+   "name": "Crown wall",
+   "kind": "building",
+   "glb": "crown_wall.glb",
+   "pieces": "crown_wall.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1005.5,
+     0,
+     -11.5
+    ],
+    "hi": [
+     -1002.5,
+     3,
+     651.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 804,
+    "LOD1": 804,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 67,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "crown_wall_2",
+   "name": "Crown wall",
+   "kind": "building",
+   "glb": "crown_wall_2.glb",
+   "pieces": "crown_wall_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1001.5,
+     0,
+     652.5
+    ],
+    "hi": [
+     331.5,
+     3,
+     655.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 1608,
+    "LOD1": 1608,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 134,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "crown_wall_3",
+   "name": "Crown wall",
+   "kind": "building",
+   "glb": "crown_wall_3.glb",
+   "pieces": "crown_wall_3.pieces.json",
+   "bounds_m": {
+    "lo": [
+     1002.5,
+     0,
+     -11.5
+    ],
+    "hi": [
+     1005.5,
+     3,
+     651.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 804,
+    "LOD1": 804,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 67,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "crown_wall_4",
+   "name": "Crown wall",
+   "kind": "building",
+   "glb": "crown_wall_4.glb",
+   "pieces": "crown_wall_4.pieces.json",
+   "bounds_m": {
+    "lo": [
+     518.5,
+     0,
+     652.5
+    ],
+    "hi": [
+     1001.5,
+     3,
+     655.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 588,
+    "LOD1": 588,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 49,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "breakwater_light_red",
+   "name": "Breakwater light, red",
+   "kind": "building",
+   "glb": "breakwater_light_red.glb",
+   "pieces": "breakwater_light_red.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -3.4,
+     0,
+     -3.315
+    ],
+    "hi": [
+     3.4,
+     15,
+     3.315
+    ]
+   },
+   "triangles": {
+    "LOD0": 348,
+    "LOD1": 348,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 7,
+   "surfaces": [
+    "concrete",
+    "lampRed",
+    "metal",
+    "paint",
+    "stucco"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "breakwater_light_green",
+   "name": "Breakwater light, green",
+   "kind": "building",
+   "glb": "breakwater_light_green.glb",
+   "pieces": "breakwater_light_green.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -3.4,
+     0,
+     -3.315
+    ],
+    "hi": [
+     3.4,
+     15,
+     3.315
+    ]
+   },
+   "triangles": {
+    "LOD0": 348,
+    "LOD1": 348,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 7,
+   "surfaces": [
+    "concrete",
+    "lampGreen",
+    "metal",
+    "paint",
+    "stucco"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "buoy",
+   "name": "Buoy",
+   "kind": "building",
+   "glb": "buoy.glb",
+   "pieces": "buoy.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1.5,
+     -1,
+     -1.5
+    ],
+    "hi": [
+     1.5,
+     4.8,
+     1.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 128,
+    "LOD1": 128,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 8,
+   "surfaces": [
+    "lampRed",
+    "metal",
+    "paint"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "buoy_2",
+   "name": "Buoy",
+   "kind": "building",
+   "glb": "buoy_2.glb",
+   "pieces": "buoy_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1.5,
+     -1,
+     -1.5
+    ],
+    "hi": [
+     1.5,
+     4.6,
+     1.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 144,
+    "LOD1": 144,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 8,
+   "surfaces": [
+    "lampGreen",
+    "metal",
+    "paint"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "leading_light",
+   "name": "Leading light",
+   "kind": "building",
+   "glb": "leading_light.glb",
+   "pieces": "leading_light.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1,
+     0,
+     -2
+    ],
+    "hi": [
+     1,
+     21.6,
+     2
+    ]
+   },
+   "triangles": {
+    "LOD0": 132,
+    "LOD1": 120,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 5,
+   "surfaces": [
+    "lamp",
+    "paint",
+    "stucco"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "leading_light_2",
+   "name": "Leading light",
+   "kind": "building",
+   "glb": "leading_light_2.glb",
+   "pieces": "leading_light_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1,
+     0,
+     -2
+    ],
+    "hi": [
+     1,
+     35.6,
+     2
+    ]
+   },
+   "triangles": {
+    "LOD0": 240,
+    "LOD1": 228,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 8,
+   "surfaces": [
+    "lamp",
+    "paint",
+    "stucco"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards.glb",
+   "pieces": "fenders_and_bollards.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -895.2,
+     0,
+     158.467
+    ],
+    "hi": [
+     -424.8,
+     4.8,
+     160.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 1200,
+    "LOD1": 1200,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 60,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_2",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_2.glb",
+   "pieces": "fenders_and_bollards_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -900.8,
+     0,
+     4.8
+    ],
+    "hi": [
+     -898.45,
+     4.8,
+     151.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 408,
+    "LOD1": 408,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 20,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_3",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_3.glb",
+   "pieces": "fenders_and_bollards_3.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -421.55,
+     0,
+     4.8
+    ],
+    "hi": [
+     -419.2,
+     4.8,
+     151.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 408,
+    "LOD1": 408,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 20,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack.glb",
+   "pieces": "container_stack.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1020,
+    "LOD1": 1020,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 85,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_2",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_2.glb",
+   "pieces": "container_stack_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1068,
+    "LOD1": 1068,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 89,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_3",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_3.glb",
+   "pieces": "container_stack_3.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1224,
+    "LOD1": 1224,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 102,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_4",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_4.glb",
+   "pieces": "container_stack_4.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1080,
+    "LOD1": 1080,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 90,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_5",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_5.glb",
+   "pieces": "container_stack_5.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1116,
+    "LOD1": 1116,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 93,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_6",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_6.glb",
+   "pieces": "container_stack_6.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1152,
+    "LOD1": 1152,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 96,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_7",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_7.glb",
+   "pieces": "container_stack_7.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 960,
+    "LOD1": 960,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 80,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_8",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_8.glb",
+   "pieces": "container_stack_8.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1056,
+    "LOD1": 1056,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 88,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_9",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_9.glb",
+   "pieces": "container_stack_9.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1116,
+    "LOD1": 1116,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 93,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_10",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_10.glb",
+   "pieces": "container_stack_10.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 984,
+    "LOD1": 984,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 82,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_11",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_11.glb",
+   "pieces": "container_stack_11.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1128,
+    "LOD1": 1128,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 94,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_12",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_12.glb",
+   "pieces": "container_stack_12.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1188,
+    "LOD1": 1188,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 99,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_13",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_13.glb",
+   "pieces": "container_stack_13.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1020,
+    "LOD1": 1020,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 85,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_14",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_14.glb",
+   "pieces": "container_stack_14.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1128,
+    "LOD1": 1128,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 94,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_15",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_15.glb",
+   "pieces": "container_stack_15.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1140,
+    "LOD1": 1140,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 95,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "straddle_carrier",
+   "name": "Straddle carrier",
+   "kind": "machine",
+   "glb": "straddle_carrier.glb",
+   "pieces": "straddle_carrier.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -2.25,
+     0,
+     -5.071
+    ],
+    "hi": [
+     2.25,
+     16.4,
+     5.071
+    ]
+   },
+   "triangles": {
+    "LOD0": 528,
+    "LOD1": 528,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 36,
+   "surfaces": [
+    "glass",
+    "paint",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 40
+  },
+  {
+   "id": "container_gantry",
+   "name": "Container gantry",
+   "kind": "machine",
+   "glb": "container_gantry.glb",
+   "pieces": "container_gantry.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -11,
+     0,
+     -25
+    ],
+    "hi": [
+     11,
+     70.309,
+     83
+    ]
+   },
+   "triangles": {
+    "LOD0": 3420,
+    "LOD1": 3420,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 201,
+   "surfaces": [
+    "glass",
+    "metal",
+    "paint",
+    "ribbed"
+   ],
+   "signs": [],
+   "max_side_steps": 40
+  },
+  {
+   "id": "freighter",
+   "name": "freighter",
+   "kind": "ship",
+   "glb": "freighter.glb",
+   "pieces": "freighter.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -9,
+     0,
+     -60
+    ],
+    "hi": [
+     9,
+     23.6,
+     60.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 25668,
+    "LOD1": 23364,
+    "LOD2": 10,
+    "FURN": 888,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1876,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 7
+  },
+  {
+   "id": "fenders_and_bollards_4",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_4.glb",
+   "pieces": "fenders_and_bollards_4.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -355.2,
+     0,
+     298.467
+    ],
+    "hi": [
+     -292.8,
+     4.8,
+     300.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 180,
+    "LOD1": 180,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 9,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_5",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_5.glb",
+   "pieces": "fenders_and_bollards_5.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -360.8,
+     0,
+     4.8
+    ],
+    "hi": [
+     -358.45,
+     4.8,
+     295.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 768,
+    "LOD1": 768,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 38,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_6",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_6.glb",
+   "pieces": "fenders_and_bollards_6.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -281.55,
+     0,
+     4.8
+    ],
+    "hi": [
+     -279.2,
+     4.8,
+     295.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 768,
+    "LOD1": 768,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 38,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "transit_shed",
+   "name": "Transit shed",
+   "kind": "building",
+   "glb": "transit_shed.glb",
+   "pieces": "transit_shed.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -120.05,
+     -0.3,
+     -22.35
+    ],
+    "hi": [
+     120.05,
+     13.03,
+     22.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 22716,
+    "LOD1": 17604,
+    "LOD2": 10,
+    "FURN": 118392,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 150000,
+    "LOD1": 40000,
+    "LOD2": 400,
+    "why": "a 240 m shed racked full of pallets, with forklifts (furniture drawn within 100 m)"
+   },
+   "piece_count": 2388,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "luffing_crane",
+   "name": "Luffing crane",
+   "kind": "machine",
+   "glb": "luffing_crane.glb",
+   "pieces": "luffing_crane.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -6.3,
+     0,
+     -32.203
+    ],
+    "hi": [
+     6.3,
+     54.071,
+     6.3
+    ]
+   },
+   "triangles": {
+    "LOD0": 3232,
+    "LOD1": 3220,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 160,
+   "surfaces": [
+    "glassDark",
+    "metal",
+    "paint"
+   ],
+   "signs": [],
+   "max_side_steps": 40
+  },
+  {
+   "id": "fenders_and_bollards_7",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_7.glb",
+   "pieces": "fenders_and_bollards_7.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -195.2,
+     0,
+     118.467
+    ],
+    "hi": [
+     -48.8,
+     4.8,
+     120.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 408,
+    "LOD1": 408,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 20,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "ferry_terminal",
+   "name": "Ferry terminal",
+   "kind": "building",
+   "glb": "ferry_terminal.glb",
+   "pieces": "ferry_terminal.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -40.05,
+     -0.3,
+     -16.05
+    ],
+    "hi": [
+     40.05,
+     15.03,
+     25
+    ]
+   },
+   "triangles": {
+    "LOD0": 21566,
+    "LOD1": 16128,
+    "LOD2": 10,
+    "FURN": 30648,
+    "leaves": 264
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1390,
+   "surfaces": [
+    "concrete",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "metalRoof",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "sign:FERRY TERMINAL|#1d4f8f|#ffffff|0",
+    "trim"
+   ],
+   "signs": [
+    "FERRY TERMINAL"
+   ],
+   "max_side_steps": 3
+  },
+  {
+   "id": "marshalled_cars",
+   "name": "Marshalled cars",
+   "kind": "building",
+   "glb": "marshalled_cars.glb",
+   "pieces": "marshalled_cars.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -95.98,
+     0,
+     54.57
+    ],
+    "hi": [
+     -44.02,
+     1.42,
+     104.43
+    ]
+   },
+   "triangles": {
+    "LOD0": 4752,
+    "LOD1": 4752,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 36,
+   "surfaces": [
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "linkspan",
+   "name": "Linkspan",
+   "kind": "building",
+   "glb": "linkspan.glb",
+   "pieces": "linkspan.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -133.5,
+     0,
+     111.986
+    ],
+    "hi": [
+     -106.5,
+     20,
+     131.014
+    ]
+   },
+   "triangles": {
+    "LOD0": 412,
+    "LOD1": 412,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 13,
+   "surfaces": [
+    "metal"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "ferry",
+   "name": "ferry",
+   "kind": "ship",
+   "glb": "ferry.glb",
+   "pieces": "ferry.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -7,
+     0,
+     -30.25
+    ],
+    "hi": [
+     7,
+     18.3,
+     30
+    ]
+   },
+   "triangles": {
+    "LOD0": 19296,
+    "LOD1": 15372,
+    "LOD2": 10,
+    "FURN": 10212,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 964,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "rubber",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 3.2
+  },
+  {
+   "id": "fenders_and_bollards_8",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_8.glb",
+   "pieces": "fenders_and_bollards_8.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -35.2,
+     0,
+     98.467
+    ],
+    "hi": [
+     111.2,
+     4.8,
+     100.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 408,
+    "LOD1": 408,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 20,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "harbour_office",
+   "name": "Harbour office",
+   "kind": "building",
+   "glb": "harbour_office.glb",
+   "pieces": "harbour_office.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -6.06
+    ],
+    "hi": [
+     8.06,
+     10.03,
+     6.06
+    ]
+   },
+   "triangles": {
+    "LOD0": 4248,
+    "LOD1": 3216,
+    "LOD2": 10,
+    "FURN": 1584,
+    "leaves": 48
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 269,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "floorTile",
+    "glass",
+    "plaster",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "port_control_tower",
+   "name": "Port control tower",
+   "kind": "building",
+   "glb": "port_control_tower.glb",
+   "pieces": "port_control_tower.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.5,
+     -0.3,
+     -8.5
+    ],
+    "hi": [
+     8.5,
+     37.8,
+     8.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 7644,
+    "LOD1": 5868,
+    "LOD2": 10,
+    "FURN": 1356,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 445,
+   "surfaces": [
+    "block",
+    "concrete",
+    "glass",
+    "metal",
+    "plaster",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "pilot_station",
+   "name": "Pilot station",
+   "kind": "building",
+   "glb": "pilot_station.glb",
+   "pieces": "pilot_station.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -6.06
+    ],
+    "hi": [
+     8.06,
+     7.03,
+     6.085
+    ]
+   },
+   "triangles": {
+    "LOD0": 4262,
+    "LOD1": 3228,
+    "LOD2": 10,
+    "FURN": 1476,
+    "leaves": 48
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 272,
+   "surfaces": [
+    "concrete",
+    "floorTile",
+    "glass",
+    "paint",
+    "plaster",
+    "roofing",
+    "sign:PILOT STATION|#1d4f8f|#ffffff|0",
+    "stucco",
+    "trim"
+   ],
+   "signs": [
+    "PILOT STATION"
+   ],
+   "max_side_steps": 3
+  },
+  {
+   "id": "tug",
+   "name": "tug",
+   "kind": "ship",
+   "glb": "tug.glb",
+   "pieces": "tug.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -4.5,
+     0,
+     -14.25
+    ],
+    "hi": [
+     4.5,
+     15,
+     14
+    ]
+   },
+   "triangles": {
+    "LOD0": 4168,
+    "LOD1": 3388,
+    "LOD2": 10,
+    "FURN": 516,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 256,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 3.5
+  },
+  {
+   "id": "tanker_jetty",
+   "name": "Tanker jetty",
+   "kind": "building",
+   "glb": "tanker_jetty.glb",
+   "pieces": "tanker_jetty.pieces.json",
+   "bounds_m": {
+    "lo": [
+     139.7,
+     0,
+     -2.3
+    ],
+    "hi": [
+     260.3,
+     19.8,
+     440.3
+    ]
+   },
+   "triangles": {
+    "LOD0": 16224,
+    "LOD1": 16224,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 890,
+   "surfaces": [
+    "concrete",
+    "metal"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "loading_arms",
+   "name": "Loading arms",
+   "kind": "building",
+   "glb": "loading_arms.glb",
+   "pieces": "loading_arms.pieces.json",
+   "bounds_m": {
+    "lo": [
+     174,
+     0,
+     432
+    ],
+    "hi": [
+     236,
+     10.837,
+     444.215
+    ]
+   },
+   "triangles": {
+    "LOD0": 96,
+    "LOD1": 96,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 8,
+   "surfaces": [
+    "metal"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "jetty_control_house",
+   "name": "Jetty control house",
+   "kind": "building",
+   "glb": "jetty_control_house.glb",
+   "pieces": "jetty_control_house.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -5.06
+    ],
+    "hi": [
+     8.06,
+     5.38,
+     5.06
+    ]
+   },
+   "triangles": {
+    "LOD0": 2244,
+    "LOD1": 1728,
+    "LOD2": 10,
+    "FURN": 564,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 140,
+   "surfaces": [
+    "block",
+    "concrete",
+    "floorTile",
+    "glass",
+    "plaster",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "tanker",
+   "name": "tanker",
+   "kind": "ship",
+   "glb": "tanker.glb",
+   "pieces": "tanker.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -12,
+     0,
+     -75
+    ],
+    "hi": [
+     12,
+     27.6,
+     75.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 24776,
+    "LOD1": 21164,
+    "LOD2": 10,
+    "FURN": 1164,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1587,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 9
+  },
+  {
+   "id": "oil_tank",
+   "name": "Oil tank",
+   "kind": "building",
+   "glb": "oil_tank.glb",
+   "pieces": "oil_tank.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -22.6,
+     -0.3,
+     -22.6
+    ],
+    "hi": [
+     22.6,
+     20.94,
+     22.6
+    ]
+   },
+   "triangles": {
+    "LOD0": 1052,
+    "LOD1": 1052,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 97,
+   "surfaces": [
+    "concrete",
+    "metal"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "bund_walls",
+   "name": "Bund walls",
+   "kind": "building",
+   "glb": "bund_walls.glb",
+   "pieces": "bund_walls.pieces.json",
+   "bounds_m": {
+    "lo": [
+     114.4,
+     0,
+     -270.6
+    ],
+    "hi": [
+     305.6,
+     1.8,
+     -109.4
+    ]
+   },
+   "triangles": {
+    "LOD0": 1068,
+    "LOD1": 1068,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 89,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "keel_blocks",
+   "name": "Keel blocks",
+   "kind": "building",
+   "glb": "keel_blocks.glb",
+   "pieces": "keel_blocks.pieces.json",
+   "bounds_m": {
+    "lo": [
+     358,
+     0,
+     -170
+    ],
+    "hi": [
+     362,
+     1.5,
+     -35
+    ]
+   },
+   "triangles": {
+    "LOD0": 144,
+    "LOD1": 144,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 12,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "dock_gate",
+   "name": "Dock gate",
+   "kind": "building",
+   "glb": "dock_gate.glb",
+   "pieces": "dock_gate.pieces.json",
+   "bounds_m": {
+    "lo": [
+     336,
+     0,
+     0
+    ],
+    "hi": [
+     384,
+     16.5,
+     4
+    ]
+   },
+   "triangles": {
+    "LOD0": 216,
+    "LOD1": 216,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 18,
+   "surfaces": [
+    "ribbed"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "goliath_crane",
+   "name": "Goliath crane",
+   "kind": "machine",
+   "glb": "goliath_crane.glb",
+   "pieces": "goliath_crane.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -38,
+     0,
+     -10
+    ],
+    "hi": [
+     38,
+     65,
+     10
+    ]
+   },
+   "triangles": {
+    "LOD0": 1068,
+    "LOD1": 1068,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 89,
+   "surfaces": [
+    "paint",
+    "ribbed"
+   ],
+   "signs": [],
+   "max_side_steps": 40
+  },
+  {
+   "id": "shipyard_shop",
+   "name": "Shipyard shop",
+   "kind": "building",
+   "glb": "shipyard_shop.glb",
+   "pieces": "shipyard_shop.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -55.05,
+     -0.3,
+     -35.35
+    ],
+    "hi": [
+     55.05,
+     19.03,
+     35.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 16080,
+    "LOD1": 12456,
+    "LOD2": 10,
+    "FURN": 4488,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1302,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_9",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_9.glb",
+   "pieces": "fenders_and_bollards_9.pieces.json",
+   "bounds_m": {
+    "lo": [
+     444.8,
+     0,
+     218.467
+    ],
+    "hi": [
+     447.2,
+     4.8,
+     220.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 48,
+    "LOD1": 48,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 2,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_10",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_10.glb",
+   "pieces": "fenders_and_bollards_10.pieces.json",
+   "bounds_m": {
+    "lo": [
+     439.2,
+     0,
+     4.8
+    ],
+    "hi": [
+     441.55,
+     4.8,
+     211.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 540,
+    "LOD1": 540,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 27,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_11",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_11.glb",
+   "pieces": "fenders_and_bollards_11.pieces.json",
+   "bounds_m": {
+    "lo": [
+     453.45,
+     0,
+     4.8
+    ],
+    "hi": [
+     455.8,
+     4.8,
+     211.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 540,
+    "LOD1": 540,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 27,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "pontoon",
+   "name": "Pontoon",
+   "kind": "building",
+   "glb": "pontoon.glb",
+   "pieces": "pontoon.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -9,
+     -0.6,
+     0
+    ],
+    "hi": [
+     9,
+     0.45,
+     140
+    ]
+   },
+   "triangles": {
+    "LOD0": 768,
+    "LOD1": 768,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 64,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fishing_boat",
+   "name": "fishing_boat",
+   "kind": "ship",
+   "glb": "fishing_boat.glb",
+   "pieces": "fishing_boat.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -3.2,
+     0,
+     -11
+    ],
+    "hi": [
+     3.2,
+     12.4,
+     11.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 2300,
+    "LOD1": 1940,
+    "LOD2": 10,
+    "FURN": 432,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 158,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 2.8
+  },
+  {
+   "id": "launch",
+   "name": "launch",
+   "kind": "ship",
+   "glb": "launch.glb",
+   "pieces": "launch.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1.3,
+     0,
+     -4
+    ],
+    "hi": [
+     1.3,
+     3.7,
+     4.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 2136,
+    "LOD1": 1752,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 137,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "plaster",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 0.8
+  },
+  {
+   "id": "fish_market",
+   "name": "Fish market",
+   "kind": "building",
+   "glb": "fish_market.glb",
+   "pieces": "fish_market.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -45.05,
+     -0.3,
+     -25.35
+    ],
+    "hi": [
+     45.05,
+     9.03,
+     25.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 10212,
+    "LOD1": 8124,
+    "LOD2": 10,
+    "FURN": 31824,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1134,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_12",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_12.glb",
+   "pieces": "fenders_and_bollards_12.pieces.json",
+   "bounds_m": {
+    "lo": [
+     744.8,
+     0,
+     98.467
+    ],
+    "hi": [
+     831.2,
+     4.8,
+     100.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 240,
+    "LOD1": 240,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 12,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_13",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_13.glb",
+   "pieces": "fenders_and_bollards_13.pieces.json",
+   "bounds_m": {
+    "lo": [
+     739.2,
+     0,
+     4.8
+    ],
+    "hi": [
+     741.55,
+     4.8,
+     91.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 240,
+    "LOD1": 240,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 12,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "gunboat",
+   "name": "gunboat",
+   "kind": "ship",
+   "glb": "gunboat.glb",
+   "pieces": "gunboat.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -3.2,
+     0,
+     -15
+    ],
+    "hi": [
+     3.2,
+     12.4,
+     15.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 2728,
+    "LOD1": 2272,
+    "LOD2": 10,
+    "FURN": 72,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 175,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 1.8
+  },
+  {
+   "id": "coast_guard_boathouse",
+   "name": "Coast guard boathouse",
+   "kind": "building",
+   "glb": "coast_guard_boathouse.glb",
+   "pieces": "coast_guard_boathouse.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -30.05,
+     -0.3,
+     -25.35
+    ],
+    "hi": [
+     30.05,
+     13.03,
+     25.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 7308,
+    "LOD1": 5940,
+    "LOD2": 10,
+    "FURN": 780,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 529,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "warehouse",
+   "name": "Warehouse",
+   "kind": "building",
+   "glb": "warehouse.glb",
+   "pieces": "warehouse.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -45.05,
+     -0.3,
+     -25.35
+    ],
+    "hi": [
+     45.05,
+     13.03,
+     25.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 10212,
+    "LOD1": 8124,
+    "LOD2": 10,
+    "FURN": 48300,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1028,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "customs_house",
+   "name": "Customs house",
+   "kind": "building",
+   "glb": "customs_house.glb",
+   "pieces": "customs_house.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -25.06,
+     -0.3,
+     -20.06
+    ],
+    "hi": [
+     25.06,
+     11.03,
+     20.085
+    ]
+   },
+   "triangles": {
+    "LOD0": 17246,
+    "LOD1": 12516,
+    "LOD2": 10,
+    "FURN": 22044,
+    "leaves": 48
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1524,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "floorTile",
+    "glass",
+    "paint",
+    "plaster",
+    "roofing",
+    "sign:CUSTOMS|#1d4f8f|#ffffff|0",
+    "trim"
+   ],
+   "signs": [
+    "CUSTOMS"
+   ],
+   "max_side_steps": 3
+  }
+ ],
+ "placements": [
+  {
+   "kit": "crown_wall",
+   "x": 0,
+   "z": 0,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "crown_wall_2",
+   "x": 0,
+   "z": 0,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "crown_wall_3",
+   "x": 0,
+   "z": 0,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "crown_wall_4",
+   "x": 0,
+   "z": 0,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "breakwater_light_red",
+   "x": 330,
+   "z": 650,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "breakwater_light_green",
+   "x": 520,
+   "z": 650,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "buoy",
+   "x": 365,
+   "z": 800,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy_2",
+   "x": 485,
+   "z": 800,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy",
+   "x": 365,
+   "z": 1100,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy_2",
+   "x": 485,
+   "z": 1100,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy",
+   "x": 365,
+   "z": 1400,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy_2",
+   "x": 485,
+   "z": 1400,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy",
+   "x": 365,
+   "z": 1700,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy_2",
+   "x": 485,
+   "z": 1700,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "leading_light",
+   "x": 425,
+   "z": -60,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "leading_light_2",
+   "x": 425,
+   "z": -260,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "fenders_and_bollards",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_2",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_3",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "container_stack",
+   "x": -890,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_2",
+   "x": -890,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_3",
+   "x": -890,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_4",
+   "x": -798,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_5",
+   "x": -798,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_6",
+   "x": -798,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_7",
+   "x": -706,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_8",
+   "x": -706,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_9",
+   "x": -706,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_10",
+   "x": -614,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_11",
+   "x": -614,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_12",
+   "x": -614,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_13",
+   "x": -522,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_14",
+   "x": -522,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_15",
+   "x": -522,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "straddle_carrier",
+   "x": -840,
+   "z": 116,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "straddle_carrier",
+   "x": -700,
+   "z": 116,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "straddle_carrier",
+   "x": -560,
+   "z": 116,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "container_gantry",
+   "x": -760,
+   "z": 128,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "container_gantry",
+   "x": -660,
+   "z": 128,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "container_gantry",
+   "x": -560,
+   "z": 128,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "freighter",
+   "x": -660,
+   "z": 170,
+   "base": -7,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fenders_and_bollards_4",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_5",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_6",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "transit_shed",
+   "x": -320,
+   "z": 150,
+   "base": 2.5,
+   "turn": 1
+  },
+  {
+   "kit": "luffing_crane",
+   "x": -350,
+   "z": 90,
+   "base": 2.5,
+   "turn": 1
+  },
+  {
+   "kit": "luffing_crane",
+   "x": -290,
+   "z": 90,
+   "base": 2.5,
+   "turn": 3
+  },
+  {
+   "kit": "luffing_crane",
+   "x": -350,
+   "z": 200,
+   "base": 2.5,
+   "turn": 1
+  },
+  {
+   "kit": "luffing_crane",
+   "x": -290,
+   "z": 200,
+   "base": 2.5,
+   "turn": 3
+  },
+  {
+   "kit": "freighter",
+   "x": -370,
+   "z": 160,
+   "base": -7,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "freighter",
+   "x": -270,
+   "z": 170,
+   "base": -7,
+   "turn": 2,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fenders_and_bollards_7",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "ferry_terminal",
+   "x": -150,
+   "z": 24,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "marshalled_cars",
+   "x": 0,
+   "z": 0,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "linkspan",
+   "x": 0,
+   "z": 0,
+   "base": -14,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "ferry",
+   "x": -120,
+   "z": 160,
+   "base": -3.2,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fenders_and_bollards_8",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "harbour_office",
+   "x": 18,
+   "z": 26,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "port_control_tower",
+   "x": 78,
+   "z": 38,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "pilot_station",
+   "x": 104,
+   "z": 66,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "tug",
+   "x": 20,
+   "z": 116,
+   "base": -3.5,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "tug",
+   "x": 70,
+   "z": 116,
+   "base": -3.5,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "tanker_jetty",
+   "x": 0,
+   "z": 0,
+   "base": -14,
+   "turn": 0
+  },
+  {
+   "kit": "loading_arms",
+   "x": 0,
+   "z": 0,
+   "base": 5.5,
+   "turn": 0
+  },
+  {
+   "kit": "jetty_control_house",
+   "x": 158,
+   "z": 427,
+   "base": 5.5,
+   "turn": 0
+  },
+  {
+   "kit": "tanker",
+   "x": 200,
+   "z": 454,
+   "base": -9,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "oil_tank",
+   "x": 150,
+   "z": -230,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 210,
+   "z": -230,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 270,
+   "z": -230,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 150,
+   "z": -150,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 210,
+   "z": -150,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 270,
+   "z": -150,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "bund_walls",
+   "x": 0,
+   "z": 0,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "keel_blocks",
+   "x": 0,
+   "z": 0,
+   "base": -11,
+   "turn": 0
+  },
+  {
+   "kit": "dock_gate",
+   "x": 0,
+   "z": 0,
+   "base": -14,
+   "turn": 0
+  },
+  {
+   "kit": "freighter",
+   "x": 360,
+   "z": -100,
+   "base": -9.5,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "goliath_crane",
+   "x": 360,
+   "z": -110,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "shipyard_shop",
+   "x": 435,
+   "z": -205,
+   "base": 2.5,
+   "turn": 1
+  },
+  {
+   "kit": "fenders_and_bollards_9",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_10",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_11",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "pontoon",
+   "x": 500,
+   "z": 10,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "pontoon",
+   "x": 560,
+   "z": 10,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "pontoon",
+   "x": 620,
+   "z": 10,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "fishing_boat",
+   "x": 530,
+   "z": 40,
+   "base": -2.8,
+   "turn": 2,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fishing_boat",
+   "x": 530,
+   "z": 96,
+   "base": -2.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fishing_boat",
+   "x": 590,
+   "z": 68,
+   "base": -2.8,
+   "turn": 2,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fishing_boat",
+   "x": 650,
+   "z": 40,
+   "base": -2.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "launch",
+   "x": 511,
+   "z": 30,
+   "base": -0.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "launch",
+   "x": 571,
+   "z": 120,
+   "base": -0.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "launch",
+   "x": 631,
+   "z": 100,
+   "base": -0.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fish_market",
+   "x": 515,
+   "z": -45,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "fenders_and_bollards_12",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_13",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "gunboat",
+   "x": 790,
+   "z": 106,
+   "base": -1.8,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "coast_guard_boathouse",
+   "x": 790,
+   "z": 45,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "gunboat",
+   "x": 870,
+   "z": 140,
+   "base": -1.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "warehouse",
+   "x": -815,
+   "z": -205,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "warehouse",
+   "x": -695,
+   "z": -205,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "warehouse",
+   "x": -575,
+   "z": -205,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "customs_house",
+   "x": -35,
+   "z": -140,
+   "base": 2.5,
+   "turn": 0
+  }
+ ],
+ "ground": {
+  "glb": "ground.glb",
+  "surfaces": [
+   "asphalt",
+   "ballast",
+   "crown",
+   "quay",
+   "rail",
+   "road",
+   "rock",
+   "white",
+   "yard",
+   "yellow"
+  ],
+  "solids": [
+   {
+    "material": "quay",
+    "lo": [
+     -900,
+     -14,
+     0
+    ],
+    "hi": [
+     -420,
+     2.5,
+     160
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     -360,
+     -14,
+     0
+    ],
+    "hi": [
+     -280,
+     2.5,
+     300
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     -200,
+     -14,
+     0
+    ],
+    "hi": [
+     -40,
+     2.5,
+     120
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     -40,
+     -14,
+     0
+    ],
+    "hi": [
+     120,
+     2.5,
+     100
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     340,
+     -14,
+     -200
+    ],
+    "hi": [
+     380,
+     -11,
+     0
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     340,
+     -11,
+     -200
+    ],
+    "hi": [
+     340.4,
+     2.5,
+     0
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     379.6,
+     -11,
+     -200
+    ],
+    "hi": [
+     380,
+     2.5,
+     0
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     340.4,
+     -11,
+     -200
+    ],
+    "hi": [
+     379.6,
+     2.5,
+     -199.6
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     440,
+     -14,
+     0
+    ],
+    "hi": [
+     455,
+     2.5,
+     220
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     665,
+     -4.994,
+     -12.105
+    ],
+    "hi": [
+     685,
+     2.494,
+     40.105
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     740,
+     -14,
+     0
+    ],
+    "hi": [
+     840,
+     2.5,
+     100
+    ]
+   },
+   {
+    "material": "crown",
+    "lo": [
+     840,
+     -7.992,
+     -0.124
+    ],
+    "hi": [
+     900,
+     2.492,
+     68.124
+    ]
+   },
+   {
+    "material": "yellow",
+    "lo": [
+     838.4,
+     -5.995,
+     -0.074
+    ],
+    "hi": [
+     839.6,
+     3.695,
+     68.074
+    ]
+   },
+   {
+    "material": "yellow",
+    "lo": [
+     900.4,
+     -5.995,
+     -0.074
+    ],
+    "hi": [
+     901.6,
+     3.695,
+     68.074
+    ]
+   }
+  ],
+  "materials": {
+   "rock": {
+    "colour": [
+     0.159,
+     0.144,
+     0.122
+    ],
+    "roughness": 1,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "quay": {
+    "colour": [
+     0.323,
+     0.309,
+     0.27
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "yellow": {
+    "colour": [
+     0.888,
+     0.527,
+     0.023
+    ],
+    "roughness": 0.7,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "yard": {
+    "colour": [
+     0.15,
+     0.144,
+     0.127
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "ballast": {
+    "colour": [
+     0.102,
+     0.084,
+     0.065
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rail": {
+    "colour": [
+     0.262,
+     0.262,
+     0.262
+    ],
+    "roughness": 0.4,
+    "metallic": 0.6,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "white": {
+    "colour": [
+     0.807,
+     0.807,
+     0.761
+    ],
+    "roughness": 0.7,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "crown": {
+    "colour": [
+     0.386,
+     0.371,
+     0.328
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "road": {
+    "colour": [
+     0.03,
+     0.03,
+     0.03
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "asphalt": {
+    "colour": [
+     0.024,
+     0.024,
+     0.024
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "bounds_m": {
+  "lo": [
+   -1005.5,
+   0,
+   -280
+  ],
+  "hi": [
+   1005.5,
+   0,
+   1701.5
+  ]
+ }
+}
