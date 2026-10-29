@@ -7,7 +7,11 @@
 use super::lanes::{End, Route};
 use super::{BoatSpec, FightConfig, Sea, SteerConfig, TrafficConfig, ahead, heading_of, wrap};
 use crate::units::armour_hit;
-use glam::Vec2;
+use crate::world::small_buildings::{Breakable, Broken, HouseState, Kit};
+use glam::{Affine3A, Quat, Vec2, Vec3};
+
+/// The `building` a traffic boat's chunks carry: this plus its id (above every house's, `HOUSE_CHUNK_BASE`).
+pub const BOAT_CHUNK_BASE: u32 = 3 << 29;
 
 /// A boat sounds the water ahead this often, seconds (each sounding is a few ground samples).
 pub const PROBE_EVERY_S: f32 = 0.5;
@@ -129,6 +133,9 @@ pub struct Boat {
     pub helm: Helm,
     /// The water's surface under it (the sea's, or its lake's), metres; sounded with the helm.
     pub surface_m: f32,
+    /// Its kit's pieces as the fight has left them, when its kind is drawn from a ship kit (the seaport's; none until
+    /// it is first broken or sunk): the same state, breakage and sinking as a ship at the seaport's quays.
+    pub pieces: Option<HouseState>,
 }
 
 /// Another boat, as a boat steering sees it.
@@ -198,6 +205,7 @@ impl Boat {
                 ..Helm::default()
             },
             surface_m: 0.0,
+            pieces: None,
         }
     }
 
@@ -236,6 +244,19 @@ impl Boat {
         false
     }
 
+    /// Takes a hit to a boat whose hull decides when it sinks (its kind's `sink_hull_share` above 0, drawn from its
+    /// kit): its hit points fall by the vehicles' rule and stop at none, and it sails on until its hull is holed enough.
+    /// True when it did damage.
+    pub fn hit_hull(&mut self, penetration_mm: f32, damage: f32, spec: &BoatSpec) -> bool {
+        if !self.afloat() {
+            return false;
+        }
+        let before = self.hp;
+        armour_hit(&mut self.hp, penetration_mm, damage, spec.armour_mm);
+        self.hp = self.hp.max(0.0);
+        self.hp < before
+    }
+
     /// Swamped or holed past saving: it sinks now. False when it was not afloat.
     pub fn founder(&mut self) -> bool {
         if !self.afloat() {
@@ -244,6 +265,62 @@ impl Boat {
         self.hp = 0.0;
         self.phase = Phase::Sinking { t_s: 0.0 };
         true
+    }
+
+    /// Its kit's frame in the world, under way: the kit's waterline on the water's surface at its position, the kit's
+    /// bow (its -z) along its heading. A sinking kit's own motion goes on top (`Breakable::pose_now`).
+    pub fn kit_pose(&self, kit: &Kit) -> Affine3A {
+        let w = kit.waterline_m.unwrap_or(0.0);
+        Affine3A::from_rotation_translation(
+            Quat::from_rotation_y(self.heading_rad),
+            Vec3::new(self.pos.x, self.surface_m - w, self.pos.y),
+        )
+    }
+
+    /// It as a breakable kit: the one implementation of breaking, settling and sinking (`small_buildings::damage`).
+    pub fn breakable<'a>(&self, kit: &'a Kit) -> Breakable<'a> {
+        Breakable {
+            kit,
+            pose: self.kit_pose(kit),
+            parity: self.id,
+            building: BOAT_CHUNK_BASE + self.id,
+            sizes: Default::default(),
+        }
+    }
+
+    /// Breaks its kit's standing pieces within `radius_m` of world point `centre` (afloat or going down, as a ship at
+    /// the quays is); holed at its waterline it founders and goes down whole. What came down, for the debris.
+    pub fn break_sphere(&mut self, kit: &Kit, centre: Vec3, radius_m: f32) -> Broken {
+        if matches!(self.phase, Phase::Gone) {
+            return Broken::default();
+        }
+        let br = self.breakable(kit);
+        let out = br.break_sphere(&mut self.pieces, centre, radius_m);
+        if self.pieces.as_ref().is_some_and(|s| s.sinking.is_some()) {
+            self.founder();
+        }
+        out
+    }
+
+    /// One fixed step of its kit while it goes down over a seabed at `floor_m` (the seaport ships' sinking): a boat
+    /// sunk by its hit points or swamped starts its kit down whole; once the kit is under the seabed the boat is gone.
+    /// Nothing for a boat afloat.
+    pub fn step_kit(&mut self, kit: &Kit, floor_m: f32, dt_s: f32) {
+        if !matches!(self.phase, Phase::Sinking { .. } | Phase::Sunk { .. }) {
+            return;
+        }
+        let br = self.breakable(kit);
+        br.sink(&mut self.pieces);
+        let Some(state) = self.pieces.as_mut() else { return };
+        br.step_sinking(state, floor_m, dt_s);
+        if state.alive.iter().all(|a| !a) {
+            self.phase = Phase::Gone;
+        }
+    }
+
+    /// True while its kit, not its kind's `sink_s`, decides when it is down.
+    fn kit_sinking(&self) -> bool {
+        self.pieces.as_ref().is_some_and(|s| s.sinking.is_some())
     }
 
     /// Something to run from at `from`: a boat under way, working or at anchor flees for `flee_s`; a moored one
@@ -302,7 +379,7 @@ impl Boat {
                 let t = t_s + dt_s;
                 self.speed_m_s = (self.speed_m_s - spec.accel_m_s2 * 3.0 * dt_s).max(0.0);
                 self.pos += ahead(self.heading_rad) * self.speed_m_s * dt_s;
-                if t >= spec.sink_s {
+                if t >= spec.sink_s && !self.kit_sinking() {
                     self.phase = Phase::Sunk { t_s: 0.0 };
                     out.sank = true;
                 } else {

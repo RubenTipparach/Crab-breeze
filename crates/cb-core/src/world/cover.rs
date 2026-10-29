@@ -86,6 +86,8 @@ impl WorldPlan {
             {
                 Cover::Bare
             }
+            // So is the airport's and the seaport's: their pages draw no tree, rock or grass inside their pads.
+            None if self.sites.iter().any(|s| s.footprint().distance(p) <= clear.city_m) => Cover::Bare,
             None => Cover::Open,
         };
         if cover == Cover::Bare {

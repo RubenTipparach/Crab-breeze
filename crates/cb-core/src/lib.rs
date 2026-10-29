@@ -30,6 +30,7 @@ pub mod mech;
 pub mod mfd_focus;
 pub mod mission;
 pub mod missions;
+pub mod night_light;
 pub mod people_vat;
 pub mod perf;
 pub mod pilot;
@@ -91,6 +92,8 @@ pub struct GameData {
     pub ground_marks: ground_marks::GroundMarksConfig,
     /// `data/fx/battle_fx.ron`.
     pub battle_fx: battle_fx::BattleFxConfig,
+    /// The melee moves and gun recoil, `data/combat/melee_moves.ron` (close-combat 2.4, 2.5).
+    pub melee_moves: mech::MeleeMoves,
     /// `data/world/sun_flare.ron`.
     pub sun: sun_flare::SunLook,
     /// `data/world/units.ron`.
@@ -120,10 +123,36 @@ impl GameData {
         let mut world: world::WorldConfig = data::load_ron(&root.join("world/world.ron"))?;
         // The houses' and small businesses' kits, read from the exported assets beside `data/`.
         let kits_dir = root.join("../assets/models/small_buildings");
-        world.small_kits = std::sync::Arc::new(world::small_buildings::Kits::load(&kits_dir).map_err(|reason| data::DataError {
+        let mut kits = world::small_buildings::Kits::load(&kits_dir).map_err(|reason| data::DataError {
             path: kits_dir.join("manifest.json"),
             reason,
-        })?);
+        })?;
+        // The airport's and the seaport's kits and layouts (airport-layout, seaport-layout), beside the houses'.
+        let sites_dir = root.join("../assets/models/sites");
+        world.site_templates = world::sites::SiteTemplates::load(&sites_dir, &mut kits).map_err(|reason| data::DataError {
+            path: sites_dir.clone(),
+            reason,
+        })?;
+        // The boats' kinds, read here so each ship kit takes its kind's hull share before the kits are shared.
+        let ships_path = root.join("world/ships.ron");
+        let ships: ships::ShipsConfig = data::load_ron(&ships_path)?;
+        for k in kits.kits.iter_mut().filter(|k| k.kind == world::small_buildings::kit::Kind::Ship) {
+            if let Some(spec) = ships.kinds.get(&k.id) {
+                k.sink_share = spec.sink_hull_share;
+            }
+        }
+        world.small_kits = std::sync::Arc::new(kits);
+        // The aircraft the airport parks at its stands are the civil traffic's kinds.
+        let air_path = root.join("world/air_traffic.ron");
+        let air_traffic: air_traffic::AirTrafficConfig = data::load_ron(&air_path)?;
+        for t in [&world.site_templates.airport, &world.site_templates.seaport].into_iter().flatten() {
+            if let Some(a) = t.parked.iter().find(|a| !air_traffic.kinds.contains_key(&a.kind)) {
+                return Err(data::DataError {
+                    path: sites_dir.clone(),
+                    reason: format!("{} parks a `{}`, which is not a kind in {}", t.folder, a.kind, air_path.display()),
+                });
+            }
+        }
         let audio = audio::AudioData {
             cues: data::load_ron(&root.join("audio/cues.ron"))?,
             music: data::load_ron(&root.join("audio/music.ron"))?,
@@ -174,8 +203,6 @@ impl GameData {
         grass
             .validate_with(&world)
             .map_err(|reason| data::DataError { path: grass_path, reason })?;
-        let ships_path = root.join("world/ships.ron");
-        let ships: ships::ShipsConfig = data::load_ron(&ships_path)?;
         let units: units::UnitsConfig = data::load_ron(&root.join("world/units.ron"))?;
         // The gunboat is a vehicle in a fight and a boat when it sinks: one size in both files.
         if let (Some(u), Some(b)) = (units.units.get(ships::GUNBOAT), ships.kinds.get(ships::GUNBOAT))
@@ -207,9 +234,10 @@ impl GameData {
             grass,
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
             battle_fx: data::load_ron(&root.join("fx/battle_fx.ron"))?,
+            melee_moves: data::load_ron(&root.join("combat/melee_moves.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units,
-            air_traffic: data::load_ron(&root.join("world/air_traffic.ron"))?,
+            air_traffic,
             skins,
             fortress,
             missions: data::load_ron(&root.join("missions/mail.ron"))?,
@@ -348,6 +376,22 @@ mod tests {
                 (m.file, cfg)
             })
             .collect()
+    }
+
+    /// A roster mech's stance breaks in 2, 3 or 4 blows by its class (close-combat 2b; owner, 2026-10-29: "2,3,4
+    /// light mech, mid, heavy"): the light Picket and Ironhorse in 2, the heavy Foreman, Sapper and Mule in 4.
+    #[test]
+    fn light_mechs_fall_in_two_blows_mid_in_three_and_heavy_in_four() {
+        let mechs = roster_configs();
+        assert_eq!(mechs.len(), 8);
+        for (file, cfg) in &mechs {
+            let want = match file.trim_start_matches("mechs/").trim_end_matches(".ron") {
+                "picket" | "ironhorse" => 2.0,
+                "foreman" | "sapper" | "mule" => 4.0,
+                _ => 3.0,
+            };
+            assert_eq!(cfg.melee.stance_break_at, want, "{file}");
+        }
     }
 
     /// Every roster mech has rockets and skates, each with stats of its own (survey C15, owner, 2026-10-26: "every

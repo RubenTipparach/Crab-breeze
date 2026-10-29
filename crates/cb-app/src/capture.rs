@@ -940,7 +940,160 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_game_systems(Update, (run_fx_script, run_depth_bench));
+        .add_game_systems(Update, (run_fx_script, run_depth_bench, run_tower_corner, run_site_tour));
+    }
+}
+
+/// The site tour (`CB_STILLS_FX=base` or `=harbour`, owner, 2026-10-28: "We should also improve airports. They don't
+/// look much like airports"): the eye is carried round the air base or harbour nearest the pilot's mech and looks at
+/// it from four sides high up (`site-high-<n>.png`, 260 m out and 90 m up) and two at head height (`site-low-<n>.png`,
+/// 70 m out), dwelling 6 s at each so the place streams in first. A measurement instrument: it writes the stills and
+/// exits.
+#[allow(clippy::too_many_arguments)]
+fn run_site_tour(
+    mut commands: Commands,
+    script: Res<FxScript>,
+    mut pilot: ResMut<PilotSim>,
+    access: Res<MechAccessNow>,
+    time: Res<Time>,
+    plan: Res<crate::world::Plan>,
+    boats: Option<Res<crate::boats::Boats>>,
+    mut exit: MessageWriter<AppExit>,
+    mut state: Local<Option<(f32, Vec3, Vec2, Vec<String>)>>,
+) {
+    use cb_core::world::Ground;
+    if script.beat != usize::MAX - 2 {
+        return;
+    }
+    let now = time.elapsed_secs();
+    let Some(home) = access.0.map(|a| a.ladder_base.xz()) else { return };
+    if state.is_none() {
+        let harbour = std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "harbour");
+        // The site's centre, and the way it faces (from the land toward the water for a harbour, along the runway for
+        // a base).
+        let site = if harbour {
+            boats.as_ref().and_then(|b| {
+                b.traffic
+                    .harbours
+                    .iter()
+                    .min_by(|a, b| a.shore.distance(home).total_cmp(&b.shore.distance(home)))
+                    .map(|h| (h.shore, (h.out).normalize_or(Vec2::X)))
+            })
+        } else {
+            plan.bases
+                .iter()
+                .min_by(|a, b| a.centre.distance(home).total_cmp(&b.centre.distance(home)))
+                .map(|b| (b.centre, (b.runway.b - b.runway.a).normalize_or(Vec2::X)))
+        };
+        let Some((c, facing)) = site else {
+            eprintln!("site tour: no site");
+            exit.write(AppExit::error());
+            return;
+        };
+        info!("site tour: {} at {c:?}", if harbour { "harbour" } else { "base" });
+        *state = Some((now, Vec3::new(c.x, plan.height_at(c.x, c.y), c.y), facing, Vec::new()));
+    }
+    let Some((start_s, centre, facing, done)) = state.as_mut() else {
+        return;
+    };
+    let t = now - *start_s;
+    const DWELL_S: f32 = 6.0;
+    let k = (t / DWELL_S) as usize;
+    let side = Vec2::new(-facing.y, facing.x);
+    let views: [(Vec2, f32, &str); 6] = [
+        (-*facing, 90.0, "site-high-1"),
+        (side, 90.0, "site-high-2"),
+        (*facing, 90.0, "site-high-3"),
+        (-side, 90.0, "site-high-4"),
+        ((-*facing + side).normalize(), 0.0, "site-low-1"),
+        ((*facing - side).normalize(), 0.0, "site-low-2"),
+    ];
+    let Some(&(dir, up, name)) = views.get(k) else {
+        exit.write(AppExit::Success);
+        return;
+    };
+    let out = if up > 0.0 { 260.0 } else { 70.0 };
+    let p = centre.xz() + dir * out;
+    let ground = plan.height_at(p.x, p.y);
+    let feet = Vec3::new(p.x, ground + up, p.y);
+    stand_looking(&mut pilot, feet, *centre + Vec3::Y * if up > 0.0 { 0.0 } else { 8.0 });
+    if t - k as f32 * DWELL_S > DWELL_S - 1.0 && !done.iter().any(|d| d == name) {
+        done.push(name.to_string());
+        shoot(&mut commands, &script.dir, &format!("{name}.png"));
+    }
+}
+
+/// The tower corner stills (`CB_STILLS_FX=tower`, owner, 2026-10-28: "Glass towers aren't joining at the
+/// corners", "screenshots of fix"): the pilot stands on the ground off a corner of the glass tower (15
+/// storeys and up) nearest their mech, on the diagonal, and looks up the corner from three distances:
+/// `tower-near.png` (12 m), `tower-mid.png` (25 m), `tower-far.png` (60 m). A measurement instrument: it
+/// writes the stills and exits.
+fn run_tower_corner(
+    mut commands: Commands,
+    script: Res<FxScript>,
+    mut pilot: ResMut<PilotSim>,
+    access: Res<MechAccessNow>,
+    time: Res<Time>,
+    plan: Res<crate::world::Plan>,
+    mut exit: MessageWriter<AppExit>,
+    mut state: Local<Option<(f32, Vec3, Vec2, Vec<&'static str>)>>,
+) {
+    use cb_core::world::Ground;
+    if script.beat != usize::MAX - 1 {
+        return;
+    }
+    let now = time.elapsed_secs();
+    let Some(home) = access.0.map(|a| a.ladder_base) else { return };
+    if state.is_none() {
+        let clear = |p: Vec2| plan.collision.push_out_at(p, 2.0, plan.height_at(p.x, p.y)).distance(p) < 1e-3;
+        let mut towers: Vec<_> = plan.buildings.iter().filter(|b| b.storeys >= 15).collect();
+        towers.sort_by(|a, b| {
+            let d = |r: &cb_core::world::Building| r.footprint.min.distance(home.xz());
+            d(a).total_cmp(&d(b)).then(a.id.cmp(&b.id))
+        });
+        for b in towers {
+            let (lo, hi) = (b.footprint.min, b.footprint.max);
+            for c in [lo, Vec2::new(hi.x, lo.y), Vec2::new(lo.x, hi.y), hi] {
+                let out = (c - (lo + hi) * 0.5).signum() * std::f32::consts::FRAC_1_SQRT_2;
+                if [12.0, 25.0, 60.0].iter().all(|m| clear(c + out * *m)) {
+                    info!("tower corner: building {} ({} storeys) corner {c:?}", b.id, b.storeys);
+                    *state = Some((now, Vec3::new(c.x, plan.height_at(c.x, c.y), c.y), out, Vec::new()));
+                    break;
+                }
+            }
+            if state.is_some() {
+                break;
+            }
+        }
+        if state.is_none() {
+            eprintln!("tower corner: no glass tower with an open corner");
+            exit.write(AppExit::error());
+            return;
+        }
+    }
+    let Some((start_s, corner, out, done)) = state.as_mut() else {
+        return;
+    };
+    let t = now - *start_s;
+    let shots = [
+        ("tower-near.png", 12.0, 0.0),
+        ("tower-mid.png", 25.0, 4.0),
+        ("tower-far.png", 60.0, 8.0),
+    ];
+    let Some(&(_, dist, _)) = shots.iter().rev().find(|s| t >= s.2) else {
+        return;
+    };
+    let p = corner.xz() + *out * dist;
+    let feet = Vec3::new(p.x, plan.height_at(p.x, p.y), p.y);
+    stand_looking(&mut pilot, feet, *corner + Vec3::Y * (6.0 + dist * 0.3));
+    for (name, _, at) in shots {
+        if t > at + 3.0 && !done.contains(&name) {
+            done.push(name);
+            shoot(&mut commands, &script.dir, name);
+        }
+    }
+    if t > 12.0 {
+        exit.write(AppExit::Success);
     }
 }
 
@@ -1136,6 +1289,16 @@ fn run_fx_script(
             // `CB_STILLS_FX=soil` stages the blasts on soil alone, with a still every half second.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
                 script.beat = 2;
+            }
+            // `CB_STILLS_FX=base` and `=harbour` tour the nearest air base or harbour (`run_site_tour`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "base" || v == "harbour") {
+                script.beat = usize::MAX - 2;
+                return;
+            }
+            // `CB_STILLS_FX=tower` looks at the corner of the nearest glass tower (`run_tower_corner`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "tower") {
+                script.beat = usize::MAX - 1;
+                return;
             }
             // `CB_STILLS_FX=depth` is the particle depth bench (`run_depth_bench`) alone.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "depth") {
@@ -1360,6 +1523,244 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // The house nearest the largest city, from 22 m off at eye height (night-voxel-light: its rooms at night), and
+    // from 300 m, where its far shell is drawn (its lit far windows).
+    View {
+        name: "house-near",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "house-far",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // The airport's gates and the seaport's container quay from their pages' own views (night-voxel-light section
+    // 2d: the masts at the jet bridges, the lit terminal, the runway dots; the yard's masts, the gantries, the ship).
+    View {
+        name: "airport-gates",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-terminals",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-container",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-fishing",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-overview",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-overview",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Inside Terminal 1 at standing eye height (owner, 2026-10-29: "Inside the airport"): down its hall, and out
+    // through its glass front at the gates.
+    View {
+        name: "airport-inside",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-inside-out",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Close on the seaport's ships and quays (owner, 2026-10-29: "No closeups of seaport or boats"): the container
+    // ship at its berth, the quay under the gantries at eye height, the ferry, the tugs, the trawlers, the tanker and
+    // the fish market, each a few tens of metres off.
+    View {
+        name: "seaport-ship",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-quay",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-ferry",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-tugs",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-trawlers",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-tanker",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-market",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Close on the seaport's buildings (owner, 2026-10-29: "I want to see seaport buildings and boats close up"):
+    // the harbour office and port control, the ferry terminal, the transit shed, customs, the warehouses, the coast
+    // guard boathouse and its gunboat, each from its quay at eye height or a little over.
+    View {
+        name: "seaport-office",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-ferry-terminal",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-transit-shed",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-customs",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-warehouses",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-coastguard",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-gunboat",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Interiors (owner, 2026-10-29: "get me shots inside the ships too", "and airport interiors as well"): Terminal 1
+    // upstairs, Terminal 2, the pier, the tower's foot and its cab; the container ship's mess and bridge, the ferry's
+    // lounge, the tug's and a trawler's wheelhouse, the tanker's mess. Eye height over each floor.
+    View {
+        name: "airport-upstairs",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-terminal-2",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-pier",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-tower-base",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-tower-cab",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "ship-mess",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "ship-bridge",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "ferry-lounge",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "tug-bridge",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "tanker-mess",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "trawler-wheelhouse",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Straight down on each site from 1,100 m, its whole footprint in frame, to lay beside its page's plan.
+    View {
+        name: "airport-plan",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-plan",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // A dune suburb from 900 m, where the ground is drawn at step 2: its streets lie on that ground
     // (lot-access task 2.3; seed 42's street that floated highest, 2.7 m, measured 2026-10-28).
     View {
@@ -1493,6 +1894,20 @@ const VIEWS: &[View] = &[
     // (`storm_ahead_view`).
     View {
         name: "storm-ahead",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // A rain shaft from the ground 5 km and 15 km off, looking at its middle (placed from the plan:
+    // `rain_view`; the shaft look the owner called "blocky, very transparent", 2026-10-28).
+    View {
+        name: "rain-near",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "rain-far",
         eye: [0.0, 0.0, 0.0],
         at: [0.0, 0.0, 0.0],
         above_ground: false,
@@ -1644,6 +2059,40 @@ fn storm_ahead_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
     )
 }
 
+/// A rain shaft seen from `off_m` away, 60 m over dry low ground (under 300 m) clear of cloud, with
+/// nothing on the line to the shaft's foot or its middle, looking at its middle: of every shaft
+/// (where the wind has carried it by `now_s`) and every bearing, the first such eye.
+fn rain_view(plan: &crate::world::Plan, now_s: f32, off_m: f32) -> ([f32; 3], [f32; 3]) {
+    use cb_core::world::Ground;
+    let drift = plan.clouds.drift(now_s);
+    let clear = |a: Vec3, b: Vec3| {
+        (1..64).all(|i| {
+            let p = a.lerp(b, i as f32 / 64.0);
+            plan.height_at(p.x, p.z) < p.y && plan.clouds.density_at(p, now_s) <= 0.0
+        })
+    };
+    for s in &plan.clouds.shafts {
+        let c = s.centre + drift;
+        for b in 0..32 {
+            let at = c + Vec2::from_angle(b as f32 * std::f32::consts::TAU / 32.0) * off_m;
+            let h = plan.height_at(at.x, at.y);
+            let eye = Vec3::new(at.x, h + 60.0, at.y);
+            let foot = Vec3::new(c.x, plan.height_at(c.x, c.y).max(0.0) + 40.0, c.y);
+            let middle = Vec3::new(c.x, s.top_m * 0.4, c.y);
+            if h > plan.waters.sea_level_m + 5.0
+                && h < 300.0
+                && plan.clouds.density_at(eye, now_s) <= 0.0
+                && clear(eye, foot)
+                && clear(eye, middle)
+            {
+                info!("rain view: shaft at {c} radius {:.0} m top {:.0} m from {eye}", s.radius_m, s.top_m);
+                return (eye.to_array(), [c.x, s.top_m * 0.4, c.y]);
+            }
+        }
+    }
+    ([0.0, 400.0, 0.0], [0.0, 0.0, 100.0])
+}
+
 /// Over open sea in the clear south-east, `up_m` up, looking toward the sun's bearing (`toward`)
 /// or away from it, at the sea 15 eye heights ahead (a few degrees down).
 fn sea_view(toward: bool, up_m: f32) -> ([f32; 3], [f32; 3]) {
@@ -1678,6 +2127,46 @@ fn city_view(plan: &crate::world::Plan, air: bool) -> ([f32; 3], [f32; 3]) {
     let ahead = start + along * 300.0;
     info!("city street: city {} from {start} along {along}", city.id);
     ([start.x, ground + 2.0, start.y], [ahead.x, ground + 8.0, ahead.y])
+}
+
+/// `off_m` off the house lot nearest the largest city's middle, at eye height (25 m up past 100 m, from the side away from the city), looking at its
+/// middle 3 m up: at 22 m its rooms and furniture are drawn (`small_buildings`, within 150 m), at 300 m its far shell.
+fn house_view(plan: &crate::world::Plan, off_m: f32) -> ([f32; 3], [f32; 3]) {
+    let c = plan
+        .cities
+        .iter()
+        .max_by(|a, b| a.half_size_m.total_cmp(&b.half_size_m))
+        .map_or(Vec2::ZERO, |c| c.centre);
+    let Some(lot) = plan
+        .small
+        .lots
+        .iter()
+        .min_by(|a, b| a.centre.distance(c).total_cmp(&b.centre.distance(c)).then(a.kit.cmp(&b.kit)))
+    else {
+        return ([c.x, 2.0, c.y], [c.x + 100.0, 2.0, c.y]);
+    };
+    // Near, from its front; far, from the side away from the city (the city's towers would stand between).
+    let front = if off_m > 100.0 {
+        (lot.centre - c).normalize_or(Vec2::X)
+    } else {
+        Vec2::new(lot.heading_rad.sin(), lot.heading_rad.cos())
+    };
+    let eye = lot.centre + front * off_m;
+    let ground = plan.terrain.height_at(eye.x, eye.y);
+    info!("house view: lot at {} kit {}", lot.centre, lot.kit);
+    let up = if off_m > 100.0 { 25.0 } else { 1.7 };
+    ([eye.x, ground + up, eye.y], [lot.centre.x, lot.ground_m + 3.0, lot.centre.y])
+}
+
+/// A view of the placed site of `kind` from `eye` to `at`, points of its frame as its page's views give them.
+fn site_view(plan: &crate::world::Plan, kind: cb_core::world::sites::SiteKind, eye: [f32; 3], at: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+    let Some(site) = plan.sites.iter().find(|s| s.template.kind == kind) else {
+        warn!("site view: no {kind:?} on this island");
+        return ([0.0, 100.0, 0.0], [100.0, 0.0, 100.0]);
+    };
+    let (e, a) = (site.point_to_world(Vec3::from(eye)), site.point_to_world(Vec3::from(at)));
+    info!("site view: {kind:?} at {}", site.origin);
+    (e.to_array(), a.to_array())
 }
 
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
@@ -1756,6 +2245,9 @@ struct WeatherScript {
     /// `CB_STILLS_OFFSCREEN=1`: the eye drawn into an offscreen image, so a locked screen or a window behind another
     /// does not save black.
     offscreen: Option<Handle<Image>>,
+    /// The current view's eye and target, placed once when its beat starts and held through its burst: a view
+    /// placed from the drifting sky moved as it drifted, and a clip jumped between bearings mid-burst.
+    placed: Option<(usize, [f32; 3], [f32; 3])>,
 }
 
 /// `CB_STILLS_OFFSCREEN=1`: the weather stills draw the pilot's eye and the cockpit pass offscreen (`draw_offscreen`).
@@ -1782,9 +2274,22 @@ impl Plugin for WeatherStillsPlugin {
             frames: 0,
             shots: Vec::new(),
             offscreen: None,
+            placed: None,
         })
         .add_after_world_spawn(offscreen_for_weather)
         .add_game_systems(Update, run_weather_script);
+        // `CB_STILLS_FRAME_S=<s>`: every frame advances the game's clock by exactly this, whatever it took to
+        // draw, so a burst is a clip at 1/s frames a second however slow the renderer (lavapipe draws about
+        // one a second; owner, 2026-10-28: "render about 2-3 seconds of it so I can see in motion").
+        if let Some(dt) = std::env::var("CB_STILLS_FRAME_S")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|v| v.is_finite() && *v > 0.0)
+        {
+            app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
+                dt,
+            )));
+        }
     }
 }
 
@@ -1810,7 +2315,8 @@ fn run_weather_script(
             script.beat += 1;
             return;
         }
-        let (v_eye, v_at) = match v.name {
+        let held = script.placed.filter(|p| p.0 == script.beat).map(|p| (p.1, p.2));
+        let (v_eye, v_at) = held.unwrap_or_else(|| match v.name {
             "river" => river_view(&plan),
             "river-steep" => steep_river_view(&plan, 700.0, 150.0, false),
             "river-steep-far" => steep_river_view(&plan, 3000.0, 400.0, false),
@@ -1819,7 +2325,219 @@ fn run_weather_script(
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
             "city-street" => city_view(&plan, false),
+            "house-near" => house_view(&plan, 22.0),
+            "house-far" => house_view(&plan, 300.0),
             "city-air" => city_view(&plan, true),
+            "airport-gates" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [160.0, 40.0, 300.0],
+                [160.0, 6.0, 420.0],
+            ),
+            "airport-terminals" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [150.0, 90.0, 120.0],
+                [380.0, 8.0, 400.0],
+            ),
+            "seaport-container" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-480.0, 80.0, 360.0],
+                [-660.0, 20.0, 100.0],
+            ),
+            "seaport-fishing" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [660.0, 45.0, 320.0],
+                [570.0, 0.0, 80.0],
+            ),
+            "airport-overview" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [-1500.0, 1300.0, 1700.0],
+                [0.0, 0.0, -100.0],
+            ),
+            "airport-inside" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [90.0, 1.85, 446.0],
+                [200.0, 2.4, 450.0],
+            ),
+            "airport-inside-out" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [150.0, 1.85, 452.0],
+                [150.0, 3.0, 400.0],
+            ),
+            "seaport-ship" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-630.0, 14.0, 215.0],
+                [-660.0, 8.0, 170.0],
+            ),
+            "seaport-quay" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-700.0, 4.3, 145.0],
+                [-640.0, 9.0, 175.0],
+            ),
+            "seaport-ferry" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-85.0, 12.0, 205.0],
+                [-120.0, 7.0, 160.0],
+            ),
+            "seaport-tugs" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [50.0, 7.0, 145.0],
+                [30.0, 4.0, 116.0],
+            ),
+            "seaport-trawlers" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [548.0, 5.0, 82.0],
+                [530.0, 3.0, 45.0],
+            ),
+            "seaport-tanker" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [240.0, 14.0, 500.0],
+                [200.0, 8.0, 454.0],
+            ),
+            "seaport-market" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [530.0, 14.0, 60.0],
+                [515.0, 5.0, -45.0],
+            ),
+            "seaport-office" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [45.0, 4.3, 72.0],
+                [20.0, 8.0, 26.0],
+            ),
+            "seaport-ferry-terminal" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-150.0, 4.3, 78.0],
+                [-150.0, 8.0, 24.0],
+            ),
+            "seaport-transit-shed" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-262.0, 9.0, 160.0],
+                [-320.0, 8.0, 150.0],
+            ),
+            "seaport-customs" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-35.0, 4.3, -92.0],
+                [-35.0, 7.0, -140.0],
+            ),
+            "seaport-warehouses" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-700.0, 4.3, -148.0],
+                [-715.0, 8.0, -205.0],
+            ),
+            "seaport-coastguard" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [790.0, 4.3, 98.0],
+                [790.0, 8.0, 45.0],
+            ),
+            "seaport-gunboat" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [818.0, 6.0, 136.0],
+                [790.0, 3.0, 106.0],
+            ),
+            "airport-upstairs" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [90.0, 8.85, 446.0],
+                [200.0, 9.4, 450.0],
+            ),
+            "airport-terminal-2" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [480.0, 1.85, 470.0],
+                [620.0, 2.4, 476.0],
+            ),
+            "airport-pier" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [565.0, 6.7, 410.0],
+                [555.0, 6.7, 290.0],
+            ),
+            "airport-tower-base" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [352.0, 1.85, 476.0],
+                [395.0, 2.0, 490.0],
+            ),
+            "airport-tower-cab" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [370.0, 56.9, 487.0],
+                [300.0, 48.0, 380.0],
+            ),
+            "ship-mess" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-616.0, 5.9, 165.0],
+                [-616.0, 5.8, 177.0],
+            ),
+            "ship-bridge" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-612.5, 10.9, 170.0],
+                [-660.0, 10.0, 170.0],
+            ),
+            "ferry-lounge" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-118.0, 5.0, 150.0],
+                [-120.0, 5.0, 178.0],
+            ),
+            "tug-bridge" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [19.5, 6.4, 116.0],
+                [40.0, 6.0, 116.0],
+            ),
+            "tanker-mess" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [262.0, 6.2, 448.0],
+                [256.0, 6.2, 462.0],
+            ),
+            "trawler-wheelhouse" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [530.0, 3.3, 41.5],
+                [530.0, 3.0, 52.0],
+            ),
+            "airport-plan" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [0.0, 1100.0, -99.0],
+                [0.0, 0.0, -100.0],
+            ),
+            "seaport-plan" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [0.0, 1100.0, 151.0],
+                [0.0, 0.0, 150.0],
+            ),
+            "seaport-overview" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-1500.0, 1250.0, 2000.0],
+                [0.0, 0.0, 150.0],
+            ),
             "suburb-far" => {
                 let at = Vec2::new(-6939.0, -3000.0);
                 let eye = at + Vec2::new(600.0, 600.0);
@@ -1834,8 +2552,11 @@ fn run_weather_script(
             "city-in-cloud" => city_in_cloud_view(&plan, now),
             "puff-pass" => puff_pass_view(&plan, now),
             "storm-ahead" => storm_ahead_view(&plan),
+            "rain-near" => rain_view(&plan, now, 5000.0),
+            "rain-far" => rain_view(&plan, now, 15000.0),
             _ => (v.eye, v.at),
-        };
+        });
+        script.placed = Some((script.beat, v_eye, v_at));
         let v = View {
             name: v.name,
             eye: v_eye,
@@ -1871,7 +2592,10 @@ fn run_weather_script(
         // `CB_STILLS_BURST=<n>`: n stills of the view on consecutive frames (`weather-<name>-<k>.png`), the
         // instrument for flicker between frames (a value that changes frame to frame shows as a difference).
         let burst: usize = std::env::var("CB_STILLS_BURST").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
-        if t > 8.0 && script.frames > 12 {
+        // `CB_STILLS_SETTLE_S=<s>`: seconds a view settles before its still (8 by default). Under the software
+        // renderer a pipeline compiled late leaves its meshes undrawn, the fog showing through where they are.
+        let settle_s: f32 = std::env::var("CB_STILLS_SETTLE_S").ok().and_then(|v| v.parse().ok()).unwrap_or(8.0);
+        if t > settle_s && script.frames > 12 {
             let k = script
                 .shots
                 .iter()

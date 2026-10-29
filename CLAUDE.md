@@ -198,7 +198,12 @@ Standing instruction in Pale Blue Dot and Star Crew, adopted here:
 2. Put the finding and the plan in `openspec/`: a proposal, a design and the spec deltas.
 3. Stop there.
 
-Editing source is a separate step, taken after the write-up exists and on a request to take it. A
+**A 3D mockup comes before game code** (owner, 2026-10-28: "Please make mockups before editing game code", "Mockups
+should b 3d in js"). Anything the player will see (a building, a site, a vehicle, a layout, an effect) is shown first as
+an orbitable three.js page at true scale with the yardsticks (`threejs-mockups`, `docs/mockups/`), published and linked
+to the owner. The game code waits until the owner has looked at it.
+
+Editing source is a separate step, taken after the write-up and its mockup exist and on a request to take it. A
 change argued in a document can be redirected for the cost of reading it; the same change argued
 in a diff has already been made.
 
@@ -401,7 +406,10 @@ The owner's first priority. The `playtest` and `obs-record` skills are the metho
 - **One game per device** (Mining Mike): no two games, and no build or benchmark beside a take.
 - **A desktop run is checked every five minutes** while it plays (Mining Mike: "this should be hard
   req for playtest runs on desktop"): screenshot, look, report in two or three lines, stop a run
-  that is stuck.
+  that is stuck. **So is a capture** (owner, 2026-10-28: "Gotta check that capture every 5 mins. You
+  waited too long"): a headless stills or gallery run in a cloud session is checked every five
+  minutes (stills written, frames reached, the log's last line), and one that has written nothing
+  by its first check is looked into then, not when it times out.
 - **Report each playtest** in `docs/playtests/<date>-<name>.md` with the commit, the machine, each
   beat's outcome, the Drive link and the contact sheet.
 - **Cloud sessions cannot record.** They render headless stills through lavapipe and say so.
@@ -510,6 +518,9 @@ Before claiming anything is done, run what applies:
 | `panel-textures` | Star Crew's textures skill: cockpit panels modelled in Blender and baked to PBR maps (section 10). |
 | `light-baking` | Star Crew's light baking: the cockpit's lamps, sky and occlusion baked into atlases (section 10). |
 | `music-authoring` | Tom Lander's music pipeline: motifs in notes, Strudel scores, multitrack MIDI, LMMS headless with real instruments (section 1). |
+| `combined-lowpoly-vehicle` | Game-ready vehicles (cars, trucks, aircraft, tracked) from blueprints in headless bpy: measured, gated and checked (section 10). |
+| `lowpoly-car-surface-shell` | A hero car body as an open shell with sharp crease loops and framed openings (section 10). |
+| `lowpoly-car-interior` | Vehicle cabins seen through the glass: dash, console, door cards, seats (section 10). |
 
 Provenance for every skill is in `.claude/skills/PROVENANCE.md`.
 

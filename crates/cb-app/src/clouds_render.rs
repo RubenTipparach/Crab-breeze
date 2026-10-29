@@ -40,7 +40,7 @@ use cb_core::world::Clouds;
 
 const SHADER: &str = "shaders/cloud.wesl";
 
-/// A puff: rx across, ry up, seed, unused. A shaft: radius, height, seed, unused. Cirrus: length,
+/// A puff: rx across, ry up, seed, unused. A shaft: radius, height, seed, fall speed. Cirrus: length,
 /// width, seed, heading.
 const ATTRIBUTE_SHAPE: MeshVertexAttribute = MeshVertexAttribute::new("CloudShape", 0x0C10_D5A1, VertexFormat::Float32x4);
 /// Kind, darkness, opacity, unused.
@@ -302,6 +302,30 @@ pub struct Item {
     pub layer: Vec2,
 }
 
+/// How a rain shaft is drawn (`clouds.look_rain_*`, cloud-weather design section 2b).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RainLook {
+    /// The streaks' fall speed.
+    pub fall_m_s: f32,
+    /// Opacity at the core.
+    pub opacity: f32,
+}
+
+impl Default for RainLook {
+    fn default() -> Self {
+        Self::from(&cb_core::world::config::CloudConfig::default())
+    }
+}
+
+impl From<&cb_core::world::config::CloudConfig> for RainLook {
+    fn from(c: &cb_core::world::config::CloudConfig) -> Self {
+        Self {
+            fall_m_s: c.look_rain_fall_m_s,
+            opacity: c.look_rain_opacity,
+        }
+    }
+}
+
 /// Every item within `radius_m` of `eye` (in the sky's frame at time zero, x and z) in the order
 /// they are drawn: the farthest first, by the distance to its near side (its centre's distance less
 /// its size, so a big puff beside a small one is ordered by the surface the eye meets). A puff's
@@ -309,7 +333,7 @@ pub struct Item {
 /// eye is and never on where it looks: turning the head cannot re-sort the sky (owner, 2026-10-26:
 /// "its causing clouds to popover each other when I turn my camerea"). Puffs and shafts within the
 /// radius, every cirrus streak.
-pub fn items(clouds: &Clouds, eye: Vec3, radius_m: f32) -> Vec<Item> {
+pub fn items(clouds: &Clouds, eye: Vec3, radius_m: f32, rain: &RainLook) -> Vec<Item> {
     let flat = |p: Vec3| Vec2::new(p.x, p.z).distance(Vec2::new(eye.x, eye.z));
     let mut out: Vec<Item> = clouds
         .puffs_near(Vec2::new(eye.x, eye.z), radius_m, 0.0)
@@ -335,8 +359,8 @@ pub fn items(clouds: &Clouds, eye: Vec3, radius_m: f32) -> Vec<Item> {
             let r = s.radius_m * if j == 1 { 0.9 } else { 0.6 };
             out.push(Item {
                 centre,
-                shape: Vec4::new(r, s.top_m, (k * 3 + j) as f32 * 7.3, 0.0),
-                look: Vec4::new(KIND_SHAFT, 0.0, 1.0, 0.0),
+                shape: Vec4::new(r, s.top_m, (k * 3 + j) as f32 * 7.3, rain.fall_m_s),
+                look: Vec4::new(KIND_SHAFT, 0.0, rain.opacity, 0.0),
                 layer: Vec2::new(0.0, s.top_m),
             });
         }
@@ -423,7 +447,7 @@ fn gather(
     draw.sorted_at = Some(eye);
     let _s = crate::perf_hud::section("clouds: resort");
     if let Some(mut mesh) = meshes.get_mut(&draw.mesh) {
-        let list = items(clouds, eye, c.draw_radius_m + 2.0 * eye.y.max(0.0));
+        let list = items(clouds, eye, c.draw_radius_m + 2.0 * eye.y.max(0.0), &RainLook::from(c));
         crate::perf_hud::count("cloud quads", list.len() as u32);
         *mesh = item_mesh(&list);
     }
@@ -671,7 +695,7 @@ mod tests {
     #[test]
     fn items_are_drawn_from_the_farthest_near_side_to_the_nearest() {
         let eye = Vec3::new(300.0, 2.0, -400.0);
-        let list = items(&sky(), eye, 6000.0);
+        let list = items(&sky(), eye, 6000.0, &RainLook::default());
         assert!(list.len() > 20);
         for w in list.windows(2) {
             assert!(near_side_m(&w[0], eye) >= near_side_m(&w[1], eye));
@@ -702,7 +726,7 @@ mod tests {
             Vec2::ZERO,
             0.7,
         );
-        let list = items(&c, Vec3::new(0.0, 1000.0, 0.0), 9000.0);
+        let list = items(&c, Vec3::new(0.0, 1000.0, 0.0), 9000.0, &RainLook::default());
         assert_eq!(list[0].centre.z, -2000.0, "the small one, its near side farther, first");
         assert_eq!(list[1].centre.x, 1000.0, "the big one drawn over it");
     }
@@ -711,7 +735,7 @@ mod tests {
     fn only_puffs_within_the_radius_are_gathered_and_every_one_of_them_is() {
         let c = sky();
         let eye = Vec3::new(-2000.0, 50.0, 1000.0);
-        let list = items(&c, eye, 4000.0);
+        let list = items(&c, eye, 4000.0, &RainLook::default());
         let puffs: Vec<&Item> = list.iter().filter(|i| i.look.x < KIND_SHAFT - 0.5).collect();
         let within = c
             .puffs
@@ -760,7 +784,7 @@ mod tests {
 
     #[test]
     fn one_quad_an_item() {
-        let list = items(&sky(), Vec3::ZERO, 6000.0);
+        let list = items(&sky(), Vec3::ZERO, 6000.0, &RainLook::default());
         let m = item_mesh(&list);
         assert_eq!(m.count_vertices(), list.len() * 4);
         assert_eq!(m.indices().map(|i| i.len()), Some(list.len() * 6));

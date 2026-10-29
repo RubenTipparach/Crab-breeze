@@ -22,7 +22,7 @@
         twist_rate_deg_s: 160.0,
         pitch_limits_deg: (-20.0, 25.0),
         pitch_rate_deg_s: 100.0,
-        body_radius_m: 4.40,
+        body_radius_m: 4.92,
         brush_radius_m: 10.86,
         body_height_m: 23.69,
         stopped_speed_m_s: 0.2,
@@ -66,5 +66,8 @@
         turn_rate_deg_s: 85.0,
         burn_s: 40.0,
         recharge_s: 10.0,
+    ),
+    melee: (
+        stance_break_at: 3.0,
     ),
 )

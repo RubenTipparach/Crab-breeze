@@ -1,0 +1,764 @@
+<title>Crab Breeze Airport</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Source of docs/mockups/airport.html: python3 tools/mockups/gen_airport.py inlines __AIRCRAFT__ (the civil aircraft
+     block-out table from `cb-tools aircraft`, the one the game draws, with the modelled freighter's glb) and __YARDSTICK__
+     (the Foreman block-out). Presents openspec/changes/airport-layout for approval before any game code is written
+     (owner, 2026-10-28: "Please make mockups before editing game code", "Mockups should b 3d in js"). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #4f7a12; --accent-soft: #e3efd2; --warn: #a3271f; --stage: #1a2230;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1440px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 80ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 7ch; }
+.bar .stat { font: 12px var(--mono); color: var(--muted); }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 12px; cursor: pointer; min-height: 38px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; }
+@media (max-width: 600px) { canvas { aspect-ratio: 1 / 1.15; } }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 500 11px var(--mono);
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 2px 6px; white-space: nowrap; }
+.tag.standin { border-color: #c9a03a; color: #ffe2a0; }
+.tag.today { border-color: #ff8f80; color: #ffd2cc; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font: 700 22px/1 var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 0; }
+.card p { margin: 0; font-size: 14px; }
+.pill { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 3px;
+  border: 1px solid var(--warn); color: var(--warn); justify-self: start; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td.n { font-family: var(--mono); white-space: nowrap; }
+#ready { display: none; }
+</style>
+
+
+<header>
+  <span class="eyebrow">openspec/changes/airport-layout &middot; mockup for approval, second pass</span>
+  <h1>Crab Breeze airport</h1>
+  <p class="lede">A whole airfield after the owner's references, at true size beside the 24 m Foreman and a 1.8 m pilot. A main
+    runway and a crossing secondary runway, and the civil side across the runway: a linear terminal and a pier terminal
+    with jet bridges, cargo, maintenance hangars, a heliport, general aviation and the landside road. The military side
+    holds the mech base, with dispersal pans, an operational readiness platform and arrester gear. Switch to Today to see
+    the base as the game draws it now. Nothing here is in the game yet.</p>
+</header>
+
+<div class="wrap">
+  <main>
+    <div class="bar"><span class="lbl">Base</span>
+      <button data-show="today">Today</button><button data-show="proposed" aria-pressed="true">Proposed</button>
+    </div>
+    <div class="bar"><span class="lbl">Time</span>
+      <button data-time="day" aria-pressed="true">Day</button><button data-time="night">Night, 22:00</button>
+    </div>
+    <div class="bar"><span class="lbl">View</span>
+      <button data-view="overview">Overview</button><button data-view="final">On final 09</button>
+      <button data-view="threshold">Threshold</button><button data-view="terminals">Terminals</button>
+      <button data-view="pier">Jet bridges</button><button data-view="gates">Terminal 1 gates</button><button data-view="hangars">Hangars</button>
+      <button data-view="heliport">Heliport</button><button data-view="ga">Light aircraft</button>
+      <button data-view="cargo">Cargo</button><button data-view="tower">Tower cab</button>
+      <button data-view="military">Mech base</button><button data-view="cockpit">From the cockpit</button>
+      <button data-view="foot">On foot</button>
+    </div>
+    <div class="bar"><span class="lbl">Fire</span>
+      <button data-gun="cannon">Autocannon</button><button data-gun="shell" aria-pressed="true">120 mm shell</button><button data-gun="missile">Missile</button><button data-gun="demo">Demolition</button>
+      <button id="repair">Repair all</button><span class="stat" id="shotstat"></span>
+    </div>
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="Orbitable 3D view of the airport"></canvas>
+      <div id="tags"></div>
+    </div>
+    <p class="hint">Drag to orbit, right-drag to pan, scroll or pinch to zoom; arrow keys orbit and + and - zoom. Labels with a gold
+      edge are block-out stand-ins. Click a building to fire at it (cannon or missile above); Repair all puts everything back.</p>
+    <span id="ready">ready</span>
+  </main>
+  <aside>
+    <div class="card">
+      <span class="pill">Awaiting approval</span>
+      <h2>After the references</h2>
+      <p>The RAF airfield's crossing runways, holding points, arrester gear, dispersal hard standings, operational readiness
+        platform, hangars and windsock; the Airhead plan's PAPI, touchdown zone, aiming point, stopway, terminal with
+        boarding bridges, fire station, de-icing area, maintenance and helicopter stand; the isometric plan's two kinds of
+        terminal, parking and helipads.</p>
+    </div>
+    <div class="card">
+      <h2>Pieces</h2>
+      <div class="tbl"><table id="pieces"><thead><tr><th>Piece</th><th>Size</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Every building breaks</h2>
+      <p>Your rule: "all buildings are destructible". Each building is made of pieces of at most 10 x 6 x 10 m, and the
+        small-buildings kit's support rule decides what stands after a hit: a piece stands while it reaches the ground through
+        what is under it, or through at most three pieces beside it. Shoot the tower's shaft and the cab comes down; a roof over a
+        small hole hangs on from the pieces beside it, and comes down once more than three in a row have lost what holds them.</p>
+    </div>
+    <div class="card">
+      <h2>Provisional</h2>
+      <p><b>AP1</b> The airfield is 2.3 x 1.35 km against a base's 700 x 500 m site today. The island cannot hold five, so the
+        recommendation is one airport like this by the largest city, and the other bases as military airfields: the
+        runway pair, the mech base, dispersal and a small tower.</p>
+      <p><b>AP3</b> Parked aircraft cannot be shot yet.</p>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script>
+__KIT__
+</script>
+<script>
+__ENGINE__
+</script>
+<script>
+__SITE_BUILDINGS__
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const AIR = __AIRCRAFT__;
+const YARD = __YARDSTICK__;
+const T = THREE;
+try { self.createImageBitmap = undefined; } catch (e) {}
+const lin = hex => new T.Color(hex).convertSRGBToLinear();
+const PI = Math.PI;
+
+// Metres. x east, y up, -z north (the runways' designators read their headings that way). The main runway lies along x
+// through the origin; the civil side is to the south (+z) of it, the military side with the mech base to the north (-z).
+const HANGAR = { w: 44, h: 34, d: 50, gap: 12, back: 30, wall: 1.5 };   // the mech hangars (cb_core::world::bases)
+const MAIN = { a: [-1000, 0], b: [1000, 0], w: 45 };
+const CROSS = { a: [-978, -688], b: [-150, 140], w: 30 };
+const TAXI_Z = 170, TAXI_W = 23;
+const MIL = { x0: 150, x1: 850, z0: -800, z1: -300 };                     // the mech base's 700 x 500 m site
+const FOREMAN = [420, -420];
+
+// ---------------------------------------------------------------- renderer
+const canvas = document.getElementById("view");
+const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = T.sRGBEncoding;
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+const scene = new T.Scene();
+scene.background = lin(0xbfcdd9);
+scene.fog = new T.Fog(lin(0xbfcdd9), 2500, 9000);
+const camera = new T.PerspectiveCamera(40, 1.6, 0.3, 30000);
+const controls = new T.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+Object.assign(controls, { minDistance: 3, maxDistance: 7000, maxPolarAngle: PI * 0.495 });
+const hemi = new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.85); scene.add(hemi);
+const sun = new T.DirectionalLight(0xffe8cc, 2.2);
+sun.position.set(-700, 1200, 500); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -1300, right: 1300, top: 1300, bottom: -1300, near: 10, far: 4000 });
+sun.shadow.bias = -0.0004;
+scene.add(sun);
+const grass = new T.Mesh(new T.PlaneGeometry(16000, 16000), new T.MeshStandardMaterial({ color: lin(0x5e6b3c), roughness: 1 }));
+grass.rotation.x = -PI / 2; grass.position.y = -0.3; grass.receiveShadow = true; scene.add(grass);
+
+// ---------------------------------------------------------------- materials and shapes
+const mat = (hex, o = {}) => new T.MeshStandardMaterial(Object.assign({ color: lin(hex), roughness: 0.9 }, o));
+const M = {
+  apron: mat(0x55554e), mil: mat(0x45453f), asphalt: mat(0x242424), taxi: mat(0x2b2b2b), road: mat(0x303030),
+  wall: mat(0xb8b8b2), roof: mat(0x80858a), terminal: mat(0xc8c5bc), clad: mat(0x9aa4ad, { roughness: 0.6, metalness: 0.3 }),
+  white: mat(0xe8e8e2, { roughness: 0.7 }), yellow: mat(0xf2c02a, { roughness: 0.7 }), red: mat(0xb8160f), orange: mat(0xf06a12),
+  glass: new T.MeshStandardMaterial({ color: lin(0x46606f), roughness: 0.15, metalness: 0, emissive: lin(0x0c1a24) }),
+  tank: mat(0xdcdcd2, { roughness: 0.5 }), fence: mat(0x8a8f92, { roughness: 0.6 }), dark: mat(0x2a2d31), bridge: mat(0xa9aeb3),
+  lamp: new T.MeshStandardMaterial({ color: 0xffffff, emissive: lin(0xfff2cc), emissiveIntensity: 2 }),
+  lampRed: new T.MeshStandardMaterial({ color: 0x661010, emissive: lin(0xff2a1a), emissiveIntensity: 2 }),
+  lampGreen: new T.MeshStandardMaterial({ color: 0x106610, emissive: lin(0x2aff4a), emissiveIntensity: 2 }),
+  hangar: mat(0x8f979c, { roughness: 0.55, metalness: 0.35, side: T.DoubleSide }), pilot: mat(0x2f6fd0),
+  pad: mat(0x5c5c56), heli: mat(0x3c6e3c),
+};
+__SITE_KIT__
+// Every building is the small-buildings kit's (owner, 2026-10-29: "Airport is not up to standard of like suburban houses"):
+// drawn by docs/mockups/site_buildings_kit.js on the kit's Builder, broken by the one engine the street uses
+// (docs/mockups/building_engine.js): pieces blown out, what is left hanging creaks and falls, a building that loses
+// half its load-bearing walls comes down, the rubble settles in piles.
+const S = window.SiteBuildings;
+const E = BuildingEngine({ THREE: T, K: window.SmallBuildings, scene, ground: () => 0.05 });
+// One building of the site kit at (x, z), turned by quarter turns (1: its front, +z, to +x), standing at y; info overrides
+// the building's own (maxSide: a machine's longer reach).
+function put(name, draw, x = 0, z = 0, turn = 0, y = 0, info = {}) {
+  const B = new SmallBuildings.Builder(); draw(B);
+  // tools/buildings/export_sites.cjs runs this page's layout to write the game's kits: it takes each building here.
+  if (window.SITE_EXPORT) return window.SITE_EXPORT.put(name, B, { x, y, z, turn }, Object.assign({ base: y }, info));
+  const id = E.building(Object.assign({ name, base: y }, info)); E.add(B, { x, y, z, turn, bld: id }); return id;
+}
+// A turning thing (a radar antenna) on top of a building: shown while the piece under it stands.
+let spinners = [];
+function spinOn(id, obj, rate) { spinners.push({ id, obj, rate, pid: null }); }
+function seatSpinners() {
+  if (window.SITE_EXPORT) return;   // no buildings are added when the page is exported
+  for (const s of spinners) {
+    if (s.id == null) continue;
+    const p = s.obj.position; let best = null;
+    for (const pid of E.BLD[s.id].pieces) { const P = E.PIECES[pid];
+      if (p.x >= P.lo[0] - 0.5 && p.x <= P.hi[0] + 0.5 && p.z >= P.lo[2] - 0.5 && p.z <= P.hi[2] + 0.5 && P.hi[1] <= p.y + 0.5 && (!best || P.hi[1] > E.PIECES[best].hi[1])) best = pid; }
+    s.pid = best;
+  }
+}
+// Paving from p to q ([x, z]), w wide, flush with the runway.
+const pave = (g, p, q, w, m, top = TOP.taxi) => beam(g, [p[0], top - 0.31, p[1]], [q[0], top - 0.31, q[1]], w, 0.62, m, false);
+// Every flat layer has its own height, at least 3 cm from the next, so no two surfaces share a plane (CLAUDE.md
+// section 10: no z-fighting). Grass -0.3; strips -0.15 and -0.05; aprons 0.05; taxiways 0.12; the secondary runway
+// 0.18 and the main 0.24 (it crosses over); paint on aprons and taxiways 0.2, on a runway 3 and 6 cm over it.
+const TOP = { stripMain: -0.15, stripCross: -0.05, apron: 0.05, taxi: 0.12, cross: 0.18, main: 0.24 };
+const PAINT = 0.2, PAINT_LOW = 0.17;
+
+// ---------------------------------------------------------------- runways
+function runway(R) {
+  const len = Math.hypot(R.b[0] - R.a[0], R.b[1] - R.a[1]), d = [(R.b[0] - R.a[0]) / len, (R.b[1] - R.a[1]) / len];
+  const right = [-d[1], d[0]];
+  const at = (u, v) => [R.a[0] + d[0] * u + right[0] * v, R.a[1] + d[1] * u + right[1] * v];
+  const bearing = (Math.atan2(d[0], -d[1]) * 180 / PI + 360) % 360;
+  const read = deg => { const n = Math.round(deg / 10) % 36; return n === 0 ? 36 : n; };
+  return { ...R, len, d, right, at, w2: R.w / 2, des: [read(bearing), read(bearing + 180)] };
+}
+const SEG = [[0, 9, 5, 9], [5, 4.5, 5, 9], [5, 0, 5, 4.5], [0, 0, 5, 0], [0, 0, 0, 4.5], [0, 4.5, 0, 9], [0, 4.5, 5, 4.5]];
+const ON = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
+const BLAST = 60, AIM = 400;
+// `under`, if given, is a runway this one passes beneath: this one's markings stop at its edges, as at a real crossing
+// (the higher runway's markings run through), so no paint lies in the other's surface.
+function drawRunway(g, rw, full, top, under) {
+  pave(g, rw.a, rw.b, rw.w, M.asphalt, top);
+  let hole = null;
+  if (under) {   // the stretch of this runway's centre line, in metres from rw.a, whose width overlaps `under`
+    const n = under.right, off = q => (q[0] - under.a[0]) * n[0] + (q[1] - under.a[1]) * n[1];
+    const o0 = off(rw.a), dO = rw.d[0] * n[0] + rw.d[1] * n[1], reach = under.w2 + 2 + Math.abs(rw.right[0] * n[0] + rw.right[1] * n[1]) * rw.w2;
+    if (Math.abs(dO) > 1e-6) { const u1 = (-reach - o0) / dO, u2 = (reach - o0) / dO; hole = [Math.min(u1, u2), Math.max(u1, u2)]; }
+  }
+  const stroke = (g2, P, Q, w2, y2, m) => {
+    if (!hole) return strokeAt(g2, P, Q, w2, y2, m);
+    const u = q => (q[0] - rw.a[0]) * rw.d[0] + (q[1] - rw.a[1]) * rw.d[1], uP = u(P), uQ = u(Q);
+    const lerp = t => [P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t];
+    const lo = Math.min(uP, uQ), hi = Math.max(uP, uQ);
+    if (hi <= hole[0] || lo >= hole[1]) return strokeAt(g2, P, Q, w2, y2, m);
+    const t = v => (v - uP) / ((uQ - uP) || 1e-9);
+    if (lo < hole[0]) strokeAt(g2, lerp(t(lo)), lerp(t(hole[0])), w2, y2, m);
+    if (hi > hole[1]) strokeAt(g2, lerp(t(hole[1])), lerp(t(hi)), w2, y2, m);
+  };
+  const y = top + 0.06, yc = top + 0.03, w = rw.w2;
+  stroke(g, rw.at(0, w - 1), rw.at(rw.len, w - 1), 0.45, y, M.white);
+  stroke(g, rw.at(0, -w + 1), rw.at(rw.len, -w + 1), 0.45, y, M.white);
+  const bars = rw.w >= 40 ? 8 : 6;
+  for (const end of [0, 1]) {
+    const from = end === 0 ? rw.a : rw.b, d = end === 0 ? rw.d : [-rw.d[0], -rw.d[1]], right = [-d[1], d[0]];
+    const at = (u, v) => [from[0] + d[0] * u + right[0] * v, from[1] + d[1] * u + right[1] * v];
+    if (!full) { for (let k = 0; k < 8; k++) { const o = (k - 3.5) * 4; stroke(g, at(8, o), at(38, o), 0.9, y, M.white); } continue; }
+    for (let k = 0; k < 3; k++) { const tip = 15 + k * 15; stroke(g, at(tip, 0), at(tip - 12, w - 2), 0.9, yc, M.yellow); stroke(g, at(tip, 0), at(tip - 12, -w + 2), 0.9, yc, M.yellow); }
+    for (let k = 0; k < bars; k++) { const o = (k - (bars - 1) / 2) * 4.6; stroke(g, at(BLAST + 3, o), at(BLAST + 33, o), 0.9, y, M.white); }
+    const n = rw.des[end], digits = [Math.floor(n / 10), n % 10];
+    digits.forEach((dg, i) => { const left = i === 0 ? -6.5 : 1.5; SEG.forEach((s, k) => { if (ON[dg] & (1 << k)) stroke(g, at(BLAST + 45 + s[1], left + s[0]), at(BLAST + 45 + s[3], left + s[2]), 0.6, y, M.white); }); });
+    for (const [dist, nb] of [[150, 3], [300, 3], [600, 2], [750, 1]]) {
+      if (BLAST + dist + 22.5 > rw.len / 2) continue;
+      for (let k = 0; k < nb; k++) for (const s of [-1, 1]) { const o = s * (4.5 + k * 3) * rw.w / 45; stroke(g, at(BLAST + dist, o), at(BLAST + dist + 22.5, o), 0.9, y, M.white); }
+    }
+    if (BLAST + AIM + 50 < rw.len / 2) for (const s of [-1, 1]) stroke(g, at(BLAST + AIM, s * 10.5 * rw.w / 45), at(BLAST + AIM + 50, s * 10.5 * rw.w / 45), 4.5 * rw.w / 45, y, M.white);
+    // PAPI on the approaching pilot's left, approach lights out past the end.
+    for (let k = 0; k < 4; k++) {
+      const p = at(BLAST + AIM, -w - 15 - k * 9);
+      box(g, [p[0] - 0.8, 0, p[1] - 0.8], [p[0] + 0.8, 1, p[1] + 0.8], M.dark);
+      box(g, [p[0] - 0.5, 1, p[1] - 0.5], [p[0] + 0.5, 1.3, p[1] + 0.5], k < 2 ? M.lamp : M.lampRed, false);
+    }
+    for (let i = 1; i <= 10; i++) {
+      const half = i % 3 === 0 ? 9 : 6, p = at(-i * 30, 0);
+      box(g, [p[0] - 0.15, -0.3, p[1] - 0.15], [p[0] + 0.15, 1.4, p[1] + 0.15], M.fence);
+      const l = at(-i * 30, -half), r = at(-i * 30, half);
+      beam(g, [l[0], 1.3, l[1]], [r[0], 1.3, r[1]], 0.2, 0.2, M.fence);
+      for (let k = 0; k < 5; k++) { const q = at(-i * 30, -half + k * half / 2); box(g, [q[0] - 0.3, 1.4, q[1] - 0.3], [q[0] + 0.3, 1.8, q[1] + 0.3], M.lamp, false); }
+    }
+  }
+  if (full) for (let u = BLAST + 70; u + 30 <= rw.len - BLAST - 70; u += 50) stroke(g, rw.at(u, 0), rw.at(u + 30, 0), 0.45, y, M.white);
+}
+// A taxi way: paving and its yellow centre line.
+function taxi(g, p, q, w = TAXI_W) { pave(g, p, q, w, M.taxi); stroke(g, p, q, 0.3, PAINT, M.yellow); }
+// Where a taxiway meets a paved edge (a runway's or the parallel taxiway's), it widens into it on curved fillets, as a
+// real junction does. p is where the centre line meets the edge, dir the taxiway's direction away from the edge, e the
+// edge's direction; R the fillet radius. Laid just under the taxiway's top so it never shares its plane.
+function fillet(g, p, dir, e, w = TAXI_W, R = 25) {
+  const n = [-dir[1], dir[0]], cross2 = (a, b) => a[0] * b[1] - a[1] * b[0], pts = [];
+  for (const s of [1, -1]) {
+    const S0 = [p[0] + n[0] * s * w / 2, p[1] + n[1] * s * w / 2];
+    const den = cross2(dir, e); if (Math.abs(den) < 1e-6) return;
+    const t = cross2([p[0] - S0[0], p[1] - S0[1]], e) / den, C = [S0[0] + dir[0] * t, S0[1] + dir[1] * t];
+    const out = (e[0] * n[0] + e[1] * n[1]) * s > 0 ? 1 : -1;
+    const A = [C[0] + dir[0] * R, C[1] + dir[1] * R], B = [C[0] + e[0] * out * R, C[1] + e[1] * out * R], side = [];
+    for (let k = 0; k <= 10; k++) { const u = k / 10, a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
+      side.push([a * B[0] + b * C[0] + c * A[0], a * B[1] + b * C[1] + c * A[1]]); }
+    pts.push(...(s === 1 ? side : side.reverse()));
+  }
+  const shape = new T.Shape(pts.map(q => new T.Vector2(q[0], -q[1])));
+  const mesh = new T.Mesh(new T.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: false }), M.taxi);
+  mesh.rotation.x = -PI / 2; mesh.position.y = TOP.taxi - 0.03 - 0.5; mesh.receiveShadow = true; g.add(mesh);
+}
+// A taxiway from a paved edge at p to another at q: its ends tucked 30 m under what it meets and filleted into it.
+function link(g, p, q, eP, eQ, w = TAXI_W, R = 25) {
+  const len = Math.hypot(q[0] - p[0], q[1] - p[1]), d = [(q[0] - p[0]) / len, (q[1] - p[1]) / len];
+  pave(g, [p[0] - d[0] * 30, p[1] - d[1] * 30], q, w, M.taxi); stroke(g, p, q, 0.3, PAINT, M.yellow);
+  fillet(g, p, d, eP, w, R);
+  if (eQ) fillet(g, q, [-d[0], -d[1]], eQ, w, R);
+}
+// A holding position across a taxiway at p, the line across `across` (unit), w wide: two solid, two dashed.
+function hold(g, p, along, w = TAXI_W) {
+  const across = [-along[1], along[0]], a = [p[0] - across[0] * w / 2, p[1] - across[1] * w / 2], b = [p[0] + across[0] * w / 2, p[1] + across[1] * w / 2];
+  for (const k of [0, 1]) { const o = 1 + k * 0.9; stroke(g, [a[0] + along[0] * o, a[1] + along[1] * o], [b[0] + along[0] * o, b[1] + along[1] * o], 0.15, PAINT, M.yellow); }
+  for (const k of [0, 1]) { const o = -(0.6 + k * 0.9);
+    for (let i = 0; i < 8; i += 2) { const s = [a[0] + (b[0] - a[0]) * i / 8, a[1] + (b[1] - a[1]) * i / 8], e = [a[0] + (b[0] - a[0]) * (i + 1) / 8, a[1] + (b[1] - a[1]) * (i + 1) / 8];
+      stroke(g, [s[0] + along[0] * o, s[1] + along[1] * o], [e[0] + along[0] * o, e[1] + along[1] * o], 0.15, PAINT, M.yellow); } }
+}
+
+// ---------------------------------------------------------------- aircraft (the civil traffic's own shapes)
+const loader = new T.GLTFLoader();
+const glbBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+let pending = 1;
+const loaded = () => { if (--pending <= 0) document.getElementById("ready").style.display = "inline"; };
+const KIND = id => AIR.kinds.find(k => k.id === id);
+// An aircraft parked at c ([x, z]), its nose along n ([x, z], unit): its model where it has one, else its block-out.
+function aircraft(g, k, c, n) {
+  if (!k) return;
+  // The game parks the civil traffic's own model of this kind here (tools/buildings/export_sites.cjs: `parked`), its
+  // wheels on the apron's surface, its nose along n.
+  if (window.SITE_EXPORT) { (window.SITE_EXPORT.parked = window.SITE_EXPORT.parked || []).push({ kind: k.id, x: c[0], y: 0.12, z: c[1], heading: Math.atan2(-n[0], -n[1]) }); return; }
+  const root = new T.Group();
+  root.position.set(c[0], 0.12 + k.rest_m, c[1]); root.rotation.y = Math.atan2(-n[0], -n[1]); g.add(root);
+  root.userData.skip = true;   // parked aircraft are the civil traffic's own models in the game, not part of the site
+  if (k.model && k.model.glb) {
+    pending++;
+    loader.parse(glbBytes(k.model.glb), "", gltf => {
+      gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+      ["LOD1", "LOD2"].forEach(nm => { const o = gltf.scene.getObjectByName(nm); if (o) o.visible = false; });
+      root.add(gltf.scene); loaded();
+    }, loaded);
+    return root;
+  }
+  const livery = mat(new T.Color(...k.tint).getHex(), { roughness: 0.5 });
+  for (const b of k.blocks) { const mesh = new T.Mesh(new T.BoxGeometry(...b.size), b.dark ? M.dark : livery); mesh.position.set(...b.centre); mesh.castShadow = true; root.add(mesh); }
+  return root;
+}
+// Its front left door, where a jet bridge meets it (x, y, z).
+function door(k, c, n) {
+  const left = [n[1], -n[0]], f = k.blocks[0].size[0];
+  const fwd = k.length_m * 0.5 - k.length_m * 0.13;
+  return [c[0] + n[0] * fwd + left[0] * (f / 2 + 0.4), 0.12 + k.rest_m - 0.5, c[1] + n[1] * fwd + left[1] * (f / 2 + 0.4)];
+}
+// A gate: the stand's lines on the apron, its aircraft and its bridge from the terminal face point `face`.
+function gate(g, k, c, n, face, labels, name) {
+  const side = [n[1], -n[0]], L = k.length_m, span = k.span_m;
+  stroke(g, [c[0] - n[0] * (L / 2 + 30), c[1] - n[1] * (L / 2 + 30)], [c[0] + n[0] * (L / 2 - 2), c[1] + n[1] * (L / 2 - 2)], 0.3, PAINT, M.yellow);
+  const stop = [c[0] + n[0] * (L / 2 - 4), c[1] + n[1] * (L / 2 - 4)];
+  stroke(g, [stop[0] - side[0] * 4, stop[1] - side[1] * 4], [stop[0] + side[0] * 4, stop[1] + side[1] * 4], 0.5, PAINT, M.yellow);
+  // the stand's safety line, red, round the parked aircraft
+  const hw = span / 2 + 4, hl = L / 2 + 4, Pq = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]].map(([a, b]) => [c[0] + side[0] * a + n[0] * b, c[1] + side[1] * a + n[1] * b]);
+  for (let i = 0; i < 4; i++) stroke(g, Pq[i], Pq[(i + 1) % 4], 0.25, PAINT_LOW, M.red);
+  aircraft(g, k, c, n);
+  // the bridge's rotunda stands 3 m out from the terminal face, on the apron side
+  put("Jet bridge", B => S.jetBridge(B, [face[0] - n[0] * 3, 0, face[1] - n[1] * 3], door(k, c, n)));
+  GATES.push({ c, n, rotunda: [face[0] - n[0] * 3, face[1] - n[1] * 3], door: door(k, c, n) });
+  if (name) labels.push([name, c, k.height_m + 4, "standin"]);
+}
+
+// ---------------------------------------------------------------- buildings
+function archHangar(g, x0, x1, z0, z1, wallH, rise, labels, name) {
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  put(name || "Hangar", B => S.archHangar(B, E.M, { w: x1 - x0, d: z1 - z0, wallH, rise }), cx, cz, 2);   // its door to the apron (-z)
+  stroke(g, [x0 + 2, z0 - 3], [x1 - 2, z0 - 3], 0.6, PAINT, M.yellow);
+  if (name) labels.push([name, [cx, cz], wallH + rise + 4]);
+}
+function tower(g, c, h, labels) {
+  put("Control tower", B => S.tower(B, E.M, { h }), c[0], c[1]);
+  labels.push(["Control tower, beacon", c, h + 20]);
+}
+function windsock(g, p, d) {
+  box(g, [p[0] - 0.12, 0, p[1] - 0.12], [p[0] + 0.12, 8, p[1] + 0.12], M.white);
+  for (let k = 0; k < 5; k++) { const q = [p[0] + d[0] * (0.4 + k * 0.6), p[1] + d[1] * (0.4 + k * 0.6)], r = 0.5 - k * 0.06;
+    box(g, [q[0] - r, 7.4 - r, q[1] - r], [q[0] + r, 7.4 + r, q[1] + r], k % 2 ? M.white : M.orange); }
+}
+function helipad(g, c, labels, name) {
+  slab(g, rect(c[0] - 15, c[1] - 15, c[0] + 15, c[1] + 15), -0.5, TOP.apron + 0.05, M.pad);
+  for (let k = 0; k < 12; k++) { const t = k / 12 * 4, side = Math.floor(t), f = t - side, P = [[-14, -14], [14, -14], [14, 14], [-14, 14]], a = P[side], b = P[(side + 1) % 4];
+    const s = [c[0] + a[0] + (b[0] - a[0]) * f, c[1] + a[1] + (b[1] - a[1]) * f], e = [c[0] + a[0] + (b[0] - a[0]) * (f + 0.18), c[1] + a[1] + (b[1] - a[1]) * (f + 0.18)];
+    stroke(g, s, e, 0.6, PAINT + 0.05, M.white); }
+  ring(g, c, 10, 0.8, PAINT + 0.05, M.yellow);
+  for (const [x0, z0, x1, z1] of [[-3, -4.5, -3, 4.5], [3, -4.5, 3, 4.5], [-3, 0, 3, 0]]) stroke(g, [c[0] + x0, c[1] + z0], [c[0] + x1, c[1] + z1], 1, PAINT + 0.08, M.white);
+  if (name) labels.push([name, c, 4]);
+}
+// ---------------------------------------------------------------- the mech base (as the game draws it)
+function mechBase(g, today, labels) {
+  const site = rect(MIL.x0, MIL.z0, MIL.x1, MIL.z1);
+  slab(g, site, -0.5, TOP.apron, M.mil);
+  const cx = (MIL.x0 + MIL.x1) / 2, pitch = HANGAR.w + HANGAR.gap, zb = MIL.z0 + HANGAR.back;
+  for (let i = 0; i < 3; i++) {
+    const x = cx + (i - 1) * pitch, lo = [x - HANGAR.w / 2, zb], hi = [x + HANGAR.w / 2, zb + HANGAR.d], top = 0.12 + HANGAR.h;
+    put("Mech hangar", B => S.mechHangar(B, E.M, { w: HANGAR.w, d: HANGAR.d, h: top }), x, zb + HANGAR.d / 2);
+    stroke(g, [lo[0], hi[1] - 0.5], [hi[0], hi[1] - 0.5], 1, 0.15, M.yellow);
+  }
+  for (let i = 0; i < 3; i++) outlineRect(g, rect(cx + (i - 1) * 80 - 20, MIL.z1 - 60, cx + (i - 1) * 80 + 20, MIL.z1 - 20), 1, 0.15, M.yellow);
+  const t = [MIL.x1 - 40, MIL.z1 - 40];
+  put(today ? "Box tower" : "Base tower", B => S.baseTower(B, E.M, { h: today ? 36 : 30, today }), t[0], t[1]);
+  labels.push(["Mech hangars", [cx, zb + HANGAR.d / 2], 40]);
+  labels.push([today ? "Box tower" : "Base tower", t, today ? 48 : 41, today ? "today" : ""]);
+}
+
+// ---------------------------------------------------------------- the proposed airport
+function buildProposed(g, labels) {
+  // The game flattens the airfield's ground to the buildings' floor, y = 0, with the paving laid 5 to 24 cm over it as
+  // here (tools/buildings/export_sites.cjs writes this pad, [x0, z0, x1, z1, y], into the site's table): the fence's
+  // outline, the approach lights, the landside road and the car parks. The page's grass strips under the paving are
+  // then under the ground.
+  // The game's ground stands 0.3 m under the paving it carries, so the two never share a plane (as shipped).
+  if (window.SITE_EXPORT) window.SITE_EXPORT.pads = [[-1310, -860, 1310, 660, -0.3]];
+  const main = runway(MAIN), cross = runway(CROSS);
+  // the flattened strips round the runways
+  beam(g, [MAIN.a[0] - 90, TOP.stripMain - 0.15, 0], [MAIN.b[0] + 90, TOP.stripMain - 0.15, 0], 150, 0.3, mat(0x6a7046), false);
+  beam(g, [CROSS.a[0] - cross.d[0] * 60, TOP.stripCross - 0.15, CROSS.a[1] - cross.d[1] * 60], [CROSS.b[0], TOP.stripCross - 0.15, CROSS.b[1]], 110, 0.3, mat(0x66703f), false);
+  drawRunway(g, main, true, TOP.main); drawRunway(g, cross, true, TOP.cross, main);
+  labels.push([`Runway ${String(main.des[0]).padStart(2, "0")}/${main.des[1]}`, main.at(BLAST + 60, 0), 4]);
+  labels.push([`Secondary runway ${cross.des[0]}/${cross.des[1]}`, cross.at(300, 0), 4]);
+  labels.push(["Approach lights", main.at(-150, 0), 4]); labels.push(["PAPI", main.at(BLAST + AIM, -main.w2 - 28), 3]);
+  // the parallel taxiway, its links, rapid exits and holding points
+  taxi(g, [-988, TAXI_Z], [988, TAXI_Z]);
+  // the links and rapid exits meet the runway's edge and the parallel taxiway's near edge, filleted into both
+  const tEdge = TAXI_Z - TAXI_W / 2;
+  // the end links sit in from the runway's ends by their own half width and fillet, so no fillet runs past an end
+  for (const x of [-976, 0, 976]) { link(g, [x, main.w2], [x, tEdge], [1, 0], [1, 0], TAXI_W, x ? 12 : 25); hold(g, [x, main.w2 + 50], [0, 1]); }
+  for (const [x0, x1] of [[-560, -305], [560, 305]]) {   // rapid exits, 30 degrees
+    const dz = TAXI_Z - main.w2, f = (tEdge - main.w2) / dz;
+    link(g, [x0, main.w2], [x0 + (x1 - x0) * f, tEdge], [1, 0], [1, 0]);
+  }
+  taxi(g, CROSS.b, [CROSS.b[0], TAXI_Z]); hold(g, [CROSS.b[0], TAXI_Z - 18], [0, 1]);
+  labels.push(["Parallel taxiway", [600, TAXI_Z], 4]); labels.push(["Rapid exit taxiway", [430, 90], 4]); labels.push(["Holding point", [0, main.w2 + 50], 3]);
+  // arrester gear: a cable across the runway near each end, a housing either side
+  for (const x of [-850, 850]) { stroke(g, [x, -main.w2], [x, main.w2], 0.4, TOP.main + 0.09, M.dark);
+    for (const s of [-1, 1]) box(g, [x - 2, 0, s * (main.w2 + 6) - 1.5], [x + 2, 1.8, s * (main.w2 + 6) + 1.5], M.yellow); }
+  labels.push(["Arrester gear", [850, -main.w2 - 6], 4]);
+  windsock(g, [-820, 60], main.d); windsock(g, [820, -60], main.d); windsock(g, [-640, -330], cross.d);
+  labels.push(["Windsock", [-820, 60], 10]);
+  // ILS: the localiser array beyond the 27 end, the glide path mast beside the 09 touchdown zone
+  for (let k = -8; k <= 8; k++) { box(g, [1290 - 0.2, 0, k * 3 - 0.2], [1290 + 0.2, 3, k * 3 + 0.2], M.fence); box(g, [1289.5, 3, k * 3 - 1], [1290.5, 3.4, k * 3 + 1], M.white); }
+  box(g, [-650 - 0.6, 0, -110 - 0.6], [-650 + 0.6, 15, -110 + 0.6], M.red); box(g, [-655, 0, -115], [-645, 3, -105], M.wall);
+  labels.push(["ILS localiser", [1290, 0], 6]); labels.push(["Glide path", [-650, -110], 17]);
+
+  // ---- the civil side
+  slab(g, rect(-40, 195, 920, 430), -0.5, TOP.apron, M.apron);                 // the main apron
+  // Terminal 1: linear, four gates
+  put("Terminal 1", B => S.terminal(B, E.M, { w: 320, d: 40, name: "Terminal 1" }), 160, 450);
+  labels.push(["Terminal 1", [160, 450], 20]);
+  const air = KIND("airliner");
+  [40, 120, 200, 280].forEach((x, i) => gate(g, air, [x, 430 - 8 - air.length_m / 2], [0, 1], [x - 14, 430], labels, i === 1 ? "airliner" : null));
+  // Terminal 2: the main hall and a pier with gates either side
+  put("Terminal 2", B => S.terminal(B, E.M, { w: 280, d: 65, name: "Terminal 2" }), 560, 472.5);
+  put("Pier", B => S.concourse(B, E.M, { w: 30, d: 200 }), 560, 340);
+  labels.push(["Terminal 2", [560, 470], 24]); labels.push(["Pier", [560, 300], 14]);
+  for (const z of [280, 340, 400]) {
+    gate(g, air, [545 - 8 - air.length_m / 2, z], [1, 0], [545, z - 14], labels, z === 340 ? "jet bridges" : null);
+    gate(g, air, [575 + 8 + air.length_m / 2, z], [-1, 0], [575, z + 14], labels, null);
+  }
+  // Cargo
+  put("Cargo terminal", B => S.cargoShed(B, E.M, { w: 180, d: 65, name: "AIR CARGO" }), 810, 367.5, 2);
+  const fr = KIND("freighter"); if (fr) { gate(g, fr, [810, 335 - 8 - fr.length_m / 2], [0, 1], [760, 335], labels, "freighter"); }
+  labels.push(["Cargo terminal", [810, 370], 17]);
+  // De-icing pad: a ring to stop on and two spray booms
+  slab(g, rect(935, 200, 1015, 280), -0.5, TOP.apron, M.apron); ring(g, [975, 240], 30, 0.6, PAINT, M.orange);
+  for (const s of [-1, 1]) put("Spray boom", B => S.sprayBoom(B), 975 + s * 34, 240, s < 0 ? 2 : 0, 0, { maxSide: 40 });   // each arm over the pad
+  taxi(g, [975, TAXI_Z], [975, 200], 30); labels.push(["De-icing pad", [975, 240], 16]);
+  // Fuel farm: four tanks in a bund
+  outlineRect(g, rect(960, 330, 1090, 440), 1.2, 0.8, M.wall);
+  for (const [x, z] of [[990, 360], [1060, 360], [990, 410], [1060, 410]]) put("Fuel tank", B => S.tank(B, { r: 13, h: 14 }), x, z);
+  labels.push(["Fuel farm", [1025, 385], 18]);
+  tower(g, [370, 480], 55, labels);
+  // Maintenance: two arched hangars, an airliner and the freighter inside
+  slab(g, rect(-640, 195, -380, 320), -0.5, TOP.apron, M.apron);
+  archHangar(g, -625, -515, 232, 312, 14, 16, labels, "Maintenance hangar");
+  archHangar(g, -500, -390, 232, 312, 14, 16, labels, null);
+  aircraft(g, air, [-570, 268], [0, 1]); if (fr) aircraft(g, fr, [-445, 268], [0, 1]);
+  // The heliport: three helipads, a helicopter hangar, two helicopters
+  slab(g, rect(-360, 195, -200, 330), -0.5, TOP.apron, M.apron);
+  const heli = AIR.kinds.find(k => k.role === "Helicopter");
+  [[-330, 232], [-280, 232], [-230, 232]].forEach((c, i) => { helipad(g, c, labels, i === 1 ? "Helipads" : null); if (heli && i !== 1) aircraft(g, heli, c, [0, -1]); });
+  put("Helicopter hangar", B => S.cargoShed(B, E.M, { w: 100, d: 42, h: 10, doorH: 8, use: "shop" }), -300, 301, 2);
+  labels.push(["Helicopter hangar", [-300, 300], 13]); if (heli) labels.push(["helicopter", [-330, 232], 6, "standin"]);
+  // General aviation: two rows of T-hangars and light aircraft on their apron
+  slab(g, rect(-1000, 195, -680, 340), -0.5, TOP.apron, M.apron);
+  for (const z0 of [262, 300]) put("T-hangars", B => S.tHangars(B, E.M, { w: 290 }), -845, z0 + 12, 2);
+  const lp = KIND("light_plane"); for (let i = 0; i < 6; i++) aircraft(g, lp, [-960 + i * 45, 225], [0, 1]);
+  labels.push(["T-hangars", [-845, 290], 8]); if (lp) labels.push(["light planes", [-870, 225], 5, "standin"]);
+  // ---- landside: the road, the curbs, car parks, the radar
+  pave(g, [-200, 527], [1100, 527], 24, M.road); stroke(g, [-200, 527], [1100, 527], 0.25, PAINT, M.white);
+  put("Multi-storey car park", B => S.carPark(B, E.M, { w: 240, d: 80 }, SmallBuildings.mulberry(5)), 160, 600);
+  labels.push(["Multi-storey car park", [160, 600], 16]);
+  const lot = rect(420, 560, 700, 640); slab(g, lot, -0.5, 0.14, M.asphalt);
+  for (let x = 424; x <= 696; x += 2.5) for (const [z0, z1] of [[562, 567], [588, 593], [607, 612], [633, 638]]) stroke(g, [x, z0], [x, z1], 0.12, 0.2, M.white);
+  labels.push(["Car park", [560, 600], 3]);
+  const radarId = put("Radar", B => S.radarMast(B), -100, 600);
+  const radar = new T.Group(); radar.position.set(-100, 23.6, 600); g.add(radar);
+  const ant = new T.Mesh(new T.BoxGeometry(14, 4, 1), M.white); ant.position.y = 2; ant.castShadow = true; radar.add(ant);
+  radar.add(new T.Mesh(new T.CylinderGeometry(0.6, 0.6, 1.2, 10), M.dark)); spinOn(radarId, radar, 1.2);
+  labels.push(["Surveillance radar", [-100, 600], 28]);
+
+  // ---- the military side: the mech base, its link and hold, dispersal pans, the readiness platform, the fire station.
+  // The game's civil airport leaves it out: the air bases are the military airfields (survey AP1).
+  const military = !(window.SITE_EXPORT && window.SITE_EXPORT.civil);
+  if (military) mechBase(g, false, labels);
+  if (military) {
+    link(g, [500, -main.w2], [500, MIL.z1], [1, 0], null); hold(g, [500, -main.w2 - 50], [0, -1]);
+    for (const z of [-400, -480, -560, -640]) { taxi(g, [MIL.x1, z], [1060, z], 18); slab(g, rect(1040, z - 22, 1100, z + 22), -0.5, TOP.apron, M.mil); }
+    taxi(g, [1060, -380], [1060, -660], 18);
+    labels.push(["Dispersal hard standings", [1070, -520], 6]);
+  }
+  slab(g, rect(880, -125, 990, -45), -0.5, TOP.apron, M.mil); link(g, [960, -main.w2], [960, -45], [1, 0], null);
+  labels.push(["Operational readiness platform", [935, -85], 5]);
+  put("Fire station", B => S.fireStation(B, E.M), -22, -145);
+  link(g, [-20, -main.w2], [-20, -125], [1, 0], null, 18); labels.push(["Fire station", [-20, -145], 12]);
+  // ---- the fence, outside the landside road kept clear
+  const F = [[-1150, -840], [1150, -840], [1150, 508], [-1150, 508]], posts = [];
+  for (let i = 0; i < 4; i++) { const p = F[i], q = F[(i + 1) % 4], n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 10);
+    for (let k = 0; k < n; k++) posts.push([p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n]);
+    for (const yy of [1, 2.3]) box(g, [Math.min(p[0], q[0]) - 0.03, yy, Math.min(p[1], q[1]) - 0.03], [Math.max(p[0], q[0]) + 0.03, yy + 0.06, Math.max(p[1], q[1]) + 0.03], M.fence, false); }
+  const inst = new T.InstancedMesh(new T.BoxGeometry(0.12, 2.4, 0.12), M.fence, posts.length), m4 = new T.Matrix4();
+  posts.forEach((p, i) => { m4.makeTranslation(p[0], 1.2, p[1]); inst.setMatrixAt(i, m4); }); g.add(inst);
+}
+
+function buildToday(g, labels) {
+  const main = runway(MAIN);
+  drawRunway(g, main, false, TOP.main);
+  pave(g, [500, -main.w2], [500, MIL.z1], 22.5, M.asphalt);
+  mechBase(g, true, labels);
+  labels.push(["Runway and its one taxiway", [500, 0], 4, "today"]);
+}
+
+// ---------------------------------------------------------------- night (openspec/changes/night-voxel-light section 2d)
+// Owner, 2026-10-29: "airports and seaports lit like this at all times", "runways will need runway lights as well (not
+// actual lights, just light dots)", "area near terminals should probably be lit with parking lot lamps", "top control
+// towers should always be lit", "Lights need to be close to the terminal where planes park.. place lights next to the
+// boarding tunnels". The night is drawn in its own group, never in `built`: the game's export takes `built` only.
+const GATES = [];
+const nightG = new T.Group(); scene.add(nightG);
+let night = false;
+// The glow dots: at least 3 px across however far, additive, lighting nothing (as the street lamps' far glow).
+const dotMat = new T.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: T.AdditiveBlending, vertexColors: true, uniforms: { scale: { value: 500 } },
+  // the page draws with a logarithmic depth buffer, so the dots write the same depth (three's logdepthbuf chunks)
+  vertexShader: "#include <common>\n#include <logdepthbuf_pars_vertex>\nuniform float scale; varying vec3 vC; void main() { vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = max(3.0, 0.9 * scale / -mv.z);\n#include <logdepthbuf_vertex>\n}",
+  fragmentShader: "#include <logdepthbuf_pars_fragment>\nvarying vec3 vC; void main() {\n#include <logdepthbuf_fragment>\nfloat r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.0, r); gl_FragColor = vec4(vC * (a * a * 2.2 + smoothstep(0.35, 0.0, r)), 1.0); }",
+});
+const DOT = { white: 0xfff6e8, green: 0x37e07a, red: 0xff3a2e, blue: 0x4a7dff, halide: 0xe6eeff, sodium: 0xffb35a };
+// The always-lit tower cab: a warm light in the cab, day and night (outside the night group).
+const cabLight = new T.PointLight(0xfff0d0, 2.2, 30, 1.2); scene.add(cabLight);
+// The runway lights' one rule (section 2d), as the game's (`cb_core::world::lamps::runway_dots`): edge lights every
+// 60 m both sides, 3 m outside the paving; the centre line every 30 m between the thresholds' touchdown ends; across
+// each threshold, 60 m in, a green bar every 3 m, and 2 m past it a red one (the end, for the other way). Heights over
+// the runway's surface. The page draws it; the game draws each exported runway (and the air bases') by its own copy.
+function runwayDots(rw, dot) {
+  const R = runway(rw), y = rw.y;
+  for (let u = 0; u <= R.len + 0.1; u += 60) for (const v of [-(R.w2 + 3), R.w2 + 3]) { const q = R.at(u, v); dot(q[0], y + 0.35, q[1], "white"); }
+  for (let u = BLAST + 70; u <= R.len - BLAST - 70; u += 30) { const q = R.at(u, 0); dot(q[0], y + 0.1, q[1], "white"); }
+  for (const [u, c] of [[BLAST, "green"], [R.len - BLAST, "green"], [BLAST - 2, "red"], [R.len - BLAST + 2, "red"]])
+    for (let v = -R.w2; v <= R.w2 + 0.1; v += 3) { const q = R.at(u, v); dot(q[0], y + 0.2, q[1], c); }
+}
+// The airfield's night lights as data (section 2d): the page draws them, and tools/buildings/export_sites.cjs writes
+// the same list into the site's table for the game (`lights`). A mast: its foot (x, z) at `base`, its head h over it,
+// its floodlight aimed at `aim` with `power`, `range` m and a `cone` (radians); a dot: a glow at (x, y, z) that lights
+// nothing; a runway: its centre line a to b, its width and its surface's height, lit by `runwayDots`.
+function nightLights() {
+  const L = { masts: [], dots: [], runways: [] };
+  const dot = (x, y, z, col) => L.dots.push([x, y, z, col]);
+  function mast(at, h, aim, power) {
+    L.masts.push({ x: at[0], z: at[1], base: 0, h, aim: [aim[0], 0, aim[1]], power, range: h * 3.2, cone: 0.95, col: "halide", pole: true });
+    dot(at[0], h, at[1], "halide");
+  }
+  L.runways.push({ a: MAIN.a, b: MAIN.b, w: MAIN.w, y: TOP.main }, { a: CROSS.a, b: CROSS.b, w: CROSS.w, y: TOP.cross });
+  // The approach crossbars and the PAPI: their lamps glow (the boxes are drawn with the runway).
+  const main = runway(MAIN);
+  for (const end of [0, 1]) {
+    const from = end === 0 ? main.a : main.b, d = end === 0 ? main.d : [-main.d[0], -main.d[1]], right = [-d[1], d[0]];
+    const at = (u, v) => [from[0] + d[0] * u + right[0] * v, from[1] + d[1] * u + right[1] * v];
+    for (let i = 1; i <= 10; i++) { const half = i % 3 === 0 ? 9 : 6; for (let k = 0; k < 5; k++) { const q = at(-i * 30, -half + k * half / 2); dot(q[0], 1.6, q[1], "white"); } }
+    for (let k = 0; k < 4; k++) { const q = at(BLAST + AIM, -main.w2 - 15 - k * 9); dot(q[0], 1.15, q[1], k < 2 ? "white" : "red"); }
+  }
+  // Taxiway edge lights, blue, every 30 m: the parallel taxiway and the three links.
+  for (let x = -988; x <= 988; x += 30) for (const z of [TAXI_Z - TAXI_W / 2 - 1.5, TAXI_Z + TAXI_W / 2 + 1.5]) dot(x, 0.5, z, "blue");
+  for (const x of [-976, 0, 976]) for (let z = main.w2 + 20; z < TAXI_Z - TAXI_W / 2; z += 30) for (const s of [-1, 1]) dot(x + s * (TAXI_W / 2 + 1.5), 0.5, z, "blue");
+  // Apron masts next to the boarding bridges: one 25 m mast a gate, beside the bridge's rotunda on the side away from
+  // the bridge, its four floodlights aimed down onto the stand. White, as at the reference's terminal.
+  for (const g of GATES) {
+    const side = [g.n[1], -g.n[0]], toDoor = (g.door[0] - g.rotunda[0]) * side[0] + (g.door[2] - g.rotunda[1]) * side[1];
+    const away = toDoor > 0 ? -1 : 1, m = [g.rotunda[0] - g.n[0] * 6 + side[0] * away * 10, g.rotunda[1] - g.n[1] * 6 + side[1] * away * 10];
+    mast(m, 25, [g.c[0], g.c[1]], 1.6);
+  }
+  // The car park's lamps, 9 m, every 35 m along its aisles; the multi-storey's roof deck, 6 m.
+  for (let x = 437; x <= 690; x += 35) for (const z of [577, 600, 623]) mast([x, z], 9, [x, z], 0.9);
+  for (let x = 60; x <= 260; x += 50) for (const z of [575, 625]) mast([x, z], 6 + 15, [x, z], 0.7);
+  return L;
+}
+function buildNight() {
+  for (const o of [...nightG.children]) { nightG.remove(o); if (o.geometry) o.geometry.dispose(); }
+  cabLight.visible = show === "proposed" && !window.SITE_EXPORT;
+  cabLight.position.set(370, 55 + 3.5, 480);
+  if (show !== "proposed") return;
+  const L = nightLights();
+  if (window.SITE_EXPORT) { window.SITE_EXPORT.lights = L; return; }
+  const dots = L.dots.slice();
+  for (const rw of L.runways) runwayDots(rw, (x, y, z, c) => dots.push([x, y, z, c]));
+  for (const m of L.masts) {
+    const pole = new T.Mesh(new T.BoxGeometry(0.6, m.h, 0.6), M.fence); pole.position.set(m.x, m.h / 2, m.z); nightG.add(pole);
+    const head = new T.Mesh(new T.BoxGeometry(3, 0.6, 1.2), M.lamp); head.position.set(m.x, m.h, m.z); nightG.add(head);
+    const sp = new T.SpotLight(DOT[m.col], m.power, m.range, m.cone, 0.7, 1.2);
+    sp.position.set(m.x, m.h - 0.4, m.z); sp.target.position.set(...m.aim); nightG.add(sp, sp.target);
+  }
+  const geo = new T.BufferGeometry(), P = [], C = [];
+  for (const [x, y, z, c] of dots) { P.push(x, y, z); const col = new T.Color(DOT[c]); C.push(col.r, col.g, col.b); }
+  geo.setAttribute("position", new T.Float32BufferAttribute(P, 3)); geo.setAttribute("color", new T.Float32BufferAttribute(C, 3));
+  nightG.add(new T.Points(geo, dotMat));
+}
+// Day or night: the sky, the sun or the moon, the exposure, the lamps' glow, and the rooms. Inside surfaces glow warm at
+// night, standing in for the game's room light behind the glass.
+const INSIDE = ["plaster", "floorTile", "carpet", "laminate", "wallTile", "counter", "fabric"];
+function setNight(on) {
+  night = on;
+  scene.background = lin(on ? 0x070b16 : 0xbfcdd9); scene.fog.color = lin(on ? 0x0a1222 : 0xbfcdd9);
+  hemi.intensity = on ? 0.1 : 0.85; hemi.color.set(on ? 0x2a3a66 : 0xbfd4ee);
+  sun.intensity = on ? 0.18 : 2.2; sun.color.set(on ? 0x8899cc : 0xffe8cc); sun.castShadow = !on;
+  renderer.toneMappingExposure = on ? 1.35 : 1;
+  for (const [m, day, , nite] of E.glows) m.emissiveIntensity = on ? nite : day;
+  for (const k of INSIDE) { const m = E.materials[k]; if (m) { m.emissive = new T.Color(on ? 0xffc98a : 0x000000); m.emissiveIntensity = on ? 0.32 : 0; } }
+  nightG.visible = on;
+  document.querySelectorAll("[data-time]").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.time === "night") === on)));
+}
+
+// ---------------------------------------------------------------- yardsticks: the Foreman and a pilot
+const yardG = new T.Group(); scene.add(yardG);
+pending++;
+loader.parse(glbBytes(YARD.glb), "", gltf => {
+  gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+  gltf.scene.position.set(FOREMAN[0], 0.12, FOREMAN[1]);
+  yardG.add(gltf.scene); loaded();
+}, loaded);
+box(yardG, [FOREMAN[0] - 18.5, 0.12, FOREMAN[1] - 0.25], [FOREMAN[0] - 18, 1.92, FOREMAN[1] + 0.25], M.pilot);
+
+// ---------------------------------------------------------------- scene state, labels, views
+let show = "proposed", built = null, labels = [], labelReach = null, gun = "shell";
+const statEl = document.getElementById("shotstat");
+controls.addEventListener("start", () => { labelReach = null; });
+const tagsEl = document.getElementById("tags");
+function rebuild() {
+  if (built) { scene.remove(built); built.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+  built = new T.Group(); scene.add(built); labels = []; spinners = []; GATES.length = 0; tagsEl.innerHTML = "";
+  E.clear(); statEl.textContent = "";
+  if (show === "today") buildToday(built, labels); else buildProposed(built, labels);
+  E.finish(); seatSpinners(); buildNight(); setNight(night);
+  labels.push(["Foreman, 24 m", FOREMAN, 26]);
+  for (const l of labels) { const el = document.createElement("div"); el.className = "tag " + (l[3] || ""); el.textContent = l[0]; tagsEl.appendChild(el); l.el = el; }
+  document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
+}
+const V = (x, y, z) => new T.Vector3(x, y, z);
+function view(name) {
+  labelReach = null;
+  const set = (eye, look) => { camera.position.copy(eye); controls.target.copy(look); controls.update(); };
+  ({
+    overview: () => set(V(-1500, 1300, 1700), V(0, 0, -100)),
+    plan: () => set(V(0, 1100, -99), V(0, 0, -100)),
+    final: () => { labelReach = 0; set(V(-1650, 34, 0), V(400, 0, 0)); },
+    threshold: () => { labelReach = 300; set(V(-1080, 14, 0), V(-400, 0, 0)); },
+    terminals: () => set(V(150, 90, 120), V(380, 8, 400)),
+    pier: () => set(V(470, 22, 250), V(560, 6, 360)),
+    gates: () => set(V(160, 40, 300), V(160, 6, 420)),
+    hangars: () => set(V(-420, 45, 120), V(-510, 12, 270)),
+    heliport: () => set(V(-220, 30, 160), V(-280, 2, 250)),
+    ga: () => set(V(-760, 40, 160), V(-860, 2, 280)),
+    cargo: () => set(V(700, 45, 180), V(830, 6, 320)),
+    tower: () => { labelReach = 1200; set(V(370, 59, 468), V(150, 0, 0)); },
+    military: () => set(V(200, 260, -120), V(560, 0, -560)),
+    cockpit: () => set(V(FOREMAN[0], 21, FOREMAN[1] + 14), V(300, 5, 150)),
+    foot: () => set(V(FOREMAN[0] - 19, 1.7, FOREMAN[1] + 2), V(500, 12, -745)),
+  })[name]();
+}
+document.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { show = b.dataset.show; rebuild(); });
+document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.dataset.view));
+document.querySelectorAll("[data-time]").forEach(b => b.onclick = () => setNight(b.dataset.time === "night"));
+document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = b.dataset.gun;
+  document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
+document.getElementById("repair").onclick = () => { E.reset(); statEl.textContent = ""; };
+E.bindFire(canvas, camera, () => gun);
+window.MOCKUP = { view, setNight, blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), unheld: () => E.unheld(), engine: E,
+  buildings: () => E.BLD.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.pieces.filter(p => E.PIECES[p].alive).length, collapsed: B.collapsed })) };
+canvas.addEventListener("keydown", e => {
+  const s = 0.05, sph = new T.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  if (e.key === "ArrowLeft") sph.theta -= s; else if (e.key === "ArrowRight") sph.theta += s;
+  else if (e.key === "ArrowUp") sph.phi = Math.max(0.05, sph.phi - s); else if (e.key === "ArrowDown") sph.phi = Math.min(PI * 0.495, sph.phi + s);
+  else if (e.key === "+" || e.key === "=") sph.radius *= 0.85; else if (e.key === "-") sph.radius /= 0.85; else return;
+  e.preventDefault(); camera.position.copy(controls.target).add(new T.Vector3().setFromSpherical(sph));
+});
+document.querySelector("#pieces tbody").innerHTML = [
+  ["Main runway 09/27", "2000 x 45 m, full markings, PAPI, approach lights, arrester gear"],
+  ["Secondary runway 14/32", "1170 x 30 m, crossing the main"],
+  ["Taxiways", "parallel 2 km, 3 links with holding points, 2 rapid exits"],
+  ["Terminal 1", "320 x 40 m, 4 gates"], ["Terminal 2", "280 x 65 m hall, 200 m pier, 6 gates"],
+  ["Jet bridges", "10: rotunda, 3-part tunnel, cab, drive wheels"],
+  ["Cargo terminal", "180 x 65 m, the freighter on its stand"], ["De-icing pad", "80 x 80 m, two spray booms"],
+  ["Maintenance hangars", "2, 110 x 80 m, arched, 30 m high"], ["Heliport", "3 helipads, a 100 x 42 m hangar"],
+  ["General aviation", "48 T-hangars, 6 light planes"], ["Control tower", "71 m to the beacon, glazed cab"],
+  ["Mech base", "the game's 700 x 500 m site, its hangars and pads"], ["Dispersal, ORP", "4 hard standings, the readiness platform"],
+  ["Fire station", "midfield, 4 bays"], ["Landside", "road, curbs, 4-deck and surface car parks, radar"],
+].map(r => `<tr><td>${r[0]}</td><td class="n">${r[1]}</td></tr>`).join("");
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) {
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    dotMat.uniforms.scale.value = h * renderer.getPixelRatio() / (2 * Math.tan(camera.fov * PI / 360)); }
+}
+const tmp = new T.Vector3();
+let last = 0;
+function frame(ms) {
+  const dt = Math.min(0.05, (ms - last) / 1000 || 0); last = ms;
+  for (const s of spinners) { s.obj.rotation.y += dt * s.rate; if (s.pid != null) s.obj.visible = E.PIECES[s.pid].alive; }
+  E.step(dt);
+  if (E.FALLING.length || statEl.textContent) { let gone = 0; for (const P of E.PIECES) if (!P.alive) gone++; statEl.textContent = gone ? `${gone} pieces down, ${E.FALLING.length} falling` : ""; }
+  resize(); controls.update(); renderer.render(scene, camera);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const reach = labelReach ?? Math.max(400, 2.2 * camera.position.distanceTo(controls.target));
+  for (const l of labels) {
+    tmp.set(l[1][0], l[2], l[1][1]).project(camera);
+    const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && camera.position.distanceTo(V(l[1][0], l[2], l[1][1])) < reach;
+    l.el.style.display = vis ? "block" : "none";
+    if (vis) { l.el.style.left = ((tmp.x + 1) / 2 * w) + "px"; l.el.style.top = ((1 - tmp.y) / 2 * h) + "px"; }
+  }
+  requestAnimationFrame(frame);
+}
+rebuild();
+const start = (location.hash || "").slice(1);
+view(["overview", "final", "threshold", "terminals", "pier", "gates", "hangars", "heliport", "ga", "cargo", "tower", "military", "cockpit", "foot"].includes(start) ? start : "overview");
+loaded();
+requestAnimationFrame(frame);
+</script>

@@ -4,7 +4,6 @@
 //! this module only says when it lands and how the arm is posed. Pure.
 
 use crate::data::{Validate, positive};
-use glam::Quat;
 use serde::Deserialize;
 
 /// Close combat in a mech's data (`melee:`).
@@ -25,6 +24,35 @@ pub struct MeleeConfig {
     pub penetration_mm: f32,
     /// Structure points it takes from a part it beats.
     pub damage: f32,
+    /// How much of a struck mech's stance a strike breaks, in blows (the game's one strike is the jab: 1).
+    pub strike_stance: f32,
+    /// Stance damage that breaks this mech's stance and knocks it down, in blows: light 2, mid 3, heavy 4
+    /// (close-combat 2b; owner, 2026-10-29: "2,3,4 light mech, mid, heavy").
+    pub stance_break_at: f32,
+    /// Untouched this long, the stance starts to mend.
+    pub stance_recover_delay_s: f32,
+    /// How fast it mends, blows a second.
+    pub stance_recover_per_s: f32,
+    /// The first part of the fall, a stumble back.
+    pub knockdown_stumble_s: f32,
+    /// The stumble and the fall to the ground.
+    pub knockdown_fall_s: f32,
+    /// Lying on the ground.
+    pub knockdown_down_s: f32,
+    /// Getting up through a kneel.
+    pub knockdown_getup_s: f32,
+    /// How far over it goes, radians.
+    pub knockdown_lie_rad: f32,
+    /// How far it rolls toward the side it was struck from, radians.
+    pub knockdown_roll_rad: f32,
+    /// The heel line it tips over about, this far behind its feet.
+    pub knockdown_heel_back_m: f32,
+    /// The speed the breaking blow drives it back at.
+    pub knockdown_speed_m_s: f32,
+    /// How fast that speed dies while it falls, per second.
+    pub knockdown_drag_per_s: f32,
+    /// How fast it stops skidding once it is down.
+    pub knockdown_skid_m_s2: f32,
 }
 
 impl Default for MeleeConfig {
@@ -33,11 +61,26 @@ impl Default for MeleeConfig {
             // Owner, 2026-10-25: "range should be 80m instead" (was 30 m, survey G18).
             range_m: 80.0,
             reach_m: 9.0,
-            windup_s: 0.35,
-            hit_s: 0.15,
+            // The lab's jab (data/combat/melee_moves.ron): it lands at 0.45 s and is home at 0.95 s.
+            windup_s: 0.45,
+            hit_s: 0.1,
             recover_s: 0.4,
             penetration_mm: 300.0,
             damage: 60.0,
+            strike_stance: 1.0,
+            stance_break_at: 3.0,
+            stance_recover_delay_s: 3.0,
+            stance_recover_per_s: 0.5,
+            knockdown_stumble_s: 0.35,
+            knockdown_fall_s: 1.0,
+            knockdown_down_s: 1.6,
+            knockdown_getup_s: 1.3,
+            knockdown_lie_rad: 1.45,
+            knockdown_roll_rad: 0.22,
+            knockdown_heel_back_m: 2.5,
+            knockdown_speed_m_s: 8.0,
+            knockdown_drag_per_s: 1.4,
+            knockdown_skid_m_s2: 9.0,
         }
     }
 }
@@ -52,8 +95,25 @@ impl Validate for MeleeConfig {
             ("melee.recover_s", self.recover_s),
             ("melee.penetration_mm", self.penetration_mm),
             ("melee.damage", self.damage),
+            ("melee.strike_stance", self.strike_stance),
+            ("melee.stance_break_at", self.stance_break_at),
+            ("melee.stance_recover_delay_s", self.stance_recover_delay_s),
+            ("melee.stance_recover_per_s", self.stance_recover_per_s),
+            ("melee.knockdown_stumble_s", self.knockdown_stumble_s),
+            ("melee.knockdown_fall_s", self.knockdown_fall_s),
+            ("melee.knockdown_down_s", self.knockdown_down_s),
+            ("melee.knockdown_getup_s", self.knockdown_getup_s),
+            ("melee.knockdown_lie_rad", self.knockdown_lie_rad),
+            ("melee.knockdown_heel_back_m", self.knockdown_heel_back_m),
+            ("melee.knockdown_speed_m_s", self.knockdown_speed_m_s),
+            ("melee.knockdown_drag_per_s", self.knockdown_drag_per_s),
+            ("melee.knockdown_skid_m_s2", self.knockdown_skid_m_s2),
         ] {
             positive(k, v)?;
+        }
+        crate::data::finite("melee.knockdown_roll_rad", self.knockdown_roll_rad)?;
+        if self.knockdown_stumble_s >= self.knockdown_fall_s {
+            return Err("melee.knockdown_stumble_s must be shorter than melee.knockdown_fall_s".into());
         }
         Ok(())
     }
@@ -144,55 +204,6 @@ impl Strikes {
         }
         lands
     }
-
-    /// Where an arm is in its swing: 0 at rest, toward -1 drawn back in the wind-up, 1 thrown at
-    /// the end of the hit, easing back to 0 in the recovery.
-    pub fn swing(&self, cfg: &MeleeConfig, arm: usize) -> f32 {
-        let Some(t) = self.t_s.get(arm).copied().flatten() else {
-            return 0.0;
-        };
-        let ease = |x: f32| {
-            let x = x.clamp(0.0, 1.0);
-            x * x * (3.0 - 2.0 * x)
-        };
-        if t < cfg.windup_s {
-            -ease(t / cfg.windup_s)
-        } else if t < cfg.windup_s + cfg.hit_s {
-            -1.0 + 2.0 * ease((t - cfg.windup_s) / cfg.hit_s)
-        } else {
-            1.0 - ease((t - cfg.windup_s - cfg.hit_s) / cfg.recover_s)
-        }
-    }
-}
-
-/// Drawn back, the upper arm swings this far behind its rest, and the forearm curls this far.
-const DRAW_UPPER_RAD: f32 = 0.52;
-const DRAW_FORE_RAD: f32 = -0.35;
-/// Thrown, the upper arm swings forward to about level and the forearm straightens along it.
-const THROW_UPPER_RAD: f32 = -1.4;
-const THROW_FORE_RAD: f32 = 1.05;
-
-/// The arm bones' model-space rotations for a swing (see [`Strikes::swing`]) of each arm, under the
-/// torso's rotation `torso`: the upper arm turns about the shoulder's side axis (+x in model space,
-/// +z forward) and the forearm turns with it and about the elbow. An arm at rest (swing 0) is left
-/// to follow the torso and is not listed.
-pub fn arm_rotations(torso: Quat, swing: [f32; 2]) -> Vec<(&'static str, Quat)> {
-    let mut out = Vec::new();
-    for (arm, (upper, fore)) in [("upper_arm_L", "forearm_L"), ("upper_arm_R", "forearm_R")].into_iter().enumerate() {
-        let s = swing[arm];
-        if s == 0.0 || !s.is_finite() {
-            continue;
-        }
-        let (u, f) = if s < 0.0 {
-            (DRAW_UPPER_RAD * -s, DRAW_FORE_RAD * -s)
-        } else {
-            (THROW_UPPER_RAD * s, THROW_FORE_RAD * s)
-        };
-        let up = torso * Quat::from_rotation_x(u);
-        out.push((upper, up));
-        out.push((fore, up * Quat::from_rotation_x(f)));
-    }
-    out
 }
 
 #[cfg(test)]
@@ -281,7 +292,6 @@ mod tests {
         assert_eq!(landed_at.len(), 1);
         assert!((landed_at[0] - cfg.windup_s).abs() <= DT, "{landed_at:?}");
         assert_eq!(s.t_s[1], None);
-        assert_eq!(s.swing(&cfg, 1), 0.0);
     }
 
     #[test]
@@ -292,23 +302,5 @@ mod tests {
             assert_eq!(s.step(&cfg, [true, false], [true, false], DT), [false; 2]);
         }
         assert_eq!(s.t_s[0], None);
-    }
-
-    #[test]
-    fn the_arm_draws_back_then_is_thrown_then_comes_home() {
-        let cfg = MeleeConfig::default();
-        let at = |t: f32| Strikes { t_s: [Some(t), None] }.swing(&cfg, 0);
-        assert!(at(cfg.windup_s * 0.9) < -0.9);
-        assert!((at(cfg.windup_s + cfg.hit_s) - 1.0).abs() < 1e-3);
-        assert!(at(cfg.strike_s() - 0.001).abs() < 0.01);
-    }
-
-    #[test]
-    fn a_thrown_arm_points_its_hanging_upper_arm_forward() {
-        let r = arm_rotations(Quat::IDENTITY, [1.0, 0.0]);
-        assert_eq!(r.len(), 2, "only the swinging arm is posed");
-        let down = glam::Vec3::NEG_Y;
-        let thrown = r[0].1 * down;
-        assert!(thrown.z > 0.95, "forward is +z in model space: {thrown:?}");
     }
 }

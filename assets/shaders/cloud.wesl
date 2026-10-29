@@ -5,7 +5,7 @@
 // flat streaks high up. All three are items of one mesh, sorted back to front on the CPU, drawn in
 // one alpha-blended draw. Each billboard fades where it meets the ground behind it (the depth
 // prepass, "soft particles") and near the eye, where the cloud fog takes over; its colour goes toward
-// the fog's by the air between it and the eye (`in_the_air`), so a far one sinks into the horizon's haze.
+// the fog's by the air between it and the eye (`air_between`, in `fragment`), so a far one sinks into the horizon's haze.
 // Linear HDR colour, reverse-Z depth.
 //
 // The look is the island mockup's (`docs/mockups/island.html`, `spriteMat`, `shaftMat`,
@@ -71,7 +71,7 @@ struct CloudVertex {
     @location(0) centre: vec3<f32>,
     // The quad's corner, -1..1.
     @location(1) corner: vec2<f32>,
-    // A puff: rx across, ry up, seed, unused. A shaft: radius, height, seed, unused. Cirrus:
+    // A puff: rx across, ry up, seed, unused. A shaft: radius, height, seed, fall speed. Cirrus:
     // length, width, seed, heading (radians from +x toward +z).
     @location(2) shape: vec4<f32>,
     // x kind, y darkness 0..1, z opacity 0..1, w unused.
@@ -124,12 +124,16 @@ fn vertex(in: CloudVertex) -> CloudFragment {
         let side = vec3<f32>(-along.z, 0.0, along.x);
         wp = c + along * (in.corner.x * 0.5 * in.shape.x) + side * (in.corner.y * 0.5 * in.shape.y);
     } else if kind > KIND_SHAFT - 0.5 {
-        // Turned about the vertical to face the eye, from the ground up to its top.
+        // Turned about the vertical to face the eye, from the ground to 150 m up into the cloud's base
+        // (so no top edge shows), its sides upright so every streak falls straight down (cloud-weather
+        // design section 2b: a foot leaning downwind bent the sheet, and a foot flaring wider fanned the
+        // streaks out).
         var to = eye - c;
         to.y = 0.0;
         let facing = normalize(to + vec3<f32>(1e-3, 0.0, 0.0));
         let across = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), facing));
-        wp = c + across * (in.corner.x * in.shape.x) + vec3<f32>(0.0, in.corner.y * 0.5 * in.shape.y, 0.0);
+        let h = in.corner.y * 0.5 + 0.5;
+        wp = vec3<f32>(c.x, h * (in.shape.y + 150.0), c.z) + across * (in.corner.x * in.shape.x);
     } else {
         // A flat puff seen from above is round: its height on screen grows toward its width.
         let f = facing(c, eye);
@@ -252,25 +256,48 @@ fn puff(in: CloudFragment, look: vec3<f32>, dist: f32, fine: f32, sky: vec3<f32>
     return vec4<f32>(lit, dens * in.look.z * near * floor);
 }
 
-fn shaft(in: CloudFragment) -> vec4<f32> {
+// A rain shaft (cloud-weather design section 2b; owner, 2026-10-28: "blocky very transparent, doesnt
+// quite look like rain"): a slate curtain hanging from the base, densest in its core, its sides
+// wandering with height, its foot frayed, striped by fine streaks falling at rain's speed. Gradient
+// noise throughout (value noise read as blocks, as it did in the puffs); an octave finer than half a
+// pixel across (`px`, the uv's width of a pixel) fades out rather than shimmering.
+fn shaft(in: CloudFragment, look: vec3<f32>, px: f32) -> vec4<f32> {
     let x = in.uv.x;
-    let y = in.uv.y * 0.5 + 0.5;
-    let t = globals.time;
+    let h = in.uv.y * 0.5 + 0.5;
     let seed = in.shape.z;
-    let streak = 0.6 * vn(vec2<f32>(x * 22.0 + seed, in.world.y / 90.0 + t * 2.2))
-        + 0.4 * vn(vec2<f32>(x * 60.0, in.world.y / 40.0 + t * 3.1));
-    let body = pow(max(0.0, 1.0 - x * x), 1.5) * (0.55 + 0.45 * vn(vec2<f32>(x * 3.0 + t * 0.02, seed)));
+    // Ragged sides: the edge wanders by 18 % over about a third of the height, and a little faster.
+    let wander = 0.18 * (2.0 * gn(vec2<f32>(h * 3.0, seed), 0.3) - 1.0) + 0.06 * (2.0 * gn(vec2<f32>(h * 11.0, seed + 5.0), 0.7) - 1.0);
+    let e = clamp(abs(x + wander) / 0.92, 0.0, 1.0);
+    let core = pow(1.0 - e * e, 1.3);
+    // A frayed foot; the top fades out over the upper third under the cloud's base, its edge ragged across the
+    // sheet (the quad runs on into the base, so no straight edge shows).
+    let fray = gn(vec2<f32>(x * 6.0 + seed, 1.3), 0.2);
+    let foot = smoothstep(0.02 + 0.08 * fray, 0.08 + 0.12 * fray, h);
+    let ragged = gn(vec2<f32>(x * 9.0 + seed, 4.7), 0.9);
+    let top = smoothstep(0.86, 0.5, h + 0.12 * (ragged - 0.5));
+    // Streaks stretched up the sheet, falling at the shaft's fall speed (`shape.w`, metres a second).
+    let y_m = in.world.y + in.shape.w * globals.time;
+    let o2 = 1.0 - smoothstep(0.25, 0.5, px * 60.0);
+    let o3 = 1.0 - smoothstep(0.25, 0.5, px * 150.0);
+    let streak = 0.3 * gn(vec2<f32>(x * 20.0 + seed, y_m / 350.0), seed * 0.1)
+        + 0.42 * mix(0.5, gn(vec2<f32>(x * 60.0, y_m / 120.0), 1.7), o2)
+        + 0.28 * mix(0.5, gn(vec2<f32>(x * 150.0, y_m / 50.0), 3.1), o3);
+    // The lines soften into even haze toward the top, where the rain leaves the cloud.
+    let lines = clamp(0.9 + mix(2.2, 0.6, smoothstep(0.3, 0.8, h)) * (streak - 0.5), 0.55, 1.25);
     // From inside the shaft or looking steeply up, a sheet is seen nearly edge-on: a flat grey wedge
-    // with straight edges that swings round as the eye moves under it (owner, 2026-10-26: "its also
-    // really blocky up close"). There the rain's haze and the drops on the glass carry the rain, so
-    // the sheet fades out within the shaft's radius of its axis and as the view climbs past 35 degrees.
+    // that swings round as the eye moves under it (owner, 2026-10-26: "its also really blocky up
+    // close"). There the rain's haze and the drops on the glass carry the rain, so the sheet fades out
+    // within the shaft's radius of its axis and as the view climbs past 35 degrees.
     let eye = view.world_position;
     let off_axis = length(eye.xz - in.centre.xz);
     let inside = smoothstep(0.6 * in.shape.x, 1.6 * in.shape.x, off_axis);
-    let steep = smoothstep(0.75, 0.55, abs(normalize(in.world - eye).y));
-    let a = 0.75 * body * (0.5 + 0.5 * streak) * smoothstep(0.0, 0.12, y) * smoothstep(1.0, 0.8, y) * inside * steep;
-    let col = cloud.ambient.rgb * vec3<f32>(0.5, 0.53, 0.58) * 0.8 + cloud.sun.rgb * (0.03 / 3.14159265);
-    return vec4<f32>(col, a);
+    let steep = smoothstep(0.75, 0.55, abs(look.y));
+    let a = in.look.z * core * foot * top * lines * inside * steep;
+    // Slate blue-grey, darker in the core, silvered toward the sun by forward scatter.
+    let toward_sun = pow(max(dot(look, cloud.sun_dir.xyz), 0.0), 6.0);
+    let slate = cloud.ambient.rgb * vec3<f32>(0.34, 0.37, 0.44) * mix(1.0, 0.75, core);
+    let col = slate * (1.0 + 0.3 * toward_sun) + cloud.sun.rgb * (0.02 / 3.14159265) * (1.0 + 4.0 * toward_sun);
+    return vec4<f32>(col, min(a, 1.0));
 }
 
 fn cirrus(in: CloudFragment, look: vec3<f32>) -> vec4<f32> {
@@ -309,15 +336,6 @@ fn air_between(eye: vec3<f32>, look: vec3<f32>, dist: f32) -> f32 {
     return exp(-(max(layer, 0.0) + max(haze, 0.0)));
 }
 
-// Aerial perspective on a cloud (owner, 2026-10-27: "cloud fog blend should be a thing"): its colour mixed toward the
-// fog's colour along the view by the air it crosses, as the fog pass mixes the land behind it, so a far cloud sinks
-// into the horizon's haze in the horizon's colour and a near one, or one seen from above the layer, stays crisp. Its
-// alpha is kept: the in-scattered light is in front of the cloud whatever lies behind it, and a faded billboard showed
-// the sky through a far cloud rather than the haze over it.
-fn in_the_air(c: vec3<f32>, fog_c: vec3<f32>, eye: vec3<f32>, look: vec3<f32>, dist: f32) -> vec3<f32> {
-    return mix(fog_c, c, air_between(eye, look, dist));
-}
-
 // The fog's colour along `look` (`fog_colour.wesl`, as the fog pass has it): the cloud's one texture read.
 fn fog_along(look: vec3<f32>) -> vec3<f32> {
     let f = FogColour(cloud.sky_x, cloud.sky_y, cloud.sky_z, cloud.sky_lut, cloud.fog_ambient, cloud.fog_sun, cloud.fog_sun_dir);
@@ -333,13 +351,14 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
     let kind = in.look.x;
     // The finest billow octave only where a puff's unit spans 600 pixels or more (its features 70 px
     // across); taken here, before any branch, where screen derivatives are defined.
-    let fine = smoothstep(1.0 / 300.0, 1.0 / 600.0, length(fwidth(in.uv)));
+    let px = length(fwidth(in.uv));
+    let fine = smoothstep(1.0 / 300.0, 1.0 / 600.0, px);
     let fog_c = fog_along(look);
     var out: vec4<f32>;
     if kind > KIND_CIRRUS - 0.5 {
         out = cirrus(in, look);
     } else if kind > KIND_SHAFT - 0.5 {
-        out = shaft(in);
+        out = shaft(in, look, px);
     } else {
         if length(in.uv) > 1.0 {
             discard;
@@ -350,7 +369,14 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
     if out.a < 0.004 {
         discard;
     }
-    out = vec4<f32>(in_the_air(out.rgb, fog_c, eye, look, dist), out.a);
+    // Aerial perspective: the colour mixed toward the fog's colour along the view by the air it crosses (owner,
+    // 2026-10-27: "cloud fog blend should be a thing"), its alpha kept. A rain shaft takes the square root of the haze a puff takes: a curtain of rain reads dark against the
+    // horizon from much farther than a cloud's edge does (cloud-weather design section 2b).
+    var air = air_between(eye, look, dist);
+    if kind > KIND_SHAFT - 0.5 && kind < KIND_CIRRUS - 0.5 {
+        air = sqrt(air);
+    }
+    out = vec4<f32>(mix(fog_c, out.rgb, air), out.a);
     @if(DISTANCE_FOG) {
         out = apply_fog(fog, out, in.world, eye, in.position.xy);
     }

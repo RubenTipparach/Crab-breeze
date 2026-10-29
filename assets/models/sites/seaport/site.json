@@ -1,0 +1,9341 @@
+{
+ "site": "seaport",
+ "generator": "tools/buildings/export_sites.cjs",
+ "page": "docs/mockups/seaport.html",
+ "units": "metres; the site frame as the page draws it (x east, z south, y up from still water or the airfield ground); a kit stands on y = 0 at (x, base, z), turned by quarter turns (1: its front, +z, to +x)",
+ "marks": {
+  "terminal": [
+   18,
+   35
+  ],
+  "berth": [
+   -510,
+   160
+  ],
+  "mouth": [
+   425,
+   650
+  ]
+ },
+ "pads": [
+  {
+   "lo": [
+    -1005,
+    -280
+   ],
+   "hi": [
+    340,
+    0
+   ],
+   "y": 2.5
+  },
+  {
+   "lo": [
+    380,
+    -280
+   ],
+   "hi": [
+    1005,
+    0
+   ],
+   "y": 2.5
+  },
+  {
+   "lo": [
+    340,
+    -280
+   ],
+   "hi": [
+    380,
+    -200
+   ],
+   "y": 2.5
+  },
+  {
+   "lo": [
+    340,
+    -200
+   ],
+   "hi": [
+    380,
+    0
+   ],
+   "y": -11
+  },
+  {
+   "lo": [
+    -1000,
+    0
+   ],
+   "hi": [
+    1000,
+    650
+   ],
+   "y": -14
+  }
+ ],
+ "kits": [
+  {
+   "id": "crown_wall",
+   "name": "Crown wall",
+   "kind": "building",
+   "glb": "crown_wall.glb",
+   "pieces": "crown_wall.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1005.5,
+     0,
+     -11.5
+    ],
+    "hi": [
+     -1002.5,
+     3,
+     651.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 804,
+    "LOD1": 804,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 67,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "crown_wall_2",
+   "name": "Crown wall",
+   "kind": "building",
+   "glb": "crown_wall_2.glb",
+   "pieces": "crown_wall_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1001.5,
+     0,
+     652.5
+    ],
+    "hi": [
+     331.5,
+     3,
+     655.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 1608,
+    "LOD1": 1608,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 134,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "crown_wall_3",
+   "name": "Crown wall",
+   "kind": "building",
+   "glb": "crown_wall_3.glb",
+   "pieces": "crown_wall_3.pieces.json",
+   "bounds_m": {
+    "lo": [
+     1002.5,
+     0,
+     -11.5
+    ],
+    "hi": [
+     1005.5,
+     3,
+     651.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 804,
+    "LOD1": 804,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 67,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "crown_wall_4",
+   "name": "Crown wall",
+   "kind": "building",
+   "glb": "crown_wall_4.glb",
+   "pieces": "crown_wall_4.pieces.json",
+   "bounds_m": {
+    "lo": [
+     518.5,
+     0,
+     652.5
+    ],
+    "hi": [
+     1001.5,
+     3,
+     655.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 588,
+    "LOD1": 588,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 49,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "breakwater_light_red",
+   "name": "Breakwater light, red",
+   "kind": "building",
+   "glb": "breakwater_light_red.glb",
+   "pieces": "breakwater_light_red.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -3.4,
+     0,
+     -3.315
+    ],
+    "hi": [
+     3.4,
+     15,
+     3.315
+    ]
+   },
+   "triangles": {
+    "LOD0": 348,
+    "LOD1": 348,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 7,
+   "surfaces": [
+    "concrete",
+    "lampRed",
+    "metal",
+    "paint",
+    "stucco"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "breakwater_light_green",
+   "name": "Breakwater light, green",
+   "kind": "building",
+   "glb": "breakwater_light_green.glb",
+   "pieces": "breakwater_light_green.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -3.4,
+     0,
+     -3.315
+    ],
+    "hi": [
+     3.4,
+     15,
+     3.315
+    ]
+   },
+   "triangles": {
+    "LOD0": 348,
+    "LOD1": 348,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 7,
+   "surfaces": [
+    "concrete",
+    "lampGreen",
+    "metal",
+    "paint",
+    "stucco"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "buoy",
+   "name": "Buoy",
+   "kind": "building",
+   "glb": "buoy.glb",
+   "pieces": "buoy.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1.5,
+     -1,
+     -1.5
+    ],
+    "hi": [
+     1.5,
+     4.8,
+     1.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 128,
+    "LOD1": 128,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 8,
+   "surfaces": [
+    "lampRed",
+    "metal",
+    "paint"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "buoy_2",
+   "name": "Buoy",
+   "kind": "building",
+   "glb": "buoy_2.glb",
+   "pieces": "buoy_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1.5,
+     -1,
+     -1.5
+    ],
+    "hi": [
+     1.5,
+     4.6,
+     1.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 144,
+    "LOD1": 144,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 8,
+   "surfaces": [
+    "lampGreen",
+    "metal",
+    "paint"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "leading_light",
+   "name": "Leading light",
+   "kind": "building",
+   "glb": "leading_light.glb",
+   "pieces": "leading_light.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1,
+     0,
+     -2
+    ],
+    "hi": [
+     1,
+     21.6,
+     2
+    ]
+   },
+   "triangles": {
+    "LOD0": 132,
+    "LOD1": 120,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 5,
+   "surfaces": [
+    "lamp",
+    "paint",
+    "stucco"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "leading_light_2",
+   "name": "Leading light",
+   "kind": "building",
+   "glb": "leading_light_2.glb",
+   "pieces": "leading_light_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1,
+     0,
+     -2
+    ],
+    "hi": [
+     1,
+     35.6,
+     2
+    ]
+   },
+   "triangles": {
+    "LOD0": 240,
+    "LOD1": 228,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 8,
+   "surfaces": [
+    "lamp",
+    "paint",
+    "stucco"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards.glb",
+   "pieces": "fenders_and_bollards.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -895.2,
+     0,
+     158.467
+    ],
+    "hi": [
+     -424.8,
+     4.8,
+     160.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 1200,
+    "LOD1": 1200,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 60,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_2",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_2.glb",
+   "pieces": "fenders_and_bollards_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -900.8,
+     0,
+     4.8
+    ],
+    "hi": [
+     -898.45,
+     4.8,
+     151.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 408,
+    "LOD1": 408,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 20,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_3",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_3.glb",
+   "pieces": "fenders_and_bollards_3.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -421.55,
+     0,
+     4.8
+    ],
+    "hi": [
+     -419.2,
+     4.8,
+     151.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 408,
+    "LOD1": 408,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 20,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack.glb",
+   "pieces": "container_stack.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1020,
+    "LOD1": 1020,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 85,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_2",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_2.glb",
+   "pieces": "container_stack_2.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1068,
+    "LOD1": 1068,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 89,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_3",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_3.glb",
+   "pieces": "container_stack_3.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1224,
+    "LOD1": 1224,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 102,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_4",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_4.glb",
+   "pieces": "container_stack_4.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1080,
+    "LOD1": 1080,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 90,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_5",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_5.glb",
+   "pieces": "container_stack_5.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1116,
+    "LOD1": 1116,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 93,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_6",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_6.glb",
+   "pieces": "container_stack_6.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1152,
+    "LOD1": 1152,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 96,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_7",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_7.glb",
+   "pieces": "container_stack_7.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 960,
+    "LOD1": 960,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 80,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_8",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_8.glb",
+   "pieces": "container_stack_8.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1056,
+    "LOD1": 1056,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 88,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_9",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_9.glb",
+   "pieces": "container_stack_9.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1116,
+    "LOD1": 1116,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 93,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_10",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_10.glb",
+   "pieces": "container_stack_10.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 984,
+    "LOD1": 984,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 82,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_11",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_11.glb",
+   "pieces": "container_stack_11.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1128,
+    "LOD1": 1128,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 94,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_12",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_12.glb",
+   "pieces": "container_stack_12.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1188,
+    "LOD1": 1188,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 99,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_13",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_13.glb",
+   "pieces": "container_stack_13.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1020,
+    "LOD1": 1020,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 85,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_14",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_14.glb",
+   "pieces": "container_stack_14.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1128,
+    "LOD1": 1128,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 94,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "container_stack_15",
+   "name": "Container stack",
+   "kind": "building",
+   "glb": "container_stack_15.glb",
+   "pieces": "container_stack_15.pieces.json",
+   "bounds_m": {
+    "lo": [
+     0,
+     0,
+     0
+    ],
+    "hi": [
+     75.2,
+     10.38,
+     17.1
+    ]
+   },
+   "triangles": {
+    "LOD0": 1140,
+    "LOD1": 1140,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 95,
+   "surfaces": [
+    "corrugated"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "straddle_carrier",
+   "name": "Straddle carrier",
+   "kind": "machine",
+   "glb": "straddle_carrier.glb",
+   "pieces": "straddle_carrier.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -2.25,
+     0,
+     -5.071
+    ],
+    "hi": [
+     2.25,
+     16.4,
+     5.071
+    ]
+   },
+   "triangles": {
+    "LOD0": 528,
+    "LOD1": 528,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 36,
+   "surfaces": [
+    "glass",
+    "paint",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 40
+  },
+  {
+   "id": "container_gantry",
+   "name": "Container gantry",
+   "kind": "machine",
+   "glb": "container_gantry.glb",
+   "pieces": "container_gantry.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -11,
+     0,
+     -25
+    ],
+    "hi": [
+     11,
+     70.309,
+     83
+    ]
+   },
+   "triangles": {
+    "LOD0": 3420,
+    "LOD1": 3420,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 201,
+   "surfaces": [
+    "glass",
+    "metal",
+    "paint",
+    "ribbed"
+   ],
+   "signs": [],
+   "max_side_steps": 40
+  },
+  {
+   "id": "freighter",
+   "name": "freighter",
+   "kind": "ship",
+   "glb": "freighter.glb",
+   "pieces": "freighter.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -9,
+     0,
+     -60
+    ],
+    "hi": [
+     9,
+     23.6,
+     60.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 25668,
+    "LOD1": 23364,
+    "LOD2": 10,
+    "FURN": 888,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1876,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 7
+  },
+  {
+   "id": "fenders_and_bollards_4",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_4.glb",
+   "pieces": "fenders_and_bollards_4.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -355.2,
+     0,
+     298.467
+    ],
+    "hi": [
+     -292.8,
+     4.8,
+     300.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 180,
+    "LOD1": 180,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 9,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_5",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_5.glb",
+   "pieces": "fenders_and_bollards_5.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -360.8,
+     0,
+     4.8
+    ],
+    "hi": [
+     -358.45,
+     4.8,
+     295.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 768,
+    "LOD1": 768,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 38,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_6",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_6.glb",
+   "pieces": "fenders_and_bollards_6.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -281.55,
+     0,
+     4.8
+    ],
+    "hi": [
+     -279.2,
+     4.8,
+     295.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 768,
+    "LOD1": 768,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 38,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "transit_shed",
+   "name": "Transit shed",
+   "kind": "building",
+   "glb": "transit_shed.glb",
+   "pieces": "transit_shed.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -120.05,
+     -0.3,
+     -22.35
+    ],
+    "hi": [
+     120.05,
+     13.03,
+     22.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 22716,
+    "LOD1": 17604,
+    "LOD2": 10,
+    "FURN": 118392,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 150000,
+    "LOD1": 40000,
+    "LOD2": 400,
+    "why": "a 240 m shed racked full of pallets, with forklifts (furniture drawn within 100 m)"
+   },
+   "piece_count": 2388,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "luffing_crane",
+   "name": "Luffing crane",
+   "kind": "machine",
+   "glb": "luffing_crane.glb",
+   "pieces": "luffing_crane.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -6.3,
+     0,
+     -32.203
+    ],
+    "hi": [
+     6.3,
+     54.071,
+     6.3
+    ]
+   },
+   "triangles": {
+    "LOD0": 3232,
+    "LOD1": 3220,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 160,
+   "surfaces": [
+    "glassDark",
+    "metal",
+    "paint"
+   ],
+   "signs": [],
+   "max_side_steps": 40
+  },
+  {
+   "id": "fenders_and_bollards_7",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_7.glb",
+   "pieces": "fenders_and_bollards_7.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -195.2,
+     0,
+     118.467
+    ],
+    "hi": [
+     -48.8,
+     4.8,
+     120.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 408,
+    "LOD1": 408,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 20,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "ferry_terminal",
+   "name": "Ferry terminal",
+   "kind": "building",
+   "glb": "ferry_terminal.glb",
+   "pieces": "ferry_terminal.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -40.05,
+     -0.3,
+     -16.05
+    ],
+    "hi": [
+     40.05,
+     15.03,
+     25
+    ]
+   },
+   "triangles": {
+    "LOD0": 21566,
+    "LOD1": 16128,
+    "LOD2": 10,
+    "FURN": 30648,
+    "leaves": 264
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1390,
+   "surfaces": [
+    "concrete",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "metalRoof",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "sign:FERRY TERMINAL|#1d4f8f|#ffffff|0",
+    "trim"
+   ],
+   "signs": [
+    "FERRY TERMINAL"
+   ],
+   "max_side_steps": 3
+  },
+  {
+   "id": "marshalled_cars",
+   "name": "Marshalled cars",
+   "kind": "building",
+   "glb": "marshalled_cars.glb",
+   "pieces": "marshalled_cars.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -95.98,
+     0,
+     54.57
+    ],
+    "hi": [
+     -44.02,
+     1.42,
+     104.43
+    ]
+   },
+   "triangles": {
+    "LOD0": 4752,
+    "LOD1": 4752,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 36,
+   "surfaces": [
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "linkspan",
+   "name": "Linkspan",
+   "kind": "building",
+   "glb": "linkspan.glb",
+   "pieces": "linkspan.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -133.5,
+     0,
+     111.986
+    ],
+    "hi": [
+     -106.5,
+     20,
+     131.014
+    ]
+   },
+   "triangles": {
+    "LOD0": 412,
+    "LOD1": 412,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 13,
+   "surfaces": [
+    "metal"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "ferry",
+   "name": "ferry",
+   "kind": "ship",
+   "glb": "ferry.glb",
+   "pieces": "ferry.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -7,
+     0,
+     -30.25
+    ],
+    "hi": [
+     7,
+     18.3,
+     30
+    ]
+   },
+   "triangles": {
+    "LOD0": 19296,
+    "LOD1": 15372,
+    "LOD2": 10,
+    "FURN": 10212,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 964,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "rubber",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 3.2
+  },
+  {
+   "id": "fenders_and_bollards_8",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_8.glb",
+   "pieces": "fenders_and_bollards_8.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -35.2,
+     0,
+     98.467
+    ],
+    "hi": [
+     111.2,
+     4.8,
+     100.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 408,
+    "LOD1": 408,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 20,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "harbour_office",
+   "name": "Harbour office",
+   "kind": "building",
+   "glb": "harbour_office.glb",
+   "pieces": "harbour_office.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -6.06
+    ],
+    "hi": [
+     8.06,
+     10.03,
+     6.06
+    ]
+   },
+   "triangles": {
+    "LOD0": 4248,
+    "LOD1": 3216,
+    "LOD2": 10,
+    "FURN": 1584,
+    "leaves": 48
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 269,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "floorTile",
+    "glass",
+    "plaster",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "port_control_tower",
+   "name": "Port control tower",
+   "kind": "building",
+   "glb": "port_control_tower.glb",
+   "pieces": "port_control_tower.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.5,
+     -0.3,
+     -8.5
+    ],
+    "hi": [
+     8.5,
+     37.8,
+     8.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 7644,
+    "LOD1": 5868,
+    "LOD2": 10,
+    "FURN": 1356,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 445,
+   "surfaces": [
+    "block",
+    "concrete",
+    "glass",
+    "metal",
+    "plaster",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "pilot_station",
+   "name": "Pilot station",
+   "kind": "building",
+   "glb": "pilot_station.glb",
+   "pieces": "pilot_station.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -6.06
+    ],
+    "hi": [
+     8.06,
+     7.03,
+     6.085
+    ]
+   },
+   "triangles": {
+    "LOD0": 4262,
+    "LOD1": 3228,
+    "LOD2": 10,
+    "FURN": 1476,
+    "leaves": 48
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 272,
+   "surfaces": [
+    "concrete",
+    "floorTile",
+    "glass",
+    "paint",
+    "plaster",
+    "roofing",
+    "sign:PILOT STATION|#1d4f8f|#ffffff|0",
+    "stucco",
+    "trim"
+   ],
+   "signs": [
+    "PILOT STATION"
+   ],
+   "max_side_steps": 3
+  },
+  {
+   "id": "tug",
+   "name": "tug",
+   "kind": "ship",
+   "glb": "tug.glb",
+   "pieces": "tug.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -4.5,
+     0,
+     -14.25
+    ],
+    "hi": [
+     4.5,
+     15,
+     14
+    ]
+   },
+   "triangles": {
+    "LOD0": 4168,
+    "LOD1": 3388,
+    "LOD2": 10,
+    "FURN": 516,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 256,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 3.5
+  },
+  {
+   "id": "tanker_jetty",
+   "name": "Tanker jetty",
+   "kind": "building",
+   "glb": "tanker_jetty.glb",
+   "pieces": "tanker_jetty.pieces.json",
+   "bounds_m": {
+    "lo": [
+     139.7,
+     0,
+     -2.3
+    ],
+    "hi": [
+     260.3,
+     19.8,
+     440.3
+    ]
+   },
+   "triangles": {
+    "LOD0": 16224,
+    "LOD1": 16224,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 890,
+   "surfaces": [
+    "concrete",
+    "metal"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "loading_arms",
+   "name": "Loading arms",
+   "kind": "building",
+   "glb": "loading_arms.glb",
+   "pieces": "loading_arms.pieces.json",
+   "bounds_m": {
+    "lo": [
+     174,
+     0,
+     432
+    ],
+    "hi": [
+     236,
+     10.837,
+     444.215
+    ]
+   },
+   "triangles": {
+    "LOD0": 96,
+    "LOD1": 96,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 8,
+   "surfaces": [
+    "metal"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "jetty_control_house",
+   "name": "Jetty control house",
+   "kind": "building",
+   "glb": "jetty_control_house.glb",
+   "pieces": "jetty_control_house.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -5.06
+    ],
+    "hi": [
+     8.06,
+     5.38,
+     5.06
+    ]
+   },
+   "triangles": {
+    "LOD0": 2244,
+    "LOD1": 1728,
+    "LOD2": 10,
+    "FURN": 564,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 140,
+   "surfaces": [
+    "block",
+    "concrete",
+    "floorTile",
+    "glass",
+    "plaster",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "tanker",
+   "name": "tanker",
+   "kind": "ship",
+   "glb": "tanker.glb",
+   "pieces": "tanker.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -12,
+     0,
+     -75
+    ],
+    "hi": [
+     12,
+     27.6,
+     75.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 24776,
+    "LOD1": 21164,
+    "LOD2": 10,
+    "FURN": 1164,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1587,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 9
+  },
+  {
+   "id": "oil_tank",
+   "name": "Oil tank",
+   "kind": "building",
+   "glb": "oil_tank.glb",
+   "pieces": "oil_tank.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -22.6,
+     -0.3,
+     -22.6
+    ],
+    "hi": [
+     22.6,
+     20.94,
+     22.6
+    ]
+   },
+   "triangles": {
+    "LOD0": 1052,
+    "LOD1": 1052,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 97,
+   "surfaces": [
+    "concrete",
+    "metal"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "bund_walls",
+   "name": "Bund walls",
+   "kind": "building",
+   "glb": "bund_walls.glb",
+   "pieces": "bund_walls.pieces.json",
+   "bounds_m": {
+    "lo": [
+     114.4,
+     0,
+     -270.6
+    ],
+    "hi": [
+     305.6,
+     1.8,
+     -109.4
+    ]
+   },
+   "triangles": {
+    "LOD0": 1068,
+    "LOD1": 1068,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 89,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "keel_blocks",
+   "name": "Keel blocks",
+   "kind": "building",
+   "glb": "keel_blocks.glb",
+   "pieces": "keel_blocks.pieces.json",
+   "bounds_m": {
+    "lo": [
+     358,
+     0,
+     -170
+    ],
+    "hi": [
+     362,
+     1.5,
+     -35
+    ]
+   },
+   "triangles": {
+    "LOD0": 144,
+    "LOD1": 144,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 12,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "dock_gate",
+   "name": "Dock gate",
+   "kind": "building",
+   "glb": "dock_gate.glb",
+   "pieces": "dock_gate.pieces.json",
+   "bounds_m": {
+    "lo": [
+     336,
+     0,
+     0
+    ],
+    "hi": [
+     384,
+     16.5,
+     4
+    ]
+   },
+   "triangles": {
+    "LOD0": 216,
+    "LOD1": 216,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 18,
+   "surfaces": [
+    "ribbed"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "goliath_crane",
+   "name": "Goliath crane",
+   "kind": "machine",
+   "glb": "goliath_crane.glb",
+   "pieces": "goliath_crane.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -38,
+     0,
+     -10
+    ],
+    "hi": [
+     38,
+     65,
+     10
+    ]
+   },
+   "triangles": {
+    "LOD0": 1068,
+    "LOD1": 1068,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 89,
+   "surfaces": [
+    "paint",
+    "ribbed"
+   ],
+   "signs": [],
+   "max_side_steps": 40
+  },
+  {
+   "id": "shipyard_shop",
+   "name": "Shipyard shop",
+   "kind": "building",
+   "glb": "shipyard_shop.glb",
+   "pieces": "shipyard_shop.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -55.05,
+     -0.3,
+     -35.35
+    ],
+    "hi": [
+     55.05,
+     19.03,
+     35.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 16080,
+    "LOD1": 12456,
+    "LOD2": 10,
+    "FURN": 4488,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1302,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_9",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_9.glb",
+   "pieces": "fenders_and_bollards_9.pieces.json",
+   "bounds_m": {
+    "lo": [
+     444.8,
+     0,
+     218.467
+    ],
+    "hi": [
+     447.2,
+     4.8,
+     220.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 48,
+    "LOD1": 48,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 2,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_10",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_10.glb",
+   "pieces": "fenders_and_bollards_10.pieces.json",
+   "bounds_m": {
+    "lo": [
+     439.2,
+     0,
+     4.8
+    ],
+    "hi": [
+     441.55,
+     4.8,
+     211.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 540,
+    "LOD1": 540,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 27,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_11",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_11.glb",
+   "pieces": "fenders_and_bollards_11.pieces.json",
+   "bounds_m": {
+    "lo": [
+     453.45,
+     0,
+     4.8
+    ],
+    "hi": [
+     455.8,
+     4.8,
+     211.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 540,
+    "LOD1": 540,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 27,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "pontoon",
+   "name": "Pontoon",
+   "kind": "building",
+   "glb": "pontoon.glb",
+   "pieces": "pontoon.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -9,
+     -0.6,
+     0
+    ],
+    "hi": [
+     9,
+     0.45,
+     140
+    ]
+   },
+   "triangles": {
+    "LOD0": 768,
+    "LOD1": 768,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 64,
+   "surfaces": [
+    "concrete"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fishing_boat",
+   "name": "fishing_boat",
+   "kind": "ship",
+   "glb": "fishing_boat.glb",
+   "pieces": "fishing_boat.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -3.2,
+     0,
+     -11
+    ],
+    "hi": [
+     3.2,
+     12.4,
+     11.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 2300,
+    "LOD1": 1940,
+    "LOD2": 10,
+    "FURN": 432,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 158,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 2.8
+  },
+  {
+   "id": "launch",
+   "name": "launch",
+   "kind": "ship",
+   "glb": "launch.glb",
+   "pieces": "launch.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -1.3,
+     0,
+     -4
+    ],
+    "hi": [
+     1.3,
+     3.7,
+     4.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 2136,
+    "LOD1": 1752,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 137,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "plaster",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 0.8
+  },
+  {
+   "id": "fish_market",
+   "name": "Fish market",
+   "kind": "building",
+   "glb": "fish_market.glb",
+   "pieces": "fish_market.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -45.05,
+     -0.3,
+     -25.35
+    ],
+    "hi": [
+     45.05,
+     9.03,
+     25.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 10212,
+    "LOD1": 8124,
+    "LOD2": 10,
+    "FURN": 31824,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1134,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_12",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_12.glb",
+   "pieces": "fenders_and_bollards_12.pieces.json",
+   "bounds_m": {
+    "lo": [
+     744.8,
+     0,
+     98.467
+    ],
+    "hi": [
+     831.2,
+     4.8,
+     100.8
+    ]
+   },
+   "triangles": {
+    "LOD0": 240,
+    "LOD1": 240,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 12,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "fenders_and_bollards_13",
+   "name": "Fenders and bollards",
+   "kind": "building",
+   "glb": "fenders_and_bollards_13.glb",
+   "pieces": "fenders_and_bollards_13.pieces.json",
+   "bounds_m": {
+    "lo": [
+     739.2,
+     0,
+     4.8
+    ],
+    "hi": [
+     741.55,
+     4.8,
+     91.2
+    ]
+   },
+   "triangles": {
+    "LOD0": 240,
+    "LOD1": 240,
+    "LOD2": 10,
+    "FURN": 0,
+    "leaves": 0
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 12,
+   "surfaces": [
+    "metal",
+    "rubber"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "gunboat",
+   "name": "gunboat",
+   "kind": "ship",
+   "glb": "gunboat.glb",
+   "pieces": "gunboat.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -3.2,
+     0,
+     -15
+    ],
+    "hi": [
+     3.2,
+     12.4,
+     15.25
+    ]
+   },
+   "triangles": {
+    "LOD0": 2728,
+    "LOD1": 2272,
+    "LOD2": 10,
+    "FURN": 72,
+    "leaves": 24
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 175,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "metal",
+    "paint",
+    "plaster",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 40,
+   "waterline_m": 1.8
+  },
+  {
+   "id": "coast_guard_boathouse",
+   "name": "Coast guard boathouse",
+   "kind": "building",
+   "glb": "coast_guard_boathouse.glb",
+   "pieces": "coast_guard_boathouse.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -30.05,
+     -0.3,
+     -25.35
+    ],
+    "hi": [
+     30.05,
+     13.03,
+     25.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 7308,
+    "LOD1": 5940,
+    "LOD2": 10,
+    "FURN": 780,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 529,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "warehouse",
+   "name": "Warehouse",
+   "kind": "building",
+   "glb": "warehouse.glb",
+   "pieces": "warehouse.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -45.05,
+     -0.3,
+     -25.35
+    ],
+    "hi": [
+     45.05,
+     13.03,
+     25.35
+    ]
+   },
+   "triangles": {
+    "LOD0": 10212,
+    "LOD1": 8124,
+    "LOD2": 10,
+    "FURN": 48300,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1028,
+   "surfaces": [
+    "concrete",
+    "corrugated",
+    "floorTile",
+    "glass",
+    "glassShop",
+    "metal",
+    "ribbed",
+    "roofing",
+    "trim"
+   ],
+   "signs": [],
+   "max_side_steps": 3
+  },
+  {
+   "id": "customs_house",
+   "name": "Customs house",
+   "kind": "building",
+   "glb": "customs_house.glb",
+   "pieces": "customs_house.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -25.06,
+     -0.3,
+     -20.06
+    ],
+    "hi": [
+     25.06,
+     11.03,
+     20.085
+    ]
+   },
+   "triangles": {
+    "LOD0": 17246,
+    "LOD1": 12516,
+    "LOD2": 10,
+    "FURN": 22044,
+    "leaves": 48
+   },
+   "budget_triangles": {
+    "LOD0": 120000,
+    "LOD1": 40000,
+    "LOD2": 400
+   },
+   "piece_count": 1524,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "floorTile",
+    "glass",
+    "paint",
+    "plaster",
+    "roofing",
+    "sign:CUSTOMS|#1d4f8f|#ffffff|0",
+    "trim"
+   ],
+   "signs": [
+    "CUSTOMS"
+   ],
+   "max_side_steps": 3
+  }
+ ],
+ "placements": [
+  {
+   "kit": "crown_wall",
+   "x": 0,
+   "z": 0,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "crown_wall_2",
+   "x": 0,
+   "z": 0,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "crown_wall_3",
+   "x": 0,
+   "z": 0,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "crown_wall_4",
+   "x": 0,
+   "z": 0,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "breakwater_light_red",
+   "x": 330,
+   "z": 650,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "breakwater_light_green",
+   "x": 520,
+   "z": 650,
+   "base": 6,
+   "turn": 0
+  },
+  {
+   "kit": "buoy",
+   "x": 365,
+   "z": 800,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy_2",
+   "x": 485,
+   "z": 800,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy",
+   "x": 365,
+   "z": 1100,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy_2",
+   "x": 485,
+   "z": 1100,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy",
+   "x": 365,
+   "z": 1400,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy_2",
+   "x": 485,
+   "z": 1400,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy",
+   "x": 365,
+   "z": 1700,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "buoy_2",
+   "x": 485,
+   "z": 1700,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "leading_light",
+   "x": 425,
+   "z": -60,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "leading_light_2",
+   "x": 425,
+   "z": -260,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "fenders_and_bollards",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_2",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_3",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "container_stack",
+   "x": -890,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_2",
+   "x": -890,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_3",
+   "x": -890,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_4",
+   "x": -798,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_5",
+   "x": -798,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_6",
+   "x": -798,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_7",
+   "x": -706,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_8",
+   "x": -706,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_9",
+   "x": -706,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_10",
+   "x": -614,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_11",
+   "x": -614,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_12",
+   "x": -614,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_13",
+   "x": -522,
+   "z": 12,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_14",
+   "x": -522,
+   "z": 48,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "container_stack_15",
+   "x": -522,
+   "z": 84,
+   "base": 2.55,
+   "turn": 0
+  },
+  {
+   "kit": "straddle_carrier",
+   "x": -840,
+   "z": 116,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "straddle_carrier",
+   "x": -700,
+   "z": 116,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "straddle_carrier",
+   "x": -560,
+   "z": 116,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "container_gantry",
+   "x": -760,
+   "z": 128,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "container_gantry",
+   "x": -660,
+   "z": 128,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "container_gantry",
+   "x": -560,
+   "z": 128,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "freighter",
+   "x": -660,
+   "z": 170,
+   "base": -7,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fenders_and_bollards_4",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_5",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_6",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "transit_shed",
+   "x": -320,
+   "z": 150,
+   "base": 2.5,
+   "turn": 1
+  },
+  {
+   "kit": "luffing_crane",
+   "x": -350,
+   "z": 90,
+   "base": 2.5,
+   "turn": 1
+  },
+  {
+   "kit": "luffing_crane",
+   "x": -290,
+   "z": 90,
+   "base": 2.5,
+   "turn": 3
+  },
+  {
+   "kit": "luffing_crane",
+   "x": -350,
+   "z": 200,
+   "base": 2.5,
+   "turn": 1
+  },
+  {
+   "kit": "luffing_crane",
+   "x": -290,
+   "z": 200,
+   "base": 2.5,
+   "turn": 3
+  },
+  {
+   "kit": "freighter",
+   "x": -370,
+   "z": 160,
+   "base": -7,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "freighter",
+   "x": -270,
+   "z": 170,
+   "base": -7,
+   "turn": 2,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fenders_and_bollards_7",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "ferry_terminal",
+   "x": -150,
+   "z": 24,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "marshalled_cars",
+   "x": 0,
+   "z": 0,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "linkspan",
+   "x": 0,
+   "z": 0,
+   "base": -14,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "ferry",
+   "x": -120,
+   "z": 160,
+   "base": -3.2,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fenders_and_bollards_8",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "harbour_office",
+   "x": 18,
+   "z": 26,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "port_control_tower",
+   "x": 78,
+   "z": 38,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "pilot_station",
+   "x": 104,
+   "z": 66,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "tug",
+   "x": 20,
+   "z": 116,
+   "base": -3.5,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "tug",
+   "x": 70,
+   "z": 116,
+   "base": -3.5,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "tanker_jetty",
+   "x": 0,
+   "z": 0,
+   "base": -14,
+   "turn": 0
+  },
+  {
+   "kit": "loading_arms",
+   "x": 0,
+   "z": 0,
+   "base": 5.5,
+   "turn": 0
+  },
+  {
+   "kit": "jetty_control_house",
+   "x": 158,
+   "z": 427,
+   "base": 5.5,
+   "turn": 0
+  },
+  {
+   "kit": "tanker",
+   "x": 200,
+   "z": 454,
+   "base": -9,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "oil_tank",
+   "x": 150,
+   "z": -230,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 210,
+   "z": -230,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 270,
+   "z": -230,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 150,
+   "z": -150,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 210,
+   "z": -150,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "oil_tank",
+   "x": 270,
+   "z": -150,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "bund_walls",
+   "x": 0,
+   "z": 0,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "keel_blocks",
+   "x": 0,
+   "z": 0,
+   "base": -11,
+   "turn": 0
+  },
+  {
+   "kit": "dock_gate",
+   "x": 0,
+   "z": 0,
+   "base": -14,
+   "turn": 0
+  },
+  {
+   "kit": "freighter",
+   "x": 360,
+   "z": -100,
+   "base": -9.5,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "goliath_crane",
+   "x": 360,
+   "z": -110,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "shipyard_shop",
+   "x": 435,
+   "z": -205,
+   "base": 2.5,
+   "turn": 1
+  },
+  {
+   "kit": "fenders_and_bollards_9",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_10",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_11",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "pontoon",
+   "x": 500,
+   "z": 10,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "pontoon",
+   "x": 560,
+   "z": 10,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "pontoon",
+   "x": 620,
+   "z": 10,
+   "base": 0,
+   "turn": 0
+  },
+  {
+   "kit": "fishing_boat",
+   "x": 530,
+   "z": 40,
+   "base": -2.8,
+   "turn": 2,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fishing_boat",
+   "x": 530,
+   "z": 96,
+   "base": -2.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fishing_boat",
+   "x": 590,
+   "z": 68,
+   "base": -2.8,
+   "turn": 2,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fishing_boat",
+   "x": 650,
+   "z": 40,
+   "base": -2.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "launch",
+   "x": 511,
+   "z": 30,
+   "base": -0.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "launch",
+   "x": 571,
+   "z": 120,
+   "base": -0.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "launch",
+   "x": 631,
+   "z": 100,
+   "base": -0.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "fish_market",
+   "x": 515,
+   "z": -45,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "fenders_and_bollards_12",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "fenders_and_bollards_13",
+   "x": 0,
+   "z": 0,
+   "base": -1.5,
+   "turn": 0,
+   "anchor_built": true
+  },
+  {
+   "kit": "gunboat",
+   "x": 790,
+   "z": 106,
+   "base": -1.8,
+   "turn": 1,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "coast_guard_boathouse",
+   "x": 790,
+   "z": 45,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "gunboat",
+   "x": 870,
+   "z": 140,
+   "base": -1.8,
+   "turn": 0,
+   "anchor_built": true,
+   "ship": true
+  },
+  {
+   "kit": "warehouse",
+   "x": -815,
+   "z": -205,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "warehouse",
+   "x": -695,
+   "z": -205,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "warehouse",
+   "x": -575,
+   "z": -205,
+   "base": 2.5,
+   "turn": 0
+  },
+  {
+   "kit": "customs_house",
+   "x": -35,
+   "z": -140,
+   "base": 2.5,
+   "turn": 0
+  }
+ ],
+ "ground": {
+  "glb": "ground.glb",
+  "surfaces": [
+   "asphalt",
+   "ballast",
+   "crown",
+   "quay",
+   "rail",
+   "road",
+   "rock",
+   "white",
+   "yard",
+   "yellow"
+  ],
+  "solids": [
+   {
+    "material": "quay",
+    "lo": [
+     -900,
+     -14,
+     0
+    ],
+    "hi": [
+     -420,
+     2.5,
+     160
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     -360,
+     -14,
+     0
+    ],
+    "hi": [
+     -280,
+     2.5,
+     300
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     -200,
+     -14,
+     0
+    ],
+    "hi": [
+     -40,
+     2.5,
+     120
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     -40,
+     -14,
+     0
+    ],
+    "hi": [
+     120,
+     2.5,
+     100
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     340,
+     -14,
+     -200
+    ],
+    "hi": [
+     380,
+     -11,
+     0
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     340,
+     -11,
+     -200
+    ],
+    "hi": [
+     340.4,
+     2.5,
+     0
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     379.6,
+     -11,
+     -200
+    ],
+    "hi": [
+     380,
+     2.5,
+     0
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     340.4,
+     -11,
+     -200
+    ],
+    "hi": [
+     379.6,
+     2.5,
+     -199.6
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     440,
+     -14,
+     0
+    ],
+    "hi": [
+     455,
+     2.5,
+     220
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     665,
+     -4.994,
+     -12.105
+    ],
+    "hi": [
+     685,
+     2.494,
+     40.105
+    ]
+   },
+   {
+    "material": "quay",
+    "lo": [
+     740,
+     -14,
+     0
+    ],
+    "hi": [
+     840,
+     2.5,
+     100
+    ]
+   },
+   {
+    "material": "crown",
+    "lo": [
+     840,
+     -7.992,
+     -0.124
+    ],
+    "hi": [
+     900,
+     2.492,
+     68.124
+    ]
+   },
+   {
+    "material": "yellow",
+    "lo": [
+     838.4,
+     -5.995,
+     -0.074
+    ],
+    "hi": [
+     839.6,
+     3.695,
+     68.074
+    ]
+   },
+   {
+    "material": "yellow",
+    "lo": [
+     900.4,
+     -5.995,
+     -0.074
+    ],
+    "hi": [
+     901.6,
+     3.695,
+     68.074
+    ]
+   }
+  ],
+  "materials": {
+   "rock": {
+    "colour": [
+     0.159,
+     0.144,
+     0.122
+    ],
+    "roughness": 1,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "quay": {
+    "colour": [
+     0.323,
+     0.309,
+     0.27
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "yellow": {
+    "colour": [
+     0.888,
+     0.527,
+     0.023
+    ],
+    "roughness": 0.7,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "yard": {
+    "colour": [
+     0.15,
+     0.144,
+     0.127
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "ballast": {
+    "colour": [
+     0.102,
+     0.084,
+     0.065
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rail": {
+    "colour": [
+     0.262,
+     0.262,
+     0.262
+    ],
+    "roughness": 0.4,
+    "metallic": 0.6,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "white": {
+    "colour": [
+     0.807,
+     0.807,
+     0.761
+    ],
+    "roughness": 0.7,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "crown": {
+    "colour": [
+     0.386,
+     0.371,
+     0.328
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "road": {
+    "colour": [
+     0.03,
+     0.03,
+     0.03
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   },
+   "asphalt": {
+    "colour": [
+     0.024,
+     0.024,
+     0.024
+    ],
+    "roughness": 0.9,
+    "metallic": 0,
+    "emissive": [
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "lights": {
+  "masts": [
+   {
+    "x": -806,
+    "z": 39,
+    "base": 2.5,
+    "h": 35,
+    "aim": [
+     -806,
+     2.5,
+     39
+    ],
+    "power": 2.2,
+    "range": 112,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -806,
+    "z": 75,
+    "base": 2.5,
+    "h": 35,
+    "aim": [
+     -806,
+     2.5,
+     75
+    ],
+    "power": 2.2,
+    "range": 112,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -714,
+    "z": 39,
+    "base": 2.5,
+    "h": 35,
+    "aim": [
+     -714,
+     2.5,
+     39
+    ],
+    "power": 2.2,
+    "range": 112,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -714,
+    "z": 75,
+    "base": 2.5,
+    "h": 35,
+    "aim": [
+     -714,
+     2.5,
+     75
+    ],
+    "power": 2.2,
+    "range": 112,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -622,
+    "z": 39,
+    "base": 2.5,
+    "h": 35,
+    "aim": [
+     -622,
+     2.5,
+     39
+    ],
+    "power": 2.2,
+    "range": 112,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -622,
+    "z": 75,
+    "base": 2.5,
+    "h": 35,
+    "aim": [
+     -622,
+     2.5,
+     75
+    ],
+    "power": 2.2,
+    "range": 112,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -530,
+    "z": 39,
+    "base": 2.5,
+    "h": 35,
+    "aim": [
+     -530,
+     2.5,
+     39
+    ],
+    "power": 2.2,
+    "range": 112,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -530,
+    "z": 75,
+    "base": 2.5,
+    "h": 35,
+    "aim": [
+     -530,
+     2.5,
+     75
+    ],
+    "power": 2.2,
+    "range": 112,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -760,
+    "z": 166,
+    "base": 44.5,
+    "h": 0,
+    "aim": [
+     -760,
+     6.5,
+     170
+    ],
+    "power": 1.6,
+    "range": 90,
+    "cone": 0.6,
+    "colour": "halide",
+    "pole": false,
+    "lot": 37
+   },
+   {
+    "x": -660,
+    "z": 166,
+    "base": 44.5,
+    "h": 0,
+    "aim": [
+     -660,
+     6.5,
+     170
+    ],
+    "power": 1.6,
+    "range": 90,
+    "cone": 0.6,
+    "colour": "halide",
+    "pole": false,
+    "lot": 38
+   },
+   {
+    "x": -560,
+    "z": 166,
+    "base": 44.5,
+    "h": 0,
+    "aim": [
+     -560,
+     6.5,
+     170
+    ],
+    "power": 1.6,
+    "range": 90,
+    "cone": 0.6,
+    "colour": "halide",
+    "pole": false,
+    "lot": 39
+   },
+   {
+    "x": -350,
+    "z": 15,
+    "base": 2.5,
+    "h": 25,
+    "aim": [
+     -350,
+     2.5,
+     15
+    ],
+    "power": 1.6,
+    "range": 80,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -290,
+    "z": 15,
+    "base": 2.5,
+    "h": 25,
+    "aim": [
+     -290,
+     2.5,
+     15
+    ],
+    "power": 1.6,
+    "range": 80,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -350,
+    "z": 285,
+    "base": 2.5,
+    "h": 25,
+    "aim": [
+     -350,
+     2.5,
+     285
+    ],
+    "power": 1.6,
+    "range": 80,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -290,
+    "z": 285,
+    "base": 2.5,
+    "h": 25,
+    "aim": [
+     -290,
+     2.5,
+     285
+    ],
+    "power": 1.6,
+    "range": 80,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -105,
+    "z": 80,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     -75,
+     2.5,
+     80
+    ],
+    "power": 1.2,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -45,
+    "z": 80,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     -75,
+     2.5,
+     80
+    ],
+    "power": 1.2,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -128,
+    "z": 110,
+    "base": 2.5,
+    "h": 12,
+    "aim": [
+     -120,
+     2.5,
+     125
+    ],
+    "power": 1,
+    "range": 38.4,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 45,
+    "z": 90,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     45,
+     2.5,
+     116
+    ],
+    "power": 1,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 30,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     30
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 70,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     70
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 110,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     110
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 150,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     150
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 190,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     190
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 230,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     230
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 270,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     270
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 310,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     310
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 350,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     350
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 196.2,
+    "z": 390,
+    "base": 4,
+    "h": 6,
+    "aim": [
+     196,
+     2.5,
+     390
+    ],
+    "power": 0,
+    "range": 19.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 150,
+    "z": 436,
+    "base": 5.5,
+    "h": 15,
+    "aim": [
+     200,
+     2.5,
+     446
+    ],
+    "power": 1.6,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 250,
+    "z": 436,
+    "base": 5.5,
+    "h": 15,
+    "aim": [
+     200,
+     2.5,
+     446
+    ],
+    "power": 1.6,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 113,
+    "z": -272,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     210,
+     2.5,
+     -190
+    ],
+    "power": 1.2,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 307,
+    "z": -272,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     210,
+     2.5,
+     -190
+    ],
+    "power": 1.2,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 113,
+    "z": -108,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     210,
+     2.5,
+     -190
+    ],
+    "power": 1.2,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 307,
+    "z": -108,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     210,
+     2.5,
+     -190
+    ],
+    "power": 1.2,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 334,
+    "z": -195,
+    "base": 2.5,
+    "h": 20,
+    "aim": [
+     360,
+     -11,
+     -100
+    ],
+    "power": 1,
+    "range": 130,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 386,
+    "z": -195,
+    "base": 2.5,
+    "h": 20,
+    "aim": [
+     360,
+     -11,
+     -100
+    ],
+    "power": 1,
+    "range": 130,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 334,
+    "z": -6,
+    "base": 2.5,
+    "h": 20,
+    "aim": [
+     360,
+     -11,
+     -100
+    ],
+    "power": 1,
+    "range": 130,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 386,
+    "z": -6,
+    "base": 2.5,
+    "h": 20,
+    "aim": [
+     360,
+     -11,
+     -100
+    ],
+    "power": 1,
+    "range": 130,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 447,
+    "z": 50,
+    "base": 2.5,
+    "h": 12,
+    "aim": [
+     560,
+     2.5,
+     60
+    ],
+    "power": 1.2,
+    "range": 38.4,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 447,
+    "z": 170,
+    "base": 2.5,
+    "h": 12,
+    "aim": [
+     560,
+     2.5,
+     140
+    ],
+    "power": 1.2,
+    "range": 38.4,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 515,
+    "z": -12,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     515,
+     2.5,
+     0
+    ],
+    "power": 0.9,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 500,
+    "z": 20,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     500,
+     2.5,
+     20
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 500,
+    "z": 45,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     500,
+     2.5,
+     45
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 500,
+    "z": 70,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     500,
+     2.5,
+     70
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 500,
+    "z": 95,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     500,
+     2.5,
+     95
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 500,
+    "z": 120,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     500,
+     2.5,
+     120
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 500,
+    "z": 145,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     500,
+     2.5,
+     145
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 560,
+    "z": 20,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     560,
+     2.5,
+     20
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 560,
+    "z": 45,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     560,
+     2.5,
+     45
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 560,
+    "z": 70,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     560,
+     2.5,
+     70
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 560,
+    "z": 95,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     560,
+     2.5,
+     95
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 560,
+    "z": 120,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     560,
+     2.5,
+     120
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 560,
+    "z": 145,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     560,
+     2.5,
+     145
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 620,
+    "z": 20,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     620,
+     2.5,
+     20
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 620,
+    "z": 45,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     620,
+     2.5,
+     45
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 620,
+    "z": 70,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     620,
+     2.5,
+     70
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 620,
+    "z": 95,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     620,
+     2.5,
+     95
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 620,
+    "z": 120,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     620,
+     2.5,
+     120
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 620,
+    "z": 145,
+    "base": 0.9,
+    "h": 3.5,
+    "aim": [
+     620,
+     2.5,
+     145
+    ],
+    "power": 0,
+    "range": 11.2,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 745,
+    "z": 90,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     745,
+     2.5,
+     90
+    ],
+    "power": 1.3,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 835,
+    "z": 90,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     835,
+     2.5,
+     90
+    ],
+    "power": 1.3,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 838,
+    "z": 2,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     838,
+     2.5,
+     2
+    ],
+    "power": 1.3,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": 902,
+    "z": 2,
+    "base": 2.5,
+    "h": 15,
+    "aim": [
+     902,
+     2.5,
+     2
+    ],
+    "power": 1.3,
+    "range": 48,
+    "cone": 0.95,
+    "colour": "halide",
+    "pole": true
+   },
+   {
+    "x": -1180,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -1180,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -1140,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -1140,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -1100,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -1100,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -1060,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -1060,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -1020,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -1020,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -980,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -980,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -940,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -940,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -900,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -900,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -860,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -860,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -820,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -820,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -780,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -780,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -740,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -740,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -700,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -700,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -660,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -660,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -620,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -620,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -580,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -580,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -540,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -540,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -500,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -500,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -460,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -460,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -420,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -420,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -380,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -380,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -340,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -340,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -300,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -300,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -260,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -260,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -220,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -220,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -180,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -180,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -140,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -140,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -100,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -100,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -60,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -60,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -20,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -20,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 20,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     20,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 60,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     60,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 100,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     100,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 140,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     140,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 180,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     180,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 220,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     220,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 260,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     260,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 300,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     300,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 340,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     340,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 380,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     380,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 420,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     420,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 460,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     460,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 500,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     500,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 540,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     540,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 580,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     580,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 620,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     620,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 660,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     660,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 700,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     700,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 740,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     740,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 780,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     780,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 820,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     820,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 860,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     860,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 900,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     900,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 940,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     940,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 980,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     980,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 1020,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     1020,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 1060,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     1060,
+     2.5,
+     -330
+    ],
+    "power": 1,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 1100,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     1100,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 1140,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     1140,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": 1180,
+    "z": -321,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     1180,
+     2.5,
+     -330
+    ],
+    "power": 0,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -172,
+    "z": -200,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -172,
+     2.5,
+     -200
+    ],
+    "power": 0.9,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -118,
+    "z": -200,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -118,
+     2.5,
+     -200
+    ],
+    "power": 0.9,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -172,
+    "z": -150,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -172,
+     2.5,
+     -150
+    ],
+    "power": 0.9,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -118,
+    "z": -150,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -118,
+     2.5,
+     -150
+    ],
+    "power": 0.9,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -815,
+    "z": -174,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -815,
+     2.5,
+     -170
+    ],
+    "power": 0.9,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -695,
+    "z": -174,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -695,
+     2.5,
+     -170
+    ],
+    "power": 0.9,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -575,
+    "z": -174,
+    "base": 2.5,
+    "h": 10,
+    "aim": [
+     -575,
+     2.5,
+     -170
+    ],
+    "power": 0.9,
+    "range": 32,
+    "cone": 0.95,
+    "colour": "sodium",
+    "pole": true
+   },
+   {
+    "x": -623.3,
+    "z": 170,
+    "base": 12.2,
+    "h": 0,
+    "aim": [
+     -671.5,
+     4.2,
+     170
+    ],
+    "power": 1.4,
+    "range": 132,
+    "cone": 0.5,
+    "colour": "halide",
+    "pole": false,
+    "lot": 40
+   },
+   {
+    "x": -370,
+    "z": 196.7,
+    "base": 12.2,
+    "h": 0,
+    "aim": [
+     -370,
+     4.2,
+     148.5
+    ],
+    "power": 1.4,
+    "range": 132,
+    "cone": 0.5,
+    "colour": "halide",
+    "pole": false,
+    "lot": 49
+   },
+   {
+    "x": -270,
+    "z": 133.3,
+    "base": 12.2,
+    "h": 0,
+    "aim": [
+     -270,
+     4.2,
+     181.5
+    ],
+    "power": 1.4,
+    "range": 132,
+    "cone": 0.5,
+    "colour": "halide",
+    "pole": false,
+    "lot": 50
+   },
+   {
+    "x": -120,
+    "z": 182.9,
+    "base": 13.6,
+    "h": 0,
+    "aim": [
+     -120,
+     3.4,
+     186.3
+    ],
+    "power": 1.4,
+    "range": 66,
+    "cone": 0.5,
+    "colour": "halide",
+    "pole": false,
+    "lot": 55
+   },
+   {
+    "x": 251.7,
+    "z": 454,
+    "base": 14.8,
+    "h": 0,
+    "aim": [
+     188.5,
+     4.5,
+     454
+    ],
+    "power": 1.4,
+    "range": 165,
+    "cone": 0.5,
+    "colour": "halide",
+    "pole": false,
+    "lot": 65
+   },
+   {
+    "x": 360,
+    "z": -63.3,
+    "base": 9.7,
+    "h": 0,
+    "aim": [
+     360,
+     1.7,
+     -111.5
+    ],
+    "power": 1.4,
+    "range": 132,
+    "cone": 0.5,
+    "colour": "halide",
+    "pole": false,
+    "lot": 75
+   }
+  ],
+  "dots": [
+   {
+    "at": [
+     -806,
+     37.5,
+     39
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -806,
+     37.5,
+     75
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -714,
+     37.5,
+     39
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -714,
+     37.5,
+     75
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -622,
+     37.5,
+     39
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -622,
+     37.5,
+     75
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -530,
+     37.5,
+     39
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -530,
+     37.5,
+     75
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     103
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     103
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     113
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     113
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     123
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     123
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     133
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     133
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     143
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     143
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     153
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     153
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     163
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     163
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     173
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     173
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     183
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     183
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     193
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     193
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -764,
+     45.1,
+     203
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -756,
+     45.1,
+     203
+    ],
+    "colour": "halide",
+    "lot": 37
+   },
+   {
+    "at": [
+     -760,
+     73.1,
+     142
+    ],
+    "colour": "red",
+    "lot": 37
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     103
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     103
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     113
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     113
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     123
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     123
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     133
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     133
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     143
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     143
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     153
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     153
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     163
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     163
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     173
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     173
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     183
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     183
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     193
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     193
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -664,
+     45.1,
+     203
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -656,
+     45.1,
+     203
+    ],
+    "colour": "halide",
+    "lot": 38
+   },
+   {
+    "at": [
+     -660,
+     73.1,
+     142
+    ],
+    "colour": "red",
+    "lot": 38
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     103
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     103
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     113
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     113
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     123
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     123
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     133
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     133
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     143
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     143
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     153
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     153
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     163
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     163
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     173
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     173
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     183
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     183
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     193
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     193
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -564,
+     45.1,
+     203
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -556,
+     45.1,
+     203
+    ],
+    "colour": "halide",
+    "lot": 39
+   },
+   {
+    "at": [
+     -560,
+     73.1,
+     142
+    ],
+    "colour": "red",
+    "lot": 39
+   },
+   {
+    "at": [
+     -350,
+     27.5,
+     15
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -290,
+     27.5,
+     15
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -350,
+     27.5,
+     285
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -290,
+     27.5,
+     285
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -105,
+     17.5,
+     80
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -45,
+     17.5,
+     80
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -128,
+     14.5,
+     110
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     45,
+     17.5,
+     90
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     30
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     70
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     110
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     150
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     190
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     230
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     270
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     310
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     350
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     196.2,
+     10,
+     390
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     150,
+     20.5,
+     436
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     250,
+     20.5,
+     436
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     113,
+     17.5,
+     -272
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     307,
+     17.5,
+     -272
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     113,
+     17.5,
+     -108
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     307,
+     17.5,
+     -108
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     334,
+     22.5,
+     -195
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     386,
+     22.5,
+     -195
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     334,
+     22.5,
+     -6
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     386,
+     22.5,
+     -6
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     360,
+     68.1,
+     -110
+    ],
+    "colour": "red"
+   },
+   {
+    "at": [
+     447,
+     14.5,
+     50
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     447,
+     14.5,
+     170
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     515,
+     12.5,
+     -12
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     500,
+     4.4,
+     20
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     500,
+     4.4,
+     45
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     500,
+     4.4,
+     70
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     500,
+     4.4,
+     95
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     500,
+     4.4,
+     120
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     500,
+     4.4,
+     145
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     560,
+     4.4,
+     20
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     560,
+     4.4,
+     45
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     560,
+     4.4,
+     70
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     560,
+     4.4,
+     95
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     560,
+     4.4,
+     120
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     560,
+     4.4,
+     145
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     620,
+     4.4,
+     20
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     620,
+     4.4,
+     45
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     620,
+     4.4,
+     70
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     620,
+     4.4,
+     95
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     620,
+     4.4,
+     120
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     620,
+     4.4,
+     145
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     745,
+     17.5,
+     90
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     835,
+     17.5,
+     90
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     838,
+     17.5,
+     2
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     902,
+     17.5,
+     2
+    ],
+    "colour": "halide"
+   },
+   {
+    "at": [
+     -1180,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -1140,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -1100,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -1060,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -1020,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -980,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -940,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -900,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -860,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -820,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -780,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -740,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -700,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -660,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -620,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -580,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -540,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -500,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -460,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -420,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -380,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -340,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -300,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -260,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -220,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -180,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -140,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -100,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -60,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -20,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     20,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     60,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     100,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     140,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     180,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     220,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     260,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     300,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     340,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     380,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     420,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     460,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     500,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     540,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     580,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     620,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     660,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     700,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     740,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     780,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     820,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     860,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     900,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     940,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     980,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     1020,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     1060,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     1100,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     1140,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     1180,
+     12.5,
+     -321
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -172,
+     12.5,
+     -200
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -118,
+     12.5,
+     -200
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -172,
+     12.5,
+     -150
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -118,
+     12.5,
+     -150
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -815,
+     12.5,
+     -174
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -695,
+     12.5,
+     -174
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -575,
+     12.5,
+     -174
+    ],
+    "colour": "sodium"
+   },
+   {
+    "at": [
+     -706,
+     15.7,
+     170
+    ],
+    "colour": "white",
+    "lot": 40
+   },
+   {
+    "at": [
+     -674,
+     15.7,
+     170
+    ],
+    "colour": "white",
+    "lot": 40
+   },
+   {
+    "at": [
+     -642,
+     15.7,
+     170
+    ],
+    "colour": "white",
+    "lot": 40
+   },
+   {
+    "at": [
+     -712.5,
+     7.2,
+     178.4
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -712.5,
+     7.2,
+     161.6
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -697.5,
+     7.2,
+     178.4
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -697.5,
+     7.2,
+     161.6
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -682.5,
+     7.2,
+     178.4
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -682.5,
+     7.2,
+     161.6
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -667.5,
+     7.2,
+     178.4
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -667.5,
+     7.2,
+     161.6
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -652.5,
+     7.2,
+     178.4
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -652.5,
+     7.2,
+     161.6
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -637.5,
+     7.2,
+     178.4
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -637.5,
+     7.2,
+     161.6
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -607.5,
+     7.2,
+     178.4
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -607.5,
+     7.2,
+     161.6
+    ],
+    "colour": "halide",
+    "lot": 40
+   },
+   {
+    "at": [
+     -370,
+     15.7,
+     114
+    ],
+    "colour": "white",
+    "lot": 49
+   },
+   {
+    "at": [
+     -370,
+     15.7,
+     146
+    ],
+    "colour": "white",
+    "lot": 49
+   },
+   {
+    "at": [
+     -370,
+     15.7,
+     178
+    ],
+    "colour": "white",
+    "lot": 49
+   },
+   {
+    "at": [
+     -378.4,
+     7.2,
+     107.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -361.6,
+     7.2,
+     107.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -378.4,
+     7.2,
+     122.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -361.6,
+     7.2,
+     122.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -378.4,
+     7.2,
+     137.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -361.6,
+     7.2,
+     137.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -378.4,
+     7.2,
+     152.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -361.6,
+     7.2,
+     152.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -378.4,
+     7.2,
+     167.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -361.6,
+     7.2,
+     167.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -378.4,
+     7.2,
+     182.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -361.6,
+     7.2,
+     182.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -378.4,
+     7.2,
+     212.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -361.6,
+     7.2,
+     212.5
+    ],
+    "colour": "halide",
+    "lot": 49
+   },
+   {
+    "at": [
+     -270,
+     15.7,
+     216
+    ],
+    "colour": "white",
+    "lot": 50
+   },
+   {
+    "at": [
+     -270,
+     15.7,
+     184
+    ],
+    "colour": "white",
+    "lot": 50
+   },
+   {
+    "at": [
+     -270,
+     15.7,
+     152
+    ],
+    "colour": "white",
+    "lot": 50
+   },
+   {
+    "at": [
+     -261.6,
+     7.2,
+     222.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -278.4,
+     7.2,
+     222.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -261.6,
+     7.2,
+     207.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -278.4,
+     7.2,
+     207.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -261.6,
+     7.2,
+     192.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -278.4,
+     7.2,
+     192.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -261.6,
+     7.2,
+     177.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -278.4,
+     7.2,
+     177.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -261.6,
+     7.2,
+     162.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -278.4,
+     7.2,
+     162.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -261.6,
+     7.2,
+     147.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -278.4,
+     7.2,
+     147.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -261.6,
+     7.2,
+     117.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -278.4,
+     7.2,
+     117.5
+    ],
+    "colour": "halide",
+    "lot": 50
+   },
+   {
+    "at": [
+     -120,
+     14,
+     164
+    ],
+    "colour": "white",
+    "lot": 55
+   },
+   {
+    "at": [
+     -126.4,
+     4.6,
+     133.75
+    ],
+    "colour": "halide",
+    "lot": 55
+   },
+   {
+    "at": [
+     -113.6,
+     4.6,
+     133.75
+    ],
+    "colour": "halide",
+    "lot": 55
+   },
+   {
+    "at": [
+     -126.4,
+     4.6,
+     141.25
+    ],
+    "colour": "halide",
+    "lot": 55
+   },
+   {
+    "at": [
+     -113.6,
+     4.6,
+     141.25
+    ],
+    "colour": "halide",
+    "lot": 55
+   },
+   {
+    "at": [
+     -126.4,
+     4.6,
+     186.25
+    ],
+    "colour": "halide",
+    "lot": 55
+   },
+   {
+    "at": [
+     -113.6,
+     4.6,
+     186.25
+    ],
+    "colour": "halide",
+    "lot": 55
+   },
+   {
+    "at": [
+     24,
+     11.8,
+     116
+    ],
+    "colour": "white",
+    "lot": 60
+   },
+   {
+    "at": [
+     26,
+     6.7,
+     119.7
+    ],
+    "colour": "green",
+    "lot": 60
+   },
+   {
+    "at": [
+     26,
+     6.7,
+     112.3
+    ],
+    "colour": "red",
+    "lot": 60
+   },
+   {
+    "at": [
+     6,
+     3,
+     116
+    ],
+    "colour": "white",
+    "lot": 60
+   },
+   {
+    "at": [
+     9,
+     3.8,
+     119.9
+    ],
+    "colour": "halide",
+    "lot": 60
+   },
+   {
+    "at": [
+     9,
+     3.8,
+     112.1
+    ],
+    "colour": "halide",
+    "lot": 60
+   },
+   {
+    "at": [
+     15,
+     3.8,
+     119.9
+    ],
+    "colour": "halide",
+    "lot": 60
+   },
+   {
+    "at": [
+     15,
+     3.8,
+     112.1
+    ],
+    "colour": "halide",
+    "lot": 60
+   },
+   {
+    "at": [
+     33,
+     3.8,
+     119.9
+    ],
+    "colour": "halide",
+    "lot": 60
+   },
+   {
+    "at": [
+     33,
+     3.8,
+     112.1
+    ],
+    "colour": "halide",
+    "lot": 60
+   },
+   {
+    "at": [
+     74,
+     11.8,
+     116
+    ],
+    "colour": "white",
+    "lot": 61
+   },
+   {
+    "at": [
+     76,
+     6.7,
+     119.7
+    ],
+    "colour": "green",
+    "lot": 61
+   },
+   {
+    "at": [
+     76,
+     6.7,
+     112.3
+    ],
+    "colour": "red",
+    "lot": 61
+   },
+   {
+    "at": [
+     56,
+     3,
+     116
+    ],
+    "colour": "white",
+    "lot": 61
+   },
+   {
+    "at": [
+     59,
+     3.8,
+     119.9
+    ],
+    "colour": "halide",
+    "lot": 61
+   },
+   {
+    "at": [
+     59,
+     3.8,
+     112.1
+    ],
+    "colour": "halide",
+    "lot": 61
+   },
+   {
+    "at": [
+     65,
+     3.8,
+     119.9
+    ],
+    "colour": "halide",
+    "lot": 61
+   },
+   {
+    "at": [
+     65,
+     3.8,
+     112.1
+    ],
+    "colour": "halide",
+    "lot": 61
+   },
+   {
+    "at": [
+     83,
+     3.8,
+     119.9
+    ],
+    "colour": "halide",
+    "lot": 61
+   },
+   {
+    "at": [
+     83,
+     3.8,
+     112.1
+    ],
+    "colour": "halide",
+    "lot": 61
+   },
+   {
+    "at": [
+     133,
+     18.3,
+     454
+    ],
+    "colour": "white",
+    "lot": 65
+   },
+   {
+    "at": [
+     256,
+     18.3,
+     454
+    ],
+    "colour": "white",
+    "lot": 65
+   },
+   {
+    "at": [
+     134.375,
+     5.7,
+     465.4
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     134.375,
+     5.7,
+     442.6
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     153.125,
+     5.7,
+     465.4
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     153.125,
+     5.7,
+     442.6
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     171.875,
+     5.7,
+     465.4
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     171.875,
+     5.7,
+     442.6
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     190.625,
+     5.7,
+     465.4
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     190.625,
+     5.7,
+     442.6
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     209.375,
+     5.7,
+     465.4
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     209.375,
+     5.7,
+     442.6
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     228.125,
+     5.7,
+     465.4
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     228.125,
+     5.7,
+     442.6
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     246.875,
+     5.7,
+     465.4
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     246.875,
+     5.7,
+     442.6
+    ],
+    "colour": "halide",
+    "lot": 65
+   },
+   {
+    "at": [
+     360,
+     13.2,
+     -146
+    ],
+    "colour": "white",
+    "lot": 75
+   },
+   {
+    "at": [
+     360,
+     13.2,
+     -114
+    ],
+    "colour": "white",
+    "lot": 75
+   },
+   {
+    "at": [
+     360,
+     13.2,
+     -82
+    ],
+    "colour": "white",
+    "lot": 75
+   },
+   {
+    "at": [
+     351.6,
+     4.7,
+     -152.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     368.4,
+     4.7,
+     -152.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     351.6,
+     4.7,
+     -137.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     368.4,
+     4.7,
+     -137.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     351.6,
+     4.7,
+     -122.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     368.4,
+     4.7,
+     -122.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     351.6,
+     4.7,
+     -107.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     368.4,
+     4.7,
+     -107.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     351.6,
+     4.7,
+     -92.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     368.4,
+     4.7,
+     -92.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     351.6,
+     4.7,
+     -77.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     368.4,
+     4.7,
+     -77.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     351.6,
+     4.7,
+     -47.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     368.4,
+     4.7,
+     -47.5
+    ],
+    "colour": "halide",
+    "lot": 75
+   },
+   {
+    "at": [
+     530,
+     9.9,
+     41
+    ],
+    "colour": "white",
+    "lot": 84
+   },
+   {
+    "at": [
+     532.6,
+     3.9,
+     48
+    ],
+    "colour": "sodium",
+    "lot": 84
+   },
+   {
+    "at": [
+     527.4,
+     3.9,
+     48
+    ],
+    "colour": "sodium",
+    "lot": 84
+   },
+   {
+    "at": [
+     532.6,
+     3.9,
+     36
+    ],
+    "colour": "sodium",
+    "lot": 84
+   },
+   {
+    "at": [
+     527.4,
+     3.9,
+     36
+    ],
+    "colour": "sodium",
+    "lot": 84
+   },
+   {
+    "at": [
+     532.6,
+     3.9,
+     30
+    ],
+    "colour": "sodium",
+    "lot": 84
+   },
+   {
+    "at": [
+     527.4,
+     3.9,
+     30
+    ],
+    "colour": "sodium",
+    "lot": 84
+   },
+   {
+    "at": [
+     530,
+     6.4,
+     30.1
+    ],
+    "colour": "sodium",
+    "lot": 84
+   },
+   {
+    "at": [
+     530,
+     9.9,
+     95
+    ],
+    "colour": "white",
+    "lot": 85
+   },
+   {
+    "at": [
+     527.4,
+     3.9,
+     88
+    ],
+    "colour": "sodium",
+    "lot": 85
+   },
+   {
+    "at": [
+     532.6,
+     3.9,
+     88
+    ],
+    "colour": "sodium",
+    "lot": 85
+   },
+   {
+    "at": [
+     527.4,
+     3.9,
+     100
+    ],
+    "colour": "sodium",
+    "lot": 85
+   },
+   {
+    "at": [
+     532.6,
+     3.9,
+     100
+    ],
+    "colour": "sodium",
+    "lot": 85
+   },
+   {
+    "at": [
+     527.4,
+     3.9,
+     106
+    ],
+    "colour": "sodium",
+    "lot": 85
+   },
+   {
+    "at": [
+     532.6,
+     3.9,
+     106
+    ],
+    "colour": "sodium",
+    "lot": 85
+   },
+   {
+    "at": [
+     530,
+     6.4,
+     105.9
+    ],
+    "colour": "sodium",
+    "lot": 85
+   },
+   {
+    "at": [
+     590,
+     9.9,
+     69
+    ],
+    "colour": "white",
+    "lot": 86
+   },
+   {
+    "at": [
+     592.6,
+     3.9,
+     76
+    ],
+    "colour": "sodium",
+    "lot": 86
+   },
+   {
+    "at": [
+     587.4,
+     3.9,
+     76
+    ],
+    "colour": "sodium",
+    "lot": 86
+   },
+   {
+    "at": [
+     592.6,
+     3.9,
+     64
+    ],
+    "colour": "sodium",
+    "lot": 86
+   },
+   {
+    "at": [
+     587.4,
+     3.9,
+     64
+    ],
+    "colour": "sodium",
+    "lot": 86
+   },
+   {
+    "at": [
+     592.6,
+     3.9,
+     58
+    ],
+    "colour": "sodium",
+    "lot": 86
+   },
+   {
+    "at": [
+     587.4,
+     3.9,
+     58
+    ],
+    "colour": "sodium",
+    "lot": 86
+   },
+   {
+    "at": [
+     590,
+     6.4,
+     58.1
+    ],
+    "colour": "sodium",
+    "lot": 86
+   },
+   {
+    "at": [
+     650,
+     9.9,
+     39
+    ],
+    "colour": "white",
+    "lot": 87
+   },
+   {
+    "at": [
+     647.4,
+     3.9,
+     32
+    ],
+    "colour": "sodium",
+    "lot": 87
+   },
+   {
+    "at": [
+     652.6,
+     3.9,
+     32
+    ],
+    "colour": "sodium",
+    "lot": 87
+   },
+   {
+    "at": [
+     647.4,
+     3.9,
+     44
+    ],
+    "colour": "sodium",
+    "lot": 87
+   },
+   {
+    "at": [
+     652.6,
+     3.9,
+     44
+    ],
+    "colour": "sodium",
+    "lot": 87
+   },
+   {
+    "at": [
+     647.4,
+     3.9,
+     50
+    ],
+    "colour": "sodium",
+    "lot": 87
+   },
+   {
+    "at": [
+     652.6,
+     3.9,
+     50
+    ],
+    "colour": "sodium",
+    "lot": 87
+   },
+   {
+    "at": [
+     650,
+     6.4,
+     49.9
+    ],
+    "colour": "sodium",
+    "lot": 87
+   },
+   {
+    "at": [
+     511,
+     3.2,
+     28.8
+    ],
+    "colour": "white",
+    "lot": 88
+   },
+   {
+    "at": [
+     571,
+     3.2,
+     118.8
+    ],
+    "colour": "white",
+    "lot": 89
+   },
+   {
+    "at": [
+     631,
+     3.2,
+     98.8
+    ],
+    "colour": "white",
+    "lot": 90
+   },
+   {
+    "at": [
+     792,
+     10.9,
+     106
+    ],
+    "colour": "white",
+    "lot": 94
+   },
+   {
+    "at": [
+     787,
+     4.8,
+     103.4
+    ],
+    "colour": "green",
+    "lot": 94
+   },
+   {
+    "at": [
+     787,
+     4.8,
+     108.6
+    ],
+    "colour": "red",
+    "lot": 94
+   },
+   {
+    "at": [
+     805,
+     3.4,
+     106
+    ],
+    "colour": "white",
+    "lot": 94
+   },
+   {
+    "at": [
+     778,
+     4.2,
+     108.6
+    ],
+    "colour": "halide",
+    "lot": 94
+   },
+   {
+    "at": [
+     778,
+     4.2,
+     103.4
+    ],
+    "colour": "halide",
+    "lot": 94
+   },
+   {
+    "at": [
+     784,
+     4.2,
+     108.6
+    ],
+    "colour": "halide",
+    "lot": 94
+   },
+   {
+    "at": [
+     784,
+     4.2,
+     103.4
+    ],
+    "colour": "halide",
+    "lot": 94
+   },
+   {
+    "at": [
+     796,
+     4.2,
+     108.6
+    ],
+    "colour": "halide",
+    "lot": 94
+   },
+   {
+    "at": [
+     796,
+     4.2,
+     103.4
+    ],
+    "colour": "halide",
+    "lot": 94
+   },
+   {
+    "at": [
+     802,
+     4.2,
+     108.6
+    ],
+    "colour": "halide",
+    "lot": 94
+   },
+   {
+    "at": [
+     802,
+     4.2,
+     103.4
+    ],
+    "colour": "halide",
+    "lot": 94
+   },
+   {
+    "at": [
+     870,
+     10.9,
+     142
+    ],
+    "colour": "white",
+    "lot": 96
+   },
+   {
+    "at": [
+     872.6,
+     4.8,
+     137
+    ],
+    "colour": "green",
+    "lot": 96
+   },
+   {
+    "at": [
+     867.4,
+     4.8,
+     137
+    ],
+    "colour": "red",
+    "lot": 96
+   },
+   {
+    "at": [
+     870,
+     3.4,
+     155
+    ],
+    "colour": "white",
+    "lot": 96
+   },
+   {
+    "at": [
+     867.4,
+     4.2,
+     128
+    ],
+    "colour": "halide",
+    "lot": 96
+   },
+   {
+    "at": [
+     872.6,
+     4.2,
+     128
+    ],
+    "colour": "halide",
+    "lot": 96
+   },
+   {
+    "at": [
+     867.4,
+     4.2,
+     134
+    ],
+    "colour": "halide",
+    "lot": 96
+   },
+   {
+    "at": [
+     872.6,
+     4.2,
+     134
+    ],
+    "colour": "halide",
+    "lot": 96
+   },
+   {
+    "at": [
+     867.4,
+     4.2,
+     146
+    ],
+    "colour": "halide",
+    "lot": 96
+   },
+   {
+    "at": [
+     872.6,
+     4.2,
+     146
+    ],
+    "colour": "halide",
+    "lot": 96
+   },
+   {
+    "at": [
+     867.4,
+     4.2,
+     152
+    ],
+    "colour": "halide",
+    "lot": 96
+   },
+   {
+    "at": [
+     872.6,
+     4.2,
+     152
+    ],
+    "colour": "halide",
+    "lot": 96
+   }
+  ],
+  "runways": []
+ },
+ "parked": [],
+ "bounds_m": {
+  "lo": [
+   -1005.5,
+   0,
+   -280
+  ],
+  "hi": [
+   1005.5,
+   0,
+   1701.5
+  ]
+ }
+}

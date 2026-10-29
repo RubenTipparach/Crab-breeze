@@ -635,6 +635,12 @@ const SKIN_M: f32 = interior::SKIN_M;
 /// The gap between an end face's skin and the front or back skin at a corner.
 const CORNER_GAP_M: f32 = 0.01;
 
+/// How far a glass tower's corner post stands proud of both faces, metres: a centimetre past a mullion
+/// (0.14 m), so the first mullion of each face is wholly inside it.
+const CORNER_PROUD_M: f32 = 0.15;
+/// How far a glass tower's corner post reaches in behind an end face, metres: past its spandrels (0.1 m).
+const CORNER_BACK_M: f32 = 0.12;
+
 /// Half the least gap kept between two buildings' trim at the line between them.
 const PARTY_GAP_M: f32 = 0.02;
 
@@ -988,6 +994,36 @@ fn dress_look(
                     plane,
                     out_sign * (fronts[side as usize] * 0.5 - PARTY_GAP_M),
                 );
+            }
+        }
+    }
+    // A glass tower's corners. The ends' skins stop `SKIN_M` and 1 cm short of each corner, where a front
+    // or back wall `SKIN_M` deep closes the gap on every other style; a tower's front skin is glass and
+    // spandrel 0.1 m deep, so the corner stood open, a slot 0.21 m wide down the whole tower (owner,
+    // 2026-10-28: "Glass towers aren't joining at the corners"). A corner post per storey fills it: back
+    // to where the end's skin starts, a little behind the end's face, and as proud as a mullion on both
+    // faces, but within the gap kept to a neighbour and just short of trim clipped to it, so no face of
+    // it lies in another's plane.
+    if style == Style::Tower {
+        let reach = |side: usize| (CORNER_PROUD_M).min(fronts[side] * 0.5 - PARTY_GAP_M - CORNER_GAP_M * 0.5).max(0.0);
+        let into = SKIN_M + CORNER_GAP_M;
+        for (front, end, idx) in [(0usize, 2usize, 0usize), (0, 3, nx - 1), (1, 2, 0), (1, 3, nx - 1)] {
+            let (cz, sz) = if front == 0 { (origin.z, -1.0) } else { (far.z, 1.0) };
+            let (cx, sx) = if end == 2 { (origin.x, -1.0) } else { (far.x, 1.0) };
+            let (xa, xb) = (cx + sx * reach(end), cx - sx * CORNER_BACK_M);
+            let (za, zb) = (cz + sz * reach(front), cz - sz * into);
+            for k in 0..ns {
+                let (y0, y1) = (origin.y + size.y * k as f32, origin.y + size.y * (k + 1) as f32);
+                out.push(block(
+                    Vec3::new(xa.min(xb), y0, za.min(zb)),
+                    Vec3::new(xa.max(xb), y1, za.max(zb)),
+                    look.mullion,
+                    Anchor::Wall {
+                        k: k as u32,
+                        side: front as u8,
+                        idx: idx as u32,
+                    },
+                ));
             }
         }
     }
@@ -1425,6 +1461,27 @@ mod tests {
             }
         }
         assert!(pieces.iter().any(|p| p.mat == Mat::Glass), "and windows");
+    }
+
+    #[test]
+    fn a_glass_towers_corners_are_closed_on_every_storey() {
+        let pieces = go(30, false);
+        assert_eq!(style_of(30), Style::Tower);
+        let (lo, hi) = (Vec3::new(100.0, 20.0, 50.0), Vec3::new(130.0, 20.0, 74.0));
+        for k in 0..30 {
+            let y = 20.0 + 3.5 * k as f32 + 1.75;
+            for (x, z) in [(lo.x, lo.z), (hi.x, lo.z), (lo.x, hi.z), (hi.x, hi.z)] {
+                let (ix, iz) = ((lo.x + hi.x - 2.0 * x).signum(), (lo.z + hi.z - 2.0 * z).signum());
+                // On the end face, 0.2 m round the corner and just behind the face: inside the slot that
+                // stood open between the front's glass and the end's skin.
+                let at = Vec3::new(x + ix * 0.05, y, z + iz * 0.2);
+                let covered = pieces.iter().any(|p| match p.shape {
+                    Shape::Block { min, max } => at.cmpge(min).all() && at.cmple(max).all(),
+                    _ => false,
+                });
+                assert!(covered, "storey {k}: the corner at ({x}, {z}) is closed at {at}");
+            }
+        }
     }
 
     #[test]
