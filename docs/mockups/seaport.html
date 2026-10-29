@@ -4383,7 +4383,7 @@ td.n { font-family: var(--mono); white-space: nowrap; }
     const nf = fl.length, bridgeSpec = (i, st) => (st === nf - 1 ? 'glazed' : H.passengers ? 'ribbon' : 'windows');
     const sideSpec = (i, st) => (H.passengers || st === nf - 1 ? 'ribbon' : 'windows');
     const backSpec = (i, st, nn) => (st === 0 && i === Math.floor(nn / 2) ? 'door' : 'windows');
-    hall(B, { x0: -H.w, x1: H.w, z0: H.z0, z1: H.z1, storeys: fl, wall: 'metal', tint: C[H.wall], t: 0.2, col: 6, bay: Math.min(4, (2 * H.w) / 2),
+    hall(B, { x0: -H.w, x1: H.w, z0: H.z0, z1: H.z1, storeys: fl, wall: 'metal', tint: C[H.wall], t: 0.2, col: 6, floorMat: 'floorWood', bay: Math.min(4, (2 * H.w) / 2),
       front: s.bow > 0 ? bridgeSpec : backSpec, back: s.bow < 0 ? bridgeSpec : backSpec, left: sideSpec, right: sideSpec, roof: { parapet: 0.25 },
       furnish(B) {
         fl.forEach(([y0], st) => {
