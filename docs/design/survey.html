@@ -154,6 +154,19 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'N', name: 'Night light, baked',
+    lead: 'Added 2026-10-29, for your question "at night time, can we do voxel lighting that bakes vertex colors instead of fake glass lighting?". Yes. As each city streams in, every street lamp and every lit window spreads its light through the city: 2 m blocks of air, with buildings and ground solid. The light pools in the streets, goes round corners and stops at walls. Each wall, street and roof then keeps that light on its vertices. Today a window lights nothing and a lamp lights only while it is one of the 96 nearest within 250 m. Written up in openspec/changes/night-voxel-light; nothing is built yet. It will be built on the recommendations until you answer.',
+    qs: [
+      { id: 'N9', q: 'Baked light only lands on things that stand still. What lights cars, people and your mech when they pass under a lamp?',
+        options: ['Keep a few real lamps: the 32 nearest within 120 m (today 96 within 250 m)', 'Keep today\'s 96 within 250 m', 'No real lamps; moving things get no lamp light'], rec: 0,
+        why: 'Moving things are only lit close to you anyway, and 32 lights cost about a third of 96 while keeping the glints on wet road.' },
+      { id: 'N10', q: 'You asked for lit rooms, not glowing glass (2026-10-29). Does a lit room\'s light also spill out of the window onto the street and the building across it?',
+        options: ['Yes: the street and the facing walls catch warm light from lit rooms', 'No: the room is lit, the outside is lit only by the lamps'], rec: 0,
+        why: 'Light from a lit room landing outside is what makes a night street feel lived in, and it comes free with the bake.' },
+      { id: 'N11', q: 'Lamp pools on the ground everywhere, so from the air every street glows orange (this replaces N4, "pools only within 250 m")?',
+        options: ['Everywhere, from the street and the air', 'Only within 250 m, as N4 said'], rec: 0,
+        why: 'Baked pools cost nothing per frame wherever they are, so the reason N4 limited them is gone.' },
+    ] },
   { tag: 'V', name: 'The view', lead: 'Your question, 2026-10-26: "is my fps fov still 75? it seems kinda wide". Yes, it is 75, but the game measures it top to bottom (vertical). On a 16:9 screen, 75 tall is about 107 degrees side to side, which is why it reads wide. The cockpit\'s 95 tall is about 125 side to side. Driving a car stays at the on foot value, as you asked.',
     qs: [
       { id: 'V1', q: 'How should the 75 (on foot and driving) and 95 (cockpit) be measured? Today both are vertical: 107 and 125 degrees across on 16:9.',
@@ -202,10 +215,39 @@ const SECTIONS = [
         rec: 3,
         why: '80 m was only measured together with the other cuts, so its own share is not known yet; once the textures fit in memory the interiors can be timed on their own and the trade shown in numbers.' },
     ] },
+  { tag: 'AP', name: 'The airport',
+    lead: 'Added on 2026-10-29, with the second airport mockup (Crab Breeze Airport page; openspec/changes/airport-layout). Your words: "That airfield looks kinda simple. What about more complex runway structures. Airplane hangars, landing pads for helicopters, boarding tunnels. Multiple terminals". Nothing is built in the game until you have looked at the page.',
+    qs: [
+      { id: 'AP1', q: 'The airport on the page is 2.3 by 1.35 km; a base today is a 700 by 500 m site with one runway. The island cannot hold five airports that size. Which bases become what?',
+        options: ['One airport like the page by the largest city; the other four become military airfields (two runways, the mech base, dispersal, a small tower)', 'Every base a full airport, fewer bases (two or three)', 'Two airports by the two largest cities, three military airfields', 'Every base keeps its small site, only the runway and taxiways improve'],
+        rec: 0,
+        why: 'One real airport gives the civil traffic a hub and a set piece to fight over (Ace Combat\'s big targets, G4), while the military fields keep the mech bases spread over the island as today.' },
+      { id: 'AP3', q: 'Can the parked aircraft and the jet bridges be shot and wrecked?',
+        options: ['Later, with the civil standing rules: they stand as scenery for now', 'Yes, from the start: a parked airliner burns as a flying one does'],
+        rec: 0,
+        why: 'Wrecking a parked airliner should cost you standing with the city, which the civil standing rules decide; scenery first.' },
+    ] },
+  { tag: 'SP', name: 'The seaport',
+    lead: 'Added on 2026-10-29, with the seaport mockup (Crab Breeze Seaport page; openspec/changes/seaport-layout). Your words: "we also need seaports". Nothing is built in the game until you have looked at the page.',
+    qs: [
+      { id: 'SP1', q: 'The island has up to four harbours (one by each coastal city). The port on the page is 2 km of breakwater and nine kinds of berth. Does every harbour become one?',
+        options: ['The full port at the largest coastal city; the others a small port: one breakwater, the cargo pier, the fishing harbour and the coast guard slipway', 'Every harbour a full port', 'One full port, and the others stay as they are today'],
+        rec: 0,
+        why: 'One big port is a set piece to fight over (Ace Combat\'s big targets, G4); small ports keep every coast city a working harbour without four copies of the same place.' },
+      { id: 'SP2', q: 'Today nothing at a harbour is dug or flattened: the pier stands on piles (HB3). A port needs reclaimed quays, breakwaters on the seabed and a dry dock cut into the land. May the port shape the ground and the seabed inside its own footprint?',
+        options: ['Yes, inside its own footprint', 'No: build it all on piles over the ground as it is'],
+        rec: 0,
+        why: 'Quays on piles across 2 km look like a pier, not a port; the shaping stays inside the port, so nothing else in the world moves.' },
+      { id: 'SP3', q: 'Which ships are in the port?',
+        options: ['The harbour traffic moors at these berths, and a few ships always lie alongside (the container ship, the ship in the dry dock)', 'Only the traffic: berths stand empty between arrivals', 'Only ships lying alongside, the traffic stays at anchor'],
+        rec: 0,
+        why: 'Ships that come and go make the port alive; a few that always lie alongside mean it never looks empty when you arrive.' },
+    ] },
 ];
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
 const IN_PROGRESS = [
+  { text: 'N12 At night a lit room shows through the glass at 25 %, 8 % by day, changing gradually through dusk (your words, 2026-10-29: "25% is the ticket", "I expect this transition to happen gradually as it gets dark"); the glass also reflects a night sky map at night, your idea. Written up, not built yet.', where: 'openspec/changes/night-voxel-light design 2a, task 3.10' },
   { text: 'N1-N8 Day and night ("All questions done go", 2026-10-28). N1 a world starts at 07:00; N2 real moon phases over 29.5 nights, so some nights are black (your pick, not the full moon every night; the first night is full); N3 the moon shadows everything and your own vehicle\'s lamps cast shadows, street lamps none; N4 lamps glow from the air, pools only within 250 m; N5 sodium orange, white mercury at the air bases; N6 fewer cars and people after 23:00, sensors unchanged; N7 an Options setting: cycle, always day, always night; N8 forward+. Building: the clock, the sun and moon, the exposure, the stars and the moon\'s phases first, then lamps, windows and car lights.', where: 'crates/cb-core/src/day_night.rs, crates/cb-app/src/day_night.rs, data/world/day_night.ron; openspec/changes/day-night-cycle' },
   { text: 'S6 The suburbs get streets (your words, 2026-10-27: "driveways need to connect with roads for it to be realistic, same with businesses they need parking lots that connect with road"): a street along each row, every house a drive to it, every business a striped car park onto the highway. Written up, not built yet.', where: 'openspec/changes/lot-access' },
 ];
@@ -264,6 +306,7 @@ const DECIDED = [
   { text: 'H3 The side rule, then the hull thrusters (your pick).', where: 'data/missions/fortress.ron (on main)' },
   { text: 'FR2 All of free roam\'s mission mail is in the inbox from the start (your pick).', where: 'data/missions/mail.ron (on main)' },
   { text: 'A1 The score is moody, edgy rebel cyberpunk: "music sucks, electronic, scifi futuristic please!", then "Main street sucks delete it. Theme sucks..I want some thing moody,more cyber punk themed", then "It\'s too cherry and heroic. I want to feel like an edgy rebel" (2026-10-25). A snarling riff, a sinking hook, half-time drums, rain; no town theme, no triumphant major chord.', where: 'CLAUDE.md section 1, docs/design/music.md, music/*.strudel' },
+  { text: 'AP2 Airport buildings are solid and breakable from the start: "use our breakable framework, all buildings are destructible" (2026-10-29).', where: 'openspec/changes/airport-layout, section 6; the Crab Breeze Airport page (click a building to fire at it)' },
   { text: 'W12 Buildings fall the simpler way: pieces break, and a building falls when its ground floor is mostly gone (your pick), and: "whatever looks cool and is EFFICIENT, might ve already been implemented in another branch". W13 rubble, W15 the warning before a column gives and W18 brick above 6 storeys: "see W12".', where: 'openspec/changes/structural-destruction, rubble, building-variety (open questions: measure the structural model already on building-research against the simpler one before choosing)' },
   { text: 'W14 Building textures: Material Maker for brick, concrete and roofing; modelled bays rendered face-on for facades, trims and far facades (your pick).', where: 'openspec/changes/building-generation' },
   { text: 'W19 The visible sky: "nah just whatever sky like is fine". The HDRI stays in the reflections; the scattering sky from main is what you see.', where: 'openspec/changes/glass-reflections (GR1, GR2)' },

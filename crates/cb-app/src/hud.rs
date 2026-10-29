@@ -277,8 +277,8 @@ fn spawn_hud(mut commands: Commands) {
                 Visibility::Hidden,
                 EdgeArrow,
             ));
-            // Under the crosshair: the weapon the left mouse fires, and [MELEE MODE] in close combat
-            // (owner, 2026-10-25: "MELEE MODE on the main screen, not mfd").
+            // Under the crosshair: the weapon the left mouse fires (no melee mode to show: Z and V punch at any
+            // time, owner 2026-10-29).
             {
                 let (top, size, colour) = (36.0, 20.0, GREEN);
                 let mut sign = root.spawn((

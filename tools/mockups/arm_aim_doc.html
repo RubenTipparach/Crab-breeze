@@ -1,0 +1,71 @@
+<!-- the arm aim write-up shown under the lab's viewer (openspec/changes/arm-aim says the same for the repository) -->
+  <section class="doc" id="doc">
+    <h2>Arm aim: the write-up</h2>
+    <p>Owner, 2026-10-29: "Shot is ok to deviate from muzzle but we want muzzle to aim as close as possible to shooting
+    point." The OpenSpec change is <code>openspec/changes/arm-aim</code>. Nothing here is in the game yet: this page is
+    the design.</p>
+
+    <h3>What the pilot sees</h3>
+    <p>You look at something and the mech's guns swing onto it. The arms move first, quicker than the torso, so on a
+    sudden turn you see the barrels come round past the screens ahead of the cabin. Then they settle back as the
+    torso catches up. On a close target the two guns angle in toward each other. Rounds always land under the
+    crosshair, as now; what changes is that they now leave along the barrel instead of at an angle to it.</p>
+
+    <h3>How it works today</h3>
+    <ul>
+      <li>The arms have no aim of their own. They hang at their pose on the torso, and the torso turns toward your look
+      at 70 deg/s (twist) and 40 deg/s (pitch).</li>
+      <li>A shot flies from the muzzle to the point under the crosshair. It hits what you aim at, but it leaves the
+      barrel at whatever angle the gun happens to make: wide while the torso is turning, and wide on any close
+      target.</li>
+    </ul>
+
+    <h3>The solve</h3>
+    <ul>
+      <li>Each gun arm aims with three joints: the shoulder's pitch and yaw, and the elbow's pitch. They are posed
+      on <code>shoulder_*</code> and <code>forearm_*</code>, never <code>upper_arm_*</code>, which carries no mesh.</li>
+      <li>The barrel is the muzzle socket's forward axis. Each frame, four steps of damped least squares turn it
+      onto the line from the muzzle to the target. Each joint stays in its limits, with a light pull back to rest,
+      so a target in reach is met with the least bend.</li>
+      <li>The arm moves toward that answer no faster than its slew rate. Whatever the joints cannot reach is left as
+      error, shown in the readout above.</li>
+      <li>A striking arm lets go of its aim and takes it back after the strike. Recoil plays over the aimed pose.</li>
+      <li>An arm whose muzzle does not point forward at rest is a launcher and is not aimed. The Sapper's left pod
+      fires upward; its missiles steer themselves.</li>
+    </ul>
+    <table>
+      <thead><tr><th>Joint</th><th>Limits</th><th>Slew</th></tr></thead>
+      <tbody>
+        <tr><td>Shoulder pitch</td><td>92 deg up to 40 deg down</td><td>92 deg/s</td></tr>
+        <tr><td>Shoulder yaw</td><td>26 deg out to 34 deg in</td><td>92 deg/s</td></tr>
+        <tr><td>Elbow pitch</td><td>63 deg up to 52 deg down</td><td>138 deg/s</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Measured on this page</h3>
+    <p>Each figure is the error after 4 s, with the mech standing and idling.</p>
+    <table>
+      <thead><tr><th>Case</th><th>How far the barrel is off the shot's line</th></tr></thead>
+      <tbody>
+        <tr><td>Torso follows; targets at 22 m, 120 m and 400 m, 45 deg right, 40 m up, on the ground at 30 m</td><td>0.0 to 0.3 deg on all 15 gun arms of the eight mechs, every case</td></tr>
+        <tr><td>Torso held still, target 15 or 30 deg to the side</td><td>0.4 to 0.6 deg</td></tr>
+        <tr><td>Torso held still, target 45 deg to the side</td><td>17 to 22 deg: past the shoulder's reach</td></tr>
+        <tr><td>Target jumps 60 deg, torso follows</td><td>both guns within 1 deg after 0.45 s; the torso takes about 1.1 s</td></tr>
+      </tbody>
+    </table>
+    <p>The 0.1 to 0.3 deg left over is the idle sway, which the arms follow at their slew.</p>
+    <p><b>Cost:</b> per gun arm, per frame, a handful of small matrix products and one 3 by 3 solve. That is
+    estimated at well under a microsecond in Rust, and nothing on the GPU. It is not measured: there is no game code
+    yet, and the cloud session has no GPU.</p>
+
+    <h3>Open questions (recommendations taken unless you say otherwise)</h3>
+    <table>
+      <thead><tr><th>Id</th><th>Question</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr><td>A1</td><td>How fast the arms slew</td><td>Shoulder 92 deg/s and elbow 138 deg/s: faster than the torso's 70 deg/s, so the guns lead it</td></tr>
+        <tr><td>A2</td><td>How far the arms reach without the torso</td><td>About 26 deg out and 34 deg in</td></tr>
+        <tr><td>A3</td><td>Do enemy mechs aim their arms too</td><td>Yes, with the same solve, at their own aim point</td></tr>
+        <tr><td>A4</td><td>Are the limits and slews set per mech</td><td>Yes, in each mech's data, defaulting to the table above</td></tr>
+      </tbody>
+    </table>
+  </section>

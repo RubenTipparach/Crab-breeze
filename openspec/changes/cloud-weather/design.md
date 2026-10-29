@@ -120,6 +120,51 @@ mockup's 60 % the shade read weakly, because the sky's ambient light is unchange
 so the cut under a cell is 85 % (under the front 60 %): a cumulonimbus blocks almost all direct sun.
 The ambient under a storm staying bright is the next thing to darken.
 
+## 2b. The rain shaft's look (owner, 2026-10-28)
+
+The owner, looking at the game: "background rain shadow kinda sucks, it looks blocky very
+transparent, doesnt quite look like rain". What the shader drew, and why it read that way:
+
+| What the owner saw | Cause in `shaft()` (`assets/shaders/cloud.wesl`) |
+| --- | --- |
+| Blocky | The streaks were value noise, a grid of hashed squares smoothed only at its corners (the puffs left it for gradient noise on 2026-10-26 for the same complaint); the sheet's top and bottom were straight lines across the quad |
+| Very transparent | Peak alpha about 0.4-0.75, halved again by the streak noise, in a grey close to the sky's own |
+| Not rain | Streaks 90 m tall and 50-150 m wide, scrolling at about 200 m/s, read as smudges flickering, not falling lines |
+
+What a rain shaft looks like from a few kilometres: a dark blue-grey curtain hanging from the
+storm's base, densest in its core, its sides ragged and wandering, its foot frayed where it meets
+the ground, and striped by fine
+vertical streaks that drift slowly down.
+
+The new look, the same three sheets a shaft and the same one draw:
+- **Shape.** The sheet's sides are upright; the side edge wanders by 18 % with height
+  (gradient noise over about a third of the height); the foot frays over 2-12 % of the height by
+  noise across; the quad runs 150 m up into the cloud's base and the sheet fades out over the upper third below
+  the base, its edge ragged across the sheet, so no top edge shows and no streak is drawn over the
+  cloud.
+- **Straight down** (owner, 2026-10-28: "rain seems to bend which seems kinda unatural", "I
+  expected it to be straight"). A first take leaned each sheet's foot downwind by half a drop's
+  drift in its fall and flared the foot 25 % wider. On a sheet turned to face the eye the lean
+  pushed the foot off the quad's plane, so the quad folded along its diagonal; the flare fanned the
+  streaks out toward the edges. Both are gone: every streak falls straight down.
+- **Streaks.** Three octaves of gradient noise stretched up the sheet: columns 1/40, 1/120 and 1/300
+  of the sheet's width, 350, 120 and 50 m tall, weighted 0.3, 0.42 and 0.28 (a heavy coarse octave
+  drew 240 m dark bars), scrolling down at 9 m/s (rain's fall speed). They modulate the density by
+  0.55-1.25, so the lines show without holes, and soften into even haze toward the top. An octave
+  finer than half a pixel fades out rather than shimmering.
+- **Density and colour.** Core alpha up to 0.9, falling with the square of the edge distance. A
+  slate blue-grey a little darker than the ambient sky, brightened toward the sun by up to 30 % (the
+  forward scatter that silvers a shaft against the sun).
+- **Haze.** A shaft takes half the aerial haze's optical depth a puff takes (the square root of the
+  share of its light that crosses the air): a curtain of rain reads dark against the horizon from
+  much farther than a cloud's edge does.
+- **Kept.** The sheet still fades inside its own radius of the eye and when looked at steeply up
+  (from inside, the rain's haze and the drops on the glass carry it).
+
+Cost: the same quads (3 a shaft, 42 in all) and one draw. The fragment work grows from 4 value
+noises to 4 gradient noises a pixel, about 60 more instructions, on shaft pixels only (a few
+percent of the screen facing a storm). To be measured on the owner's machine.
+
 ## 3. Cost (expected; measured with `CB_NO_CLOUDS` on the owner's hardware)
 
 | Item | Fair weather | Facing a storm |

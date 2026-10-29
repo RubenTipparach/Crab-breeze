@@ -72,7 +72,7 @@
         9.131
       ]
     },
-    "bytes": 1918192,
+    "bytes": 1926832,
     "cockpit": "Octagon: seated behind two rows of glass round an octagon, amber-lit",
     "cockpit_variant": "octagon",
     "file": "mech_driller.glb",
@@ -84,7 +84,7 @@
     "opening": "gull wings: each side of the chest lifts on a hinge in the roof, the front drops as the step",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 16684,
+    "triangles": 16820,
     "weapons": "heavy autocannon (L), auger drill (R)"
   },
   "foreman": {
@@ -102,7 +102,7 @@
         14.667
       ]
     },
-    "bytes": 2184872,
+    "bytes": 2191464,
     "cockpit": "Panorama: seated behind one wide screen and square side screens, in the chamfered prow",
     "cockpit_variant": "panorama",
     "file": "mech_foreman.glb",
@@ -114,7 +114,7 @@
     "opening": "the Panorama clamshell, chest and cockpit as one: the front under the screens drops into a step, then the front over them swings up and out on two rams with the dash",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 23714,
+    "triangles": 23850,
     "weapons": "belt-fed boom cannon (L), hydraulic breaker (R)"
   },
   "harrow": {
@@ -132,7 +132,7 @@
         11.635
       ]
     },
-    "bytes": 1886816,
+    "bytes": 1895748,
     "cockpit": "Canopy: seated under a bubble in the hull's nose",
     "cockpit_variant": "canopy",
     "file": "mech_harrow.glb",
@@ -144,7 +144,7 @@
     "opening": "the canopy and the hull's nose over it lift back as one",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 15772,
+    "triangles": 15908,
     "weapons": "autocannon pod (L), heavy cannon pod (R), a six-cell missile rack on each shoulder"
   },
   "ironhorse": {
@@ -162,7 +162,7 @@
         10.92
       ]
     },
-    "bytes": 2120964,
+    "bytes": 2127756,
     "cockpit": "Excavator cab: seated, floor-to-roof screens in two rows and one in the floor",
     "cockpit_variant": "cab",
     "file": "mech_ironhorse.glb",
@@ -174,7 +174,7 @@
     "opening": "the dogs swing off, the smokebox front drops forward as a ramp with the cab's front on it",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 21126,
+    "triangles": 21262,
     "weapons": "buffer ram (L), steam cannon (R)"
   },
   "mule": {
@@ -192,7 +192,7 @@
         7.346
       ]
     },
-    "bytes": 1793340,
+    "bytes": 1804988,
     "cockpit": "Tile wall: seated in a ring of square screens round 210 degrees, one wide screen ahead, yellow-lit",
     "cockpit_variant": "tilewall",
     "file": "mech_mule.glb",
@@ -204,7 +204,7 @@
     "opening": "three petals: the sides swing out like doors, the middle swings up with the dash",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 13570,
+    "triangles": 13785,
     "weapons": "two piston fists, a rocket pod on each shoulder"
   },
   "picket": {
@@ -222,7 +222,7 @@
         9.934
       ]
     },
-    "bytes": 1767420,
+    "bytes": 1776440,
     "cockpit": "Cinema: seated behind one huge seamless screen, ice-blue and dim",
     "cockpit_variant": "cinema",
     "file": "mech_picket.glb",
@@ -234,7 +234,7 @@
     "opening": "a heavy door: clamps slide off, it pops off its seal and swings out on its hinges with the dash",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 12794,
+    "triangles": 12930,
     "weapons": "machine gun with a box magazine (R), tall shield (L)"
   },
   "ravager": {
@@ -281,7 +281,7 @@
         13.485
       ]
     },
-    "bytes": 1873616,
+    "bytes": 1881808,
     "cockpit": "Titan: seated, the upper front rises and tilts back",
     "cockpit_variant": "titan",
     "file": "mech_roustabout.glb",
@@ -293,7 +293,7 @@
     "opening": "the chest over the screens rises and tilts back with the turret's collar, the front under them drops below the sill",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 16215,
+    "triangles": 16349,
     "weapons": "piston fist (L), heavy rifle with a box magazine (R)"
   },
   "sapper": {
@@ -311,7 +311,7 @@
         13.037
       ]
     },
-    "bytes": 1780028,
+    "bytes": 1802844,
     "cockpit": "Twin tier: seated in two rings of screens under a bubble of screens, red night lighting",
     "cockpit_variant": "twintier",
     "file": "mech_sapper.glb",
@@ -323,7 +323,7 @@
     "opening": "the top ring and the bubble rise on four rams and tilt back, the lower front drops as the step",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 13284,
+    "triangles": 13764,
     "weapons": "rifle (R), missile pod on the forearm (L), cannon over the right shoulder"
   },
   "stevedore": {

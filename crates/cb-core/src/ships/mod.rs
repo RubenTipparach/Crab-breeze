@@ -12,7 +12,7 @@ pub mod harm;
 pub mod lanes;
 pub mod traffic;
 
-pub use boat::{Boat, BoatView, Errand, Neighbour, Phase};
+pub use boat::{BOAT_CHUNK_BASE, Boat, BoatView, Errand, Neighbour, Phase};
 pub use harbour::{Footprint, Harbour};
 pub use lanes::{End, Route, SeaGrid};
 pub use traffic::Traffic;
@@ -52,6 +52,10 @@ pub struct BoatSpec {
     /// A tanker: its sinking throws a fire.
     #[serde(default)]
     pub burns: bool,
+    /// Drawn from a ship kit: the share of its hull at and under its waterline that must be gone before it goes down,
+    /// 0..1 (0: the first hole). While above 0 its hit points never sink it; its hull does (`Kit::sink_share`).
+    #[serde(default)]
+    pub sink_hull_share: f32,
 }
 
 impl BoatSpec {
@@ -451,6 +455,7 @@ impl Validate for ShipsConfig {
                 positive(&f(n), v)?;
             }
             within(&f("armour_mm"), k.armour_mm, 0.0, 10_000.0)?;
+            within(&f("sink_hull_share"), k.sink_hull_share, 0.0, 1.0)?;
             finite3(&f("tint"), k.tint)?;
             if k.model.is_empty() {
                 return Err(format!("`{}` must name a model", f("model")));

@@ -21,6 +21,7 @@ use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::render::storage::ShaderBuffer;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
+use cb_core::night_light::RoomLights;
 use cb_core::rng::SimRng;
 use cb_core::world::destruct::Cells;
 use cb_core::world::dressing::{self, Anchor, DressingConfig, Mat, Shape};
@@ -199,6 +200,8 @@ impl Materials {
                                 standing,
                                 no_ssao: 1,
                                 windows: Vec4::ZERO,
+                                rooms: Vec4::ZERO,
+                                room_colour: Vec4::ZERO,
                             },
                         })
                     })
@@ -215,6 +218,8 @@ impl Materials {
                                 normal: looks.arrays.normal.clone(),
                                 orm: looks.arrays.orm.clone(),
                                 windows: Vec4::ZERO,
+                                rooms: Vec4::ZERO,
+                                room_colour: Vec4::ZERO,
                             },
                         })
                     })
@@ -595,7 +600,18 @@ fn tile_m(mat: Mat) -> f32 {
 /// the arrays) and the glass in another, cut per element, every vertex carrying its element's slot,
 /// once it has a frame; whole, with its floors, rooms and furniture behind the glass (in the skin
 /// mesh) while it is whole (a damaged building draws its rooms with its frame).
-fn dressing_meshes(c: &Cells, site: &Site, icfg: &InteriorConfig, base: u32, seed: &SimRng, cfg: &DressingConfig) -> Vec<(Look, Mesh)> {
+///
+/// A whole building's floors, rooms and furniture carry their room's light in their second UV's `y`
+/// (`light_rooms`); a damaged one's never light.
+fn dressing_meshes(
+    c: &Cells,
+    site: &Site,
+    icfg: &InteriorConfig,
+    base: u32,
+    seed: &SimRng,
+    cfg: &DressingConfig,
+    lights: &RoomLights,
+) -> Vec<(Look, Mesh)> {
     let f = c.frame.as_deref();
     let id = site.id;
     let shell = interior::shell(site, icfg, seed);
@@ -617,16 +633,68 @@ fn dressing_meshes(c: &Cells, site: &Site, icfg: &InteriorConfig, base: u32, see
         }
     }
     let mut rooms = MeshBuilder::default();
-    if f.is_none() {
-        for k in 0..c.n[1] {
-            rooms_into(&mut rooms, &interior::plan_storey(site, k, icfg, seed), |_| 0.0);
-        }
+    let plans: Vec<StoreyPlan> = if f.is_none() {
+        (0..c.n[1]).map(|k| interior::plan_storey(site, k, icfg, seed)).collect()
+    } else {
+        Vec::new()
+    };
+    for plan in &plans {
+        rooms_into(&mut rooms, plan, |_| 0.0);
     }
-    vec![
-        (Look::Skin, skin.build_with_tangents()),
-        (Look::Glass, glass.build()),
-        (Look::Rooms, rooms.build_with_tangents()),
-    ]
+    let (mut skin, mut rooms) = (skin.build_with_tangents(), rooms.build_with_tangents());
+    if f.is_none() {
+        light_rooms(&mut skin, &plans, site, lights);
+        light_rooms(&mut rooms, &plans, site, lights);
+    }
+    vec![(Look::Skin, skin), (Look::Glass, glass.build()), (Look::Rooms, rooms)]
+}
+
+/// How far in front of a surface its room is looked for, metres: past a partition's half-thickness, so
+/// a wall's two faces find the rooms on their own sides.
+const ROOM_PROBE_M: f32 = 0.3;
+
+/// Writes each vertex's room and room light (`cb_core::night_light`) into the second UV's `y` of a whole
+/// building's layered mesh (owner, 2026-10-29: "find vertices for each window cell area, and just brighten
+/// them by distance from a point"): the room its normal faces, in the storey it stands in, lit from under
+/// that room's ceiling's middle. A vertex in no room (the facade's outer face, the roof, the core) keeps 0.
+/// Rooms are numbered from 1 through the storeys in order; past `MAX_CELLS` the rest stay dark.
+fn light_rooms(mesh: &mut Mesh, plans: &[StoreyPlan], site: &Site, lights: &RoomLights) {
+    use bevy::mesh::VertexAttributeValues as V;
+    let (Some(V::Float32x3(pos)), Some(V::Float32x3(nor))) = (
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION).cloned(),
+        mesh.attribute(Mesh::ATTRIBUTE_NORMAL).cloned(),
+    ) else {
+        return;
+    };
+    let Some(V::Float32x2(uv1)) = mesh.attribute_mut(Mesh::ATTRIBUTE_UV_1) else {
+        return;
+    };
+    let first: Vec<u32> = plans
+        .iter()
+        .scan(1u32, |n, p| {
+            let at = *n;
+            *n += p.rooms.len() as u32;
+            Some(at)
+        })
+        .collect();
+    let storey_m = site.size.y.max(0.5);
+    for ((p, n), uv) in pos.iter().zip(&nor).zip(uv1.iter_mut()) {
+        let (p, n) = (Vec3::from(*p), Vec3::from(*n));
+        let q = p + n * ROOM_PROBE_M;
+        let k = ((q.y - site.origin.y) / storey_m).floor();
+        if k < 0.0 || k as usize >= plans.len() {
+            continue;
+        }
+        let k = k as usize;
+        let at = Vec2::new(q.x, q.z);
+        let Some(i) = plans[k].rooms.iter().position(|r| at.cmpge(r.lo).all() && at.cmple(r.hi).all()) else {
+            continue;
+        };
+        let r = &plans[k].rooms[i];
+        let mid = (r.lo + r.hi) * 0.5;
+        let point = Vec3::new(mid.x, site.origin.y + (k + 1) as f32 * storey_m - lights.below_ceiling_m, mid.y);
+        uv[1] = cb_core::night_light::pack_room(first[k] + i as u32, lights.light_at(p, n, point));
+    }
 }
 
 /// The stream every building's plans, dressing and colliders are drawn from: one, so what is drawn
@@ -776,6 +844,7 @@ fn dress_near_player(
         return;
     }
     let icfg = &cfg.0.world.interiors;
+    let room_lights = &cfg.0.day_night.rooms;
     let cfg = &cfg.0.world.dressing;
     let rng = building_rng(seed.0);
     let mut near: Vec<u32> = plan
@@ -855,9 +924,11 @@ fn dress_near_player(
             continue;
         }
         let site = Site::of(&plan.0, b, c.n, c.origin, c.size);
-        let (c, rng, cfg, icfg) = (c.clone(), rng.clone(), cfg.clone(), icfg.clone());
-        jobs.0
-            .insert(b, pool.spawn(async move { dressing_meshes(&c, &site, &icfg, 0, &rng, &cfg) }));
+        let (c, rng, cfg, icfg, lights) = (c.clone(), rng.clone(), cfg.clone(), icfg.clone(), room_lights.clone());
+        jobs.0.insert(
+            b,
+            pool.spawn(async move { dressing_meshes(&c, &site, &icfg, 0, &rng, &cfg, &lights) }),
+        );
     }
     // Left behind while being dressed: the job is dropped (which cancels it).
     jobs.0
@@ -959,7 +1030,15 @@ fn redraw_buildings(
         let skinned = match dressed.0.get_mut(&id) {
             Some(d) => {
                 if !d.framed {
-                    let parts = dressing_meshes(c, &site, &cfg.0.world.interiors, fb.base, &rng, &cfg.0.world.dressing);
+                    let parts = dressing_meshes(
+                        c,
+                        &site,
+                        &cfg.0.world.interiors,
+                        fb.base,
+                        &rng,
+                        &cfg.0.world.dressing,
+                        &cfg.0.day_night.rooms,
+                    );
                     show_parts(
                         &mut commands,
                         &mut meshes,
@@ -1067,6 +1146,8 @@ fn bind_far_looks(
             normal: a.normal.clone(),
             orm: a.orm.clone(),
             windows: Vec4::ZERO,
+            rooms: Vec4::ZERO,
+            room_colour: Vec4::ZERO,
         },
     };
     if mats.far.is_none() {
@@ -1162,9 +1243,9 @@ fn show_massing(
     });
 }
 
-/// The windows for the hour (day-night-cycle): the share lit now into the glass material and the far
-/// and massing walls' materials, so every intact building's windows follow the clock (a damaged
-/// building's glass never lights; its far walls are hidden once it is framed).
+/// The windows for the hour (day-night-cycle): the share lit now into the far and massing walls' materials
+/// (their painted windows), and the lit rooms and the glass's night look into the near ones
+/// (`night-voxel-light`: the rooms behind the glass light, the glass turns clearer through dusk).
 fn light_windows(
     data: Res<crate::sim::Data>,
     light: Res<crate::day_night::Light>,
@@ -1181,12 +1262,6 @@ fn light_windows(
         w.lit_share(light.0.hour)
     };
     let want = Vec4::new(share, w.cd_m2, data.0.world.storey_height_m, w.column_m);
-    if let Some(handle) = shared.glass.as_ref()
-        && glasses.get(handle).is_some_and(|m| m.extension.windows != want)
-        && let Some(mut m) = glasses.get_mut(handle)
-    {
-        m.extension.windows = want;
-    }
     for handle in [&far.far, &far.massing].into_iter().flatten() {
         if arrays.get(handle).is_some_and(|m| m.extension.windows != want)
             && let Some(mut m) = arrays.get_mut(handle)
@@ -1194,6 +1269,37 @@ fn light_windows(
             m.extension.windows = want;
         }
     }
+    let (rooms, colour, night) = room_uniforms(&data.0, &light.0);
+    if let Some(handle) = shared.array.as_ref()
+        && arrays
+            .get(handle)
+            .is_some_and(|m| m.extension.rooms != rooms || m.extension.room_colour != colour)
+        && let Some(mut m) = arrays.get_mut(handle)
+    {
+        m.extension.rooms = rooms;
+        m.extension.room_colour = colour;
+    }
+    let alpha = data.0.day_night.rooms.glass_alpha(data.0.sky_light.glass.alpha, night);
+    if let Some(handle) = shared.glass.as_ref()
+        && glasses
+            .get(handle)
+            .is_some_and(|m| (m.base.base_color.alpha() - alpha).abs() > 1e-3)
+        && let Some(mut m) = glasses.get_mut(handle)
+    {
+        m.base.base_color.set_alpha(alpha);
+    }
+}
+
+/// The lit rooms' uniforms for the hour (`building_state.wesl`): the share of rooms lit and their brightness, their
+/// colour, the glass's night share and an always-on cab's gain. The share is held to 1/256 steps so the materials change every few
+/// seconds of dusk, not every frame.
+pub fn room_uniforms(d: &cb_core::GameData, l: &cb_core::day_night::Lighting) -> (Vec4, Vec4, f32) {
+    let r = &d.day_night.rooms;
+    let share = (d.day_night.windows.lit_share(l.hour) * 256.0).round() / 256.0;
+    let elevation = l.sun_dir.y.clamp(-1.0, 1.0).asin().to_degrees();
+    let night = (r.glass_night_share(elevation) * 256.0).round() / 256.0;
+    let [cr, cg, cb] = r.colour;
+    (Vec4::new(share, r.cd_m2, night, r.cab_gain), Vec4::new(cr, cg, cb, 0.0), night)
 }
 
 #[cfg(test)]
@@ -1201,6 +1307,84 @@ mod tests {
     use super::*;
     use bevy::mesh::VertexAttributeValues;
     use cb_core::world::StructureConfig;
+
+    /// A one-room storey 3 m up: the room spans x 0..6, z 0..6.
+    fn one_room() -> (Site, Vec<StoreyPlan>) {
+        let site = Site {
+            id: 1,
+            n: [1, 1, 1],
+            origin: Vec3::ZERO,
+            size: Vec3::new(6.0, 3.0, 6.0),
+            street: 0,
+            fronts: [10.0; 4],
+        };
+        let plan = StoreyPlan {
+            rooms: vec![interior::Room {
+                lo: Vec2::ZERO,
+                hi: Vec2::splat(6.0),
+                kind: interior::RoomKind::Shop,
+            }],
+            ..StoreyPlan::default()
+        };
+        (site, vec![plan])
+    }
+
+    fn room_y(mesh: &Mesh) -> Vec<f32> {
+        match mesh.attribute(Mesh::ATTRIBUTE_UV_1) {
+            Some(VertexAttributeValues::Float32x2(u)) => u.iter().map(|u| u[1]).collect(),
+            _ => panic!("no second UV"),
+        }
+    }
+
+    #[test]
+    fn a_desk_in_a_room_carries_its_rooms_light_and_the_street_side_of_the_facade_does_not() {
+        let (site, plans) = one_room();
+        let lights = RoomLights::default();
+        let mut inside = MeshBuilder::default();
+        layered_block(
+            &mut inside,
+            Layer::Surface(Surface::Concrete),
+            Vec3::new(2.0, 0.5, 2.0),
+            Vec3::new(3.0, 1.3, 3.0),
+            [1.0; 3],
+            0.0,
+        );
+        let mut inside = inside.build();
+        light_rooms(&mut inside, &plans, &site, &lights);
+        let ys = room_y(&inside);
+        assert!(ys.iter().all(|&y| y > 0.0), "every face of the desk is in the room: {ys:?}");
+        assert!(
+            ys.iter().all(|&y| cb_core::night_light::unpack_room(y).0 == 1),
+            "the first room is cell 1"
+        );
+        // A facade wall on the room's -z side: its outer face looks at the street, its inner face into the room.
+        let mut wall = MeshBuilder::default();
+        layered_block(
+            &mut wall,
+            Layer::Facade,
+            Vec3::new(0.0, 0.0, -0.3),
+            Vec3::new(6.0, 3.0, 0.0),
+            [1.0; 3],
+            0.0,
+        );
+        let mut wall = wall.build();
+        light_rooms(&mut wall, &plans, &site, &lights);
+        let ys = room_y(&wall);
+        assert!(ys.iter().any(|&y| y > 0.0), "the inner face is lit");
+        assert!(ys.contains(&0.0), "the street face is not");
+    }
+
+    #[test]
+    fn the_vertex_shader_unpacks_with_the_cores_light_scale() {
+        let wesl = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/shaders/building_state.wesl")).unwrap();
+        for want in [
+            format!("const LIGHT_SCALE: f32 = {:.1};", cb_core::night_light::LIGHT_SCALE),
+            format!("const ALWAYS_ON: f32 = {:.1};", cb_core::night_light::ALWAYS_ON as f32),
+            format!("const ALWAYS_LIT: f32 = {:.1};", cb_core::night_light::ALWAYS_LIT as f32),
+        ] {
+            assert!(wesl.contains(&want), "building_state.wesl must say `{want}`");
+        }
+    }
 
     fn frame() -> Frame {
         Frame::new(3, [4, 9, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default())
