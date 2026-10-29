@@ -795,9 +795,9 @@ function pickMove(id) {
   const m = MELEE_MOVES[id];
   if (!m.keys.some(k => k.b && k.b[mel.bone])) { const k = m.keys.find(k => k.b && Object.keys(k.b).length); if (k) mel.bone = Object.keys(k.b)[0]; }
   document.querySelectorAll("[data-mel]").forEach(e => e.setAttribute("aria-pressed", String(e.dataset.mel === id)));
-  play();
+  playMove();
 }
-function play() {
+function playMove() {
   const m = mel.id && MELEE_MOVES[mel.id]; if (!m) return;
   if (mel.edit) setEdit(false);
   mel.t = 0; mel.wait = 0; mel.playing = true; playBtn.textContent = "Again";
@@ -813,8 +813,8 @@ const MOVE_LABEL = { jab_L: "Jab L", jab_R: "Jab R", hook_L: "Hook L", hook_R: "
   const bar = document.getElementById("mel-bar");
   for (const id of MELEE_ORDER) { const e = document.createElement("button"); e.dataset.mel = id; e.textContent = MOVE_LABEL[id] || id; e.title = MELEE_MOVES[id].name; e.addEventListener("click", () => pickMove(id)); bar.appendChild(e); }
 }
-playBtn.addEventListener("click", () => { if (!mel.id) pickMove("jab_R"); else play(); });
-document.getElementById("mel-loop").addEventListener("click", e => { mel.loop = !mel.loop; e.currentTarget.setAttribute("aria-pressed", String(mel.loop)); if (mel.loop && mel.id && !mel.playing) play(); });
+playBtn.addEventListener("click", () => { if (!mel.id) pickMove("jab_R"); else playMove(); });
+document.getElementById("mel-loop").addEventListener("click", e => { mel.loop = !mel.loop; e.currentTarget.setAttribute("aria-pressed", String(mel.loop)); if (mel.loop && mel.id && !mel.playing) playMove(); });
 document.getElementById("mel-spar").addEventListener("click", e => { mel.spar = !mel.spar; e.currentTarget.setAttribute("aria-pressed", String(mel.spar)); layout(); });
 document.getElementById("mel-speed").addEventListener("change", e => { mel.speed = +e.target.value; });
 melScrub.addEventListener("input", () => { const m = mel.id && MELEE_MOVES[mel.id]; if (!m) return; mel.playing = false; playBtn.textContent = "Play"; mel.t = melScrub.value / 1000 * meleeEnd(m); melT.textContent = mel.t.toFixed(2) + " s"; });
