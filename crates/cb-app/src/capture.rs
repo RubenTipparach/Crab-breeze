@@ -1796,6 +1796,9 @@ struct WeatherScript {
     /// `CB_STILLS_OFFSCREEN=1`: the eye drawn into an offscreen image, so a locked screen or a window behind another
     /// does not save black.
     offscreen: Option<Handle<Image>>,
+    /// The current view's eye and target, placed once when its beat starts and held through its burst: a view
+    /// placed from the drifting sky moved as it drifted, and a clip jumped between bearings mid-burst.
+    placed: Option<(usize, [f32; 3], [f32; 3])>,
 }
 
 /// `CB_STILLS_OFFSCREEN=1`: the weather stills draw the pilot's eye and the cockpit pass offscreen (`draw_offscreen`).
@@ -1822,9 +1825,22 @@ impl Plugin for WeatherStillsPlugin {
             frames: 0,
             shots: Vec::new(),
             offscreen: None,
+            placed: None,
         })
         .add_after_world_spawn(offscreen_for_weather)
         .add_game_systems(Update, run_weather_script);
+        // `CB_STILLS_FRAME_S=<s>`: every frame advances the game's clock by exactly this, whatever it took to
+        // draw, so a burst is a clip at 1/s frames a second however slow the renderer (lavapipe draws about
+        // one a second; owner, 2026-10-28: "render about 2-3 seconds of it so I can see in motion").
+        if let Some(dt) = std::env::var("CB_STILLS_FRAME_S")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|v| v.is_finite() && *v > 0.0)
+        {
+            app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
+                dt,
+            )));
+        }
     }
 }
 
@@ -1850,7 +1866,8 @@ fn run_weather_script(
             script.beat += 1;
             return;
         }
-        let (v_eye, v_at) = match v.name {
+        let held = script.placed.filter(|p| p.0 == script.beat).map(|p| (p.1, p.2));
+        let (v_eye, v_at) = held.unwrap_or_else(|| match v.name {
             "river" => river_view(&plan),
             "river-steep" => steep_river_view(&plan, 700.0, 150.0, false),
             "river-steep-far" => steep_river_view(&plan, 3000.0, 400.0, false),
@@ -1877,7 +1894,8 @@ fn run_weather_script(
             "rain-near" => rain_view(&plan, now, 5000.0),
             "rain-far" => rain_view(&plan, now, 15000.0),
             _ => (v.eye, v.at),
-        };
+        });
+        script.placed = Some((script.beat, v_eye, v_at));
         let v = View {
             name: v.name,
             eye: v_eye,

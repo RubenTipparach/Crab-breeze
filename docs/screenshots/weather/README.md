@@ -76,3 +76,11 @@ ground 5 km and 15 km off, picked from the plan with a clear line to it (`rain_v
 
 The view is placed from where the wind has carried the shaft at the moment of the still, so the
 near view's angle differs a little between before and after. Motion (the streaks falling) and frame time need the owner's machine.
+
+**In motion** (owner, 2026-10-28: "render about 2-3 seconds of it so I can see in motion"):
+`rain-near-motion.mp4` (the 5 km view, 2.5 s at 30 fps) and `rain-near-motion-zoom.mp4` (a 2x
+crop on the shaft). Each frame advances the game's clock by exactly 1/30 s, however long lavapipe
+took to draw it: `CB_STILLS_FRAME_S=0.0333333 CB_STILLS_BURST=75 CB_STILLS_ONLY=rain-near`, then
+`ffmpeg -framerate 30`. A placed view is now placed once when its beat starts and held through
+its burst (it had followed the drifting shaft and jumped bearing mid-clip). The streaks fall at
+rain's 9 m/s, which from 5 km is slow on screen, as real rain at that distance is.
