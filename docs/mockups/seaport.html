@@ -4874,7 +4874,7 @@ function buildNight() {
   mast([150, 436], 15, [200, 446], 1.6, { base: 5.5 }); mast([250, 436], 15, [200, 446], 1.6, { base: 5.5 });
   // ---- the tank farm's corners and the dry dock, lit down onto its floor
   for (const at of [[113, -272], [307, -272], [113, -108], [307, -108]]) mast(at, 15, [210, -190], 1.2);
-  for (const at of [[334, -195], [386, -195], [334, -6], [386, -6]]) mast(at, 20, [360, -100], 1.8, { aimY: DOCK.floor, range: 170 });
+  for (const at of [[334, -195], [386, -195], [334, -6], [386, -6]]) mast(at, 20, [360, -100], 1.0, { aimY: DOCK.floor, range: 130 });
   dot(360, DECK + 65.6, -110, DOT.red);   // the goliath's obstruction lamp
   // ---- the fishing harbour: the mole's floodlights, lamps along the pontoons, the fish market's front
   mast([447, 50], 12, [560, 60], 1.2); mast([447, 170], 12, [560, 140], 1.2); mast([515, -12], 10, [515, 0], 0.9, { col: DOT.sodium });
