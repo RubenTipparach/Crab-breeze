@@ -76,6 +76,13 @@ select { font: 500 13px var(--mono); background: var(--panel); color: var(--ink)
 .readout b { font-weight: 500; color: var(--muted); }
 .ok { color: #2e9a5a; } .far { color: var(--warn); }
 .doc { max-width: 78ch; margin-top: 22px; }
+.stance { position: absolute; right: 10px; top: 10px; width: 190px; background: rgba(14, 10, 18, 0.85); border: 1px solid #3a2f40; padding: 7px 9px; color: #e6ebf1; pointer-events: none; }
+.st-h { font: 700 12px var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: #b9b0c4; }
+.st-bar { position: relative; height: 10px; background: #2a2330; margin: 5px 0 4px; border: 1px solid #4a3f52; }
+.st-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #f0b13c; }
+.st-bar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(100% / var(--n, 3) - 2px), #1c1420 calc(100% / var(--n, 3) - 2px) calc(100% / var(--n, 3))); }
+.st-s { font: 500 12px var(--mono); }
+.st-s.broken { color: #ff7a5c; }
 .doc h2 { font: 700 24px/1.1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; margin: 22px 0 6px; }
 .doc h3 { font: 700 17px var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 16px 0 4px; }
 .doc table { border-collapse: collapse; font-size: 14px; display: block; overflow-x: auto; }
@@ -91,7 +98,7 @@ __LAB_CSS__
   Move the target: the shoulders and elbows turn so each barrel points at it, as near as the joints allow, and the
   readout says how far each barrel is off. The write-up for the game is below the viewer. For melee, pick a move and
   press Play: the copy facing your mech takes the hit when the blow lands; Edit keys poses a move bone by bone, and
-  Save keeps it.</p>
+  Save keeps it. Three blows break the partner's stance and it falls.</p>
   <div class="bar" role="group" aria-label="Mech">
     <span class="lbl">Mech</span>
 __MECH_BUTTONS__
@@ -123,11 +130,19 @@ __MECH_BUTTONS__
     </div>
     <div class="readout" id="aim-read" aria-live="polite"></div>
   </div>
+  <div class="bar" role="group" aria-label="Stance">
+    <span class="lbl">Stance</span>
+    <label style="font:500 12px var(--mono);color:var(--muted);display:flex;gap:6px;align-items:center">Blows to break
+      <select id="st-break"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+    <button id="st-reset">Stand it up</button>
+    <span class="hint" style="margin:0">Smash and charge count 1.5 blows. Untouched for 3 s, the stance mends.</span>
+  </div>
 __LAB_HTML__
   <div class="stage">
     <canvas id="view" tabindex="0" aria-label="3D view of the mech and its sparring partner"></canvas>
     <div class="mode" id="mode">Side</div>
     <div class="load" id="load">Loading the mech</div>
+    <div class="stance" id="stance" aria-live="polite"><div class="st-h">Partner stance</div><div class="st-bar"><i id="st-fill"></i></div><div class="st-s" id="st-s">Standing</div></div>
   </div>
   <p class="hint">Yellow is where each barrel points, dashed blue where its shot flies. Drag to orbit, scroll or pinch to zoom. Turns are radians, slides metres. On a bone, rx below zero swings it forward and up; ry above zero turns it toward the mech's left; a shoulder's rz lifts the arm out to the side (below zero on the right, above zero on the left).</p>
 __DOC__
@@ -143,6 +158,7 @@ __MECH_POSE__
 __MECH_MELEE__
 __GLTF_JSON__
 __ARM_AIM__
+__MECH_STANCE__
 const parseX = v => (typeof v === "string" ? JSON.parse(v) : v);
 
 const canvas = document.getElementById("view");
@@ -204,7 +220,7 @@ function makeMech(g, id, seed) {
   const x = (nodes.root && nodes.root.userData) || {};
   const b = { id, root, nodes, seed, ph: 0, t: seed, scale: x.scale || 0.13, legSegs: parseX(x.legSegs), footH: x.footH,
     walk: parseX(x.walk), idleP: parseX(x.idle), hitT: 9, hitSide: 1, wWalk: 0, rest: {}, yaw0: 0,
-    aim: aimState(), tw: 0, twRate: 0, pitch: 0, armW: { L: 1, R: 1 } };
+    aim: aimState(), tw: 0, twRate: 0, pitch: 0, armW: { L: 1, R: 1 }, stance: stanceState() };
   for (const n in nodes) if (MAPPED.has(n) || MELEE_BONES.includes(n) || n === "hand_L" || n === "hand_R") {
     const o = nodes[n]; b.rest[n] = { e: new T.Euler().setFromQuaternion(o.quaternion, "XYZ"), p: o.position.clone() }; }
   scene.add(root);
@@ -225,7 +241,8 @@ function setMech(id) {
 function layout() {
   if (!foe) return;
   foe.root.visible = mel.spar;
-  foe.yaw0 = Math.PI; foe.root.rotation.y = Math.PI; foe.root.position.set(0, 0, SPAR_M);
+  foe.yaw0 = Math.PI; foe.root.rotation.y = Math.PI; foe.home = new T.Vector3(0, 0, SPAR_M); foe.root.position.copy(foe.home);
+  me.home = new T.Vector3();
 }
 function eye() { const p = new T.Vector3(); const e = me && (me.nodes.EYE_pilot || me.nodes.cockpit); if (e) e.getWorldPosition(p); return p; }
 function setView(v) {
@@ -259,11 +276,16 @@ function animate(b, dt, isMe) {
   P.w = 1 - b.wWalk; idleGeneric(P, b.t, b);
   if (b.walk) { P.w = b.wWalk; walkGeneric(P, b.t, b); }
   if (b.hitT < 0.9) { P.w = 1; hitGeneric(P, b.hitT, b); }
+  stanceStep(b.stance, dt, stanceCfg);
+  P.w = 1; const tilt = stancePose(P, b, b.stance, stanceCfg);
   const mv = isMe && mel.id && MELEE_MOVES[mel.id];
   if (mv) { P.w = 1; meleePose(P, b, mv, mel.t); }
   if (isMe) torsoFollow(b, P, dt);
   applyPose(b, P);
-  b.root.rotation.y = b.yaw0;
+  // tipped back about the heel line (stance broken): the turn about local x, with the heels kept where they stand
+  b.root.quaternion.setFromEuler(new T.Euler(0, b.yaw0, 0)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), tilt));
+  const heel = new T.Vector3(0, 0, stanceCfg.heel_m);
+  b.root.position.copy(b.home || b.root.position).add(heel.clone().sub(heel.clone().applyAxisAngle(new T.Vector3(1, 0, 0), tilt)).applyAxisAngle(new T.Vector3(0, 1, 0), b.yaw0));
   b.root.updateMatrixWorld(true);
   if (!isMe) return;
   // an arm that is striking lets go of its aim and takes it back after (a gun's recoil keeps it)
@@ -315,6 +337,24 @@ function drawAim(b, err) {
 }
 
 __LAB_JS__
+// ---------- the partner's stance ----------
+const stanceCfg = Object.assign({}, STANCE_DEFAULTS);
+const stFill = document.getElementById("st-fill"), stS = document.getElementById("st-s");
+let stMsg = "", stMsgT = 0;
+function stanceFlash(r) { if (r === "broken") { stMsg = "Stance broken"; stMsgT = 1.0; } else if (r === "ignored") { stMsg = "Already down"; stMsgT = 0.8; } }
+function drawStance(dt) {
+  if (!foe) return;
+  const st = foe.stance, k = st.phase === "up" ? st.v / stanceCfg.break_at : 1;
+  stFill.style.width = (k * 100).toFixed(1) + "%";
+  stFill.style.background = st.phase === "up" ? "#f0b13c" : "#ff5a3c";
+  stMsgT -= dt;
+  const text = stMsgT > 0 ? stMsg : { up: st.v > 0.01 ? `Staggered, ${st.v.toFixed(1)} of ${stanceCfg.break_at}` : "Standing", fall: "Falling", down: "Down", getup: "Getting up" }[st.phase];
+  stS.textContent = text; stS.classList.toggle("broken", st.phase !== "up" || stMsgT > 0);
+  document.getElementById("stance").hidden = !mel.spar;
+}
+document.getElementById("st-break").addEventListener("change", e => { stanceCfg.break_at = +e.target.value;
+  document.querySelector(".st-bar").style.setProperty("--n", e.target.value); });
+document.getElementById("st-reset").addEventListener("click", () => { if (foe) foe.stance = stanceState(); });
 // ---------- the aim widget ----------
 const aimIn = { r: document.getElementById("aim-r"), b: document.getElementById("aim-b"), h: document.getElementById("aim-h") };
 const aimOut = { r: document.getElementById("aim-ro"), b: document.getElementById("aim-bo"), h: document.getElementById("aim-ho") };
@@ -356,6 +396,7 @@ function loop(ms) {
     stepMelee(dt);
     animate(me, dt, true);
     if (foe.root.visible) animate(foe, dt, false);
+    drawStance(dt);
     if (view === "eye") { const e = eye(), dl = e.clone().sub(camera.position); camera.position.add(dl); controls.target.add(dl); }
   }
   controls.update();
@@ -364,7 +405,7 @@ function loop(ms) {
 }
 requestAnimationFrame(loop);
 setMech(ORDER[0]);
-window.LAB = { setMech, setView, aim(r, b, h) { Object.assign(aimT, { r, b, h }); syncAim(); }, state: () => ({ err: me && me.aim.err, tw: me && me.tw, q: me && me.aim }), melee(id, t) { pickMove(id); if (t !== undefined) { mel.playing = false; mel.t = t; drawMelee(); } } };
+window.LAB = { setMech, setView, aim(r, b, h) { Object.assign(aimT, { r, b, h }); syncAim(); }, stance: () => foe && Object.assign({}, foe.stance), state: () => ({ err: me && me.aim.err, tw: me && me.tw, q: me && me.aim }), melee(id, t) { pickMove(id); if (t !== undefined) { mel.playing = false; mel.t = t; drawMelee(); } } };
 </script>
 """
 
@@ -372,9 +413,9 @@ window.LAB = { setMech, setView, aim(r, b, h) { Object.assign(aimT, { r, b, h })
 def main():
     meta = json.load(open(os.path.join(designs.MODELS, "mechs.json")))
     rd = lambda n: open(os.path.join(ROOT, "tools", "mockups", n)).read()
-    html = (PAGE.replace("__DOC__", rd("arm_aim_doc.html")).replace("__LAB_CSS__", rd("melee_lab.css")).replace("__LAB_HTML__", rd("melee_lab.html"))
+    html = (PAGE.replace("__DOC__", rd("arm_aim_doc.html") + rd("stance_doc.html")).replace("__LAB_CSS__", rd("melee_lab.css")).replace("__LAB_HTML__", rd("melee_lab.html"))
             .replace("__LAB_JS__", rd("melee_lab.js")).replace("__MECH_POSE__", rd("mech_pose.js"))
-            .replace("__MECH_MELEE__", rd("mech_melee.js")).replace("__ARM_AIM__", rd("arm_aim.js")).replace("__GLTF_JSON__", rd("gltf_json_loader.js"))
+            .replace("__MECH_MELEE__", rd("mech_melee.js")).replace("__ARM_AIM__", rd("arm_aim.js")).replace("__MECH_STANCE__", rd("mech_stance.js")).replace("__GLTF_JSON__", rd("gltf_json_loader.js"))
             .replace("__ORDER__", json.dumps(designs.ORDER))
             .replace("__MECH_BUTTONS__", "\n".join(f'    <button data-mech="{k}">{meta[k]["name"]}</button>' for k in designs.ORDER)))
     shutil.rmtree(SITE, ignore_errors=True)

@@ -30,18 +30,39 @@ The rules:
   - a tree: knocked down.
 - Each arm strikes on its own clock, so two strikes can overlap. A lost arm cannot strike.
 
-## 2b. Knockdown (survey G19)
+## 2b. Stance and knockdown (survey G19; owner, 2026-10-29)
 
-A strike that lands on an enemy mech (any part) knocks it down:
-- `Knockdown { t_s }` on the struck mech: falling 0.6 s, down 1.4 s, getting up 1.2 s (3.2 s in all,
-  `melee.knockdown_*_s` in data).
-- While knocked down it does not walk, turn or fire (its controls are zeroed, its guns' triggers
-  held), and its AI's clock keeps running so it picks up where it left off.
-- The pose: the whole body tips back about the heels to lying (pelvis down, torso back) and comes
-  back up through a kneel, blended over the gait pose like the sit (mech-boarding), so one pose code
-  path serves both.
-- A mech already down is not knocked down again until it stands (no stun lock).
-- Vehicles and crabs are not knocked down (they have no rig to fall with); they take the hit only.
+Owner, 2026-10-29: "when hit enough, the stance of enemy mech should break, (usually 3 times) and they fall over".
+This replaces "a strike that lands knocks it down". Designed on the Mech Arms Lab page
+(https://claude.ai/artifact/2tnWFtFr33Q6vyAiCe6f4n), whose sparring partner has the stance bar; the rules are
+`tools/mockups/mech_stance.js`.
+
+- **`Stance { damage, since_hit_s, knockdown: Option<Knockdown> }`** on every mech with a rig. The numbers are
+  in `melee.stance_*` in data:
+  - `break_at`: 3 blows;
+  - `recover_delay_s`: 3;
+  - `recover_per_s`: 0.5.
+- **Each strike that lands on a mech adds its move's `stance`:**
+  - 1 for a jab, hook, uppercut or kick;
+  - 1.5 for the overhead smash and the shoulder charge.
+- **Below `break_at`, a blow staggers it:** the hit pose, as now. It keeps walking and firing.
+- **The blow that reaches `break_at` breaks its stance:** `Knockdown { t_s }`. It falls 0.6 s, lies 1.4 s and
+  gets up 1.2 s: 3.2 s in all, from `melee.knockdown_*_s`.
+- **While knocked down:**
+  - it does not walk, turn or fire (its controls are zeroed, its guns' triggers held);
+  - its AI's clock keeps running, so it picks up where it left off.
+- **No stun lock:** blows add nothing while it is falling, down or getting up. It stands with its stance whole
+  (damage 0).
+- **Untouched for `recover_delay_s`,** the damage drains at `recover_per_s`, so the blows must come close
+  together.
+- **The pose:**
+  - the whole body tips back about the heel line, about 2.5 m behind the hips, to 1.45 rad, accelerating
+    (angle as the square of time);
+  - it bounces once as it lands;
+  - it comes back up through the boarding kneel (`sitPose`), blended over the gait pose like the sit, so one pose
+    code path serves both.
+- **Vehicles and crabs** take the hit only: they have no rig to fall with.
+- **Gun hits do not wear the stance** (provisional, S2).
 
 ## 3. The arm pose
 
@@ -122,4 +143,7 @@ Earlier design (replaced):
 | G18 | Melee range | 80 m (owner, 2026-10-25: "range should be 80m instead"; was 30 m) | decided |
 | G20 | Which moves the game plays, and on which keys | The jab on Z and V as now; the others once the owner has shaped them in the Melee lab | provisional |
 | G21 | Does every gun shot kick the arm | Yes: each shot plays the recoil move on its arm, layered over the gait and any strike | provisional (owner, 2026-10-29: "shooting guns should cause mech arm to recoil") |
+| S1 | Blows to break a stance | 3, per mech in data | provisional (owner: "usually 3 times") |
+| S2 | Do gun hits wear the stance | No, melee only | provisional |
+| S3 | Can the player's mech be knocked down | Yes, by the same rule, seen from the seat | provisional |
 | G19 | What a strike does | Same damage rules as a shot (300 mm, 60), breaks cells and trees, and knocks an enemy mech down for about 3 s | decided (survey G19) |

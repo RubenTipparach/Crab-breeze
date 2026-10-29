@@ -1,0 +1,28 @@
+<!-- the stance write-up shown under the lab's viewer (openspec/changes/close-combat, section 2b, says the same) -->
+  <section class="doc" id="stance-doc">
+    <h2>Stance: three blows and it falls</h2>
+    <p>Owner, 2026-10-29: "when hit enough, the stance of enemy mech should break, (usually 3 times) and they fall
+    over". This replaces "every blow knocks it down" in the close-combat design. Not in the game yet: knockdown was
+    still to build.</p>
+    <ul>
+      <li><b>What you see.</b> The first two blows stagger the enemy: it rocks back and keeps fighting. The third breaks
+      its stance. It tips over backwards about its heels, hits the ground and bounces once, lies there, then gets up
+      through a kneel. The bar on the viewer fills a third with each blow.</li>
+      <li><b>Blows.</b> A jab, hook, uppercut or kick counts 1. The overhead smash and the shoulder charge count 1.5,
+      so two heavy blows break it. A gun's shots do not count (open question S2).</li>
+      <li><b>It mends.</b> If 3 s pass without a blow, the stance mends at half a blow per second, so the three blows
+      have to come close together.</li>
+      <li><b>No stun lock.</b> While it is falling, down or getting up, blows add nothing; it stands with its stance
+      whole. Down, it does not walk, turn or fire.</li>
+      <li><b>Timing.</b> Falling 0.6 s, down 1.4 s, getting up 1.2 s: 3.2 s in all, as before.</li>
+    </ul>
+    <h3>Open questions (recommendations taken unless you say otherwise)</h3>
+    <table>
+      <thead><tr><th>Id</th><th>Question</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr><td>S1</td><td>Blows to break, and is it per mech</td><td>3, set per mech in data (a heavy mech could take 4)</td></tr>
+        <tr><td>S2</td><td>Do big gun hits wear the stance down too</td><td>Not yet: melee only, so knockdown stays a close-combat reward</td></tr>
+        <tr><td>S3</td><td>Can the player's own mech be knocked down</td><td>Yes, by the same rule: you see the sky through the screens and the cabin tips with you (first person throughout)</td></tr>
+      </tbody>
+    </table>
+  </section>

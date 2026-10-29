@@ -37,7 +37,8 @@ function meleeMirror(move) {
 
 // The default moves. Wind-up 0.35 s, hit 0.15 s, recovery 0.4 s for the jab (the close-combat change's timing, which
 // cb-core's MeleeConfig carries); the heavier blows wind up longer. `side` is the way the struck mech is knocked (+1
-// toward its right). Times in seconds; rotations in radians; slides in metres.
+// toward its right); `stance` is how much of the struck mech's stance it breaks (mech_stance.js: 1 when missing,
+// three blows to fall). Times in seconds; rotations in radians; slides in metres.
 const MELEE_DEFAULTS = {
   jab_R: { name: "Jab, right", arm: "R", hit_s: 0.45, side: 0, keys: [
     { t: 0 },
@@ -57,13 +58,13 @@ const MELEE_DEFAULTS = {
     { t: 0.55, b: { shoulder_R: [-1.75, 0.2, 0], forearm_R: [-0.55, 0, 0], torso_twist: [0, 0.3, 0], torso: [-0.15, 0, 0], pelvis: [0, 0, 0, 0, 0, 0.6] }, crouch: 0 },
     { t: 0.7, b: { shoulder_R: [-1.85, 0.22, 0], forearm_R: [-0.6, 0, 0], torso_twist: [0, 0.3, 0], torso: [-0.18, 0, 0], pelvis: [0, 0, 0, 0, 0, 0.6] } },
     { t: 1.2 } ] },
-  smash: { name: "Overhead smash, both", arm: "both", hit_s: 0.85, side: 0, keys: [
+  smash: { name: "Overhead smash, both", arm: "both", hit_s: 0.85, side: 0, stance: 1.5, keys: [
     { t: 0 },
     { t: 0.65, b: { shoulder_L: [-2.5, 0, 0.15], shoulder_R: [-2.5, 0, -0.15], forearm_L: [-0.5, 0, 0], forearm_R: [-0.5, 0, 0], torso: [-0.22, 0, 0], pelvis: [0, 0, 0, 0, 0, -0.6] } },
     { t: 0.85, b: { shoulder_L: [-0.75, -0.15, 0], shoulder_R: [-0.75, 0.15, 0], forearm_L: [0.75, 0, 0], forearm_R: [0.75, 0, 0], torso: [0.42, 0, 0], pelvis: [0, 0, 0, 0, 0, 1.4] }, crouch: 0.55 },
     { t: 1.15, b: { shoulder_L: [-0.7, -0.15, 0], shoulder_R: [-0.7, 0.15, 0], forearm_L: [0.7, 0, 0], forearm_R: [0.7, 0, 0], torso: [0.38, 0, 0], pelvis: [0, 0, 0, 0, 0, 1.4] }, crouch: 0.5 },
     { t: 1.8 } ] },
-  charge: { name: "Shoulder charge", arm: "both", hit_s: 0.7, side: -1, keys: [
+  charge: { name: "Shoulder charge", arm: "both", hit_s: 0.7, side: -1, stance: 1.5, keys: [
     { t: 0 },
     { t: 0.4, b: { torso_twist: [0, -0.75, 0], torso: [0.3, 0, 0], shoulder_L: [-0.3, 0, 0.1], shoulder_R: [0.2, 0, -0.1], forearm_L: [-0.9, 0, 0], forearm_R: [-0.9, 0, 0], pelvis: [0, -0.2, 0, 0, 0, -0.8] }, crouch: 0.5 },
     { t: 0.7, b: { torso_twist: [0, -0.85, 0], torso: [0.38, 0, 0], shoulder_L: [-0.35, 0, 0.1], shoulder_R: [0.2, 0, -0.1], forearm_L: [-0.9, 0, 0], forearm_R: [-0.9, 0, 0], pelvis: [0, -0.25, 0, 0, 0, 4.5] }, crouch: 0.4 },

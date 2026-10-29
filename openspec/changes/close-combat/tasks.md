@@ -4,7 +4,8 @@
 - [x] 1.2 Strikes: phases, the sweep, hits through the damage rules, tested
 - [x] 2.1 Tab binding; the triggers strike in close combat; the MFD shows it
 - [x] 2.2 The arm pose over the gait during a strike
-- [ ] 2.3 Knockdown: the struck mech falls, lies down and gets up (about 3 s), held still meanwhile; no stun lock
+- [x] 2.3a Stance designed in the Mech Arms Lab (`tools/mockups/mech_stance.js`): three blows break it, heavy blows count 1.5, it mends after 3 s
+- [ ] 2.3 Stance and knockdown: each blow adds its move's stance; at `break_at` the struck mech falls, lies down and gets up (3.2 s), held still meanwhile; no stun lock
 - [x] 2.4a The moves designed in the mech artifact's Melee lab: jab, hook, uppercut, overhead smash, shoulder charge, stomp kick, gun recoil (`tools/mockups/mech_melee.js`)
 - [ ] 2.4 The game plays the lab's moves on `shoulder_*` and `forearm_*` (not `upper_arm_*`, which carries no mesh), read from data written from the lab
 - [ ] 2.5 Each gun shot plays the recoil move on its arm
