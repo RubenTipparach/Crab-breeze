@@ -203,7 +203,8 @@ fn spawn_lamps(
     let list = place(&plan.0, cfg);
     let dots = place_dots(&plan.0, cfg);
     let mut cells: HashMap<(i32, i32), Vec<u32>> = HashMap::new();
-    let mut metal_tiles: HashMap<(i32, i32), Mesh> = HashMap::new();
+    // Poles by tile, a street lamp's and a mast's apart (their metals differ).
+    let mut metal_tiles: HashMap<((i32, i32), bool), Mesh> = HashMap::new();
     let mut head_tiles: HashMap<((i32, i32), LightColour), Mesh> = HashMap::new();
     let mut glow_heads: HashMap<((i32, i32), LightColour), Vec<Vec3>> = HashMap::new();
     for (id, l) in list.iter().enumerate() {
@@ -216,7 +217,7 @@ fn spawn_lamps(
         let tile = tile_of(l.base);
         glow_heads.entry((tile, l.colour)).or_default().push(l.head);
         let (metal, head) = lamp_meshes(l);
-        merge_into(&mut metal_tiles, tile, metal);
+        merge_into(&mut metal_tiles, (tile, l.kind == LampKind::Mast), metal);
         merge_into(&mut head_tiles, (tile, l.colour), head);
     }
     // Dots by tile and colour, those on a lot (a ship, a crane) by lot and colour, so a damaged one can go dark.
@@ -229,6 +230,14 @@ fn spawn_lamps(
         base_color: Color::srgb(0.28, 0.29, 0.30),
         perceptual_roughness: 0.6,
         metallic: 0.6,
+        ..default()
+    });
+    // A site's masts are galvanised steel, light grey as their pages draw them (owner, 2026-10-29: "The poles in the
+    // airport are dark"): rough, so they read by the sky and their neighbours' light rather than mirror the dark.
+    let galvanised = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.62, 0.64, 0.65),
+        perceptual_roughness: 0.55,
+        metallic: 0.3,
         ..default()
     });
     let heads: Vec<(LightColour, Handle<StandardMaterial>)> = LightColour::ALL
@@ -268,7 +277,8 @@ fn spawn_lamps(
     keys.sort();
     for key in keys {
         let m = metal_tiles.remove(&key).expect("a tile listed");
-        commands.spawn((Name::new("lamp poles"), Mesh3d(meshes.add(m)), MeshMaterial3d(metal.clone())));
+        let material = if key.1 { galvanised.clone() } else { metal.clone() };
+        commands.spawn((Name::new("lamp poles"), Mesh3d(meshes.add(m)), MeshMaterial3d(material)));
     }
     let mut keys: Vec<_> = head_tiles.keys().copied().collect();
     keys.sort();

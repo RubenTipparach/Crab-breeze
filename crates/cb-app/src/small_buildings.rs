@@ -44,6 +44,9 @@ const UNDRESS_M: f32 = 200.0;
 const DRESS_PER_FRAME: usize = 8;
 /// The block furniture is drawn within this.
 const FURNITURE_M: f32 = 100.0;
+/// An airport or seaport building's (owner, 2026-10-29: "Airport doesn't show furniture") as long as it is dressed:
+/// a terminal's glass fronts show its halls from across its apron, as its page draws them at every distance.
+const SITE_FURNITURE_M: f32 = DRESS_M;
 /// The modelled furniture is drawn within this of a pilot on foot (survey S5).
 const REAL_FURNITURE_M: f32 = 60.0;
 /// Most furniture meshes built in one frame.
@@ -115,6 +118,9 @@ struct KitDraw {
     leaves: Vec<Vec<Prim>>,
     /// The room index its rooms carry.
     rooms: RoomCells,
+    /// For a site's building, by LOD0 primitive: lit by its rooms where it faces into them (`Interior`), though not one
+    /// of the `INSIDE` finishes (its columns, counters, partitions and boards).
+    site_lit: Vec<bool>,
 }
 
 /// The kits' meshes and the island's materials, once loaded.
@@ -430,7 +436,13 @@ fn bind(
                 _ => {}
             }
         }
-        d.rooms = RoomCells::of(&plan.small.kits.kits[draws.len()], &d.lod0, &data.0.day_night.rooms);
+        let kit = &plan.small.kits.kits[draws.len()];
+        d.rooms = RoomCells::of(kit, &d.lod0, &data.0.day_night.rooms);
+        d.site_lit = d
+            .lod0
+            .iter()
+            .map(|p| kit.kind.is_site() && !INSIDE.contains(&p.surface.as_str()) && lightable(&p.surface))
+            .collect();
         draws.push(d);
     }
     // Each generator's texture set, where it has been made (one set serves every surface of that generator).
@@ -550,6 +562,18 @@ fn bind(
     // whole house can draw them with the state material that lights rooms (`dress`).
     let mut lit = 0;
     for d in &draws {
+        // A site building's other surfaces take its rooms' light where they face into them (owner, 2026-10-29, of the
+        // terminal's columns standing black in its lit hall at night).
+        if let Some(inside) = d.site_lit.iter().any(|l| *l).then(|| Interior::of(&d.lod0)).flatten() {
+            for (p, _) in d.lod0.iter().zip(&d.site_lit).filter(|(_, l)| **l) {
+                if let Some(mut m) = meshes.get_mut(&p.mesh)
+                    && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
+                {
+                    light_site_surface(&mut m, &data.0.day_night.rooms, d.rooms, &inside);
+                    lit += 1;
+                }
+            }
+        }
         for p in d.lod0.iter().filter(|p| INSIDE.contains(&p.surface.as_str())) {
             if let Some(mut m) = meshes.get_mut(&p.mesh)
                 && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
@@ -747,6 +771,110 @@ fn light_house_rooms(m: &mut Mesh, lights: &RoomLights, cells: RoomCells) {
     }
 }
 
+/// The floor finishes a site building's inside is mapped from (`Interior`).
+const FLOORS: [&str; 3] = ["floorTile", "floorWood", "carpet"];
+/// The interior map's cell, metres.
+const INTERIOR_CELL_M: f32 = 0.5;
+/// How far out from a surface the side it faces is tested for being inside, metres: past a wall's thickness and a
+/// cell, so a wall's outer face finds no floor under its probe.
+const INSIDE_PROBE_M: f32 = 0.6;
+
+/// True for a surface that can carry a room's light: not glass, a lamp, a sign, water or an awning.
+fn lightable(surface: &str) -> bool {
+    !["glass", "lamp", "sign", "water", "screen", "awning"]
+        .iter()
+        .any(|k| surface.starts_with(k))
+}
+
+/// Where a site building's inside is (its kit's frame): over one of its floors and no higher than its highest inside
+/// finish, the top storey's ceiling. Mapped once a kit from its floors' upward faces on a `INTERIOR_CELL_M` grid.
+struct Interior {
+    /// Each cell a floor covers: its lowest floor's height.
+    floors: HashMap<(i32, i32), f32>,
+    /// The highest inside finish, metres.
+    top_m: f32,
+}
+
+impl Interior {
+    fn cell(x: f32, z: f32) -> (i32, i32) {
+        ((x / INTERIOR_CELL_M).floor() as i32, (z / INTERIOR_CELL_M).floor() as i32)
+    }
+
+    /// A kit's, from its LOD0 primitives; none when it has no floor.
+    fn of(lod0: &[Prim]) -> Option<Self> {
+        let mut floors: HashMap<(i32, i32), f32> = HashMap::new();
+        let mut top_m = f32::MIN;
+        for p in lod0 {
+            let Some(o) = p.src.as_ref() else { continue };
+            if INSIDE.contains(&p.surface.as_str()) {
+                top_m = o.pos.iter().map(|v| v[1]).fold(top_m, f32::max);
+            }
+            if !FLOORS.contains(&p.surface.as_str()) {
+                continue;
+            }
+            for t in o.tri.chunks_exact(3) {
+                let [a, b, c] = [t[0], t[1], t[2]].map(|i| Vec3::from(o.pos[i as usize]));
+                if (b - a).cross(c - a).normalize_or_zero().y.abs() < 0.7 || o.nrm[t[0] as usize][1] < 0.5 {
+                    continue;
+                }
+                let (lo, hi) = (a.min(b).min(c), a.max(b).max(c));
+                let (c0, c1) = (Self::cell(lo.x, lo.z), Self::cell(hi.x, hi.z));
+                let y = lo.y;
+                for cx in c0.0..=c1.0 {
+                    for cz in c0.1..=c1.1 {
+                        let q = Vec2::new((cx as f32 + 0.5) * INTERIOR_CELL_M, (cz as f32 + 0.5) * INTERIOR_CELL_M);
+                        if in_triangle(q, a.xz(), b.xz(), c.xz()) {
+                            let e = floors.entry((cx, cz)).or_insert(y);
+                            *e = e.min(y);
+                        }
+                    }
+                }
+            }
+        }
+        (!floors.is_empty() && top_m > f32::MIN).then_some(Self { floors, top_m })
+    }
+
+    /// True when `p` (the kit's frame) is inside: over a floor, under the top ceiling.
+    fn contains(&self, p: Vec3) -> bool {
+        p.y <= self.top_m + 0.05 && self.floors.get(&Self::cell(p.x, p.z)).is_some_and(|y| p.y >= y - 0.05)
+    }
+}
+
+/// True when `p` lies in the triangle `a b c` (either winding).
+fn in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
+    let s = |u: Vec2, v: Vec2| (v - u).perp_dot(p - u);
+    let (d1, d2, d3) = (s(a, b), s(b, c), s(c, a));
+    !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0))
+}
+
+/// Gives a site building's surface its rooms' light where it faces into them (`Interior`), none where it faces out,
+/// as `light_house_rooms` does an inside finish; slot 0 (always standing).
+fn light_site_surface(m: &mut Mesh, lights: &RoomLights, cells: RoomCells, inside: &Interior) {
+    let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
+        (m.attribute(Mesh::ATTRIBUTE_POSITION), m.attribute(Mesh::ATTRIBUTE_NORMAL))
+    else {
+        return;
+    };
+    let uv1: Vec<[f32; 2]> = pos
+        .iter()
+        .zip(nrm)
+        .map(|(p, n)| {
+            let (p, n) = (Vec3::from(*p), Vec3::from(*n));
+            if !inside.contains(p + n * INSIDE_PROBE_M) {
+                return [0.0, 0.0];
+            }
+            let (point, _) = lights.house_cell(p + n * ROOM_PROBE_M, 0.0);
+            [0.0, cb_core::night_light::pack_room(cells.at(point), lights.light_at(p, n, point))]
+        })
+        .collect();
+    m.insert_attribute(Mesh::ATTRIBUTE_UV_1, uv1);
+    if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+        for c in c.iter_mut() {
+            c[3] = 0.0;
+        }
+    }
+}
+
 /// `light_house_rooms` without touching the slots (furniture carries its pieces' own).
 fn light_house_rooms_keep_slots(m: &mut Mesh, lights: &RoomLights, cells: RoomCells) {
     let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
@@ -779,7 +907,8 @@ fn light_houses(
     let lit = kits
         .state
         .iter()
-        .filter(|(s, _)| INSIDE.contains(&s.as_str()) || s.as_str() == FAR_WINDOW)
+        // Every surface that can carry a room's light (a site building's columns and counters too), and far windows.
+        .filter(|(s, _)| lightable(s) || s.as_str() == FAR_WINDOW)
         .map(|(_, h)| h)
         .chain(kits.furniture_material.iter());
     // A far window glows as the towers' far walls' painted windows do (`day_night.ron`'s `windows.cd_m2`).
@@ -1237,10 +1366,11 @@ fn dress(
             furniture: None,
             version: live.structures.houses.version(lot),
         };
-        for p in &draw.lod0 {
+        for (i, p) in draw.lod0.iter().enumerate() {
             // Inside surfaces read the state material, which lights their rooms at night; their shared meshes carry
-            // slot 0, so they always stand (a damaged house redraws its own LOD0).
-            let inside = INSIDE.contains(&p.surface.as_str());
+            // slot 0, so they always stand (a damaged house redraws its own LOD0). So do a site building's surfaces
+            // that face into its rooms.
+            let inside = INSIDE.contains(&p.surface.as_str()) || draw.site_lit.get(i).copied().unwrap_or(false);
             let mut e = if inside {
                 let Some(m) = kits.state.get(&p.surface) else { continue };
                 commands.spawn((
@@ -1296,7 +1426,7 @@ fn dress(
 }
 
 /// Gives each dressed lot the furniture it should draw now: modelled within `REAL_FURNITURE_M` of a pilot on foot,
-/// blocks within `FURNITURE_M` otherwise, none beyond.
+/// blocks within `FURNITURE_M` (a site's building: `SITE_FURNITURE_M`) otherwise, none beyond.
 #[allow(clippy::too_many_arguments)]
 fn furnish(
     mut commands: Commands,
@@ -1321,8 +1451,14 @@ fn furnish(
     let mut wants: Vec<(u32, f32, Option<Furnished>)> = ids
         .into_iter()
         .map(|l| {
-            let d = lots.lots[l as usize].rect.distance(here);
-            let want = if d > FURNITURE_M {
+            let lot = &lots.lots[l as usize];
+            let d = lot.rect.distance(here);
+            let reach = if lots.kits.kits[lot.kit as usize].kind.is_site() {
+                SITE_FURNITURE_M
+            } else {
+                FURNITURE_M
+            };
+            let want = if d > reach {
                 None
             } else if on_foot && d <= REAL_FURNITURE_M {
                 Some(Furnished::Real)
