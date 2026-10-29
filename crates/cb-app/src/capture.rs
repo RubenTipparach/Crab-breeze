@@ -1436,6 +1436,244 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // The house nearest the largest city, from 22 m off at eye height (night-voxel-light: its rooms at night), and
+    // from 300 m, where its far shell is drawn (its lit far windows).
+    View {
+        name: "house-near",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "house-far",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // The airport's gates and the seaport's container quay from their pages' own views (night-voxel-light section
+    // 2d: the masts at the jet bridges, the lit terminal, the runway dots; the yard's masts, the gantries, the ship).
+    View {
+        name: "airport-gates",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-terminals",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-container",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-fishing",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-overview",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-overview",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Inside Terminal 1 at standing eye height (owner, 2026-10-29: "Inside the airport"): down its hall, and out
+    // through its glass front at the gates.
+    View {
+        name: "airport-inside",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-inside-out",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Close on the seaport's ships and quays (owner, 2026-10-29: "No closeups of seaport or boats"): the container
+    // ship at its berth, the quay under the gantries at eye height, the ferry, the tugs, the trawlers, the tanker and
+    // the fish market, each a few tens of metres off.
+    View {
+        name: "seaport-ship",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-quay",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-ferry",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-tugs",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-trawlers",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-tanker",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-market",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Close on the seaport's buildings (owner, 2026-10-29: "I want to see seaport buildings and boats close up"):
+    // the harbour office and port control, the ferry terminal, the transit shed, customs, the warehouses, the coast
+    // guard boathouse and its gunboat, each from its quay at eye height or a little over.
+    View {
+        name: "seaport-office",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-ferry-terminal",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-transit-shed",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-customs",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-warehouses",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-coastguard",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-gunboat",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Interiors (owner, 2026-10-29: "get me shots inside the ships too", "and airport interiors as well"): Terminal 1
+    // upstairs, Terminal 2, the pier, the tower's foot and its cab; the container ship's mess and bridge, the ferry's
+    // lounge, the tug's and a trawler's wheelhouse, the tanker's mess. Eye height over each floor.
+    View {
+        name: "airport-upstairs",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-terminal-2",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-pier",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-tower-base",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-tower-cab",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "ship-mess",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "ship-bridge",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "ferry-lounge",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "tug-bridge",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "tanker-mess",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "trawler-wheelhouse",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Straight down on each site from 1,100 m, its whole footprint in frame, to lay beside its page's plan.
+    View {
+        name: "airport-plan",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-plan",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // A dune suburb from 900 m, where the ground is drawn at step 2: its streets lie on that ground
     // (lot-access task 2.3; seed 42's street that floated highest, 2.7 m, measured 2026-10-28).
     View {
@@ -1804,6 +2042,46 @@ fn city_view(plan: &crate::world::Plan, air: bool) -> ([f32; 3], [f32; 3]) {
     ([start.x, ground + 2.0, start.y], [ahead.x, ground + 8.0, ahead.y])
 }
 
+/// `off_m` off the house lot nearest the largest city's middle, at eye height (25 m up past 100 m, from the side away from the city), looking at its
+/// middle 3 m up: at 22 m its rooms and furniture are drawn (`small_buildings`, within 150 m), at 300 m its far shell.
+fn house_view(plan: &crate::world::Plan, off_m: f32) -> ([f32; 3], [f32; 3]) {
+    let c = plan
+        .cities
+        .iter()
+        .max_by(|a, b| a.half_size_m.total_cmp(&b.half_size_m))
+        .map_or(Vec2::ZERO, |c| c.centre);
+    let Some(lot) = plan
+        .small
+        .lots
+        .iter()
+        .min_by(|a, b| a.centre.distance(c).total_cmp(&b.centre.distance(c)).then(a.kit.cmp(&b.kit)))
+    else {
+        return ([c.x, 2.0, c.y], [c.x + 100.0, 2.0, c.y]);
+    };
+    // Near, from its front; far, from the side away from the city (the city's towers would stand between).
+    let front = if off_m > 100.0 {
+        (lot.centre - c).normalize_or(Vec2::X)
+    } else {
+        Vec2::new(lot.heading_rad.sin(), lot.heading_rad.cos())
+    };
+    let eye = lot.centre + front * off_m;
+    let ground = plan.terrain.height_at(eye.x, eye.y);
+    info!("house view: lot at {} kit {}", lot.centre, lot.kit);
+    let up = if off_m > 100.0 { 25.0 } else { 1.7 };
+    ([eye.x, ground + up, eye.y], [lot.centre.x, lot.ground_m + 3.0, lot.centre.y])
+}
+
+/// A view of the placed site of `kind` from `eye` to `at`, points of its frame as its page's views give them.
+fn site_view(plan: &crate::world::Plan, kind: cb_core::world::sites::SiteKind, eye: [f32; 3], at: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+    let Some(site) = plan.sites.iter().find(|s| s.template.kind == kind) else {
+        warn!("site view: no {kind:?} on this island");
+        return ([0.0, 100.0, 0.0], [100.0, 0.0, 100.0]);
+    };
+    let (e, a) = (site.point_to_world(Vec3::from(eye)), site.point_to_world(Vec3::from(at)));
+    info!("site view: {kind:?} at {}", site.origin);
+    (e.to_array(), a.to_array())
+}
+
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
 fn city_up_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
     // The city with the most cloud overhead (the storm decks are where the cloud's base shows).
@@ -1960,7 +2238,219 @@ fn run_weather_script(
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
             "city-street" => city_view(&plan, false),
+            "house-near" => house_view(&plan, 22.0),
+            "house-far" => house_view(&plan, 300.0),
             "city-air" => city_view(&plan, true),
+            "airport-gates" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [160.0, 40.0, 300.0],
+                [160.0, 6.0, 420.0],
+            ),
+            "airport-terminals" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [150.0, 90.0, 120.0],
+                [380.0, 8.0, 400.0],
+            ),
+            "seaport-container" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-480.0, 80.0, 360.0],
+                [-660.0, 20.0, 100.0],
+            ),
+            "seaport-fishing" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [660.0, 45.0, 320.0],
+                [570.0, 0.0, 80.0],
+            ),
+            "airport-overview" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [-1500.0, 1300.0, 1700.0],
+                [0.0, 0.0, -100.0],
+            ),
+            "airport-inside" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [90.0, 1.85, 446.0],
+                [200.0, 2.4, 450.0],
+            ),
+            "airport-inside-out" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [150.0, 1.85, 452.0],
+                [150.0, 3.0, 400.0],
+            ),
+            "seaport-ship" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-630.0, 14.0, 215.0],
+                [-660.0, 8.0, 170.0],
+            ),
+            "seaport-quay" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-700.0, 4.3, 145.0],
+                [-640.0, 9.0, 175.0],
+            ),
+            "seaport-ferry" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-85.0, 12.0, 205.0],
+                [-120.0, 7.0, 160.0],
+            ),
+            "seaport-tugs" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [50.0, 7.0, 145.0],
+                [30.0, 4.0, 116.0],
+            ),
+            "seaport-trawlers" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [548.0, 5.0, 82.0],
+                [530.0, 3.0, 45.0],
+            ),
+            "seaport-tanker" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [240.0, 14.0, 500.0],
+                [200.0, 8.0, 454.0],
+            ),
+            "seaport-market" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [530.0, 14.0, 60.0],
+                [515.0, 5.0, -45.0],
+            ),
+            "seaport-office" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [45.0, 4.3, 72.0],
+                [20.0, 8.0, 26.0],
+            ),
+            "seaport-ferry-terminal" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-150.0, 4.3, 78.0],
+                [-150.0, 8.0, 24.0],
+            ),
+            "seaport-transit-shed" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-262.0, 9.0, 160.0],
+                [-320.0, 8.0, 150.0],
+            ),
+            "seaport-customs" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-35.0, 4.3, -92.0],
+                [-35.0, 7.0, -140.0],
+            ),
+            "seaport-warehouses" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-700.0, 4.3, -148.0],
+                [-715.0, 8.0, -205.0],
+            ),
+            "seaport-coastguard" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [790.0, 4.3, 98.0],
+                [790.0, 8.0, 45.0],
+            ),
+            "seaport-gunboat" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [818.0, 6.0, 136.0],
+                [790.0, 3.0, 106.0],
+            ),
+            "airport-upstairs" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [90.0, 8.85, 446.0],
+                [200.0, 9.4, 450.0],
+            ),
+            "airport-terminal-2" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [480.0, 1.85, 470.0],
+                [620.0, 2.4, 476.0],
+            ),
+            "airport-pier" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [565.0, 6.7, 410.0],
+                [555.0, 6.7, 290.0],
+            ),
+            "airport-tower-base" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [352.0, 1.85, 476.0],
+                [395.0, 2.0, 490.0],
+            ),
+            "airport-tower-cab" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [370.0, 56.9, 487.0],
+                [300.0, 48.0, 380.0],
+            ),
+            "ship-mess" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-616.0, 5.9, 165.0],
+                [-616.0, 5.8, 177.0],
+            ),
+            "ship-bridge" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-612.5, 10.9, 170.0],
+                [-660.0, 10.0, 170.0],
+            ),
+            "ferry-lounge" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-118.0, 5.0, 150.0],
+                [-120.0, 5.0, 178.0],
+            ),
+            "tug-bridge" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [19.5, 6.4, 116.0],
+                [40.0, 6.0, 116.0],
+            ),
+            "tanker-mess" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [262.0, 6.2, 448.0],
+                [256.0, 6.2, 462.0],
+            ),
+            "trawler-wheelhouse" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [530.0, 3.3, 41.5],
+                [530.0, 3.0, 52.0],
+            ),
+            "airport-plan" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [0.0, 1100.0, -99.0],
+                [0.0, 0.0, -100.0],
+            ),
+            "seaport-plan" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [0.0, 1100.0, 151.0],
+                [0.0, 0.0, 150.0],
+            ),
+            "seaport-overview" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [-1500.0, 1250.0, 2000.0],
+                [0.0, 0.0, 150.0],
+            ),
             "suburb-far" => {
                 let at = Vec2::new(-6939.0, -3000.0);
                 let eye = at + Vec2::new(600.0, 600.0);
@@ -2015,7 +2505,10 @@ fn run_weather_script(
         // `CB_STILLS_BURST=<n>`: n stills of the view on consecutive frames (`weather-<name>-<k>.png`), the
         // instrument for flicker between frames (a value that changes frame to frame shows as a difference).
         let burst: usize = std::env::var("CB_STILLS_BURST").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
-        if t > 8.0 && script.frames > 12 {
+        // `CB_STILLS_SETTLE_S=<s>`: seconds a view settles before its still (8 by default). Under the software
+        // renderer a pipeline compiled late leaves its meshes undrawn, the fog showing through where they are.
+        let settle_s: f32 = std::env::var("CB_STILLS_SETTLE_S").ok().and_then(|v| v.parse().ok()).unwrap_or(8.0);
+        if t > settle_s && script.frames > 12 {
             let k = script
                 .shots
                 .iter()

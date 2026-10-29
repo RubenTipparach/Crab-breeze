@@ -637,7 +637,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .seaport
         .as_ref()
         .and_then(|t| sites::place_seaport(&shape, t, &site_clear, airport.as_ref().map(|a| a.footprint()).as_ref(), &cfg.sites));
-    let placed_sites: Vec<sites::PlacedSite> = airport.into_iter().chain(seaport).collect();
+    let mut placed_sites: Vec<sites::PlacedSite> = airport.into_iter().chain(seaport).collect();
     let keep_out: Vec<layout::Rect> = plateaus
         .iter()
         .map(|p| p.0)
@@ -666,7 +666,8 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
             cell_m: cfg.terrain_cell_m,
         };
         let mut placed = small_buildings::lots::place(&root.fork("small_buildings"), &cfg.small_buildings, &cfg.small_kits, &ground);
-        for s in &placed_sites {
+        for s in &mut placed_sites {
+            s.first_lot = placed.lots.len() as u32;
             placed.lots.extend(s.lots(&cfg.small_kits));
         }
         small_buildings::Lots::new(cfg.small_kits.clone(), placed, cfg.world_size_m)

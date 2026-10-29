@@ -1,10 +1,12 @@
-//! The street lamps in the game (openspec change `day-night-cycle`, design section 5): every lamp of
-//! `cb_core::world::lamps::place`, drawn as poles and heads merged into one mesh per kilometre tile
-//! (two draws a tile: the metal and the lit heads), and the nearest of them, up to `real_lamps` within
-//! `real_m` of the eye, made real spot lights without shadows. Those are a fixed pool of light
-//! entities moved from lamp to lamp, never spawned per frame; each one's light fades in when it is
-//! given a lamp and fades with distance, so a lamp never pops on. Lamps come on at dusk from the
-//! hour (`day_night::Light`). Its own module: drawing and lighting the lamps is one capability.
+//! The lamps in the game (openspec changes `day-night-cycle`, design section 5, and `night-voxel-light`, section
+//! 2d): every lamp of `cb_core::world::lamps::place`, the street lamps and the airport's and seaport's masts and
+//! floodlights, drawn as poles and heads merged into one mesh per kilometre tile (the metal, and the lit heads one
+//! draw a colour), with every glow dot of `place_dots` (runway, approach and taxiway lights, ships' lights: lights
+//! that light nothing); and the nearest lamps that light, up to `real_lamps` within `real_m` of the eye, made real
+//! spot lights without shadows. Those are a fixed pool of light entities moved from lamp to lamp, never spawned per
+//! frame; each one's light fades in when it is given a lamp and fades with distance, so a lamp never pops on. Lamps
+//! and dots come on at dusk from the hour (`day_night::Light`); a light standing on a ship or a crane goes out once
+//! that is damaged. Its own module: drawing and lighting the lamps is one capability.
 
 use crate::day_night::Light;
 use crate::sim::{Data, PresentSet};
@@ -17,7 +19,7 @@ use bevy::pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin}
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError};
 use bevy::shader::ShaderRef;
-use cb_core::world::lamps::{Lamp, place};
+use cb_core::world::lamps::{Lamp, LampKind, LightColour, place, place_dots};
 use std::collections::HashMap;
 
 /// A tile of merged poles, metres.
@@ -108,10 +110,12 @@ pub struct Lamps {
     /// Every lamp, its index its id.
     pub list: Vec<Lamp>,
     cells: HashMap<(i32, i32), Vec<u32>>,
-    /// The lit heads' material, brightened at dusk.
-    heads: Handle<StandardMaterial>,
-    /// The far glow's material.
-    glow: Handle<LampGlowMaterial>,
+    /// The lit heads' materials by colour, brightened at dusk.
+    heads: Vec<(LightColour, Handle<StandardMaterial>)>,
+    /// The heads' far glows' materials by colour.
+    glows: Vec<(LightColour, Handle<LampGlowMaterial>)>,
+    /// The glow dots' materials by colour.
+    dot_glows: Vec<(LightColour, Handle<LampGlowMaterial>)>,
 }
 
 /// One light of the pool: the lamp it lights now and how far it has faded in.
@@ -121,6 +125,10 @@ struct PoolLight {
     admitted: f32,
 }
 
+/// The glow dots standing on one lot (a ship, a crane): hidden once that lot is damaged.
+#[derive(Component)]
+struct LotLights(u32);
+
 /// Draws and lights the lamps.
 pub struct LampsPlugin;
 
@@ -128,7 +136,7 @@ impl Plugin for LampsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<LampGlowMaterial>::default())
             .add_world_spawn(spawn_lamps)
-            .add_game_systems(Update, light_lamps.in_set(PresentSet::Pose));
+            .add_game_systems(Update, (light_lamps, dark_lots).in_set(PresentSet::Pose));
     }
 }
 
@@ -136,51 +144,87 @@ fn cell_of(p: Vec3) -> (i32, i32) {
     ((p.x / CELL_M).floor() as i32, (p.z / CELL_M).floor() as i32)
 }
 
-/// One lamp's pole, arm and head as meshes in world space: the metal and the head.
+fn tile_of(p: Vec3) -> (i32, i32) {
+    ((p.x / TILE_M).floor() as i32, (p.z / TILE_M).floor() as i32)
+}
+
+/// One lamp's pole, arm and head as meshes in world space: the metal and the head. A street lamp is a slim pole with
+/// an arm over the road; a mast a thick pole with a floodlight box on top, turned toward what it lights (smaller on a
+/// short post).
 fn lamp_meshes(l: &Lamp) -> (Mesh, Mesh) {
     let top = l.head.y - l.base.y;
-    let pole = Mesh::from(Cuboid::new(0.22, top, 0.22)).transformed_by(Transform::from_translation(l.base + Vec3::Y * (top * 0.5)));
+    let mast = l.kind == LampKind::Mast;
+    let thick = if mast { 0.6 } else { 0.22 };
+    let pole = Mesh::from(Cuboid::new(thick, top, thick)).transformed_by(Transform::from_translation(l.base + Vec3::Y * (top * 0.5)));
     let reach = Vec3::new(l.head.x - l.base.x, 0.0, l.head.z - l.base.z);
-    let yaw = Quat::from_rotation_arc(Vec3::X, reach.normalize_or(Vec3::X));
-    let arm = Mesh::from(Cuboid::new(reach.length().max(0.1), 0.14, 0.14))
-        .transformed_by(Transform::from_translation(l.base + Vec3::Y * (top - 0.05) + reach * 0.5).with_rotation(yaw));
+    let facing = if mast { Vec3::new(l.toward.x, 0.0, l.toward.y) } else { reach };
+    let yaw = Quat::from_rotation_arc(Vec3::X, facing.normalize_or(Vec3::X));
     let mut metal = pole;
-    // Both are plain cuboids with the same attributes.
-    let _ = metal.merge(&arm);
-    let head =
-        Mesh::from(Cuboid::new(0.8, 0.22, 0.42)).transformed_by(Transform::from_translation(l.head - Vec3::Y * 0.1).with_rotation(yaw));
+    if !mast {
+        let arm = Mesh::from(Cuboid::new(reach.length().max(0.1), 0.14, 0.14))
+            .transformed_by(Transform::from_translation(l.base + Vec3::Y * (top - 0.05) + reach * 0.5).with_rotation(yaw));
+        // Both are plain cuboids with the same attributes.
+        let _ = metal.merge(&arm);
+    }
+    let head = if mast {
+        let k = (top / 12.0).min(1.0);
+        Mesh::from(Cuboid::new(1.2 * k, 0.6 * k, 3.0 * k)).transformed_by(Transform::from_translation(l.head).with_rotation(yaw))
+    } else {
+        Mesh::from(Cuboid::new(0.8, 0.22, 0.42)).transformed_by(Transform::from_translation(l.head - Vec3::Y * 0.1).with_rotation(yaw))
+    };
     (metal, head)
 }
 
-/// Places every lamp, draws their poles and heads by tile and spawns the pool of real lights.
+/// Adds `b` to the mesh at `key`, or puts it there.
+fn merge_into<K: std::hash::Hash + Eq>(map: &mut HashMap<K, Mesh>, key: K, b: Mesh) {
+    match map.get_mut(&key) {
+        Some(m) => {
+            // Same attributes throughout.
+            let _ = m.merge(&b);
+        }
+        None => {
+            map.insert(key, b);
+        }
+    }
+}
+
+/// Places every lamp and glow dot, draws their poles, heads and glows by tile and colour, and spawns the pool of real
+/// lights.
 fn spawn_lamps(
     mut commands: Commands,
     data: Res<Data>,
     plan: Res<Plan>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut glows: ResMut<Assets<LampGlowMaterial>>,
+    mut glow_assets: ResMut<Assets<LampGlowMaterial>>,
 ) {
     let cfg = &data.0.day_night.lamps;
     let started = std::time::Instant::now();
     let list = place(&plan.0, cfg);
+    let dots = place_dots(&plan.0, cfg);
     let mut cells: HashMap<(i32, i32), Vec<u32>> = HashMap::new();
-    let mut tiles: HashMap<(i32, i32), (Mesh, Mesh)> = HashMap::new();
-    let mut tile_heads: HashMap<(i32, i32), Vec<Vec3>> = HashMap::new();
+    // Poles by tile, a street lamp's and a mast's apart (their metals differ).
+    let mut metal_tiles: HashMap<((i32, i32), bool), Mesh> = HashMap::new();
+    let mut head_tiles: HashMap<((i32, i32), LightColour), Mesh> = HashMap::new();
+    let mut glow_heads: HashMap<((i32, i32), LightColour), Vec<Vec3>> = HashMap::new();
     for (id, l) in list.iter().enumerate() {
-        cells.entry(cell_of(l.head)).or_default().push(id as u32);
-        let tile = ((l.base.x / TILE_M).floor() as i32, (l.base.z / TILE_M).floor() as i32);
-        tile_heads.entry(tile).or_default().push(l.head);
-        let (metal, head) = lamp_meshes(l);
-        match tiles.get_mut(&tile) {
-            Some((m, h)) => {
-                let _ = m.merge(&metal);
-                let _ = h.merge(&head);
-            }
-            None => {
-                tiles.insert(tile, (metal, head));
-            }
+        if l.power > 0.0 {
+            cells.entry(cell_of(l.head)).or_default().push(id as u32);
         }
+        if !l.pole {
+            continue;
+        }
+        let tile = tile_of(l.base);
+        glow_heads.entry((tile, l.colour)).or_default().push(l.head);
+        let (metal, head) = lamp_meshes(l);
+        merge_into(&mut metal_tiles, (tile, l.kind == LampKind::Mast), metal);
+        merge_into(&mut head_tiles, (tile, l.colour), head);
+    }
+    // Dots by tile and colour, those on a lot (a ship, a crane) by lot and colour, so a damaged one can go dark.
+    let mut dot_groups: HashMap<(Option<u32>, (i32, i32), LightColour), Vec<Vec3>> = HashMap::new();
+    for d in &dots {
+        let tile = if d.lot.is_some() { (0, 0) } else { tile_of(d.at) };
+        dot_groups.entry((d.lot, tile, d.colour)).or_default().push(d.at);
     }
     let metal = materials.add(StandardMaterial {
         base_color: Color::srgb(0.28, 0.29, 0.30),
@@ -188,46 +232,95 @@ fn spawn_lamps(
         metallic: 0.6,
         ..default()
     });
-    let [r, g, b] = cfg.colour;
-    let heads = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.6, 0.6, 0.58),
-        emissive: LinearRgba::BLACK,
-        perceptual_roughness: 0.4,
+    // A site's masts are galvanised steel, light grey as their pages draw them (owner, 2026-10-29: "The poles in the
+    // airport are dark"): rough, so they read by the sky and their neighbours' light rather than mirror the dark.
+    let galvanised = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.62, 0.64, 0.65),
+        perceptual_roughness: 0.55,
+        metallic: 0.3,
         ..default()
     });
-    let glow = glows.add(LampGlowMaterial {
-        lamp: LampGlowUniform::default(),
-    });
-    let mut keys: Vec<_> = tiles.keys().copied().collect();
+    let heads: Vec<(LightColour, Handle<StandardMaterial>)> = LightColour::ALL
+        .iter()
+        .map(|c| {
+            let h = materials.add(StandardMaterial {
+                base_color: Color::srgb(0.6, 0.6, 0.58),
+                emissive: LinearRgba::BLACK,
+                perceptual_roughness: 0.4,
+                ..default()
+            });
+            (*c, h)
+        })
+        .collect();
+    let mut glow_set = || -> Vec<(LightColour, Handle<LampGlowMaterial>)> {
+        LightColour::ALL
+            .iter()
+            .map(|c| {
+                (
+                    *c,
+                    glow_assets.add(LampGlowMaterial {
+                        lamp: LampGlowUniform::default(),
+                    }),
+                )
+            })
+            .collect()
+    };
+    let glows = glow_set();
+    let dot_glows = glow_set();
+    let of = |set: &[(LightColour, Handle<LampGlowMaterial>)], c: LightColour| {
+        set.iter()
+            .find(|(k, _)| *k == c)
+            .map(|(_, h)| h.clone())
+            .expect("every colour has a material")
+    };
+    let mut keys: Vec<_> = metal_tiles.keys().copied().collect();
     keys.sort();
     for key in keys {
-        let (m, h) = tiles.remove(&key).expect("a tile listed");
-        let g = glow_mesh(&tile_heads[&key]);
-        commands.spawn((
-            Name::new("lamp glow"),
-            Mesh3d(meshes.add(g)),
-            MeshMaterial3d(glow.clone()),
-            NotShadowCaster,
-        ));
-        commands.spawn((Name::new("lamp poles"), Mesh3d(meshes.add(m)), MeshMaterial3d(metal.clone())));
+        let m = metal_tiles.remove(&key).expect("a tile listed");
+        let material = if key.1 { galvanised.clone() } else { metal.clone() };
+        commands.spawn((Name::new("lamp poles"), Mesh3d(meshes.add(m)), MeshMaterial3d(material)));
+    }
+    let mut keys: Vec<_> = head_tiles.keys().copied().collect();
+    keys.sort();
+    for key in keys {
+        let h = head_tiles.remove(&key).expect("a tile listed");
+        let material = heads
+            .iter()
+            .find(|(c, _)| *c == key.1)
+            .map(|(_, h)| h.clone())
+            .expect("every colour");
         commands.spawn((
             Name::new("lamp heads"),
             Mesh3d(meshes.add(h)),
-            MeshMaterial3d(heads.clone()),
+            MeshMaterial3d(material),
+            NotShadowCaster,
+        ));
+        commands.spawn((
+            Name::new("lamp glow"),
+            Mesh3d(meshes.add(glow_mesh(&glow_heads[&key]))),
+            MeshMaterial3d(of(&glows, key.1)),
             NotShadowCaster,
         ));
     }
-    let (inner, outer) = (cfg.cone_deg[0].to_radians(), cfg.cone_deg[1].to_radians());
+    let mut keys: Vec<_> = dot_groups.keys().copied().collect();
+    keys.sort();
+    for key in keys {
+        let mut e = commands.spawn((
+            Name::new("light dots"),
+            Mesh3d(meshes.add(glow_mesh(&dot_groups[&key]))),
+            MeshMaterial3d(of(&dot_glows, key.2)),
+            NotShadowCaster,
+        ));
+        if let Some(lot) = key.0 {
+            e.insert(LotLights(lot));
+        }
+    }
     for _ in 0..cfg.real_lamps {
         commands.spawn((
-            Name::new("street lamp light"),
+            Name::new("lamp light"),
             PoolLight::default(),
             SpotLight {
-                color: Color::srgb(r, g, b),
                 intensity: 0.0,
-                range: cfg.range_m,
-                inner_angle: inner,
-                outer_angle: outer,
                 shadow_maps_enabled: false,
                 ..default()
             },
@@ -235,25 +328,36 @@ fn spawn_lamps(
             Visibility::Hidden,
         ));
     }
+    let masts = list.iter().filter(|l| l.kind == LampKind::Mast).count();
     info!(
-        "lamps: {} street lamps in {} tiles, placed and meshed in {:.0} ms",
-        list.len(),
+        "lamps: {} street lamps and {masts} masts and floodlights in {} cells, {} glow dots, placed and meshed in {:.0} ms",
+        list.len() - masts,
         cells.len(),
+        dots.len(),
         started.elapsed().as_secs_f64() * 1000.0
     );
-    commands.insert_resource(Lamps { list, cells, heads, glow });
+    commands.insert_resource(Lamps {
+        list,
+        cells,
+        heads,
+        glows,
+        dot_glows,
+    });
 }
 
-/// The nearest lamps to `eye` within `reach_m`, nearest first (ties by id), at most `n`.
-pub fn nearest(lamps: &Lamps, eye: Vec3, reach_m: f32, n: usize) -> Vec<(u32, f32)> {
+/// The nearest lamps that light, each within its kind's `reach_m` of `eye`, nearest first (ties by id), at most `n`,
+/// leaving out any `dark` says is out (one on a damaged lot).
+pub fn nearest(lamps: &Lamps, eye: Vec3, reach_m: impl Fn(LampKind) -> f32, n: usize, dark: impl Fn(&Lamp) -> bool) -> Vec<(u32, f32)> {
     let (cx, cz) = cell_of(eye);
-    let r = (reach_m / CELL_M).ceil() as i32;
+    let widest = reach_m(LampKind::Street).max(reach_m(LampKind::Mast));
+    let r = (widest / CELL_M).ceil() as i32;
     let mut found: Vec<(u32, f32)> = Vec::new();
     for x in cx - r..=cx + r {
         for z in cz - r..=cz + r {
             for &id in lamps.cells.get(&(x, z)).map_or(&[][..], |v| v.as_slice()) {
-                let d = lamps.list[id as usize].head.distance(eye);
-                if d <= reach_m {
+                let l = &lamps.list[id as usize];
+                let d = l.head.distance(eye);
+                if d <= reach_m(l.kind) && !dark(l) {
                     found.push((id, d));
                 }
             }
@@ -264,12 +368,29 @@ pub fn nearest(lamps: &Lamps, eye: Vec3, reach_m: f32, n: usize) -> Vec<(u32, f3
     found
 }
 
-/// Lights the lamps for the hour: the heads glow from dusk, and the nearest are given real lights.
+/// Hides the glow dots of a lot once it is damaged (its lights are out, as a damaged building's rooms are).
+fn dark_lots(live: Option<Res<crate::world::Live>>, mut dots: Query<(&LotLights, &mut Visibility)>) {
+    let Some(live) = live else { return };
+    for (lot, mut visibility) in &mut dots {
+        let want = if live.structures.houses.states.contains_key(&lot.0) {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        };
+        if *visibility != want {
+            *visibility = want;
+        }
+    }
+}
+
+/// Lights the lamps for the hour: the heads and the dots glow from dusk, and the nearest are given real lights.
+#[allow(clippy::too_many_arguments)]
 fn light_lamps(
     data: Res<Data>,
     light: Res<Light>,
     time: Res<Time>,
     lamps: Option<Res<Lamps>>,
+    live: Option<Res<crate::world::Live>>,
     eye: Option<Single<&Transform, (With<crate::pilot::PilotCamera>, Without<PoolLight>)>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut glows: ResMut<Assets<LampGlowMaterial>>,
@@ -279,27 +400,40 @@ fn light_lamps(
     let cfg = &data.0.day_night.lamps;
     let sun_deg = cb_core::day_night::elevation_deg(light.0.sun_dir);
     let on = cfg.on_share(sun_deg);
-    if let Some(mut heads) = materials.get_mut(&lamps.heads) {
-        let [r, g, b] = cfg.colour;
+    for (colour, h) in &lamps.heads {
+        let [r, g, b] = colour.rgb(cfg);
         let want = LinearRgba::from(Color::srgb(r, g, b)) * (cfg.head_cd_m2 * on);
-        if heads.emissive != want {
-            heads.emissive = want;
+        if materials.get(h).is_some_and(|m| m.emissive != want)
+            && let Some(mut m) = materials.get_mut(h)
+        {
+            m.emissive = want;
         }
     }
-    let [r, g, b] = cfg.colour;
-    let want = LampGlowUniform {
-        colour: (Vec3::new(r, g, b) * cfg.glow_brightness).extend(0.0),
-        glow: Vec4::new(on, cfg.glow_px, cfg.glow_from_m, cfg.glow_m),
-    };
-    if glows
-        .get(&lamps.glow)
-        .is_some_and(|m| m.lamp.colour != want.colour || m.lamp.glow != want.glow)
-        && let Some(mut m) = glows.get_mut(&lamps.glow)
-    {
-        m.lamp = want;
+    let looks = lamps
+        .glows
+        .iter()
+        .map(|(c, h)| (*c, h, cfg.glow_brightness, cfg.glow_m))
+        .chain(lamps.dot_glows.iter().map(|(c, h)| (*c, h, cfg.dot_brightness, cfg.dot_m)));
+    for (colour, h, brightness, size_m) in looks {
+        let [r, g, b] = colour.rgb(cfg);
+        let want = LampGlowUniform {
+            colour: (Vec3::new(r, g, b) * brightness).extend(0.0),
+            glow: Vec4::new(on, cfg.glow_px, cfg.glow_from_m, size_m),
+        };
+        if glows
+            .get(h)
+            .is_some_and(|m| m.lamp.colour != want.colour || m.lamp.glow != want.glow)
+            && let Some(mut m) = glows.get_mut(h)
+        {
+            m.lamp = want;
+        }
     }
+    let damaged = |l: &Lamp| {
+        l.lot
+            .is_some_and(|lot| live.as_ref().is_some_and(|live| live.structures.houses.states.contains_key(&lot)))
+    };
     let near = if on > 0.0 {
-        nearest(&lamps, eye.translation, cfg.real_m, cfg.real_lamps as usize)
+        nearest(&lamps, eye.translation, |k| cfg.real_m_of(k), cfg.real_lamps as usize, damaged)
     } else {
         Vec::new()
     };
@@ -316,6 +450,7 @@ fn light_lamps(
     }
     let mut waiting = near.iter().map(|(id, _)| *id).filter(|id| !held.contains(id));
     let dt = time.delta_secs();
+    let (street_inner, street_outer) = (cfg.cone_deg[0].to_radians(), cfg.cone_deg[1].to_radians());
     for (mut p, mut spot, mut transform, mut visibility) in &mut pool {
         if p.lamp.is_none()
             && let Some(id) = waiting.next()
@@ -331,12 +466,30 @@ fn light_lamps(
         };
         let lamp = &lamps.list[id as usize];
         p.admitted = (p.admitted + dt / ADMIT_S).min(1.0);
-        let d = wanted.get(&id).copied().unwrap_or(cfg.real_m);
-        let far = 1.0 - cb_core::world::terrain::smoothstep(cfg.real_m - cfg.fade_m, cfg.real_m, d);
-        spot.intensity = cfg.lumens * on * far * p.admitted;
-        // Down, leaning a little over the road.
-        let aim = lamp.head + Vec3::new(lamp.toward.x, 0.0, lamp.toward.y) * 2.0 - Vec3::Y * 6.0;
-        *transform = Transform::from_translation(lamp.head - Vec3::Y * 0.2).looking_at(aim, Vec3::Y);
+        let reach = cfg.real_m_of(lamp.kind);
+        let d = wanted.get(&id).copied().unwrap_or(reach);
+        let far = 1.0 - cb_core::world::terrain::smoothstep(reach - cfg.fade_m, reach, d);
+        let (lumens, inner) = if lamp.kind == LampKind::Mast {
+            // A floodlight's soft edge: the cone's inner 30 % at full (the pages' penumbra 0.7).
+            (cfg.mast_lumens, lamp.cone_rad * 0.3)
+        } else {
+            (cfg.lumens, street_inner.min(lamp.cone_rad))
+        };
+        spot.intensity = lumens * lamp.power * on * far * p.admitted;
+        let [r, g, b] = lamp.colour.rgb(cfg);
+        spot.color = Color::srgb(r, g, b);
+        spot.range = lamp.range_m;
+        spot.outer_angle = if lamp.kind == LampKind::Mast { lamp.cone_rad } else { street_outer };
+        spot.inner_angle = inner;
+        let from = lamp.head - Vec3::Y * if lamp.pole { 0.2 } else { 0.0 };
+        *transform = Transform::from_translation(from).looking_at(
+            lamp.aim,
+            if (lamp.aim - from).normalize_or(Vec3::NEG_Y).y.abs() > 0.99 {
+                Vec3::X
+            } else {
+                Vec3::Y
+            },
+        );
         if *visibility != Visibility::Inherited {
             *visibility = Visibility::Inherited;
         }

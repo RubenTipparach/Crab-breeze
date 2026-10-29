@@ -80,10 +80,13 @@ td.n { font-family: var(--mono); white-space: nowrap; }
     <div class="bar"><span class="lbl">Base</span>
       <button data-show="today">Today</button><button data-show="proposed" aria-pressed="true">Proposed</button>
     </div>
+    <div class="bar"><span class="lbl">Time</span>
+      <button data-time="day" aria-pressed="true">Day</button><button data-time="night">Night, 22:00</button>
+    </div>
     <div class="bar"><span class="lbl">View</span>
       <button data-view="overview">Overview</button><button data-view="final">On final 09</button>
       <button data-view="threshold">Threshold</button><button data-view="terminals">Terminals</button>
-      <button data-view="pier">Jet bridges</button><button data-view="hangars">Hangars</button>
+      <button data-view="pier">Jet bridges</button><button data-view="gates">Terminal 1 gates</button><button data-view="hangars">Hangars</button>
       <button data-view="heliport">Heliport</button><button data-view="ga">Light aircraft</button>
       <button data-view="cargo">Cargo</button><button data-view="tower">Tower cab</button>
       <button data-view="military">Mech base</button><button data-view="cockpit">From the cockpit</button>
@@ -174,7 +177,7 @@ const camera = new T.PerspectiveCamera(40, 1.6, 0.3, 30000);
 const controls = new T.OrbitControls(camera, canvas);
 controls.enableDamping = true;
 Object.assign(controls, { minDistance: 3, maxDistance: 7000, maxPolarAngle: PI * 0.495 });
-scene.add(new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.85));
+const hemi = new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.85); scene.add(hemi);
 const sun = new T.DirectionalLight(0xffe8cc, 2.2);
 sun.position.set(-700, 1200, 500); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
 Object.assign(sun.shadow.camera, { left: -1300, right: 1300, top: 1300, bottom: -1300, near: 10, far: 4000 });
@@ -344,6 +347,9 @@ const KIND = id => AIR.kinds.find(k => k.id === id);
 // An aircraft parked at c ([x, z]), its nose along n ([x, z], unit): its model where it has one, else its block-out.
 function aircraft(g, k, c, n) {
   if (!k) return;
+  // The game parks the civil traffic's own model of this kind here (tools/buildings/export_sites.cjs: `parked`), its
+  // wheels on the apron's surface, its nose along n.
+  if (window.SITE_EXPORT) { (window.SITE_EXPORT.parked = window.SITE_EXPORT.parked || []).push({ kind: k.id, x: c[0], y: 0.12, z: c[1], heading: Math.atan2(-n[0], -n[1]) }); return; }
   const root = new T.Group();
   root.position.set(c[0], 0.12 + k.rest_m, c[1]); root.rotation.y = Math.atan2(-n[0], -n[1]); g.add(root);
   root.userData.skip = true;   // parked aircraft are the civil traffic's own models in the game, not part of the site
@@ -378,6 +384,7 @@ function gate(g, k, c, n, face, labels, name) {
   aircraft(g, k, c, n);
   // the bridge's rotunda stands 3 m out from the terminal face, on the apron side
   put("Jet bridge", B => S.jetBridge(B, [face[0] - n[0] * 3, 0, face[1] - n[1] * 3], door(k, c, n)));
+  GATES.push({ c, n, rotunda: [face[0] - n[0] * 3, face[1] - n[1] * 3], door: door(k, c, n) });
   if (name) labels.push([name, c, k.height_m + 4, "standin"]);
 }
 
@@ -429,7 +436,8 @@ function buildProposed(g, labels) {
   // here (tools/buildings/export_sites.cjs writes this pad, [x0, z0, x1, z1, y], into the site's table): the fence's
   // outline, the approach lights, the landside road and the car parks. The page's grass strips under the paving are
   // then under the ground.
-  if (window.SITE_EXPORT) window.SITE_EXPORT.pads = [[-1310, -860, 1310, 660, 0]];
+  // The game's ground stands 0.3 m under the paving it carries, so the two never share a plane (as shipped).
+  if (window.SITE_EXPORT) window.SITE_EXPORT.pads = [[-1310, -860, 1310, 660, -0.3]];
   const main = runway(MAIN), cross = runway(CROSS);
   // the flattened strips round the runways
   beam(g, [MAIN.a[0] - 90, TOP.stripMain - 0.15, 0], [MAIN.b[0] + 90, TOP.stripMain - 0.15, 0], 150, 0.3, mat(0x6a7046), false);
@@ -549,6 +557,105 @@ function buildToday(g, labels) {
   labels.push(["Runway and its one taxiway", [500, 0], 4, "today"]);
 }
 
+// ---------------------------------------------------------------- night (openspec/changes/night-voxel-light section 2d)
+// Owner, 2026-10-29: "airports and seaports lit like this at all times", "runways will need runway lights as well (not
+// actual lights, just light dots)", "area near terminals should probably be lit with parking lot lamps", "top control
+// towers should always be lit", "Lights need to be close to the terminal where planes park.. place lights next to the
+// boarding tunnels". The night is drawn in its own group, never in `built`: the game's export takes `built` only.
+const GATES = [];
+const nightG = new T.Group(); scene.add(nightG);
+let night = false;
+// The glow dots: at least 3 px across however far, additive, lighting nothing (as the street lamps' far glow).
+const dotMat = new T.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: T.AdditiveBlending, vertexColors: true, uniforms: { scale: { value: 500 } },
+  // the page draws with a logarithmic depth buffer, so the dots write the same depth (three's logdepthbuf chunks)
+  vertexShader: "#include <common>\n#include <logdepthbuf_pars_vertex>\nuniform float scale; varying vec3 vC; void main() { vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = max(3.0, 0.9 * scale / -mv.z);\n#include <logdepthbuf_vertex>\n}",
+  fragmentShader: "#include <logdepthbuf_pars_fragment>\nvarying vec3 vC; void main() {\n#include <logdepthbuf_fragment>\nfloat r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.0, r); gl_FragColor = vec4(vC * (a * a * 2.2 + smoothstep(0.35, 0.0, r)), 1.0); }",
+});
+const DOT = { white: 0xfff6e8, green: 0x37e07a, red: 0xff3a2e, blue: 0x4a7dff, halide: 0xe6eeff, sodium: 0xffb35a };
+// The always-lit tower cab: a warm light in the cab, day and night (outside the night group).
+const cabLight = new T.PointLight(0xfff0d0, 2.2, 30, 1.2); scene.add(cabLight);
+// The runway lights' one rule (section 2d), as the game's (`cb_core::world::lamps::runway_dots`): edge lights every
+// 60 m both sides, 3 m outside the paving; the centre line every 30 m between the thresholds' touchdown ends; across
+// each threshold, 60 m in, a green bar every 3 m, and 2 m past it a red one (the end, for the other way). Heights over
+// the runway's surface. The page draws it; the game draws each exported runway (and the air bases') by its own copy.
+function runwayDots(rw, dot) {
+  const R = runway(rw), y = rw.y;
+  for (let u = 0; u <= R.len + 0.1; u += 60) for (const v of [-(R.w2 + 3), R.w2 + 3]) { const q = R.at(u, v); dot(q[0], y + 0.35, q[1], "white"); }
+  for (let u = BLAST + 70; u <= R.len - BLAST - 70; u += 30) { const q = R.at(u, 0); dot(q[0], y + 0.1, q[1], "white"); }
+  for (const [u, c] of [[BLAST, "green"], [R.len - BLAST, "green"], [BLAST - 2, "red"], [R.len - BLAST + 2, "red"]])
+    for (let v = -R.w2; v <= R.w2 + 0.1; v += 3) { const q = R.at(u, v); dot(q[0], y + 0.2, q[1], c); }
+}
+// The airfield's night lights as data (section 2d): the page draws them, and tools/buildings/export_sites.cjs writes
+// the same list into the site's table for the game (`lights`). A mast: its foot (x, z) at `base`, its head h over it,
+// its floodlight aimed at `aim` with `power`, `range` m and a `cone` (radians); a dot: a glow at (x, y, z) that lights
+// nothing; a runway: its centre line a to b, its width and its surface's height, lit by `runwayDots`.
+function nightLights() {
+  const L = { masts: [], dots: [], runways: [] };
+  const dot = (x, y, z, col) => L.dots.push([x, y, z, col]);
+  function mast(at, h, aim, power) {
+    L.masts.push({ x: at[0], z: at[1], base: 0, h, aim: [aim[0], 0, aim[1]], power, range: h * 3.2, cone: 0.95, col: "halide", pole: true });
+    dot(at[0], h, at[1], "halide");
+  }
+  L.runways.push({ a: MAIN.a, b: MAIN.b, w: MAIN.w, y: TOP.main }, { a: CROSS.a, b: CROSS.b, w: CROSS.w, y: TOP.cross });
+  // The approach crossbars and the PAPI: their lamps glow (the boxes are drawn with the runway).
+  const main = runway(MAIN);
+  for (const end of [0, 1]) {
+    const from = end === 0 ? main.a : main.b, d = end === 0 ? main.d : [-main.d[0], -main.d[1]], right = [-d[1], d[0]];
+    const at = (u, v) => [from[0] + d[0] * u + right[0] * v, from[1] + d[1] * u + right[1] * v];
+    for (let i = 1; i <= 10; i++) { const half = i % 3 === 0 ? 9 : 6; for (let k = 0; k < 5; k++) { const q = at(-i * 30, -half + k * half / 2); dot(q[0], 1.6, q[1], "white"); } }
+    for (let k = 0; k < 4; k++) { const q = at(BLAST + AIM, -main.w2 - 15 - k * 9); dot(q[0], 1.15, q[1], k < 2 ? "white" : "red"); }
+  }
+  // Taxiway edge lights, blue, every 30 m: the parallel taxiway and the three links.
+  for (let x = -988; x <= 988; x += 30) for (const z of [TAXI_Z - TAXI_W / 2 - 1.5, TAXI_Z + TAXI_W / 2 + 1.5]) dot(x, 0.5, z, "blue");
+  for (const x of [-976, 0, 976]) for (let z = main.w2 + 20; z < TAXI_Z - TAXI_W / 2; z += 30) for (const s of [-1, 1]) dot(x + s * (TAXI_W / 2 + 1.5), 0.5, z, "blue");
+  // Apron masts next to the boarding bridges: one 25 m mast a gate, beside the bridge's rotunda on the side away from
+  // the bridge, its four floodlights aimed down onto the stand. White, as at the reference's terminal.
+  for (const g of GATES) {
+    const side = [g.n[1], -g.n[0]], toDoor = (g.door[0] - g.rotunda[0]) * side[0] + (g.door[2] - g.rotunda[1]) * side[1];
+    const away = toDoor > 0 ? -1 : 1, m = [g.rotunda[0] - g.n[0] * 6 + side[0] * away * 10, g.rotunda[1] - g.n[1] * 6 + side[1] * away * 10];
+    mast(m, 25, [g.c[0], g.c[1]], 1.6);
+  }
+  // The car park's lamps, 9 m, every 35 m along its aisles; the multi-storey's roof deck, 6 m.
+  for (let x = 437; x <= 690; x += 35) for (const z of [577, 600, 623]) mast([x, z], 9, [x, z], 0.9);
+  for (let x = 60; x <= 260; x += 50) for (const z of [575, 625]) mast([x, z], 6 + 15, [x, z], 0.7);
+  return L;
+}
+function buildNight() {
+  for (const o of [...nightG.children]) { nightG.remove(o); if (o.geometry) o.geometry.dispose(); }
+  cabLight.visible = show === "proposed" && !window.SITE_EXPORT;
+  cabLight.position.set(370, 55 + 3.5, 480);
+  if (show !== "proposed") return;
+  const L = nightLights();
+  if (window.SITE_EXPORT) { window.SITE_EXPORT.lights = L; return; }
+  const dots = L.dots.slice();
+  for (const rw of L.runways) runwayDots(rw, (x, y, z, c) => dots.push([x, y, z, c]));
+  for (const m of L.masts) {
+    const pole = new T.Mesh(new T.BoxGeometry(0.6, m.h, 0.6), M.fence); pole.position.set(m.x, m.h / 2, m.z); nightG.add(pole);
+    const head = new T.Mesh(new T.BoxGeometry(3, 0.6, 1.2), M.lamp); head.position.set(m.x, m.h, m.z); nightG.add(head);
+    const sp = new T.SpotLight(DOT[m.col], m.power, m.range, m.cone, 0.7, 1.2);
+    sp.position.set(m.x, m.h - 0.4, m.z); sp.target.position.set(...m.aim); nightG.add(sp, sp.target);
+  }
+  const geo = new T.BufferGeometry(), P = [], C = [];
+  for (const [x, y, z, c] of dots) { P.push(x, y, z); const col = new T.Color(DOT[c]); C.push(col.r, col.g, col.b); }
+  geo.setAttribute("position", new T.Float32BufferAttribute(P, 3)); geo.setAttribute("color", new T.Float32BufferAttribute(C, 3));
+  nightG.add(new T.Points(geo, dotMat));
+}
+// Day or night: the sky, the sun or the moon, the exposure, the lamps' glow, and the rooms. Inside surfaces glow warm at
+// night, standing in for the game's room light behind the glass.
+const INSIDE = ["plaster", "floorTile", "carpet", "laminate", "wallTile", "counter", "fabric"];
+function setNight(on) {
+  night = on;
+  scene.background = lin(on ? 0x070b16 : 0xbfcdd9); scene.fog.color = lin(on ? 0x0a1222 : 0xbfcdd9);
+  hemi.intensity = on ? 0.1 : 0.85; hemi.color.set(on ? 0x2a3a66 : 0xbfd4ee);
+  sun.intensity = on ? 0.18 : 2.2; sun.color.set(on ? 0x8899cc : 0xffe8cc); sun.castShadow = !on;
+  renderer.toneMappingExposure = on ? 1.35 : 1;
+  for (const [m, day, , nite] of E.glows) m.emissiveIntensity = on ? nite : day;
+  for (const k of INSIDE) { const m = E.materials[k]; if (m) { m.emissive = new T.Color(on ? 0xffc98a : 0x000000); m.emissiveIntensity = on ? 0.32 : 0; } }
+  nightG.visible = on;
+  document.querySelectorAll("[data-time]").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.time === "night") === on)));
+}
+
 // ---------------------------------------------------------------- yardsticks: the Foreman and a pilot
 const yardG = new T.Group(); scene.add(yardG);
 pending++;
@@ -566,10 +673,10 @@ controls.addEventListener("start", () => { labelReach = null; });
 const tagsEl = document.getElementById("tags");
 function rebuild() {
   if (built) { scene.remove(built); built.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
-  built = new T.Group(); scene.add(built); labels = []; spinners = []; tagsEl.innerHTML = "";
+  built = new T.Group(); scene.add(built); labels = []; spinners = []; GATES.length = 0; tagsEl.innerHTML = "";
   E.clear(); statEl.textContent = "";
   if (show === "today") buildToday(built, labels); else buildProposed(built, labels);
-  E.finish(); seatSpinners();
+  E.finish(); seatSpinners(); buildNight(); setNight(night);
   labels.push(["Foreman, 24 m", FOREMAN, 26]);
   for (const l of labels) { const el = document.createElement("div"); el.className = "tag " + (l[3] || ""); el.textContent = l[0]; tagsEl.appendChild(el); l.el = el; }
   document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
@@ -580,10 +687,12 @@ function view(name) {
   const set = (eye, look) => { camera.position.copy(eye); controls.target.copy(look); controls.update(); };
   ({
     overview: () => set(V(-1500, 1300, 1700), V(0, 0, -100)),
+    plan: () => set(V(0, 1100, -99), V(0, 0, -100)),
     final: () => { labelReach = 0; set(V(-1650, 34, 0), V(400, 0, 0)); },
     threshold: () => { labelReach = 300; set(V(-1080, 14, 0), V(-400, 0, 0)); },
     terminals: () => set(V(150, 90, 120), V(380, 8, 400)),
     pier: () => set(V(470, 22, 250), V(560, 6, 360)),
+    gates: () => set(V(160, 40, 300), V(160, 6, 420)),
     hangars: () => set(V(-420, 45, 120), V(-510, 12, 270)),
     heliport: () => set(V(-220, 30, 160), V(-280, 2, 250)),
     ga: () => set(V(-760, 40, 160), V(-860, 2, 280)),
@@ -596,11 +705,12 @@ function view(name) {
 }
 document.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { show = b.dataset.show; rebuild(); });
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.dataset.view));
+document.querySelectorAll("[data-time]").forEach(b => b.onclick = () => setNight(b.dataset.time === "night"));
 document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = b.dataset.gun;
   document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
 document.getElementById("repair").onclick = () => { E.reset(); statEl.textContent = ""; };
 E.bindFire(canvas, camera, () => gun);
-window.MOCKUP = { view, blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), unheld: () => E.unheld(), engine: E,
+window.MOCKUP = { view, setNight, blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), unheld: () => E.unheld(), engine: E,
   buildings: () => E.BLD.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.pieces.filter(p => E.PIECES[p].alive).length, collapsed: B.collapsed })) };
 canvas.addEventListener("keydown", e => {
   const s = 0.05, sph = new T.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
@@ -625,7 +735,8 @@ document.querySelector("#pieces tbody").innerHTML = [
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) {
-    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    dotMat.uniforms.scale.value = h * renderer.getPixelRatio() / (2 * Math.tan(camera.fov * PI / 360)); }
 }
 const tmp = new T.Vector3();
 let last = 0;
@@ -647,7 +758,7 @@ function frame(ms) {
 }
 rebuild();
 const start = (location.hash || "").slice(1);
-view(["overview", "final", "threshold", "terminals", "pier", "hangars", "heliport", "ga", "cargo", "tower", "military", "cockpit", "foot"].includes(start) ? start : "overview");
+view(["overview", "final", "threshold", "terminals", "pier", "gates", "hangars", "heliport", "ga", "cargo", "tower", "military", "cockpit", "foot"].includes(start) ? start : "overview");
 loaded();
 requestAnimationFrame(frame);
 </script>

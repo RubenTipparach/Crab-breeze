@@ -154,6 +154,19 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'N', name: 'Night light, baked',
+    lead: 'Added 2026-10-29, for your question "at night time, can we do voxel lighting that bakes vertex colors instead of fake glass lighting?". Yes. As each city streams in, every street lamp and every lit window spreads its light through the city: 2 m blocks of air, with buildings and ground solid. The light pools in the streets, goes round corners and stops at walls. Each wall, street and roof then keeps that light on its vertices. Today a window lights nothing and a lamp lights only while it is one of the 96 nearest within 250 m. Written up in openspec/changes/night-voxel-light; nothing is built yet. It will be built on the recommendations until you answer.',
+    qs: [
+      { id: 'N9', q: 'Baked light only lands on things that stand still. What lights cars, people and your mech when they pass under a lamp?',
+        options: ['Keep a few real lamps: the 32 nearest within 120 m (today 96 within 250 m)', 'Keep today\'s 96 within 250 m', 'No real lamps; moving things get no lamp light'], rec: 0,
+        why: 'Moving things are only lit close to you anyway, and 32 lights cost about a third of 96 while keeping the glints on wet road.' },
+      { id: 'N10', q: 'You asked for lit rooms, not glowing glass (2026-10-29). Does a lit room\'s light also spill out of the window onto the street and the building across it?',
+        options: ['Yes: the street and the facing walls catch warm light from lit rooms', 'No: the room is lit, the outside is lit only by the lamps'], rec: 0,
+        why: 'Light from a lit room landing outside is what makes a night street feel lived in, and it comes free with the bake.' },
+      { id: 'N11', q: 'Lamp pools on the ground everywhere, so from the air every street glows orange (this replaces N4, "pools only within 250 m")?',
+        options: ['Everywhere, from the street and the air', 'Only within 250 m, as N4 said'], rec: 0,
+        why: 'Baked pools cost nothing per frame wherever they are, so the reason N4 limited them is gone.' },
+    ] },
   { tag: 'V', name: 'The view', lead: 'Your question, 2026-10-26: "is my fps fov still 75? it seems kinda wide". Yes, it is 75, but the game measures it top to bottom (vertical). On a 16:9 screen, 75 tall is about 107 degrees side to side, which is why it reads wide. The cockpit\'s 95 tall is about 125 side to side. Driving a car stays at the on foot value, as you asked.',
     qs: [
       { id: 'V1', q: 'How should the 75 (on foot and driving) and 95 (cockpit) be measured? Today both are vertical: 107 and 125 degrees across on 16:9.',
@@ -223,6 +236,7 @@ const SECTIONS = [
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
 const IN_PROGRESS = [
+  { text: 'N12 At night a lit room shows through the glass at 25 %, 8 % by day, changing gradually through dusk (your words, 2026-10-29: "25% is the ticket", "I expect this transition to happen gradually as it gets dark"); the glass also reflects a night sky map at night, your idea. Written up, not built yet.', where: 'openspec/changes/night-voxel-light design 2a, task 3.10' },
   { text: 'N1-N8 Day and night ("All questions done go", 2026-10-28). N1 a world starts at 07:00; N2 real moon phases over 29.5 nights, so some nights are black (your pick, not the full moon every night; the first night is full); N3 the moon shadows everything and your own vehicle\'s lamps cast shadows, street lamps none; N4 lamps glow from the air, pools only within 250 m; N5 sodium orange, white mercury at the air bases; N6 fewer cars and people after 23:00, sensors unchanged; N7 an Options setting: cycle, always day, always night; N8 forward+. Building: the clock, the sun and moon, the exposure, the stars and the moon\'s phases first, then lamps, windows and car lights.', where: 'crates/cb-core/src/day_night.rs, crates/cb-app/src/day_night.rs, data/world/day_night.ron; openspec/changes/day-night-cycle' },
   { text: 'S6 The suburbs get streets (your words, 2026-10-27: "driveways need to connect with roads for it to be realistic, same with businesses they need parking lots that connect with road"): a street along each row, every house a drive to it, every business a striped car park onto the highway. Written up, not built yet.', where: 'openspec/changes/lot-access' },
 ];

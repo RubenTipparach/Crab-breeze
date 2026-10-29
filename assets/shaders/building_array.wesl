@@ -19,6 +19,9 @@ import super::building_windows::window_light;
 // The windows at night (`building_windows`), lit on the far and massing walls only (zero on the near
 // walls, whose windows are glass): x the share lit now, y brightness cd/m2, z storey m, w cell m.
 @group(constants::MATERIAL_BIND_GROUP) @binding(105) var<uniform> windows: vec4<f32>;
+// The lit rooms (`building_state.wesl` decides which; this adds their light): y a lit room's brightness cd/m2.
+@group(constants::MATERIAL_BIND_GROUP) @binding(107) var<uniform> rooms: vec4<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(108) var<uniform> room_colour: vec4<f32>;
 
 @fragment
 fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> FragmentOutput {
@@ -48,6 +51,13 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
 
     var out: FragmentOutput;
     out.color = apply_pbr_lighting(pbr);
+@if(VERTEX_UVS_B) {
+    // A lit room's own light on its floor, walls, ceiling and furniture (`cb_core::night_light`), from the
+    // vertex shader: nothing by day or in a dark room.
+    if (in.uv_b.y > 0.0) {
+        out.color = vec4<f32>(out.color.rgb + pbr.material.base_color.rgb * room_colour.rgb * in.uv_b.y * rooms.y * view.exposure, out.color.a);
+    }
+}
     if (windows.x > 0.0) {
         out.color = vec4<f32>(out.color.rgb + window_light(in.world_position.xyz, normalize(in.world_normal), globals.time, windows, true) * view.exposure, out.color.a);
     }

@@ -29,6 +29,7 @@ use bevy::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::prelude::*;
 use bevy::render::storage::ShaderBuffer;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
+use cb_core::night_light::RoomLights;
 use cb_core::pilot::PilotMode;
 use cb_core::world::small_buildings::kit::Node;
 use cb_core::world::small_buildings::{HOUSE_CHUNK_BASE, Kits, Lot};
@@ -43,8 +44,14 @@ const UNDRESS_M: f32 = 200.0;
 const DRESS_PER_FRAME: usize = 8;
 /// The block furniture is drawn within this.
 const FURNITURE_M: f32 = 100.0;
+/// An airport or seaport building's (owner, 2026-10-29: "Airport doesn't show furniture") as long as it is dressed:
+/// a terminal's glass fronts show its halls from across its apron, as its page draws them at every distance.
+const SITE_FURNITURE_M: f32 = DRESS_M;
 /// The modelled furniture is drawn within this of a pilot on foot (survey S5).
 const REAL_FURNITURE_M: f32 = 60.0;
+/// A ship's only with the pilot aboard, on foot inside its footprint (owner, 2026-10-29: "boat furniture can be blocks
+/// from far away, unless I'm walking into the boat"): its blocks otherwise.
+const SHIP_REAL_FURNITURE_M: f32 = 0.0;
 /// Most furniture meshes built in one frame.
 const FURNISH_PER_FRAME: usize = 3;
 /// The LOD switches (the kit's `within_m`), each blending over a tenth of its distance.
@@ -66,6 +73,22 @@ const NO_SHADOW: [&str; 10] = [
     "carpet",
     "woodInt",
 ];
+
+/// Window glass: drawn as the towers' glass (`sky_light.ron`'s `glass`: tinted, mirror-coated, 8 % of the room showing
+/// by day and 25 % at night), owner, 2026-10-29: "you should use the same approach with housing as you did with
+/// buildings".
+const WINDOW_GLASS: [&str; 2] = ["glass", "glassShop"];
+/// The far shell's window panes (LOD1): opaque, and lit at night when their house is, as the towers' far walls paint
+/// their lit windows (`building_surface.wesl`, `FAR_WINDOW`).
+const FAR_WINDOW: &str = "glassFar";
+/// `ElementState::no_ssao` for a far window pane: no screen-space occlusion, and its house's light added as emission.
+const FAR_WINDOW_FLAG: u32 = 2;
+/// `ElementState::no_ssao` for the furniture: occlusion as usual, and its pieces' own slots are not a damaged building's
+/// (its room light, baked dark once its building is damaged, is drawn).
+const FURNITURE_FLAG: u32 = 4;
+
+/// Surfaces inside a building (finishes): they carry their room's light at night (`night-voxel-light` section 2b).
+const INSIDE: [&str; 5] = ["plaster", "floorWood", "floorTile", "carpet", "woodInt"];
 
 /// The key a lot's words have in the building state buffer.
 fn state_key(lot: u32) -> u32 {
@@ -99,6 +122,13 @@ struct KitDraw {
     lod2: Vec<Prim>,
     furn: Vec<Prim>,
     leaves: Vec<Vec<Prim>>,
+    /// The room index its rooms carry.
+    rooms: RoomCells,
+    /// For a site's building, by LOD0 primitive: lit by its rooms where it faces into them (`Interior`), though not one
+    /// of the `INSIDE` finishes (its columns, counters, partitions and boards).
+    site_lit: Vec<bool>,
+    /// By LOD0 primitive: window glass whose inner faces are clear (`light_glass_sides`), drawn with the state material.
+    inner_glass: Vec<bool>,
 }
 
 /// The kits' meshes and the island's materials, once loaded.
@@ -119,15 +149,18 @@ pub struct HouseKits {
     standing: Option<Handle<ShaderBuffer>>,
     /// The surfaces drawn with a texture set (their meshes need tangents).
     textured: Vec<String>,
+    /// Each glass surface's alpha by day, which night makes clearer (`light_houses`).
+    glass_day_alpha: HashMap<String, f32>,
     /// Each placed site's ground: its primitives and their materials (the page's stand-in looks).
     grounds: Vec<Vec<(Handle<Mesh>, Handle<StandardMaterial>)>>,
 }
 
-/// Which furniture a building draws.
+/// Which furniture a building draws: the modelled pieces or the blocks, and lit by its rooms at night or dark (its
+/// building damaged: "If the building is damaged all of its lights turn off").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Furnished {
-    Blocks,
-    Real,
+struct Furnished {
+    real: bool,
+    lit: bool,
 }
 
 /// A dressed lot's entities.
@@ -203,6 +236,7 @@ impl Plugin for SmallBuildingsPlugin {
                     swing_leaves,
                     pose_sinking,
                     draw_ship_kits,
+                    light_houses,
                 )
                     .chain()
                     .in_set(crate::sim::PresentSet::Pose)
@@ -344,6 +378,7 @@ fn bind(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     states: Res<BuildingStates>,
+    data: Res<crate::sim::Data>,
 ) {
     let Some(loading) = loading else { return };
     let all = loading
@@ -410,6 +445,19 @@ fn bind(
                 _ => {}
             }
         }
+        let kit = &plan.small.kits.kits[draws.len()];
+        d.rooms = RoomCells::of(kit, &d.lod0, &data.0.day_night.rooms);
+        d.site_lit = d
+            .lod0
+            .iter()
+            .map(|p| kit.kind.is_site() && !INSIDE.contains(&p.surface.as_str()) && lightable(&p.surface))
+            .collect();
+        let floored = d.lod0.iter().any(|p| FLOORS.contains(&p.surface.as_str()));
+        d.inner_glass = d
+            .lod0
+            .iter()
+            .map(|p| floored && WINDOW_GLASS.contains(&p.surface.as_str()))
+            .collect();
         draws.push(d);
     }
     // Each generator's texture set, where it has been made (one set serves every surface of that generator).
@@ -448,6 +496,12 @@ fn bind(
         if set.is_some() {
             textured.push(surface.clone());
         }
+        let window = WINDOW_GLASS.contains(&surface.as_str());
+        if window {
+            kits.glass_day_alpha.insert(surface.clone(), data.0.sky_light.glass.alpha);
+        } else if glass {
+            kits.glass_day_alpha.insert(surface.clone(), m.base_color.alpha());
+        }
         // A textured surface: white, so the vertex colour (the paint) shows over the albedo; the maps repeat every
         // `tile_m` metres (the kit's UVs are metres). Several surfaces share a set (paint, plaster and metal are all
         // `smooth`), so the ORM map's roughness and metal are scaled to each surface's own (the set's mean times the
@@ -480,6 +534,16 @@ fn bind(
             },
             ..default()
         };
+        // Window glass is the towers' glass, sided as the kit's.
+        let base = if window {
+            StandardMaterial {
+                double_sided: base.double_sided,
+                cull_mode: base.cull_mode,
+                ..crate::sky_light::glass_material(&data.0.sky_light.glass)
+            }
+        } else {
+            base
+        };
         kits.plain.insert(surface.clone(), plain.add(base.clone()));
         kits.state.insert(
             surface.clone(),
@@ -487,9 +551,11 @@ fn bind(
                 base,
                 extension: ElementState {
                     standing: states.handle.clone(),
-                    no_ssao: u32::from(glass),
+                    no_ssao: if surface == FAR_WINDOW { FAR_WINDOW_FLAG } else { u32::from(glass) },
                     // Houses' windows are not lit yet (day-night-cycle task 4.5).
                     windows: Vec4::ZERO,
+                    rooms: Vec4::ZERO,
+                    room_colour: Vec4::ZERO,
                 },
             }),
         );
@@ -507,6 +573,65 @@ fn bind(
             }
         }
     }
+    // The inside surfaces' shared LOD0 meshes carry their room cells' light, and slot 0 (always standing), so the
+    // whole house can draw them with the state material that lights rooms (`dress`).
+    let mut lit = 0;
+    for d in &draws {
+        // A site building's other surfaces take its rooms' light where they face into them (owner, 2026-10-29, of the
+        // terminal's columns standing black in its lit hall at night).
+        let interior = Interior::of(&d.lod0);
+        // Its window panes' inner faces are clear: mirror glass by day from outside, a window from inside (owner,
+        // 2026-10-29, of the mountain seen as a wavy reflection from inside the terminal by day).
+        if let Some(inside) = &interior {
+            for (p, _) in d.lod0.iter().zip(&d.inner_glass).filter(|(_, g)| **g) {
+                if let Some(mut m) = meshes.get_mut(&p.mesh)
+                    && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
+                {
+                    light_glass_sides(&mut m, inside);
+                }
+            }
+        }
+        if let Some(inside) = d.site_lit.iter().any(|l| *l).then_some(interior.as_ref()).flatten() {
+            for (p, _) in d.lod0.iter().zip(&d.site_lit).filter(|(_, l)| **l) {
+                if let Some(mut m) = meshes.get_mut(&p.mesh)
+                    && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
+                {
+                    light_site_surface(&mut m, &data.0.day_night.rooms, d.rooms, inside);
+                    lit += 1;
+                }
+            }
+        }
+        for p in d.lod0.iter().filter(|p| INSIDE.contains(&p.surface.as_str())) {
+            if let Some(mut m) = meshes.get_mut(&p.mesh)
+                && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
+            {
+                light_house_rooms(&mut m, &data.0.day_night.rooms, d.rooms);
+                lit += 1;
+            }
+        }
+    }
+    // The far shell's window panes carry the house's one switch at full light, slot 0: lit when the house is (the
+    // same hash of the lot as its rooms near to), so a house does not change as you walk away from it.
+    for d in &draws {
+        for p in d.lod1.iter().filter(|p| p.surface == FAR_WINDOW) {
+            if let Some(mut m) = meshes.get_mut(&p.mesh)
+                && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
+            {
+                let n = m.count_vertices();
+                m.insert_attribute(
+                    Mesh::ATTRIBUTE_UV_1,
+                    vec![[0.0, cb_core::night_light::pack_room(d.rooms.cell, 1.0)]; n],
+                );
+                if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+                    for c in c.iter_mut() {
+                        c[3] = 0.0;
+                    }
+                }
+                lit += 1;
+            }
+        }
+    }
+    info!("small buildings: room light on {lit} inside and far window meshes");
     info!(
         "small buildings: {} of {} surfaces textured, tangents for {tangents} meshes",
         textured.len(),
@@ -529,8 +654,10 @@ fn bind(
         },
         extension: ElementState {
             standing: states.handle.clone(),
-            no_ssao: 0,
+            no_ssao: FURNITURE_FLAG,
             windows: Vec4::ZERO,
+            rooms: Vec4::ZERO,
+            room_colour: Vec4::ZERO,
         },
     }));
     let mut furniture = HashMap::new();
@@ -596,6 +723,281 @@ fn follow_state(mut kits: ResMut<HouseKits>, states: Res<BuildingStates>, mut ma
     for h in kits.state.values().chain(kits.furniture_material.iter()) {
         if let Some(mut m) = materials.get_mut(h) {
             m.extension.standing = states.handle.clone();
+        }
+    }
+}
+
+/// How far in front of a surface its room cell is looked for, metres (past a partition's half-thickness).
+const ROOM_PROBE_M: f32 = 0.3;
+
+/// Every room of a house carries this one index, so a whole house is lit or dark together (owner, 2026-10-29: "consider
+/// an entire house lit or unlit instead of individual rooms"); the shader's hash of it with the lot's origin decides.
+const HOUSE_CELL: u32 = 1;
+
+/// The room index a kit's rooms carry: a house's one switch (`HOUSE_CELL`); every room of the airport's and seaport's
+/// buildings and ships lit every night (`ALWAYS_LIT`, design section 2d: "airports and seaports lit like this at all
+/// times"), and a control tower's cab, its rooms within `rooms.cab_depth_m` of its highest, lit day and night
+/// (`ALWAYS_ON`: "top control towers should always be lit").
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct RoomCells {
+    cell: u32,
+    /// A room whose light point is this high or higher (the kit's frame) is the cab's.
+    cab_from_m: Option<f32>,
+}
+
+impl Default for RoomCells {
+    fn default() -> Self {
+        Self {
+            cell: HOUSE_CELL,
+            cab_from_m: None,
+        }
+    }
+}
+
+impl RoomCells {
+    /// A kit's: a site's are always lit, and a control tower's cab is the top of its inside surfaces (`lod0`).
+    fn of(kit: &cb_core::world::small_buildings::Kit, lod0: &[Prim], lights: &RoomLights) -> Self {
+        if !kit.kind.is_site() {
+            return Self::default();
+        }
+        let top = kit
+            .id
+            .contains("control_tower")
+            .then(|| {
+                lod0.iter()
+                    .filter(|p| INSIDE.contains(&p.surface.as_str()))
+                    .filter_map(|p| p.src.as_ref())
+                    .flat_map(|o| o.pos.iter().map(|p| p[1]))
+                    .fold(f32::MIN, f32::max)
+            })
+            .filter(|y| y.is_finite() && *y > f32::MIN);
+        Self {
+            cell: cb_core::night_light::ALWAYS_LIT,
+            cab_from_m: top.map(|y| y - lights.cab_depth_m),
+        }
+    }
+
+    /// The index of the room whose light point is `point`.
+    fn at(self, point: Vec3) -> u32 {
+        match self.cab_from_m {
+            Some(y) if point.y >= y => cb_core::night_light::ALWAYS_ON,
+            _ => self.cell,
+        }
+    }
+}
+
+/// Gives a house mesh (in its kit's frame, the floor at the lot's ground) its room light in the second UV's `y`
+/// (`cb_core::night_light`, design section 2b): lit from under the ceiling of the 4 m cell its normal faces, the
+/// whole house one switch (`RoomCells`). Its colours' alpha goes to 0 (slot 0, always standing).
+fn light_house_rooms(m: &mut Mesh, lights: &RoomLights, cells: RoomCells) {
+    light_house_rooms_keep_slots(m, lights, cells);
+    if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+        for c in c.iter_mut() {
+            c[3] = 0.0;
+        }
+    }
+}
+
+/// The floor finishes a site building's inside is mapped from (`Interior`).
+const FLOORS: [&str; 3] = ["floorTile", "floorWood", "carpet"];
+/// The interior map's cell, metres.
+const INTERIOR_CELL_M: f32 = 0.5;
+/// How far out from a surface the side it faces is tested for being inside, metres: past a wall's thickness and a
+/// cell, so a wall's outer face finds no floor under its probe.
+const INSIDE_PROBE_M: f32 = 0.6;
+
+/// True for a surface that can carry a room's light: not glass, a lamp, a sign, water or an awning.
+fn lightable(surface: &str) -> bool {
+    !["glass", "lamp", "sign", "water", "screen", "awning"]
+        .iter()
+        .any(|k| surface.starts_with(k))
+}
+
+/// Where a site building's inside is (its kit's frame): over one of its floors and no higher than its highest inside
+/// finish, the top storey's ceiling. Mapped once a kit from its floors' upward faces on a `INTERIOR_CELL_M` grid.
+struct Interior {
+    /// Each cell a floor covers: its lowest floor's height.
+    floors: HashMap<(i32, i32), f32>,
+    /// The highest inside finish, metres.
+    top_m: f32,
+}
+
+impl Interior {
+    fn cell(x: f32, z: f32) -> (i32, i32) {
+        ((x / INTERIOR_CELL_M).floor() as i32, (z / INTERIOR_CELL_M).floor() as i32)
+    }
+
+    /// A kit's, from its LOD0 primitives; none when it has no floor.
+    fn of(lod0: &[Prim]) -> Option<Self> {
+        let mut floors: HashMap<(i32, i32), f32> = HashMap::new();
+        let mut top_m = f32::MIN;
+        for p in lod0 {
+            let Some(o) = p.src.as_ref() else { continue };
+            if INSIDE.contains(&p.surface.as_str()) {
+                top_m = o.pos.iter().map(|v| v[1]).fold(top_m, f32::max);
+            }
+            if !FLOORS.contains(&p.surface.as_str()) {
+                continue;
+            }
+            for t in o.tri.as_chunks::<3>().0 {
+                let [a, b, c] = [t[0], t[1], t[2]].map(|i| Vec3::from(o.pos[i as usize]));
+                if (b - a).cross(c - a).normalize_or_zero().y.abs() < 0.7 || o.nrm[t[0] as usize][1] < 0.5 {
+                    continue;
+                }
+                let (lo, hi) = (a.min(b).min(c), a.max(b).max(c));
+                let (c0, c1) = (Self::cell(lo.x, lo.z), Self::cell(hi.x, hi.z));
+                let y = lo.y;
+                for cx in c0.0..=c1.0 {
+                    for cz in c0.1..=c1.1 {
+                        let q = Vec2::new((cx as f32 + 0.5) * INTERIOR_CELL_M, (cz as f32 + 0.5) * INTERIOR_CELL_M);
+                        if in_triangle(q, a.xz(), b.xz(), c.xz()) {
+                            let e = floors.entry((cx, cz)).or_insert(y);
+                            *e = e.min(y);
+                        }
+                    }
+                }
+            }
+        }
+        (!floors.is_empty() && top_m > f32::MIN).then_some(Self { floors, top_m })
+    }
+
+    /// True when `p` (the kit's frame) is inside: over a floor, under the top ceiling.
+    fn contains(&self, p: Vec3) -> bool {
+        p.y <= self.top_m + 0.05 && self.floors.get(&Self::cell(p.x, p.z)).is_some_and(|y| p.y >= y - 0.05)
+    }
+}
+
+/// True when `p` lies in the triangle `a b c` (either winding).
+fn in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
+    let s = |u: Vec2, v: Vec2| (v - u).perp_dot(p - u);
+    let (d1, d2, d3) = (s(a, b), s(b, c), s(c, a));
+    !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0))
+}
+
+/// Gives a site building's surface its rooms' light where it faces into them (`Interior`), none where it faces out,
+/// as `light_house_rooms` does an inside finish; slot 0 (always standing).
+fn light_site_surface(m: &mut Mesh, lights: &RoomLights, cells: RoomCells, inside: &Interior) {
+    let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
+        (m.attribute(Mesh::ATTRIBUTE_POSITION), m.attribute(Mesh::ATTRIBUTE_NORMAL))
+    else {
+        return;
+    };
+    let uv1: Vec<[f32; 2]> = pos
+        .iter()
+        .zip(nrm)
+        .map(|(p, n)| {
+            let (p, n) = (Vec3::from(*p), Vec3::from(*n));
+            if !inside.contains(p + n * INSIDE_PROBE_M) {
+                return [0.0, 0.0];
+            }
+            let (point, _) = lights.house_cell(p + n * ROOM_PROBE_M, 0.0);
+            [0.0, cb_core::night_light::pack_room(cells.at(point), lights.light_at(p, n, point))]
+        })
+        .collect();
+    m.insert_attribute(Mesh::ATTRIBUTE_UV_1, uv1);
+    if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+        for c in c.iter_mut() {
+            c[3] = 0.0;
+        }
+    }
+}
+
+/// Marks a window pane's faces that look into its building (`Interior`) in the second UV's `y` (-1; 0 for the outer
+/// face), which `building_surface.wesl` draws at `rooms.glass_alpha_inside`; slot 0 (always standing).
+fn light_glass_sides(m: &mut Mesh, inside: &Interior) {
+    let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
+        (m.attribute(Mesh::ATTRIBUTE_POSITION), m.attribute(Mesh::ATTRIBUTE_NORMAL))
+    else {
+        return;
+    };
+    let uv1: Vec<[f32; 2]> = pos
+        .iter()
+        .zip(nrm)
+        .map(|(p, n)| {
+            let inner = inside.contains(Vec3::from(*p) + Vec3::from(*n) * INSIDE_PROBE_M);
+            [0.0, if inner { -1.0 } else { 0.0 }]
+        })
+        .collect();
+    m.insert_attribute(Mesh::ATTRIBUTE_UV_1, uv1);
+    if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+        for c in c.iter_mut() {
+            c[3] = 0.0;
+        }
+    }
+}
+
+/// `light_house_rooms` without touching the slots (furniture carries its pieces' own).
+fn light_house_rooms_keep_slots(m: &mut Mesh, lights: &RoomLights, cells: RoomCells) {
+    let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
+        (m.attribute(Mesh::ATTRIBUTE_POSITION), m.attribute(Mesh::ATTRIBUTE_NORMAL))
+    else {
+        return;
+    };
+    let uv1: Vec<[f32; 2]> = pos
+        .iter()
+        .zip(nrm)
+        .map(|(p, n)| {
+            let (p, n) = (Vec3::from(*p), Vec3::from(*n));
+            let (point, _) = lights.house_cell(p + n * ROOM_PROBE_M, 0.0);
+            [0.0, cb_core::night_light::pack_room(cells.at(point), lights.light_at(p, n, point))]
+        })
+        .collect();
+    m.insert_attribute(Mesh::ATTRIBUTE_UV_1, uv1);
+}
+
+/// The houses' rooms and glass for the hour, as the towers' (`buildings::light_windows`): the inside surfaces' and
+/// the furniture's materials take the lit rooms, and the glass turns clearer through dusk.
+fn light_houses(
+    data: Res<crate::sim::Data>,
+    light: Res<crate::day_night::Light>,
+    kits: Res<HouseKits>,
+    mut state: ResMut<Assets<BuildingMaterial>>,
+    mut plain: ResMut<Assets<StandardMaterial>>,
+) {
+    let (rooms, colour, night) = crate::buildings::room_uniforms(&data.0, &light.0);
+    let lit = kits
+        .state
+        .iter()
+        // Every surface that can carry a room's light (a site building's columns and counters too), and far windows.
+        .filter(|(s, _)| lightable(s) || s.as_str() == FAR_WINDOW)
+        .map(|(_, h)| h)
+        .chain(kits.furniture_material.iter());
+    // A far window glows as the towers' far walls' painted windows do (`day_night.ron`'s `windows.cd_m2`).
+    let windows = Vec4::new(0.0, data.0.day_night.windows.cd_m2, 0.0, 0.0);
+    for h in lit {
+        if state
+            .get(h)
+            .is_some_and(|m| m.extension.rooms != rooms || m.extension.room_colour != colour || m.extension.windows != windows)
+            && let Some(mut m) = state.get_mut(h)
+        {
+            m.extension.rooms = rooms;
+            m.extension.room_colour = colour;
+            m.extension.windows = windows;
+        }
+    }
+    // A pane's inner face (`light_glass_sides`) at its clear alpha.
+    let inner = Vec4::new(0.0, 0.0, data.0.day_night.rooms.glass_alpha_inside, 0.0);
+    for s in WINDOW_GLASS {
+        if let Some(h) = kits.state.get(s)
+            && state.get(h).is_some_and(|m| m.extension.windows != inner)
+            && let Some(mut m) = state.get_mut(h)
+        {
+            m.extension.windows = inner;
+        }
+    }
+    for (surface, day) in &kits.glass_day_alpha {
+        let alpha = data.0.day_night.rooms.glass_alpha(*day, night);
+        if let Some(h) = kits.plain.get(surface)
+            && plain.get(h).is_some_and(|m| (m.base_color.alpha() - alpha).abs() > 1e-3)
+            && let Some(mut m) = plain.get_mut(h)
+        {
+            m.base_color.set_alpha(alpha);
+        }
+        if let Some(h) = kits.state.get(surface)
+            && state.get(h).is_some_and(|m| (m.base.base_color.alpha() - alpha).abs() > 1e-3)
+            && let Some(mut m) = state.get_mut(h)
+        {
+            m.base.base_color.set_alpha(alpha);
         }
     }
 }
@@ -707,8 +1109,14 @@ fn spawn_lots(mut commands: Commands, plan: Res<Plan>, kits: Res<HouseKits>, mut
                     (&draw.lod2, range_past(LOD1_M, LOD2_M, reach)),
                 ] {
                     for p in prims {
-                        let Some(m) = kits.plain.get(&p.surface) else { continue };
-                        let mut e = c.spawn((Mesh3d(p.mesh.clone()), MeshMaterial3d(m.clone()), Transform::IDENTITY, r.clone()));
+                        // The far shell's lit windows read the state material (slot 0 on their shared meshes).
+                        let mut e = if std::ptr::eq(prims, &draw.lod1) && p.surface == FAR_WINDOW {
+                            let Some(m) = kits.state.get(&p.surface) else { continue };
+                            c.spawn((Mesh3d(p.mesh.clone()), MeshMaterial3d(m.clone()), Transform::IDENTITY, r.clone()))
+                        } else {
+                            let Some(m) = kits.plain.get(&p.surface) else { continue };
+                            c.spawn((Mesh3d(p.mesh.clone()), MeshMaterial3d(m.clone()), Transform::IDENTITY, r.clone()))
+                        };
                         if NO_SHADOW.contains(&p.surface.as_str()) || std::ptr::eq(prims, &draw.lod2) {
                             e.insert(NotShadowCaster);
                         }
@@ -847,14 +1255,21 @@ fn furniture_mesh(
     furn: &[Prim],
     models: &HashMap<String, Arc<Owned>>,
     base: u32,
-    real: bool,
+    kind: Furnished,
+    lights: &RoomLights,
+    cells: RoomCells,
 ) -> Option<Mesh> {
+    let real = kind.real;
     let mut c = Corners::new();
+    // The pieces drawn from their models: every other piece is drawn from its blocks (a site's building models only
+    // some of its pieces, its shops'; owner, 2026-10-29: "the js version isnt empty bro, why is it empty").
+    let mut modelled = std::collections::HashSet::new();
     if real {
         for f in &kit.furniture {
             let Some(src) = models.get(&f.item) else {
                 continue;
             };
+            modelled.insert(f.piece);
             // Local (x, z) lies at (-z, x) for each quarter turn (the kit's `placeItems`): a turn of -90 degrees.
             let turn = Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2 * f.quarter_turns as f32);
             let a = slot(base, f.piece);
@@ -868,7 +1283,8 @@ fn furniture_mesh(
                 c.col.push([tint.x, tint.y, tint.z, a]);
             }
         }
-    } else {
+    }
+    {
         for (pi, p) in furn.iter().enumerate() {
             let Some(src) = p.src.as_deref() else {
                 continue;
@@ -879,6 +1295,9 @@ fn furniture_mesh(
             let pieces = piece_of_triangles(kit, Node::Furn, pi, src.tri.len() / 3);
             for (t, tri) in src.tri.as_chunks::<3>().0.iter().enumerate() {
                 let s = pieces[t];
+                if modelled.contains(&s) {
+                    continue;
+                }
                 let a = if s == u32::MAX { 0.0 } else { slot(base, s) };
                 // Each triangle's metre UVs from its own corner, two metres across the swatch.
                 let lo = tri
@@ -903,6 +1322,12 @@ fn furniture_mesh(
         return None;
     }
     let mut m = c.mesh();
+    if kind.lit {
+        light_house_rooms_keep_slots(&mut m, lights, cells);
+    } else {
+        let n = m.count_vertices();
+        m.insert_attribute(Mesh::ATTRIBUTE_UV_1, vec![[0.0, 0.0]; n]);
+    }
     if let Err(e) = m.generate_tangents() {
         warn!("small buildings: furniture tangents: {e}");
     }
@@ -1016,15 +1441,32 @@ fn dress(
             furniture: None,
             version: live.structures.houses.version(lot),
         };
-        for p in &draw.lod0 {
-            let Some(m) = kits.plain.get(&p.surface) else { continue };
-            let mut e = commands.spawn((
-                Mesh3d(p.mesh.clone()),
-                MeshMaterial3d(m.clone()),
-                Transform::IDENTITY,
-                range_past(0.0, LOD0_M, reach),
-                ChildOf(root),
-            ));
+        for (i, p) in draw.lod0.iter().enumerate() {
+            // Inside surfaces read the state material, which lights their rooms at night; their shared meshes carry
+            // slot 0, so they always stand (a damaged house redraws its own LOD0). So do a site building's surfaces
+            // that face into its rooms.
+            let inside = INSIDE.contains(&p.surface.as_str())
+                || draw.site_lit.get(i).copied().unwrap_or(false)
+                || draw.inner_glass.get(i).copied().unwrap_or(false);
+            let mut e = if inside {
+                let Some(m) = kits.state.get(&p.surface) else { continue };
+                commands.spawn((
+                    Mesh3d(p.mesh.clone()),
+                    MeshMaterial3d(m.clone()),
+                    Transform::IDENTITY,
+                    range_past(0.0, LOD0_M, reach),
+                    ChildOf(root),
+                ))
+            } else {
+                let Some(m) = kits.plain.get(&p.surface) else { continue };
+                commands.spawn((
+                    Mesh3d(p.mesh.clone()),
+                    MeshMaterial3d(m.clone()),
+                    Transform::IDENTITY,
+                    range_past(0.0, LOD0_M, reach),
+                    ChildOf(root),
+                ))
+            };
             if NO_SHADOW.contains(&p.surface.as_str()) {
                 e.insert(NotShadowCaster);
             }
@@ -1061,7 +1503,7 @@ fn dress(
 }
 
 /// Gives each dressed lot the furniture it should draw now: modelled within `REAL_FURNITURE_M` of a pilot on foot,
-/// blocks within `FURNITURE_M` otherwise, none beyond.
+/// blocks within `FURNITURE_M` (a site's building: `SITE_FURNITURE_M`) otherwise, none beyond.
 #[allow(clippy::too_many_arguments)]
 fn furnish(
     mut commands: Commands,
@@ -1072,6 +1514,8 @@ fn furnish(
     mut states: ResMut<BuildingStates>,
     mut buffers: ResMut<Assets<ShaderBuffer>>,
     camera: Query<&GlobalTransform, With<PilotCamera>>,
+    data: Res<crate::sim::Data>,
+    live: Res<crate::world::Live>,
 ) {
     let Ok(eye) = camera.single() else { return };
     if kits.furniture_material.is_none() {
@@ -1085,13 +1529,27 @@ fn furnish(
     let mut wants: Vec<(u32, f32, Option<Furnished>)> = ids
         .into_iter()
         .map(|l| {
-            let d = lots.lots[l as usize].rect.distance(here);
-            let want = if d > FURNITURE_M {
-                None
-            } else if on_foot && d <= REAL_FURNITURE_M {
-                Some(Furnished::Real)
+            let lot = &lots.lots[l as usize];
+            let d = lot.rect.distance(here);
+            let kind = lots.kits.kits[lot.kit as usize].kind;
+            let reach = if kind.is_site() { SITE_FURNITURE_M } else { FURNITURE_M };
+            let real_reach = if kind == cb_core::world::small_buildings::kit::Kind::Ship {
+                SHIP_REAL_FURNITURE_M
             } else {
-                Some(Furnished::Blocks)
+                REAL_FURNITURE_M
+            };
+            let want = if d > reach {
+                None
+            } else if on_foot && d <= real_reach {
+                Some(Furnished {
+                    real: true,
+                    lit: !live.structures.houses.states.contains_key(&l),
+                })
+            } else {
+                Some(Furnished {
+                    real: false,
+                    lit: !live.structures.houses.states.contains_key(&l),
+                })
             };
             (l, d, want)
         })
@@ -1118,9 +1576,15 @@ fn furnish(
         // Meshed on the pool; the furniture it has stays until the new one is in (`finish_jobs`).
         let k = lots.lots[lot as usize].kit as usize;
         let base = states.base(state_key(lot), lots.kits.kits[k].pieces.len(), &mut buffers);
-        let (all, furn, models) = (lots.kits.clone(), kits.kits[k].furn.clone(), kits.furniture.clone());
+        let (all, furn, models, cells) = (
+            lots.kits.clone(),
+            kits.kits[k].furn.clone(),
+            kits.furniture.clone(),
+            kits.kits[k].rooms,
+        );
+        let lights = data.0.day_night.rooms.clone();
         let task = AsyncComputeTaskPool::get()
-            .spawn(async move { furniture_mesh(&all.kits[k], &all, &furn, &models, base, kind == Furnished::Real) });
+            .spawn(async move { furniture_mesh(&all.kits[k], &all, &furn, &models, base, kind, &lights, cells) });
         houses.jobs.furniture.insert(lot, (kind, task));
         built += 1;
     }
@@ -1326,6 +1790,17 @@ fn swing_leaves(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_far_window_flag_matches_the_shader() {
+        let wesl = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/shaders/building_surface.wesl")).unwrap();
+        for want in [
+            format!("const FAR_WINDOW: u32 = {FAR_WINDOW_FLAG}u;"),
+            format!("const FURNITURE: u32 = {FURNITURE_FLAG}u;"),
+        ] {
+            assert!(wesl.contains(&want), "building_surface.wesl must say `{want}`");
+        }
+    }
 
     #[test]
     fn a_primitives_surface_is_read_from_its_extras() {

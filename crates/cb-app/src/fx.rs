@@ -245,7 +245,7 @@ fn attach_streams(
     let cfg = &data.0.fx;
     for (e, s) in &added {
         let (Some(layers), Some(per_s)) = (cfg.recipes.get(s.recipe), cfg.stream_per_s.get(s.recipe)) else {
-            commands.entity(e).insert(StreamEmitters(Vec::new()));
+            commands.entity(e).try_insert(StreamEmitters(Vec::new()));
             continue;
         };
         let mut kids = Vec::new();
@@ -288,7 +288,9 @@ fn attach_streams(
                 .id();
             kids.push(kid);
         }
-        commands.entity(e).insert(StreamEmitters(kids));
+        // The stream's owner can be despawned before these commands apply (a wreck taken away the same frame): its
+        // emitters, children of it, go with it, and nothing is left to mark.
+        commands.entity(e).try_insert(StreamEmitters(kids));
     }
 }
 

@@ -59,6 +59,12 @@ pub struct ArrayState {
     /// walls, whose windows are glass.
     #[uniform(105)]
     pub windows: Vec4,
+    /// The lit rooms at night (`cb_core::night_light`, `building_state.wesl`): `RoomUniform::rooms`.
+    #[uniform(107)]
+    pub rooms: Vec4,
+    /// The room light's colour, linear (w unused).
+    #[uniform(108)]
+    pub room_colour: Vec4,
 }
 
 impl MaterialExtension for ArrayState {
@@ -88,6 +94,12 @@ pub struct ElementState {
     /// lit now, y a lit window's brightness cd/m2, z a storey's height m, w a window cell's width m.
     #[uniform(106)]
     pub windows: Vec4,
+    /// The lit rooms at night (`cb_core::night_light`, `building_state.wesl`): `RoomUniform::rooms`.
+    #[uniform(107)]
+    pub rooms: Vec4,
+    /// The room light's colour, linear (w unused).
+    #[uniform(108)]
+    pub room_colour: Vec4,
 }
 
 impl MaterialExtension for ElementState {
