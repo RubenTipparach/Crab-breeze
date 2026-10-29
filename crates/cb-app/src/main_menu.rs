@@ -261,6 +261,7 @@ fn draw(
                 for (action, label) in buttons {
                     p.spawn((
                         action,
+                        crate::ui_feedback::UiButton::default(),
                         Node {
                             width: px(340.0),
                             height: px(56.0),

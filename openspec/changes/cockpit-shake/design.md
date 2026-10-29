@@ -60,5 +60,5 @@ A few floats a frame; no draw. The cockpit pass already redraws the cabin every 
 
 | Id | Question | Recommendation (built while open) |
 | --- | --- | --- |
-| CS1 | Do footsteps stay off the view, now there is a jolt for the weight? | Yes, the owner's 2026-10-25 rule; a landing and a ram carry the weight. |
+| CS1 | Do footsteps stay off the view, now there is a jolt for the weight? | Answered (owner, 2026-10-29: "can you add some shakes from footsteps back in?", "similar to the landing shake, but like 50% that strength"): each footstep kicks half a 10 m/s landing (`step_as_landing_m_s`, `step_share`), 0.21 of trauma and about a 4 cm dip. The stride's bob and sway stay off. |
 | CS2 | A camera-shake slider in the settings? | Yes, 0 to 1, default 1: some players are sick with shake. |

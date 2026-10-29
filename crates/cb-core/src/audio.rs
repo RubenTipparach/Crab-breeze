@@ -153,10 +153,11 @@ impl Validate for AudioConfig {
                 Space::Cockpit(s) if !self.speakers.contains_key(s) => {
                     return Err(format!("`{}` names speaker `{s}`, which `speakers` lacks", field("space")));
                 }
-                // Sound effects are placed (owner, 2026-10-25); the unplaced kinds have their own files.
-                Space::Ambience | Space::Music | Space::Ui => {
+                // Sound effects are placed (owner, 2026-10-25), menu sounds excepted (`Ui`, `ui_feedback`); ambience
+                // and music have their own files.
+                Space::Ambience | Space::Music => {
                     return Err(format!(
-                        "`{}`: a sound effect must be placed (Placed or Cockpit); ambience and music have their own files",
+                        "`{}`: a sound effect must be placed (Placed, Cockpit or a menu's Ui); ambience and music have their own files",
                         field("space")
                     ));
                 }

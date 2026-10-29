@@ -587,7 +587,7 @@ fn place_camera(
     let buzz = sc.rumble_deg.to_radians() * shake.rumble * shake.strength;
     let w = std::f32::consts::TAU * sc.rumble_hz;
     let seated = curr.mode == PilotMode::Seated;
-    // The jolt: the eye dips and springs back on a landing, a ram or a punch, seated only.
+    // The jolt: the eye dips and springs back on a footstep, a landing, a ram or a punch, seated only.
     let eye = if seated { eye - Vec3::Y * shake.dip_m() } else { eye };
     let shake = Quat::from_euler(
         EulerRot::YXZ,
@@ -595,8 +595,8 @@ fn place_camera(
         amp * (t * 41.0 + 1.3).sin() + buzz * (t * w * 1.37 + 0.7).sin(),
         amp * 0.5 * (t * 29.0 + 2.1).sin() + buzz * 0.5 * (t * w * 0.71 + 1.9).sin(),
     );
-    // No footstep motion on the view, ever: the foot-strike jolt is not applied to the camera (owner,
-    // 2026-10-25: "I would remove the footstep motion forom the cokcpit entirely").
+    // The stride's bob and sway stay off the view (owner, 2026-10-25); a footstep reaches it only as a kick to this
+    // shake (owner, 2026-10-29: "similar to the landing shake, but like 50% that strength").
     **camera = Transform::from_translation(eye).with_rotation(rotation * shake);
     // Measurement instrument (`cockpit-local-space` section 3): each frame's drawn yaw and the mech's drawn heading,
     // degrees, with the step fraction, for `tools/perf/view_trace.py` to find a saw-tooth in.

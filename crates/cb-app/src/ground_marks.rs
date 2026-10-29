@@ -294,6 +294,7 @@ fn take_contacts(
     mut contacts: MessageReader<GroundContact>,
     mut marks: ResMut<Marks>,
     mut fx: MessageWriter<Fx>,
+    mut kicks: MessageWriter<crate::pilot::ShakeKick>,
     data: Res<Data>,
     plan: Res<Plan>,
     live: Res<Live>,
@@ -336,6 +337,11 @@ fn take_contacts(
                 };
                 let at = Vec3::new(sole.x, scene_height(&scene, sole), sole.z);
                 fx.write(Fx::new(strike_recipe(surface, landed), at).dense(density).scaled(scale));
+                // A footstep of the pilot's own mech shakes the view as half a landing (`cockpit-shake`, CS1); a
+                // landing's own kick comes from the mech's step (`pilot::body_kicks`).
+                if c.piloted && seated && !landed {
+                    kicks.write(crate::pilot::ShakeKick(data.0.fx.shake.step()));
+                }
                 if c.piloted && seated {
                     marks
                         .jolt

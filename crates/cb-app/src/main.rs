@@ -87,6 +87,7 @@ mod targeting;
 mod textures;
 mod traffic;
 mod traffic_lights;
+mod ui_feedback;
 mod units;
 mod vents;
 mod walk_in;
@@ -260,7 +261,12 @@ fn main() -> AppExit {
         small_buildings::SmallBuildingsPlugin,
     ))
     // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
-    .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
+    .add_plugins((
+        audio::SoundPlugin,
+        music::MusicPlugin,
+        ambience::AmbiencePlugin,
+        ui_feedback::UiFeedbackPlugin,
+    ));
     // People in the streets, parks and bases (openspec change `civilians`); `CB_NO_PEOPLE=1` leaves them
     // out, so the benchmark can measure what they cost.
     if !cli::switched_off("CB_NO_PEOPLE") {

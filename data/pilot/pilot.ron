@@ -9,9 +9,12 @@
     body_radius_m: 0.35,
     pitch_limit_deg: 85.0,
     max_wade_depth_m: 1.2,
-    // Use reaches the mech only within 2 m of the rope's foot (owner, 2026-10-29: "e to step into cockpit must only
+    // Use reaches the mech only once the rope is down and within 2 m of the rope's foot (owner, 2026-10-29: "e to step into cockpit must only
     // be with in 2 meter radius of the end of the ropw").
     board_reach_m: 2.0,
+    // The mech still kneels and opens from 25 m, the old reach (owner, 2026-10-29: "mech should still open up and
+    // kneel using the old distance trigger value, press E to board is simply when the rope comes down").
+    kneel_reach_m: 25.0,
     climb_speed_m_s: 7.0,
     // Seated, the view stays within 90 degrees of the mech's nose; past it the mech turns at its own
     // rate. Free look (held) is unlimited (openspec/changes/seated-look; owner, 2026-10-24).

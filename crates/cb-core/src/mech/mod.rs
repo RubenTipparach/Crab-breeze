@@ -12,4 +12,4 @@ pub use config::{BoxSpec, GaitConfig, JetConfig, LocomotionConfig, MechConfig, N
 pub use damage::{Damage, Hit, PartKind, PartSpec, default_parts};
 pub use gait::{LegPose, LegRest, MechPose, RigRest, foot_strikes, pose, solve_leg, stance_lead_m};
 pub use locomotion::{Budget, BudgetUse, LocomotionMode, MechControls, MechState, OnWater, forward};
-pub use melee::{CloseCombat, MeleeConfig, Strikes, arm_rotations};
+pub use melee::{MeleeConfig, Strikes, arm_rotations};

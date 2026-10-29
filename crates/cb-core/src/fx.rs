@@ -299,6 +299,12 @@ pub struct ShakeConfig {
     pub melee_jolt_m_s: f32,
     /// The jets lighting kick this much.
     pub ignite_kick: f32,
+    /// A footstep of the pilot's own mech (owner, 2026-10-29: "can you add some shakes from footsteps back in?",
+    /// "similar to the landing shake, but like 50% that strength") kicks as a landing at this downward speed, metres a
+    /// second...
+    pub step_as_landing_m_s: f32,
+    /// ...times this share (0: footsteps do not move the view).
+    pub step_share: f32,
     /// The rumble's most, degrees.
     pub rumble_deg: f32,
     /// The rumble's buzz, hertz.
@@ -343,6 +349,8 @@ impl Default for ShakeConfig {
             melee_kick: 0.45,
             melee_jolt_m_s: 0.6,
             ignite_kick: 0.15,
+            step_as_landing_m_s: 10.0,
+            step_share: 0.5,
             rumble_deg: 0.25,
             rumble_hz: 23.0,
             rumble_ease_s: 0.3,
@@ -514,6 +522,16 @@ impl ShakeConfig {
         }
     }
 
+    /// A footstep: `step_share` of a landing at `step_as_landing_m_s`.
+    pub fn step(&self) -> Kick {
+        let k = self.landing(self.step_as_landing_m_s);
+        Kick {
+            trauma: k.trauma * self.step_share,
+            jolt_m_s: k.jolt_m_s * self.step_share,
+            fire_s: 0.0,
+        }
+    }
+
     /// The jets lighting.
     pub fn ignite(&self) -> Kick {
         Kick {
@@ -610,6 +628,7 @@ impl Validate for FxConfig {
             ("shake.melee_jolt_m_s", s.melee_jolt_m_s),
             ("shake.rumble_deg", s.rumble_deg),
             ("shake.jolt_per_m_s", s.jolt_per_m_s),
+            ("shake.step_as_landing_m_s", s.step_as_landing_m_s),
         ] {
             within(name, v, 0.0, 1000.0)?;
         }
@@ -622,6 +641,7 @@ impl Validate for FxConfig {
             ("shake.jets_rumble", s.jets_rumble),
             ("shake.skate_rumble", s.skate_rumble),
             ("shake.paved_share", s.paved_share),
+            ("shake.step_share", s.step_share),
         ] {
             within(name, v, 0.0, 1.0)?;
         }
@@ -699,6 +719,8 @@ mod tests {
             melee_kick: 0.0,
             melee_jolt_m_s: 0.0,
             ignite_kick: 0.0,
+            step_as_landing_m_s: 0.0,
+            step_share: 0.0,
             rumble_deg: 0.0,
             rumble_hz: 0.0,
             rumble_ease_s: 0.0,
@@ -725,6 +747,7 @@ mod tests {
             z.hit(300.0, 8.0),
             z.melee(),
             z.ignite(),
+            z.step(),
             z.fired(Fired::Heavy),
             z.fired(Fired::Missile),
         ] {
@@ -756,6 +779,16 @@ mod tests {
         let k = c.landing(10.0);
         assert!(k.trauma > 0.3 && k.jolt_m_s > 0.3, "{k:?}");
         assert!(c.landing(20.0).trauma > k.trauma, "harder is more");
+    }
+
+    #[test]
+    fn a_footstep_kicks_half_a_hard_landing_and_a_zero_share_none() {
+        let c = ShakeConfig::default();
+        let (step, land) = (c.step(), c.landing(c.step_as_landing_m_s));
+        assert!((step.trauma - land.trauma * 0.5).abs() < 1e-6, "{step:?}");
+        assert!((step.jolt_m_s - land.jolt_m_s * 0.5).abs() < 1e-6, "{step:?}");
+        let off = ShakeConfig { step_share: 0.0, ..c };
+        assert_eq!(off.step(), Kick::default());
     }
 
     #[test]

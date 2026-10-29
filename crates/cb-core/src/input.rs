@@ -70,8 +70,6 @@ pub struct Actions {
     pub scope: bool,
     /// Select the next target this step.
     pub target_next: bool,
-    /// Close combat toggled this step (openspec change `close-combat`).
-    pub close_combat: bool,
     /// Step the selected weapon station this step: +1 on, -1 back, 0 none (weapon-select).
     pub weapon_cycle: i32,
     /// Move the prompt's selection when several things are in reach: +1 down, -1 up, 0 none (`interact`, survey W40).
@@ -217,8 +215,6 @@ pub struct Bindings {
     pub scope_zoom: Vec<String>,
     /// Select the next target (in the mech).
     pub target_next: Vec<String>,
-    /// Close combat on and off (in the mech).
-    pub close_combat: Vec<String>,
     /// Step the selected weapon: key names step on; `MouseWheel` steps by the wheel, down on, up back.
     pub weapon_cycle: Vec<String>,
     /// Move the prompt's selection when several things are in reach (survey W40): key names step down;
@@ -265,7 +261,6 @@ impl Default for Bindings {
             scope: k("MouseMiddle"),
             scope_zoom: vec!["KeyB".to_string(), "MouseWheel".to_string()],
             target_next: k("KeyQ"),
-            close_combat: k("Tab"),
             weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
             option_cycle: k("MouseWheel"),
             mail: k("KeyM"),
@@ -391,14 +386,8 @@ impl Bindings {
                 "weapon_cycle",
                 &self.weapon_cycle,
             ),
-            row(
-                "Weapons",
-                "Close combat on and off (on by itself when the target is close)",
-                "close_combat",
-                &self.close_combat,
-            ),
-            row("Weapons", "Punch, left arm (close combat)", "strike_left", &self.strike_left),
-            row("Weapons", "Punch, right arm (close combat)", "strike_right", &self.strike_right),
+            row("Weapons", "Punch, left arm", "strike_left", &self.strike_left),
+            row("Weapons", "Punch, right arm", "strike_right", &self.strike_right),
             row(
                 "Cockpit",
                 "Free look (hold); click an MFD to change page",
