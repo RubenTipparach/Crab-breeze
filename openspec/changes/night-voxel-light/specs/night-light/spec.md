@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Lamp and window light is baked onto the static world at night
-The game SHALL bake each city's street lamp light and lit window light into a 2-channel vertex attribute on the static meshes of that city, by a summing diffusion through the air voxels of the city's occupancy, and the materials of those meshes SHALL add it to their lit colour scaled by the lamps' dusk switch and the hour's lit window share.
+The game SHALL bake each city's street lamp light and lit window light into a 2-channel vertex attribute on the static meshes of that city (lamp light and window spill by a shortest path through the air voxels of the city, a room's own vertices by their distance from the room's light point), and the materials of those meshes SHALL add it to their lit colour scaled by the lamps' dusk switch and the hour's lit window share.
 
 #### Scenario: A lamp far from the eye lights the street under it
 - **WHEN** it is 00:00 and the eye is 1,500 m above a city
@@ -18,6 +18,17 @@ The game SHALL bake each city's street lamp light and lit window light into a 2-
 #### Scenario: Nothing shows by day
 - **WHEN** the lamps are off and no window is lit
 - **THEN** the baked term adds nothing to any surface
+
+### Requirement: A lit window is a lit room, not glowing glass
+At night the window glass SHALL not glow; a window SHALL read as lit by the room behind it being lit (its ceiling fitting on and its surfaces lit by the room's baked light within 250 m, an interior-mapped lit room past it), by the per-room lit rule, and a dark room SHALL stay dark inside.
+
+#### Scenario: Looking into an office at 21:00
+- **WHEN** the pilot stands in the street 40 m from an office whose room is lit
+- **THEN** through the clear glass they see the ceiling fitting on and the desks and walls lit, and the glass itself adds no light
+
+#### Scenario: A dark room beside a lit one
+- **WHEN** one room is lit and the room beside it is not
+- **THEN** the dark room's walls and furniture get no room light
 
 ### Requirement: The bake is deterministic
 The bake SHALL depend only on the city's plan and the bake's data, so the same city gives the same light on every vertex in every run, whatever order the sources are given in.

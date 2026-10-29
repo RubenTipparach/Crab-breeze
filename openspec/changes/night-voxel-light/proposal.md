@@ -16,10 +16,16 @@ The light has a source but lands on nothing, which is the fake look the owner me
 
 ## What changes
 
-The light from every street lamp and every lit window is baked into the city as it streams in, by a voxel flood
+Owner, 2026-10-29, on this write-up: "I dont want the glass itself to glow, I want to see the room lits". So the
+window glass loses its night glow. What lights up is the room behind it: a ceiling fitting, and the room's walls,
+floor and furniture lit by it. Seen past 250 m, where there is no room geometry, the window draws an
+interior-mapped lit room (design section 2a).
+
+The light from every street lamp and every lit room is baked into the city as it streams in, by a voxel flood
 fill, and stored on each vertex of the static world:
 - **Voxelise.** Each city is turned into 2 m voxels: building volumes and the ground are solid, the rest is air.
-- **Flood fill.** Light spreads out from every lamp head and every lit facade through the air. It turns corners
+- **Flood fill.** Light spreads out from every lamp head and every room's ceiling fitting through the air, and
+  out of a room through its glass. It turns corners
   and pools in the streets, and it stops at walls, so it never leaks through a building.
 - **Bake.** Every vertex of the buildings, houses, ground, paving, poles and rocks reads the light at its own
   position. The reading is stored as two numbers in a new vertex attribute: lamp light and window light.
@@ -28,7 +34,7 @@ fill, and stored on each vertex of the static world:
 
 What it gives the player:
 - Orange pools under every lamp in every city, from the street and from the air.
-- Facades washed by the light of their own windows and of the windows across the street.
+- Rooms lit from inside, seen through clear glass, and their light falling on the street and across it.
 - Light that stops at the building that blocks it.
 - No new draws and no per-frame lighting cost for any of it.
 

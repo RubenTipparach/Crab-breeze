@@ -1,0 +1,387 @@
+<title>Night Window Light</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: one night scene filling the stage, three option tabs above it, the view picker below, the
+   option's description beside. A deliberately dark, single-look page: it is a night street. */
+:root {
+  --bg: #0b0e14;
+  --panel: #131824;
+  --line: #263044;
+  --fg: #dfe4ee;
+  --dim: #8d97ab;
+  --sodium: #f2a344;
+  --room: #ffd99a;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 32px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+h1 { font: 700 34px/1.05 var(--display); letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+h1 span { color: var(--sodium); }
+.lead { color: var(--dim); max-width: 70ch; margin: 0; }
+.tabs, .views { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 500 14px var(--body); color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 4px; padding: 8px 12px; cursor: pointer; }
+button:hover { border-color: var(--dim); }
+button:focus-visible { outline: 2px solid var(--sodium); outline-offset: 2px; }
+button[aria-pressed="true"] { border-color: var(--sodium); color: var(--sodium); }
+.tabs button b { font: 700 16px var(--display); letter-spacing: 0.04em; margin-right: 6px; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.stage { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: #04060a; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.stage .tag { position: absolute; left: 10px; top: 8px; font: 400 12px var(--mono); color: var(--dim); }
+.stage .busy { position: absolute; inset: 0; display: grid; place-items: center; font: 400 13px var(--mono); color: var(--dim); }
+aside { display: grid; gap: 12px; min-width: 0; }
+aside h2 { font: 700 22px/1.1 var(--display); letter-spacing: 0.03em; margin: 0; }
+aside p { margin: 0; color: var(--dim); }
+aside dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font: 400 12.5px var(--mono); }
+aside dt { color: var(--dim); }
+aside dd { margin: 0; }
+[hidden] { display: none !important; }
+.note { font: 400 12.5px var(--mono); color: var(--dim); border-top: 1px solid var(--line); padding-top: 10px; }
+</style>
+
+<div class="wrap">
+  <h1>Night window light: <span>glowing glass</span> or a lit room?</h1>
+  <p class="lead">A 10-storey glass office tower across a 16 m street, at 22:00. Every number here comes from the bake in
+  openspec/changes/night-voxel-light: the street and the buildings are cut into 0.5 m voxels, light spreads from each source along the shortest path
+  through the air, so it turns corners and stops at walls, and is written into each vertex. Street lamps are the same in all three.</p>
+
+  <div class="tabs" role="group" aria-label="Option">
+    <button id="mode-a" data-mode="a"><b>A</b>Today</button>
+    <button id="mode-b" data-mode="b"><b>B</b>Glowing panes, vertex colour</button>
+    <button id="mode-c" data-mode="c"><b>C</b>Lit rooms, clear glass</button>
+  </div>
+
+  <div class="main">
+    <div class="stage" id="stage"><div class="tag" id="tag"></div><div class="busy" id="busy">baking the voxels...</div></div>
+    <aside>
+      <h2 id="m-title"></h2>
+      <p id="m-text"></p>
+      <dl id="m-facts"></dl>
+      <div class="views" role="group" aria-label="View">
+        <button id="view-street" data-view="street">Street</button>
+        <button id="view-close" data-view="close">Under the facade</button>
+        <button id="view-across" data-view="across">From across, 6th floor</button>
+        <button id="view-high" data-view="high">From above</button>
+      </div>
+      <p class="note">Drag to orbit, scroll to zoom. 45 % of rooms lit (one hash per two-bay office). Dark rooms stay dark in C.</p>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ---------- the scene, in metres. x along the street, y up, z across (tower A at z < -8, B at z > 8) ----------
+const VOX = 0.5, X0 = -4, X1 = 64, Y0 = 0, Y1 = 38, Z0 = -24, Z1 = 24;
+const NX = Math.round((X1 - X0) / VOX), NY = Math.round((Y1 - Y0) / VOX), NZ = Math.round((Z1 - Z0) / VOX);
+const STOREY = 3.5, STOREYS = 10, BAY = 3, BAYS = 16, AX0 = 6, FACADE = -8, ROOM_BACK = -14;
+const solid = new Uint8Array(NX * NY * NZ), glassV = new Uint8Array(NX * NY * NZ);
+const idx = (i, j, k) => (k * NY + j) * NX + i;
+function fillSolid(min, max, mask = solid) { // every voxel the box overlaps
+  const i0 = Math.max(0, Math.floor((min[0] - X0) / VOX)), i1 = Math.min(NX - 1, Math.ceil((max[0] - X0) / VOX) - 1);
+  const j0 = Math.max(0, Math.floor((min[1] - Y0) / VOX)), j1 = Math.min(NY - 1, Math.ceil((max[1] - Y0) / VOX) - 1);
+  const k0 = Math.max(0, Math.floor((min[2] - Z0) / VOX)), k1 = Math.min(NZ - 1, Math.ceil((max[2] - Z0) / VOX) - 1);
+  for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) mask[idx(i, j, k)] = 1;
+}
+const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const roomLit = (s, r) => hash(s + 11, r + 3) < 0.45;
+
+// geometry: boxes whose faces are cut into cells of at most `cell` metres, so vertices can carry light
+const parts = []; // {min, max, albedo, kind, s, r}
+function box(min, max, albedo, kind, extra = {}) { parts.push({ min, max, albedo, kind, ...extra }); }
+const CONC = [0.42, 0.41, 0.4], DARKCONC = [0.25, 0.25, 0.26], FLOOR = [0.35, 0.3, 0.25], WALLIN = [0.62, 0.6, 0.55];
+// ground: street and pavements
+box([X0, -0.2, Z0], [X1, 0, Z1], [0.16, 0.16, 0.17], "ground");
+box([X0, 0, -8], [X1, 0.15, -5], [0.32, 0.31, 0.3], "ground"); box([X0, 0, 5], [X1, 0.15, 8], [0.32, 0.31, 0.3], "ground");
+// tower A
+const A1 = AX0 + BAY * BAYS;
+for (let s = 0; s <= STOREYS; s++) {
+  const y = s * STOREY;
+  box([AX0, y, -20], [A1, y + 0.3, FACADE], s === 0 ? CONC : FLOOR, "slab", { cut: 1 });
+  if (s === STOREYS) break;
+  box([AX0, y + 0.3, FACADE - 0.25], [A1, y + 1.1, FACADE], DARKCONC, "spandrel");            // sill band
+  box([AX0, y + 3.25, FACADE - 0.25], [A1, y + 3.5, FACADE], DARKCONC, "spandrel");           // head band
+  box([AX0, y + 0.3, ROOM_BACK - 0.2], [A1, y + 3.5, ROOM_BACK], WALLIN, "wall");              // back wall
+  for (let b = 0; b <= BAYS; b++) {
+    const x = AX0 + b * BAY;
+    box([x - 0.12, y + 0.3, FACADE - 0.3], [x + 0.12, y + 3.5, FACADE], DARKCONC, "mullion");
+    if (b % 2 === 0) box([x - 0.06, y + 0.3, ROOM_BACK], [x + 0.06, y + 3.5, FACADE - 0.3], WALLIN, "wall"); // office partitions, every 2 bays
+  }
+  for (let r = 0; r < BAYS / 2; r++) {
+    const x = AX0 + r * 2 * BAY, lit = roomLit(s, r);
+    for (let p = 0; p < 2; p++) {
+      const bx = x + p * BAY;
+      box([bx + 0.12, y + 1.1, FACADE - 0.05], [bx + BAY - 0.12, y + 3.25, FACADE - 0.02], [0.05, 0.06, 0.07], "glass", { s, r, lit });
+    }
+    // furniture: two desks with CRTs, a cabinet, and the ceiling fitting
+    box([x + 0.8, y + 0.3, -11.6], [x + 2.4, y + 1.05, -10.8], [0.45, 0.32, 0.2], "furn");
+    box([x + 3.6, y + 0.3, -11.6], [x + 5.2, y + 1.05, -10.8], [0.45, 0.32, 0.2], "furn");
+    box([x + 1.3, y + 1.05, -11.5], [x + 1.8, y + 1.5, -11.0], [0.7, 0.68, 0.6], "furn");
+    box([x + 4.1, y + 1.05, -11.5], [x + 4.6, y + 1.5, -11.0], [0.7, 0.68, 0.6], "furn");
+    box([x + 5.3, y + 0.3, -13.8], [x + 5.8, y + 1.6, -13.2], [0.5, 0.52, 0.5], "furn");
+    box([x + 2.2, y + 3.42, -11.8], [x + 3.8, y + 3.5, -10.8], [0.9, 0.9, 0.85], "fitting", { s, r, lit });
+  }
+}
+box([AX0, 0.3, -20], [A1, STOREYS * STOREY, ROOM_BACK - 0.2], DARKCONC, "core");
+// tower B across the street: concrete with dark punched windows
+box([4, 0, 8], [60, 26, 20], [0.48, 0.46, 0.43], "towerB");
+for (let s = 0; s < 7; s++) for (let b = 0; b < 14; b++)
+  box([5 + b * 4, s * 3.6 + 1.2, 7.94], [7.2 + b * 4, s * 3.6 + 2.9, 8], [0.06, 0.07, 0.08], "windowB");
+// street lamps
+const lamps = [];
+for (const z of [-6.2, 6.2]) for (const x of [2, 22, 42, 62]) {
+  box([x - 0.1, 0.15, z - 0.1], [x + 0.1, 9, z + 0.1], [0.2, 0.2, 0.2], "pole");
+  const zh = z < 0 ? z + 1.2 : z - 1.2;
+  box([x - 0.35, 8.9, Math.min(z, zh) - 0.2], [x + 0.35, 9.1, Math.max(z, zh) + 0.2], [0.2, 0.2, 0.2], "pole");
+  box([x - 0.3, 8.8, zh - 0.25], [x + 0.3, 8.9, zh + 0.25], [1, 0.75, 0.4], "lamphead");
+  lamps.push([x, 8.6, zh]);
+}
+
+// ---------- the voxels: solids (glass is air to light), then three channels ----------
+for (const p of parts) if (p.kind === "glass") fillSolid([p.min[0], p.min[1], p.min[2] - 0.2], [p.max[0], p.max[1], p.max[2] + 0.2], glassV);
+for (const p of parts) if (!["glass", "fitting", "lamphead", "furn", "windowB", "pole"].includes(p.kind)) fillSolid(p.min, p.max);
+function at(x, y, z) { return [Math.floor((x - X0) / VOX), Math.floor((y - Y0) / VOX), Math.floor((z - Z0) / VOX)]; }
+// Each source: geodesic distance through air (26 neighbours, chamfer steps 10/14/17 per voxel, a bucket
+// queue), light = I / (1 + (d/r0)^2), faded to zero at `range`; every source's light is summed.
+const NB = []; for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+  const m = Math.abs(dx) + Math.abs(dy) + Math.abs(dz); if (m) NB.push([dx, dy, dz, m === 1 ? 10 : m === 2 ? 14 : 17]); }
+// Crossing a pane costs light: it counts as 2 m more path, so a lit room lights its neighbours only weakly.
+const GLASS_COST = Math.round(2 / VOX * 10);
+const DIST = new Int32Array(NX * NY * NZ), STAMP = new Int32Array(NX * NY * NZ); let stamp = 0;
+function propagate(field, x, y, z, I, r0, range) {
+  const [si, sj, sk] = at(x, y, z); if (si < 0 || sj < 0 || sk < 0 || si >= NX || sj >= NY || sk >= NZ) return;
+  stamp++; const maxD = Math.round(range / VOX * 10), buckets = [];
+  const push = (o, d) => { (buckets[d] || (buckets[d] = [])).push(o); };
+  const s0 = idx(si, sj, sk); DIST[s0] = 0; STAMP[s0] = stamp; push(s0, 0);
+  for (let d = 0; d <= maxD; d++) {
+    const q = buckets[d]; if (!q) continue;
+    for (let n = 0; n < q.length; n++) {
+      const o = q[n]; if (DIST[o] !== d) continue;
+      const dm = d * VOX / 10, t = dm / r0, fade = Math.min(1, Math.max(0, (range - dm) / (range * 0.4)));
+      field[o] += I / (1 + t * t) * fade * fade * (3 - 2 * fade);
+      const i = o % NX, j = ((o / NX) | 0) % NY, k = (o / (NX * NY)) | 0;
+      for (const [dx, dy, dz, c] of NB) {
+        const ii = i + dx, jj = j + dy, kk = k + dz;
+        if (ii < 0 || jj < 0 || kk < 0 || ii >= NX || jj >= NY || kk >= NZ) continue;
+        const oo = idx(ii, jj, kk); if (solid[oo]) continue;
+        const nd = d + c + (glassV[oo] && !glassV[o] ? GLASS_COST : 0); if (nd > maxD) continue;
+        if (STAMP[oo] !== stamp || nd < DIST[oo]) { STAMP[oo] = stamp; DIST[oo] = nd; push(oo, nd); }
+      }
+    }
+    buckets[d] = null;
+  }
+}
+function sample(field, x, y, z) { // trilinear over air voxels only
+  const fx = (x - X0) / VOX - 0.5, fy = (y - Y0) / VOX - 0.5, fz = (z - Z0) / VOX - 0.5;
+  const i = Math.floor(fx), j = Math.floor(fy), k = Math.floor(fz), tx = fx - i, ty = fy - j, tz = fz - k;
+  let sum = 0, w = 0;
+  for (let c = 0; c < 8; c++) {
+    const ii = i + (c & 1), jj = j + ((c >> 1) & 1), kk = k + ((c >> 2) & 1);
+    if (ii < 0 || jj < 0 || kk < 0 || ii >= NX || jj >= NY || kk >= NZ) continue;
+    const o = idx(ii, jj, kk); if (solid[o]) continue;
+    const ww = ((c & 1) ? tx : 1 - tx) * (((c >> 1) & 1) ? ty : 1 - ty) * (((c >> 2) & 1) ? tz : 1 - tz);
+    sum += field[o] * ww; w += ww;
+  }
+  return w > 1e-4 ? sum / w : 0;
+}
+
+let LAMP, ROOM, PANE;
+function bake() {
+  const t0 = performance.now();
+  LAMP = new Float32Array(NX * NY * NZ); ROOM = new Float32Array(NX * NY * NZ); PANE = new Float32Array(NX * NY * NZ);
+  for (const [x, y, z] of lamps) propagate(LAMP, x, y - 0.3, z, 1, 3, 26);
+  for (const p of parts) {
+    if (p.kind === "fitting" && p.lit) propagate(ROOM, (p.min[0] + p.max[0]) / 2, p.min[1] - 0.3, (p.min[2] + p.max[2]) / 2, 1, 2.5, 26);
+    if (p.kind === "glass" && p.lit) propagate(PANE, (p.min[0] + p.max[0]) / 2, (p.min[1] + p.max[1]) / 2, FACADE + 0.3, 0.7, 2.5, 24);
+  }
+  return performance.now() - t0;
+}
+
+// ---------- vertex colours per option ----------
+const LAMPC = [1.0, 0.55, 0.2], ROOMC = [1.0, 0.82, 0.55], MOON = [0.32, 0.38, 0.55], MOONDIR = new THREE.Vector3(-0.3, 0.8, 0.5).normalize();
+const GAIN = { lamp: 2.6, room: 3.5, pane: 0.45, roomPoint: 3.0 }, ROOM_R0 = 2.6;
+function lightAt(mode, x, y, z, n, kind) {
+  const ox = x + n[0] * 0.3, oy = y + n[1] * 0.3, oz = z + n[2] * 0.3;
+  const moon = Math.max(0, n[0] * MOONDIR.x + n[1] * MOONDIR.y + n[2] * MOONDIR.z) * 0.06 + 0.012;
+  // Street lamp heads point down: above the head (8.6 m) a lamp throws a fifth of its light.
+  const l = sample(LAMP, ox, oy, oz) * GAIN.lamp * (oy < 8.6 ? 1 : 0.2);
+  let r = 0;
+  if (mode === "c") {
+    // Inside an office (owner, 2026-10-29: "we just need to find vertices for each window cell area, and just
+    // brighten them by distance from a point"): the room's own light point, by distance, nothing if the room
+    // is dark. Outside the tower, the voxels carry the light that leaves through the glass.
+    const rm = roomAt(ox, oy, oz);
+    if (rm) {
+      if (roomLit(rm[0], rm[1])) {
+        const fx = AX0 + rm[1] * 2 * BAY + BAY, fy = rm[0] * STOREY + 3.2, fz = -11.3;
+        const dx = fx - x, dy = fy - y, dz = fz - z, d = Math.hypot(dx, dy, dz), t = d / ROOM_R0;
+        const facing = 0.45 + 0.55 * Math.max(0, (n[0] * dx + n[1] * dy + n[2] * dz) / Math.max(d, 1e-3));
+        r = GAIN.roomPoint * facing / (1 + t * t);
+      }
+    } else r = sample(ROOM, ox, oy, oz) * GAIN.room;
+  }
+  if (mode === "b") r = sample(PANE, ox, oy, oz) * GAIN.pane;
+  return [0, 1, 2].map(c => MOON[c] * moon + LAMPC[c] * l + ROOMC[c] * r);
+}
+const tone = v => v / (1 + v);
+// The room a point is in (storey, office), or null outside tower A's offices: a dark room's own surfaces get no
+// room light, the per-room gate the game's shader applies by the room slot.
+function roomAt(x, y, z) {
+  if (z <= ROOM_BACK - 0.01 || z >= FACADE || x <= AX0 || x >= A1 || y <= 0 || y >= STOREYS * STOREY) return null;
+  return [Math.floor(y / STOREY), Math.floor((x - AX0) / (2 * BAY))];
+}
+
+function buildScene(mode) {
+  const pos = [], nor = [], col = [], gpos = [], gcol = [];
+  const glowPane = [1.0, 0.85, 0.55].map(v => v * 0.9);
+  for (const p of parts) {
+    const isGlass = p.kind === "glass";
+    if (isGlass && mode === "c") { // clear glass: a faint, dark, see-through pane
+      pushBox(p, gpos, null, gcol, () => [0.05, 0.07, 0.09]); continue;
+    }
+    pushBox(p, pos, nor, col, (x, y, z, n) => {
+      let e = null;
+      if (p.kind === "lamphead") e = [3.5, 2.4, 1.2];
+      else if (p.kind === "glass") e = p.lit ? glowPane : [0.02, 0.025, 0.03];
+      else if (p.kind === "fitting" && mode === "c" && p.lit && n[1] < 0) e = [1.6, 1.4, 1.1];
+      if (e) return e.map(tone);
+      const L = lightAt(mode, x, y, z, n, p.kind);
+      return L.map((v, c) => tone(v * p.albedo[c]));
+    });
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true })));
+  if (gpos.length) {
+    const gg = new THREE.BufferGeometry();
+    gg.setAttribute("position", new THREE.Float32BufferAttribute(gpos, 3));
+    gg.setAttribute("color", new THREE.Float32BufferAttribute(gcol, 3));
+    group.add(new THREE.Mesh(gg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.22, depthWrite: false })));
+  }
+  return group;
+}
+function pushBox(p, pos, nor, col, colour) {
+  const [a, b] = [p.min, p.max];
+  const faces = [ // [axis, sign]
+    [0, -1], [0, 1], [1, -1], [1, 1], [2, -1], [2, 1]];
+  for (const [ax, sg] of faces) {
+    const u = (ax + 1) % 3, v = (ax + 2) % 3, n = [0, 0, 0]; n[ax] = sg;
+    const fixed = sg < 0 ? a[ax] : b[ax];
+    const nu = Math.max(1, Math.ceil((b[u] - a[u]) / 0.6)), nv = Math.max(1, Math.ceil((b[v] - a[v]) / 0.6));
+    const P = (iu, iv) => { const q = [0, 0, 0]; q[ax] = fixed; q[u] = a[u] + (b[u] - a[u]) * iu / nu; q[v] = a[v] + (b[v] - a[v]) * iv / nv; return q; };
+    const C = new Map();
+    const cOf = (iu, iv) => { const key = iu * 10000 + iv; if (!C.has(key)) { const q = P(iu, iv); C.set(key, colour(q[0], q[1], q[2], n)); } return C.get(key); };
+    for (let iu = 0; iu < nu; iu++) for (let iv = 0; iv < nv; iv++) {
+      let quad = [[iu, iv], [iu + 1, iv], [iu + 1, iv + 1], [iu, iv + 1]];
+      if (sg < 0) quad = [quad[0], quad[3], quad[2], quad[1]];
+      for (const t of [0, 1, 2, 0, 2, 3]) {
+        const [cu, cv] = quad[t], q = P(cu, cv);
+        pos.push(q[0], q[1], q[2]); if (nor) nor.push(...n); col.push(...cOf(cu, cv));
+      }
+    }
+  }
+}
+
+// ---------- timing: the two ways of lighting the rooms' own vertices, interleaved ----------
+// Voxel: every lit room's light spread through the voxels, then each room vertex reads the field.
+// Point: each room vertex is brightened by its distance from its own room's light point (no voxels).
+function roomVertices() {
+  const out = [];
+  for (const p of parts) if (!["glass", "ground", "towerB", "windowB", "pole", "lamphead"].includes(p.kind))
+    pushBox(p, [], [], [], (x, y, z, n) => { const ox = x + n[0] * 0.3, oy = y + n[1] * 0.3, oz = z + n[2] * 0.3;
+      if (roomAt(ox, oy, oz)) out.push([x, y, z, n]); return [0, 0, 0]; });
+  return out;
+}
+function bench(reps = 7) {
+  const verts = roomVertices(), lit = parts.filter(p => p.kind === "fitting" && p.lit);
+  const voxel = [], point = []; let sink = 0;
+  for (let r = 0; r < reps; r++) {
+    let t = performance.now();
+    const F = new Float32Array(NX * NY * NZ);
+    for (const p of lit) propagate(F, (p.min[0] + p.max[0]) / 2, p.min[1] - 0.3, (p.min[2] + p.max[2]) / 2, 1, 2.5, 26);
+    for (const [x, y, z, n] of verts) sink += sample(F, x + n[0] * 0.3, y + n[1] * 0.3, z + n[2] * 0.3);
+    voxel.push(performance.now() - t);
+    t = performance.now();
+    for (const [x, y, z, n] of verts) {
+      const ox = x + n[0] * 0.3, oy = y + n[1] * 0.3, oz = z + n[2] * 0.3, rm = roomAt(ox, oy, oz);
+      if (!roomLit(rm[0], rm[1])) continue;
+      const fx = AX0 + rm[1] * 2 * BAY + BAY, fy = rm[0] * STOREY + 3.2, fz = -11.3;
+      const dx = fx - x, dy = fy - y, dz = fz - z, d = Math.hypot(dx, dy, dz), tt = d / ROOM_R0;
+      sink += (0.45 + 0.55 * Math.max(0, (n[0] * dx + n[1] * dy + n[2] * dz) / Math.max(d, 1e-3))) / (1 + tt * tt);
+    }
+    point.push(performance.now() - t);
+  }
+  const med = a => [...a].sort((p, q) => p - q)[a.length >> 1];
+  return { rooms: STOREYS * BAYS / 2, lit_rooms: lit.length, room_vertices: verts.length, reps,
+    voxel_ms: { median: med(voxel), min: Math.min(...voxel), max: Math.max(...voxel) },
+    point_ms: { median: med(point), min: Math.min(...point), max: Math.max(...point) }, sink: sink > 0 };
+}
+
+// ---------- three.js ----------
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = THREE.LinearEncoding;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05070d);
+const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 500);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+const VIEWS = {
+  street: { eye: [14, 1.7, 6.5], at: [28, 7, -8], label: "street, eye 1.7 m on the far pavement" },
+  close: { eye: [30, 1.7, -4.5], at: [27, 6, -12], label: "under the facade, eye 1.7 m" },
+  across: { eye: [33, 21, 7.4], at: [30, 17, -12], label: "from a 6th-floor window across the street" },
+  high: { eye: [68, 30, 0], at: [32, 5, -6], label: "from above the street end, 30 m up" },
+};
+const TEXT = {
+  a: ["A. Today", "The glass emits light by a per-window hash in the shader. The room behind it is dark and nothing outside is lit by it.",
+      [["Window light on the street", "none"], ["Room interior", "dark"], ["Glass", "emissive"], ["Cost", "1 hash per glass pixel"]]],
+  b: ["B. Glowing panes, vertex colour", "Each pane is its own glass box (dressing.rs: one per bay per storey), so a lit pane can carry its glow in its vertex colour. The bake spills that glow onto the street and the building across.",
+      [["Window light on the street", "baked"], ["Room interior", "hidden behind the glow"], ["Glass", "emissive, per pane"], ["Cost", "free per pixel; the glow switches by hour per pane"]]],
+  c: ["C. Lit rooms, clear glass", "The glass stays clear. A lit room has its ceiling fitting on; every vertex in that room is brightened by its distance from the room's light point, and a dark room's are not. The light that leaves through the glass reaches the street by the voxels.",
+      [["Window light on the street", "baked"], ["Room interior", "lit, seen through the glass"], ["Glass", "clear"], ["Cost", "free per pixel; rooms drawn within 250 m, interior mapping past"]]],
+};
+let mode = "c", view = "street", group = null;
+function setMode(m) {
+  mode = m; if (group) { scene.remove(group); group.traverse(o => o.geometry && o.geometry.dispose()); }
+  group = buildScene(m); scene.add(group);
+  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
+  const [t, x, facts] = TEXT[m];
+  document.getElementById("m-title").textContent = t; document.getElementById("m-text").textContent = x;
+  document.getElementById("m-facts").innerHTML = facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  tagLine();
+}
+function setView(v) {
+  view = v; const V = VIEWS[v];
+  camera.position.set(...V.eye); controls.target.set(...V.at); controls.update();
+  document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === v)));
+  tagLine();
+}
+function tagLine() { document.getElementById("tag").textContent = `${mode.toUpperCase()} · ${VIEWS[view].label} · 22:00`; }
+function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(stage);
+document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+setTimeout(() => {
+  const ms = bake();
+  document.getElementById("busy").hidden = true;
+  console.log(`baked ${NX}x${NY}x${NZ} voxels in ${ms.toFixed(0)} ms`);
+  const probe = (f, x, y, z) => sample(f, x, y, z).toExponential(2);
+  console.log("lamp: under head", probe(LAMP, 22, 0.3, -5), "mid street", probe(LAMP, 22, 0.3, 0), "between lamps", probe(LAMP, 12, 0.3, -5));
+  console.log("room: floor of lit room", probe(ROOM, AX0 + 3, 3.8, -11), "street at facade", probe(ROOM, 20, 0.3, -6), "tower B face 3m", probe(ROOM, 20, 3, 7.7));
+  console.log("pane: street at facade", probe(PANE, 20, 0.3, -6), "tower B face 3m", probe(PANE, 20, 3, 7.7));
+  let lit = []; for (let s = 0; s < 3; s++) for (let r = 0; r < 8; r++) if (roomLit(s, r)) lit.push(s + ":" + r); console.log("lit rooms low", lit.join(" "));
+  setMode("c"); setView("street"); resize();
+  (function loop() { renderer.render(scene, camera); requestAnimationFrame(loop); })();
+  window.MOCKUP = { setMode, setView, bench }; window.MOCKUP_READY = true;
+}, 30);
+</script>

@@ -17,8 +17,8 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
   building frames' element boxes and the ground height (tests: a voxel inside a wall is solid, one in the
   street is air, one under the ground is solid).
 - [ ] 2.2 The flood fill (section 3 of the design): every lamp's head and every facade window cell seeds its
-  channel; a summing diffusion over the 6 air neighbours, double-buffered, a fixed number of iterations, the
-  decay and the wall absorption from data (tests: light round a corner is dimmer than in sight at the same
+  channel; per source a bucket-queue Dijkstra over 26 air neighbours, `I / (1 + (d / r0)^2)` faded to the
+  range, glass 2 m of extra path, the sources summed in id order (tests: light round a corner is dimmer than in sight at the same
   distance; none reaches behind a solid wall 2 voxels thick; the same city gives the same bytes twice; source
   order does not change the result).
 - [ ] 2.3 `NightLight::at(p, n)`: trilinear in air at `p + n * sample_offset_m`, two channels, and a test against
@@ -39,6 +39,17 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
   the vertices of the meshes in that reach when it is done. Its own windows go dark at once (already so).
 - [ ] 3.5 Tier 1 shrinks to 32 real lamps within 120 m (survey N9, provisional), for moving things and glints.
 
+## 3b. Lit rooms (owner: "I dont want the glass itself to glow, I want to see the room lits")
+
+- [ ] 3.6 The glass loses its night emission (`window_light` off in `building_array.wesl` and `building_surface.wesl`)
+- [ ] 3.7 A ceiling fitting in the furniture kit for every room type, emissive when its room is lit; each room
+  vertex brightened by its distance from its room's light point when the room mesh is built (owner: "brighten
+  them by distance from a point"), gated by its room slot through `WindowLights` (tests: a dark room's vertices
+  get no light at any hour; the light falls with distance from the fitting; rooms of one flat switch together)
+- [ ] 3.8 Past 250 m the glass draws an interior-mapped room per window cell, lit by the same rule
+- [ ] 3.9 Glass is air to light in the voxels, so a room spills out of its window (test: the street in front of
+  a lit room's window is lit, the street in front of a solid wall is not)
+
 ## 4. Proof
 
 - [ ] 4.1 Headless stills (lavapipe): the 20:00 and 00:00 street and air views of
@@ -46,6 +57,12 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
 - [ ] 4.2 On the owner's machine: the bake's time per city and its memory peak, and the city at midnight before
   and after, p50, p95 and p99 (CLAUDE.md section 7).
 - [ ] 4.3 Playtest at night: walk a street, board, fly over the city.
+
+## 4b. The comparison (done)
+
+- [x] 4.4 `docs/mockups/night_light.html`: today, glowing panes in vertex colour, and lit rooms behind clear
+  glass, side by side at 22:00 with the real voxel bake, shot into `docs/screenshots/night-light/`; its
+  `bench()` timed the room light both ways (section 2a: the point is about 320 times faster)
 
 ## 5. Survey
 
