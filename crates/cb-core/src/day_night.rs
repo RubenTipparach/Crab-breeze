@@ -67,6 +67,8 @@ pub struct DayNightConfig {
     pub lamps: crate::world::lamps::LampConfig,
     /// The buildings' lit windows.
     pub windows: WindowLights,
+    /// The lit rooms behind the windows and the glass at night (`crate::night_light`).
+    pub rooms: crate::night_light::RoomLights,
 }
 
 /// The buildings' windows at night (owner, 2026-10-28: "buildings also need some sort of cell
@@ -158,6 +160,7 @@ impl Default for DayNightConfig {
             moon_disc_brightness: 1.6,
             lamps: crate::world::lamps::LampConfig::default(),
             windows: WindowLights::default(),
+            rooms: crate::night_light::RoomLights::default(),
         }
     }
 }
@@ -180,6 +183,7 @@ impl Validate for DayNightConfig {
         within("moon_disc_brightness", self.moon_disc_brightness, 0.0, 20.0)?;
         self.lamps.validate()?;
         self.windows.check()?;
+        self.rooms.check()?;
         ordered("stars_deg", self.stars_deg)
     }
 }

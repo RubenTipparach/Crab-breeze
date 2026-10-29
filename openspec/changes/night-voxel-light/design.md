@@ -86,6 +86,52 @@ Owner: "I dont want the glass itself to glow, I want to see the room lits". So:
 - **Far facade impostors** (`building-type-lods`) keep their own window layer. At that range a window is under
   a pixel, so a lit room and a lit pane look the same.
 
+## 2b. Houses and small businesses (owner, 2026-10-29: "Do the same for houses")
+
+Houses get the same night as the towers (`day-night-cycle` task 4.5 said their glass "holds zero for now").
+- **Glass.** It behaves like the tower glass: no glow, and 25 % see-through at night, gradual through dusk.
+  A house's glass material is `AlphaMode::Blend` (`small_buildings.rs`), so the same alpha curve applies to
+  its own alpha.
+- **Rooms.** A kit has no floor plan, so a house's rooms are cells:
+  - storeys of `house_storey_m` (3.0 m) from the kit's floor, cut into `house_cell_m` (4 m) squares in the
+    kit's frame;
+  - each cell has a light point under its ceiling.
+  - Only the inside surfaces take it: `plaster`, `floorWood`, `floorTile`, `carpet`, `woodInt` (the kit's
+    `NO_SHADOW` inside list) and the furniture.
+  - Outside walls, roofs and glass take none.
+- **Switching on.** A kit's meshes are shared by every lot of that kit, so the lit rule is not baked into the
+  mesh. The vertex carries its cell's index. The shader hashes that index with the drawn mesh's world origin,
+  so two lots of one kit light different rooms.
+- **A whole house switches as one** (owner, 2026-10-29: "To simplify, consider an entire house lit or unlit
+  instead of individual rooms"). Every room of a house carries the same index, so the hash depends only on the
+  lot's origin: a house is lit or dark, and so is a business, open or closed. The 4 m cells still place the
+  light points, so a lit house is brightest under each ceiling's middle.
+
+## 2c. How the room light rides on the vertex (implementation)
+
+The building and house shaders share one vertex shader (`building_state.wesl`), and every building mesh can
+carry a second UV. So the room light uses that second UV's spare half, with no new vertex layout:
+
+- `uv_b.y = cell + min(light, 3.999) / 4`:
+  - `cell` is the room's index in its mesh: a whole number below 4,096; 0 means not in a room.
+  - `light` is the room light at the vertex, `1 / (1 + (d / r0)^2)` shaped by its facing.
+  - The tower meshes already use `uv_b.x` for their texture layer, and `uv_b.y` was always 0. House and
+    furniture meshes gain a second UV for this.
+- **The vertex shader** decodes it and decides whether the room is lit: a hash of the cell and the mesh's world
+  origin, against the share lit now (`WindowLights::lit_share`). It hands on `light * lit` in `uv_b.y`.
+  - This has to be the vertex shader: an index cannot be interpolated across a triangle, but a lit light can.
+- **The fragment shaders** (`building_array.wesl`, `building_surface.wesl`) add
+  `albedo * room_colour * uv_b.y * room_cd_m2`.
+- **The room uniform** is a new `rooms: vec4` at binding 107 in both building material extensions, so the one
+  vertex shader binds it whichever material draws:
+  - x: the share lit now;
+  - y: the room light's brightness in cd/m2;
+  - z: the glass's night share, 0 by day to 1 at night.
+- **Packing in Rust.** `cb_core::night_light::{pack_room, unpack_room}` packs the second UV, and a test round-
+  trips it at the edges.
+- **Not exact.** A vertex on the line between two rooms belongs to the one its normal faces. A floor bay
+  spanning a lit and a dark room shades from one to the other across the bay.
+
 ## 2. Voxels
 
 - Each city gets an axis-aligned box: its square, plus 40 m round it, from the ground's lowest point to its

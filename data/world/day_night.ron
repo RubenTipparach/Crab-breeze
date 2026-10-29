@@ -72,4 +72,21 @@
         column_m: 2.5,
         cd_m2: 3.0,
     ),
+    // The lit rooms behind the windows (openspec/changes/night-voxel-light; owner, 2026-10-29: "I dont want the
+    // glass itself to glow, I want to see the room lits", "brighten them by distance from a point"): each room's
+    // light hangs 0.3 m under its ceiling's middle and lights the room's own surfaces by 1 / (1 + (d / 2.6 m)^2),
+    // a surface facing away still getting 45 % (the room passes it round), 3 cd/m2 at the light, warm white. A house has no
+    // floor plan: its rooms are 4 m cells of 3 m storeys. The glass shows 8 % of the room behind it by day (sky_light.ron) and
+    // 25 % at night ("25% is the ticket"), turning gradually as the sun sinks from 4 degrees up to 8 below.
+    rooms: (
+        r0_m: 2.6,
+        facing_floor: 0.45,
+        cd_m2: 3.0,
+        colour: (1.0, 0.82, 0.6),
+        below_ceiling_m: 0.3,
+        house_storey_m: 3.0,
+        house_cell_m: 4.0,
+        glass_alpha_night: 0.75,
+        glass_night_deg: (-8.0, 4.0),
+    ),
 )

@@ -39,6 +39,12 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
   the vertices of the meshes in that reach when it is done. Its own windows go dark at once (already so).
 - [ ] 3.5 Tier 1 shrinks to 32 real lamps within 120 m (survey N9, provisional), for moving things and glints.
 
+## 3c. Houses (owner: "Do the same for houses")
+
+- [ ] 3.12 Houses' glass: no glow, 25 % see-through at night through the same dusk curve
+- [ ] 3.13 Houses' inside surfaces and furniture carry the room light from 4 m cells a storey; a whole house is
+  lit or dark by a hash of its lot (owner: "consider an entire house lit or unlit"; design section 2b)
+
 ## 3b. Lit rooms (owner: "I dont want the glass itself to glow, I want to see the room lits")
 
 - [ ] 3.6 The glass loses its night emission (`window_light` off in `building_array.wesl` and `building_surface.wesl`)

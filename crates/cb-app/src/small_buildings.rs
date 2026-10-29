@@ -28,6 +28,7 @@ use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::prelude::*;
 use bevy::render::storage::ShaderBuffer;
+use cb_core::night_light::RoomLights;
 use cb_core::pilot::PilotMode;
 use cb_core::world::small_buildings::kit::Node;
 use cb_core::world::small_buildings::{HOUSE_CHUNK_BASE, Kits, Lot};
@@ -64,6 +65,9 @@ const NO_SHADOW: [&str; 10] = [
     "carpet",
     "woodInt",
 ];
+
+/// Surfaces inside a building (finishes): they carry their room's light at night (`night-voxel-light` section 2b).
+const INSIDE: [&str; 5] = ["plaster", "floorWood", "floorTile", "carpet", "woodInt"];
 
 /// The key a lot's words have in the building state buffer.
 fn state_key(lot: u32) -> u32 {
@@ -112,6 +116,8 @@ pub struct HouseKits {
     standing: Option<Handle<ShaderBuffer>>,
     /// The surfaces drawn with a texture set (their meshes need tangents).
     textured: Vec<String>,
+    /// Each glass surface's alpha by day, which night makes clearer (`light_houses`).
+    glass_day_alpha: HashMap<String, f32>,
 }
 
 /// Which furniture a building draws.
@@ -150,7 +156,7 @@ impl Plugin for SmallBuildingsPlugin {
             .add_systems(Update, bind.run_if(|k: Res<HouseKits>| !k.ready))
             .add_game_systems(
                 Update,
-                (spawn_lots, follow_state, redraw_damaged, dress, furnish, swing_leaves)
+                (spawn_lots, follow_state, redraw_damaged, dress, furnish, swing_leaves, light_houses)
                     .chain()
                     .in_set(crate::sim::PresentSet::Pose)
                     .run_if(|k: Res<HouseKits>| k.ready),
@@ -285,6 +291,7 @@ fn bind(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     states: Res<BuildingStates>,
+    data: Res<crate::sim::Data>,
 ) {
     let Some(loading) = loading else { return };
     let all = loading.kits.iter().chain(loading.furniture.iter().map(|(_, h)| h));
@@ -375,6 +382,9 @@ fn bind(
         if set.is_some() {
             textured.push(surface.clone());
         }
+        if glass {
+            kits.glass_day_alpha.insert(surface.clone(), m.base_color.alpha());
+        }
         // A textured surface: white, so the vertex colour (the paint) shows over the albedo; the maps repeat every
         // `tile_m` metres (the kit's UVs are metres). Several surfaces share a set (paint, plaster and metal are all
         // `smooth`), so the ORM map's roughness and metal are scaled to each surface's own (the set's mean times the
@@ -417,6 +427,8 @@ fn bind(
                     no_ssao: u32::from(glass),
                     // Houses' windows are not lit yet (day-night-cycle task 4.5).
                     windows: Vec4::ZERO,
+                    rooms: Vec4::ZERO,
+                    room_colour: Vec4::ZERO,
                 },
             }),
         );
@@ -434,6 +446,20 @@ fn bind(
             }
         }
     }
+    // The inside surfaces' shared LOD0 meshes carry their room cells' light, and slot 0 (always standing), so the
+    // whole house can draw them with the state material that lights rooms (`dress`).
+    let mut lit = 0;
+    for d in &draws {
+        for p in d.lod0.iter().filter(|p| INSIDE.contains(&p.surface.as_str())) {
+            if let Some(mut m) = meshes.get_mut(&p.mesh)
+                && m.attribute(Mesh::ATTRIBUTE_UV_1).is_none()
+            {
+                light_house_rooms(&mut m, &data.0.day_night.rooms);
+                lit += 1;
+            }
+        }
+    }
+    info!("small buildings: room light on {lit} inside meshes");
     info!(
         "small buildings: {} of {} surfaces textured, tangents for {tangents} meshes",
         textured.len(),
@@ -458,6 +484,8 @@ fn bind(
             standing: states.handle.clone(),
             no_ssao: 0,
             windows: Vec4::ZERO,
+            rooms: Vec4::ZERO,
+            room_colour: Vec4::ZERO,
         },
     }));
     for (name, h) in &loading.furniture {
@@ -486,6 +514,87 @@ fn follow_state(mut kits: ResMut<HouseKits>, states: Res<BuildingStates>, mut ma
     for h in kits.state.values().chain(kits.furniture_material.iter()) {
         if let Some(mut m) = materials.get_mut(h) {
             m.extension.standing = states.handle.clone();
+        }
+    }
+}
+
+/// How far in front of a surface its room cell is looked for, metres (past a partition's half-thickness).
+const ROOM_PROBE_M: f32 = 0.3;
+
+/// Every room of a house carries this one index, so a whole house is lit or dark together (owner, 2026-10-29: "consider
+/// an entire house lit or unlit instead of individual rooms"); the shader's hash of it with the lot's origin decides.
+const HOUSE_CELL: u32 = 1;
+
+/// Gives a house mesh (in its kit's frame, the floor at the lot's ground) its room light in the second UV's `y`
+/// (`cb_core::night_light`, design section 2b): lit from under the ceiling of the 4 m cell its normal faces, the
+/// whole house one switch (`HOUSE_CELL`). Its colours' alpha goes to 0 (slot 0, always standing).
+fn light_house_rooms(m: &mut Mesh, lights: &RoomLights) {
+    light_house_rooms_keep_slots(m, lights);
+    if let Some(VertexAttributeValues::Float32x4(c)) = m.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+        for c in c.iter_mut() {
+            c[3] = 0.0;
+        }
+    }
+}
+
+/// `light_house_rooms` without touching the slots (furniture carries its pieces' own).
+fn light_house_rooms_keep_slots(m: &mut Mesh, lights: &RoomLights) {
+    let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
+        (m.attribute(Mesh::ATTRIBUTE_POSITION), m.attribute(Mesh::ATTRIBUTE_NORMAL))
+    else {
+        return;
+    };
+    let uv1: Vec<[f32; 2]> = pos
+        .iter()
+        .zip(nrm)
+        .map(|(p, n)| {
+            let (p, n) = (Vec3::from(*p), Vec3::from(*n));
+            let (point, _) = lights.house_cell(p + n * ROOM_PROBE_M, 0.0);
+            [0.0, cb_core::night_light::pack_room(HOUSE_CELL, lights.light_at(p, n, point))]
+        })
+        .collect();
+    m.insert_attribute(Mesh::ATTRIBUTE_UV_1, uv1);
+}
+
+/// The houses' rooms and glass for the hour, as the towers' (`buildings::light_windows`): the inside surfaces' and
+/// the furniture's materials take the lit rooms, and the glass turns clearer through dusk.
+fn light_houses(
+    data: Res<crate::sim::Data>,
+    light: Res<crate::day_night::Light>,
+    kits: Res<HouseKits>,
+    mut state: ResMut<Assets<BuildingMaterial>>,
+    mut plain: ResMut<Assets<StandardMaterial>>,
+) {
+    let (rooms, colour, night) = crate::buildings::room_uniforms(&data.0, &light.0);
+    let lit = kits
+        .state
+        .iter()
+        .filter(|(s, _)| INSIDE.contains(&s.as_str()))
+        .map(|(_, h)| h)
+        .chain(kits.furniture_material.iter());
+    for h in lit {
+        if state
+            .get(h)
+            .is_some_and(|m| m.extension.rooms != rooms || m.extension.room_colour != colour)
+            && let Some(mut m) = state.get_mut(h)
+        {
+            m.extension.rooms = rooms;
+            m.extension.room_colour = colour;
+        }
+    }
+    for (surface, day) in &kits.glass_day_alpha {
+        let alpha = data.0.day_night.rooms.glass_alpha(*day, night);
+        if let Some(h) = kits.plain.get(surface)
+            && plain.get(h).is_some_and(|m| (m.base_color.alpha() - alpha).abs() > 1e-3)
+            && let Some(mut m) = plain.get_mut(h)
+        {
+            m.base_color.set_alpha(alpha);
+        }
+        if let Some(h) = kits.state.get(surface)
+            && state.get(h).is_some_and(|m| (m.base.base_color.alpha() - alpha).abs() > 1e-3)
+            && let Some(mut m) = state.get_mut(h)
+        {
+            m.base.base_color.set_alpha(alpha);
         }
     }
 }
@@ -659,6 +768,7 @@ fn furniture_mesh(
     meshes: &Assets<Mesh>,
     base: u32,
     real: bool,
+    lights: &RoomLights,
 ) -> Option<Mesh> {
     let mut c = Corners::new();
     if real {
@@ -714,6 +824,7 @@ fn furniture_mesh(
         return None;
     }
     let mut m = c.mesh();
+    light_house_rooms_keep_slots(&mut m, lights);
     if let Err(e) = m.generate_tangents() {
         warn!("small buildings: furniture tangents: {e}");
     }
@@ -841,14 +952,28 @@ fn dress(
             version: live.structures.houses.version(lot),
         };
         for p in &draw.lod0 {
-            let Some(m) = kits.plain.get(&p.surface) else { continue };
-            let mut e = commands.spawn((
-                Mesh3d(p.mesh.clone()),
-                MeshMaterial3d(m.clone()),
-                Transform::IDENTITY,
-                range(0.0, LOD0_M),
-                ChildOf(root),
-            ));
+            // Inside surfaces read the state material, which lights their rooms at night; their shared meshes carry
+            // slot 0, so they always stand (a damaged house redraws its own LOD0).
+            let inside = INSIDE.contains(&p.surface.as_str());
+            let mut e = if inside {
+                let Some(m) = kits.state.get(&p.surface) else { continue };
+                commands.spawn((
+                    Mesh3d(p.mesh.clone()),
+                    MeshMaterial3d(m.clone()),
+                    Transform::IDENTITY,
+                    range(0.0, LOD0_M),
+                    ChildOf(root),
+                ))
+            } else {
+                let Some(m) = kits.plain.get(&p.surface) else { continue };
+                commands.spawn((
+                    Mesh3d(p.mesh.clone()),
+                    MeshMaterial3d(m.clone()),
+                    Transform::IDENTITY,
+                    range(0.0, LOD0_M),
+                    ChildOf(root),
+                ))
+            };
             if NO_SHADOW.contains(&p.surface.as_str()) {
                 e.insert(NotShadowCaster);
             }
@@ -897,6 +1022,7 @@ fn furnish(
     mut buffers: ResMut<Assets<ShaderBuffer>>,
     mut meshes: ResMut<Assets<Mesh>>,
     camera: Query<&GlobalTransform, With<PilotCamera>>,
+    data: Res<crate::sim::Data>,
 ) {
     let Ok(eye) = camera.single() else { return };
     let Some(material) = kits.furniture_material.clone() else { return };
@@ -937,7 +1063,16 @@ fn furnish(
         let kit = lots.kit(lot);
         let base = states.base(state_key(lot), kit.pieces.len(), &mut buffers);
         let draw = &kits.kits[lots.lots[lot as usize].kit as usize];
-        let Some(mesh) = furniture_mesh(kit, &lots.kits, draw, &kits.furniture, &meshes, base, kind == Furnished::Real) else {
+        let Some(mesh) = furniture_mesh(
+            kit,
+            &lots.kits,
+            draw,
+            &kits.furniture,
+            &meshes,
+            base,
+            kind == Furnished::Real,
+            &data.0.day_night.rooms,
+        ) else {
             continue;
         };
         let e = commands
