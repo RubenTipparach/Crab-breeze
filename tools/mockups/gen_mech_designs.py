@@ -26,6 +26,15 @@ import struct
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MODELS = os.path.join(ROOT, "assets", "models")
+# CB_MECH_STAGE=<dir>: detailed mechs rebuilt there (build_mechs.py with the same variable) are shown instead of the
+# committed ones, so the owner can look at a change on the page before it reaches the game (CLAUDE.md section 4).
+STAGE = os.environ.get("CB_MECH_STAGE")
+
+
+def mech_file(name):
+    """A detailed mech's file: the staged copy when there is one, else the committed one."""
+    staged = os.path.join(STAGE, name) if STAGE else None
+    return staged if staged and os.path.exists(staged) else os.path.join(MODELS, name)
 OUT = os.path.join(ROOT, "docs", "mockups", "mech_designs.html")
 SITE = os.path.join(ROOT, "output", "mech_site")
 HUD = os.path.join(ROOT, "assets", "textures", "cockpit", "displays", "hud.png")
@@ -711,6 +720,43 @@ window.MOCKUP = {
     const h = rc.intersectObject(scene, true).find(i => !i.object.isSprite && !i.object.isPoints && !i.object.isLine && shown(i.object)); if (!h) return null;
     const path = []; for (let o = h.object; o && o !== scene; o = o.parent) if (o.name) path.push(o.name);
     const c = cur().nodes.cockpit.worldToLocal(h.point.clone()); return { path: path.slice(0, 6), y: +c.y.toFixed(2), z: +c.z.toFixed(2), d: +h.distance.toFixed(2) }; },
+  // A measurement instrument (openspec change mech-arm-clearance): the least gap, in metres, between any arm surface and
+  // any leg surface, standing (idle), walking, turning, skating and crouching, posed by the pose layer the game mirrors;
+  // 0 where they intersect. Triangle against triangle through three-mesh-bvh, which the measuring run loads into the
+  // page (window.MeshBVHLib); the page itself never needs it.
+  clearance(id) {
+    const L = window.MeshBVHLib, b = mechs[id]; if (!L || !b) return null;
+    const meshes = names => { const out = []; for (const n of names) { const o = b.nodes[n]; if (o) o.traverse(m => { if (m.isMesh && m.geometry && m.visible) out.push(m); }); } return out; };
+    const arms = meshes(["shoulder_L", "shoulder_R"]), legs = meshes(["thigh_L", "thigh_R"]);
+    const label = o => { const p = []; for (let x = o; x && x !== b.root; x = x.parent) if (x.name) p.push(x.name); return p.slice(0, 2).join(" < "); };
+    for (const l of legs) if (!l.geometry.boundsTree) l.geometry.boundsTree = new L.MeshBVH(l.geometry);
+    const m = new T.Matrix4(), sc = new T.Vector3();
+    const worst = { gap: Infinity, pose: "", arm: "", leg: "", hits: 0 };
+    const check = pose => {
+      b.root.updateMatrixWorld(true);
+      for (const l of legs) {
+        l.getWorldScale(sc); const k = (Math.abs(sc.x) + Math.abs(sc.y) + Math.abs(sc.z)) / 3;
+        const inv = new T.Matrix4().copy(l.matrixWorld).invert();
+        for (const a of arms) {
+          m.multiplyMatrices(inv, a.matrixWorld);
+          let gap;
+          if (l.geometry.boundsTree.intersectsGeometry(a.geometry, m)) { gap = 0; worst.hits++; }
+          else { const r = l.geometry.boundsTree.closestPointToGeometry(a.geometry, m, {}, {}, 0, 1.5 / k); gap = r ? r.distance * k : 1.5; }
+          if (gap < worst.gap) Object.assign(worst, { gap: +gap.toFixed(2), pose, arm: label(a), leg: label(l) });
+        }
+      }
+    };
+    const pose = (name, fn) => { const P = new Pose(); P.w = 1; fn(P); applyPose(b, P); check(name); };
+    const ph0 = b.ph;
+    pose("rest", () => {});
+    for (let t = 0; t < 10; t += 0.9) pose("idle", P => idleGeneric(P, t, b));
+    for (let i = 0; i < 16; i++) { b.ph = i / 16 * TAU; pose("walk", P => walkGeneric(P, 0, b)); pose("turn", P => turnStep(P, b)); }
+    pose("skate", P => skatePose(P, b));
+    // the game's leg solver crouches deeper than this layer's walk (skating, landing): the thighs come up toward the arms
+    for (const kk of [0.25, 0.45]) pose("crouch", P => bendLegs(P, b, kk));
+    b.ph = ph0;
+    return worst;
+  },
   state: () => ({ Tb, end: cur() && cur().timeline.end, interior: !!(cur() && cur().interior), walk: walk && { i: walk.i, done: walk.done } }),
 };
 
@@ -959,7 +1005,7 @@ def files(meta, inside):
     out = {}
     for k in ORDER:
         rel = f"mech_{k}.gltf.json"
-        as_json_gltf(os.path.join(MODELS, meta[k]["file"]), os.path.join(SITE, rel))
+        as_json_gltf(mech_file(meta[k]["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
     for m in json.load(open(os.path.join(MODELS, "mech_blockouts.json")))["mechs"] + json.load(open(os.path.join(MODELS, "mech_combat.json")))["mechs"] + \
             json.load(open(os.path.join(MODELS, "mech_crabs.json")))["mechs"]:
@@ -980,7 +1026,7 @@ def files(meta, inside):
 
 
 def main():
-    meta = json.load(open(os.path.join(MODELS, "mechs.json")))
+    meta = json.load(open(mech_file("mechs.json")))
     inside = interiors(meta)
     for key in ORDER:
         v = meta[key].get("cockpit_variant")
