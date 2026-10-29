@@ -4,7 +4,8 @@ code", "Mockups should b 3d in js").
 
     python3 tools/mockups/gen_airport.py
 
-The page itself is tools/mockups/airport_src.html. This script inlines into it the small-buildings kit (its support rule breaks every building), the civil aircraft table (`cb-tools
+The page itself is tools/mockups/airport_src.html. This script inlines into it the small-buildings kit, the building engine and the site buildings (docs/mockups: every building
+is drawn on the kit and breaks by its rule), the civil aircraft table (`cb-tools
 aircraft`, the very block-outs and freighter model the game draws) and the Foreman yardstick, through the functions
 tools/mockups/gen_civil_aircraft.py already has: one implementation of each.
 """
@@ -17,12 +18,14 @@ SRC = os.path.join(ROOT, "tools", "mockups", "airport_src.html")
 OUT = os.path.join(ROOT, "docs", "mockups", "airport.html")
 KIT = os.path.join(ROOT, "docs", "mockups", "small_buildings_kit.js")
 SITE_KIT = os.path.join(ROOT, "tools", "mockups", "site_kit.js")
+ENGINE = os.path.join(ROOT, "docs", "mockups", "building_engine.js")
+SITE_BUILDINGS = os.path.join(ROOT, "docs", "mockups", "site_buildings_kit.js")
 
 
 def main():
     with open(SRC) as f:
         page = f.read()
-    for marker in ("__AIRCRAFT__", "__YARDSTICK__", "__KIT__", "__SITE_KIT__"):
+    for marker in ("__AIRCRAFT__", "__YARDSTICK__", "__KIT__", "__ENGINE__", "__SITE_BUILDINGS__", "__SITE_KIT__"):
         if marker not in page:
             raise SystemExit(f"{SRC}: no {marker} marker")
     table = aircraft()
@@ -35,9 +38,11 @@ def main():
     # The small-buildings kit's support rule decides what stands once a building is hit: one implementation of it.
     with open(KIT) as f:
         page = page.replace("__KIT__", f.read())
-    # The site kit: the shapes and the breakable buildings, shared with the seaport page.
-    with open(SITE_KIT) as f:
-        page = page.replace("__SITE_KIT__", f.read())
+    # The building engine (the street's: textures, merged meshes, the shot, the fall, the rubble) and the airport and
+    # port buildings drawn on the kit's Builder, shared with the seaport page.
+    for marker, path in (("__ENGINE__", ENGINE), ("__SITE_BUILDINGS__", SITE_BUILDINGS), ("__SITE_KIT__", SITE_KIT)):
+        with open(path) as f:
+            page = page.replace(marker, f.read())
     with open(OUT, "w") as f:
         f.write(page)
     print(f"wrote {os.path.relpath(OUT, ROOT)} ({len(page) / 1e6:.2f} MB)")

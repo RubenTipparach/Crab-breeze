@@ -90,7 +90,7 @@ td.n { font-family: var(--mono); white-space: nowrap; }
       <button data-view="foot">On foot</button>
     </div>
     <div class="bar"><span class="lbl">Fire</span>
-      <button data-gun="5" aria-pressed="true">Cannon, 5 m</button><button data-gun="14">Missile, 14 m</button>
+      <button data-gun="cannon">Autocannon</button><button data-gun="shell" aria-pressed="true">120 mm shell</button><button data-gun="missile">Missile</button><button data-gun="demo">Demolition</button>
       <button id="repair">Repair all</button><span class="stat" id="shotstat"></span>
     </div>
     <div class="stage">
@@ -134,6 +134,12 @@ td.n { font-family: var(--mono); white-space: nowrap; }
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script>
 __KIT__
+</script>
+<script>
+__ENGINE__
+</script>
+<script>
+__SITE_BUILDINGS__
 </script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
@@ -192,6 +198,29 @@ const M = {
   pad: mat(0x5c5c56), heli: mat(0x3c6e3c),
 };
 __SITE_KIT__
+// Every building is the small-buildings kit's (owner, 2026-10-29: "Airport is not up to standard of like suburban houses"):
+// drawn by docs/mockups/site_buildings_kit.js on the kit's Builder, broken by the one engine the street uses
+// (docs/mockups/building_engine.js): pieces blown out, what is left hanging creaks and falls, a building that loses
+// half its load-bearing walls comes down, the rubble settles in piles.
+const S = window.SiteBuildings;
+const E = BuildingEngine({ THREE: T, K: window.SmallBuildings, scene, ground: () => 0.05 });
+// One building of the site kit at (x, z), turned by quarter turns (1: its front, +z, to +x), standing at y.
+function put(name, draw, x = 0, z = 0, turn = 0, y = 0) {
+  const B = new SmallBuildings.Builder(); draw(B);
+  const id = E.building({ name, base: y }); E.add(B, { x, y, z, turn, bld: id }); return id;
+}
+// A turning thing (a radar antenna) on top of a building: shown while the piece under it stands.
+let spinners = [];
+function spinOn(id, obj, rate) { spinners.push({ id, obj, rate, pid: null }); }
+function seatSpinners() {
+  for (const s of spinners) {
+    if (s.id == null) continue;
+    const p = s.obj.position; let best = null;
+    for (const pid of E.BLD[s.id].pieces) { const P = E.PIECES[pid];
+      if (p.x >= P.lo[0] - 0.5 && p.x <= P.hi[0] + 0.5 && p.z >= P.lo[2] - 0.5 && p.z <= P.hi[2] + 0.5 && P.hi[1] <= p.y + 0.5 && (!best || P.hi[1] > E.PIECES[best].hi[1])) best = pid; }
+    s.pid = best;
+  }
+}
 // Paving from p to q ([x, z]), w wide, flush with the runway.
 const pave = (g, p, q, w, m, top = TOP.taxi) => beam(g, [p[0], top - 0.31, p[1]], [q[0], top - 0.31, q[1]], w, 0.62, m, false);
 // Every flat layer has its own height, at least 3 cm from the next, so no two surfaces share a plane (CLAUDE.md
@@ -332,70 +361,32 @@ function door(k, c, n) {
   const fwd = k.length_m * 0.5 - k.length_m * 0.13;
   return [c[0] + n[0] * fwd + left[0] * (f / 2 + 0.4), 0.12 + k.rest_m - 0.5, c[1] + n[1] * fwd + left[1] * (f / 2 + 0.4)];
 }
-// A jet bridge: a rotunda on a column at the terminal's face, a telescoping tunnel in three sections down to a cab at
-// the door, the last section on a drive column with its wheels.
-function jetBridge(g, face, dr) {
-  const R = [face[0], 5.6, face[1]];
-  cyl(g, face, 0.9, 0, 4.2, M.dark);
-  cyl(g, face, 2.6, 4.2, 3.2, M.bridge);
-  const cab = [dr[0], dr[1] + 0.2, dr[2]], dir = new T.Vector3(cab[0] - R[0], cab[1] - R[1], cab[2] - R[2]);
-  const len = dir.length(); dir.normalize();
-  const pt = s => [R[0] + dir.x * s, R[1] + dir.y * s, R[2] + dir.z * s];
-  const cuts = [2.4, len * 0.42, len * 0.72, len - 2.2];
-  [[3.4, 3.2], [3.2, 3.0], [3.0, 2.8]].forEach(([w, h], i) => beam(g, pt(cuts[i]), pt(cuts[i + 1] + 0.6), w, h, M.bridge));
-  const c = pt(len - 1.2);
-  const cabMesh = beam(g, pt(len - 2.6), pt(len), 4.0, 3.4, M.clad);
-  const foot = pt(len * 0.66);
-  box(g, [foot[0] - 0.4, 0, foot[2] - 0.4], [foot[0] + 0.4, foot[1] - 1.5, foot[2] + 0.4], M.dark);
-  box(g, [foot[0] - 1.6, 0, foot[2] - 0.6], [foot[0] + 1.6, 1.1, foot[2] + 0.6], M.dark);
-  return cabMesh && c;
-}
 // A gate: the stand's lines on the apron, its aircraft and its bridge from the terminal face point `face`.
 function gate(g, k, c, n, face, labels, name) {
-  const side = [n[1], -n[0]], L = k.length_m, S = k.span_m;
+  const side = [n[1], -n[0]], L = k.length_m, span = k.span_m;
   stroke(g, [c[0] - n[0] * (L / 2 + 30), c[1] - n[1] * (L / 2 + 30)], [c[0] + n[0] * (L / 2 - 2), c[1] + n[1] * (L / 2 - 2)], 0.3, PAINT, M.yellow);
   const stop = [c[0] + n[0] * (L / 2 - 4), c[1] + n[1] * (L / 2 - 4)];
   stroke(g, [stop[0] - side[0] * 4, stop[1] - side[1] * 4], [stop[0] + side[0] * 4, stop[1] + side[1] * 4], 0.5, PAINT, M.yellow);
   // the stand's safety line, red, round the parked aircraft
-  const hw = S / 2 + 4, hl = L / 2 + 4, Pq = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]].map(([a, b]) => [c[0] + side[0] * a + n[0] * b, c[1] + side[1] * a + n[1] * b]);
+  const hw = span / 2 + 4, hl = L / 2 + 4, Pq = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]].map(([a, b]) => [c[0] + side[0] * a + n[0] * b, c[1] + side[1] * a + n[1] * b]);
   for (let i = 0; i < 4; i++) stroke(g, Pq[i], Pq[(i + 1) % 4], 0.25, PAINT_LOW, M.red);
   aircraft(g, k, c, n);
-  building("Jet bridge", () => jetBridge(g, face, door(k, c, n)));
+  // the bridge's rotunda stands 3 m out from the terminal face, on the apron side
+  put("Jet bridge", B => S.jetBridge(B, [face[0] - n[0] * 3, 0, face[1] - n[1] * 3], door(k, c, n)));
   if (name) labels.push([name, c, k.height_m + 4, "standin"]);
 }
 
 // ---------------------------------------------------------------- buildings
-function archHangar(g, x0, x1, z0, z1, wallH, rise, labels, name) { building(name || "Hangar", () => {
-  const w = x1 - x0, cx = (x0 + x1) / 2, d = z1 - z0;
-  box(g, [x0, 0, z0], [x0 + 1.5, wallH, z1], M.hangar);
-  box(g, [x1 - 1.5, 0, z0], [x1, wallH, z1], M.hangar);
-  box(g, [x0, 0, z1 - 1.5], [x1, wallH, z1], M.hangar);
-  // the arch in eight segments, each a piece resting on the walls
-  for (let s = 0; s < 8; s++) {
-    const arch = new T.Mesh(new T.CylinderGeometry(w / 2, w / 2, d / 8, 40, 1, true, -PI / 2, PI), M.hangar);
-    arch.rotation.x = -PI / 2; arch.scale.z = rise / (w / 2); arch.position.set(cx, wallH, z0 + d * (s + 0.5) / 8); arch.castShadow = arch.receiveShadow = true; g.add(arch); addPiece(arch);
-  }
-  const cap = new T.Mesh(new T.CircleGeometry(w / 2, 40, 0, PI), M.hangar);
-  cap.scale.y = rise / (w / 2); cap.position.set(cx, wallH, z1); g.add(cap); addPiece(cap);
-  // the doors, slid back to either side of the open front
-  box(g, [x0 - 0.5, 0, z0 - 2], [x0 + 18, wallH + rise * 0.3, z0 - 0.8], M.clad);
-  box(g, [x1 - 18, 0, z0 - 2], [x1 + 0.5, wallH + rise * 0.3, z0 - 0.8], M.clad);
-  stroke(g, [x0 + 2, z0 + 1], [x1 - 2, z0 + 1], 0.6, PAINT, M.yellow);
-  if (name) labels.push([name, [cx, (z0 + z1) / 2], wallH + rise + 4]);
-}); }
-function tower(g, c, h, labels) { building("Control tower", () => {
-  box(g, [c[0] - 25, 0, c[1] - 12], [c[0] + 25, 10, c[1] + 18], M.terminal);
-  cyl(g, c, 6, 0, h, M.wall, 20);
-  cyl(g, c, 11, h, 1, M.roof, 8);
-  const cab = new T.Mesh(new T.CylinderGeometry(10.5, 9, 6, 8, 1), M.glass); cab.position.set(c[0], h + 4, c[1]); g.add(cab); addPiece(cab);
-  cyl(g, c, 11.5, h + 7, 1, M.roof, 8);
-  box(g, [c[0] - 0.25, h + 8, c[1] - 0.25], [c[0] + 0.25, h + 16, c[1] + 0.25], M.wall);
-  // the aerodrome beacon: green and white, turning
-  const beacon = new T.Group(); beacon.position.set(c[0], h + 16.4, c[1]);   // seated on the mast g.add(beacon);
-  for (const [m, z] of [[M.lampGreen, 0.6], [M.lamp, -0.6]]) { const l = new T.Mesh(new T.BoxGeometry(0.8, 0.8, 1.6), m); l.position.z = z; beacon.add(l); }
-  spinners.push([beacon, 2.0]); addPiece(beacon);
+function archHangar(g, x0, x1, z0, z1, wallH, rise, labels, name) {
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  put(name || "Hangar", B => S.archHangar(B, E.M, { w: x1 - x0, d: z1 - z0, wallH, rise }), cx, cz, 2);   // its door to the apron (-z)
+  stroke(g, [x0 + 2, z0 - 3], [x1 - 2, z0 - 3], 0.6, PAINT, M.yellow);
+  if (name) labels.push([name, [cx, cz], wallH + rise + 4]);
+}
+function tower(g, c, h, labels) {
+  put("Control tower", B => S.tower(B, E.M, { h }), c[0], c[1]);
   labels.push(["Control tower, beacon", c, h + 20]);
-}); }
+}
 function windsock(g, p, d) {
   box(g, [p[0] - 0.12, 0, p[1] - 0.12], [p[0] + 0.12, 8, p[1] + 0.12], M.white);
   for (let k = 0; k < 5; k++) { const q = [p[0] + d[0] * (0.4 + k * 0.6), p[1] + d[1] * (0.4 + k * 0.6)], r = 0.5 - k * 0.06;
@@ -410,31 +401,19 @@ function helipad(g, c, labels, name) {
   for (const [x0, z0, x1, z1] of [[-3, -4.5, -3, 4.5], [3, -4.5, 3, 4.5], [-3, 0, 3, 0]]) stroke(g, [c[0] + x0, c[1] + z0], [c[0] + x1, c[1] + z1], 1, PAINT + 0.08, M.white);
   if (name) labels.push([name, c, 4]);
 }
-let spinners = [];
-
 // ---------------------------------------------------------------- the mech base (as the game draws it)
 function mechBase(g, today, labels) {
   const site = rect(MIL.x0, MIL.z0, MIL.x1, MIL.z1);
   slab(g, site, -0.5, TOP.apron, M.mil);
   const cx = (MIL.x0 + MIL.x1) / 2, pitch = HANGAR.w + HANGAR.gap, zb = MIL.z0 + HANGAR.back;
   for (let i = 0; i < 3; i++) {
-    const x = cx + (i - 1) * pitch, lo = [x - HANGAR.w / 2, zb], hi = [x + HANGAR.w / 2, zb + HANGAR.d], top = 0.12 + HANGAR.h, w = HANGAR.wall;
-    building("Mech hangar", () => {
-    box(g, [lo[0] - w, 0, lo[1]], [lo[0], top, hi[1]], M.wall);
-    box(g, [hi[0], 0, lo[1]], [hi[0] + w, top, hi[1]], M.wall);
-    box(g, [lo[0] - w, 0, lo[1] - w], [hi[0] + w, top, lo[1]], M.wall);
-    box(g, [lo[0] - w, top, lo[1] - w], [hi[0] + w, top + w, hi[1]], M.roof); });
+    const x = cx + (i - 1) * pitch, lo = [x - HANGAR.w / 2, zb], hi = [x + HANGAR.w / 2, zb + HANGAR.d], top = 0.12 + HANGAR.h;
+    put("Mech hangar", B => S.mechHangar(B, E.M, { w: HANGAR.w, d: HANGAR.d, h: top }), x, zb + HANGAR.d / 2);
     stroke(g, [lo[0], hi[1] - 0.5], [hi[0], hi[1] - 0.5], 1, 0.15, M.yellow);
   }
   for (let i = 0; i < 3; i++) outlineRect(g, rect(cx + (i - 1) * 80 - 20, MIL.z1 - 60, cx + (i - 1) * 80 + 20, MIL.z1 - 20), 1, 0.15, M.yellow);
   const t = [MIL.x1 - 40, MIL.z1 - 40];
-  building("Base tower", () => { if (today) { box(g, [t[0] - 6, 0, t[1] - 6], [t[0] + 6, 36, t[1] + 6], M.wall); box(g, [t[0] - 9, 36, t[1] - 9], [t[0] + 9, 44, t[1] + 9], M.roof); }
-  else {
-    box(g, [t[0] - 6, 0, t[1] - 6], [t[0] + 6, 30, t[1] + 6], M.wall);
-    box(g, [t[0] - 8, 30, t[1] - 8], [t[0] + 8, 31, t[1] + 8], M.roof);
-    box(g, [t[0] - 7, 31, t[1] - 7], [t[0] + 7, 36, t[1] + 7], M.glass);
-    box(g, [t[0] - 8.5, 36, t[1] - 8.5], [t[0] + 8.5, 37, t[1] + 8.5], M.roof);
-  } });
+  put(today ? "Box tower" : "Base tower", B => S.baseTower(B, E.M, { h: today ? 36 : 30, today }), t[0], t[1]);
   labels.push(["Mech hangars", [cx, zb + HANGAR.d / 2], 40]);
   labels.push([today ? "Box tower" : "Base tower", t, today ? 48 : 41, today ? "today" : ""]);
 }
@@ -475,38 +454,29 @@ function buildProposed(g, labels) {
   // ---- the civil side
   slab(g, rect(-40, 195, 920, 430), -0.5, TOP.apron, M.apron);                 // the main apron
   // Terminal 1: linear, four gates
-  building("Terminal 1", () => {
-  box(g, [0, 0, 430], [320, 16, 470], M.terminal);
-  box(g, [-4, 16, 426], [324, 17.2, 474], M.roof);
-  box(g, [2, 4, 429.9], [318, 14, 430], M.glass, false);
-  box(g, [0, 0, 470], [320, 8.5, 485], M.roof); });   // the curbside canopy
+  put("Terminal 1", B => S.terminal(B, E.M, { w: 320, d: 40, name: "Terminal 1" }), 160, 450);
   labels.push(["Terminal 1", [160, 450], 20]);
   const air = KIND("airliner");
   [40, 120, 200, 280].forEach((x, i) => gate(g, air, [x, 430 - 8 - air.length_m / 2], [0, 1], [x - 14, 430], labels, i === 1 ? "airliner" : null));
   // Terminal 2: the main hall and a pier with gates either side
-  building("Terminal 2", () => {
-  box(g, [420, 0, 440], [700, 20, 505], M.terminal);
-  box(g, [416, 20, 436], [704, 21.5, 509], M.roof);
-  box(g, [422, 5, 439.9], [698, 18, 440], M.glass, false);
-  box(g, [545, 0, 240], [575, 11, 440], M.terminal); box(g, [543, 11, 238], [577, 12, 442], M.roof);
-  box(g, [544.9, 4, 245], [545, 9, 435], M.glass, false); box(g, [575, 4, 245], [575.1, 9, 435], M.glass, false); });
+  put("Terminal 2", B => S.terminal(B, E.M, { w: 280, d: 65, name: "Terminal 2" }), 560, 472.5);
+  put("Pier", B => S.concourse(B, E.M, { w: 30, d: 200 }), 560, 340);
   labels.push(["Terminal 2", [560, 470], 24]); labels.push(["Pier", [560, 300], 14]);
   for (const z of [280, 340, 400]) {
     gate(g, air, [545 - 8 - air.length_m / 2, z], [1, 0], [545, z - 14], labels, z === 340 ? "jet bridges" : null);
     gate(g, air, [575 + 8 + air.length_m / 2, z], [-1, 0], [575, z + 14], labels, null);
   }
   // Cargo
-  building("Cargo terminal", () => { box(g, [720, 0, 335], [900, 13, 400], M.clad); box(g, [716, 13, 331], [904, 14, 404], M.roof);
-  for (let i = 0; i < 6; i++) box(g, [730 + i * 28, 0.12, 334.5], [748 + i * 28, 7, 335], M.dark, false); });
+  put("Cargo terminal", B => S.cargoShed(B, E.M, { w: 180, d: 65, name: "AIR CARGO" }), 810, 367.5, 2);
   const fr = KIND("freighter"); if (fr) { gate(g, fr, [810, 335 - 8 - fr.length_m / 2], [0, 1], [760, 335], labels, "freighter"); }
   labels.push(["Cargo terminal", [810, 370], 17]);
   // De-icing pad: a ring to stop on and two spray booms
   slab(g, rect(935, 200, 1015, 280), -0.5, TOP.apron, M.apron); ring(g, [975, 240], 30, 0.6, PAINT, M.orange);
-  for (const s of [-1, 1]) building("Spray boom", () => { box(g, [975 + s * 34 - 1.5, 0, 238], [975 + s * 34 + 1.5, 12, 242], M.yellow); beam(g, [975 + s * 34, 12, 240], [975 + s * 14, 14, 240], 1.2, 1.2, M.yellow); });
+  for (const s of [-1, 1]) put("Spray boom", B => S.sprayBoom(B), 975 + s * 34, 240, s < 0 ? 2 : 0);   // each arm over the pad
   taxi(g, [975, TAXI_Z], [975, 200], 30); labels.push(["De-icing pad", [975, 240], 16]);
   // Fuel farm: four tanks in a bund
   outlineRect(g, rect(960, 330, 1090, 440), 1.2, 0.8, M.wall);
-  for (const [x, z] of [[990, 360], [1060, 360], [990, 410], [1060, 410]]) building("Fuel tank", () => cyl(g, [x, z], 13, 0, 14, M.tank, 32));
+  for (const [x, z] of [[990, 360], [1060, 360], [990, 410], [1060, 410]]) put("Fuel tank", B => S.tank(B, { r: 13, h: 14 }), x, z);
   labels.push(["Fuel farm", [1025, 385], 18]);
   tower(g, [370, 480], 55, labels);
   // Maintenance: two arched hangars, an airliner and the freighter inside
@@ -518,24 +488,24 @@ function buildProposed(g, labels) {
   slab(g, rect(-360, 195, -200, 330), -0.5, TOP.apron, M.apron);
   const heli = AIR.kinds.find(k => k.role === "Helicopter");
   [[-330, 232], [-280, 232], [-230, 232]].forEach((c, i) => { helipad(g, c, labels, i === 1 ? "Helipads" : null); if (heli && i !== 1) aircraft(g, heli, c, [0, -1]); });
-  building("Helicopter hangar", () => { box(g, [-350, 0, 280], [-250, 10, 322], M.clad); box(g, [-352, 10, 278], [-248, 11, 324], M.roof); box(g, [-340, 0.12, 279.6], [-260, 8, 280], M.dark, false); });
+  put("Helicopter hangar", B => S.cargoShed(B, E.M, { w: 100, d: 42, h: 10, doorH: 8 }), -300, 301, 2);
   labels.push(["Helicopter hangar", [-300, 300], 13]); if (heli) labels.push(["helicopter", [-330, 232], 6, "standin"]);
   // General aviation: two rows of T-hangars and light aircraft on their apron
   slab(g, rect(-1000, 195, -680, 340), -0.5, TOP.apron, M.apron);
-  for (const z0 of [262, 300]) building("T-hangars", () => { box(g, [-990, 0, z0], [-700, 5, z0 + 24], M.clad); box(g, [-992, 5, z0 - 1], [-698, 5.6, z0 + 25], M.roof);
-    for (let i = 0; i < 24; i++) box(g, [-988 + i * 12, 0.12, z0 - 0.1], [-979 + i * 12, 4, z0], M.dark, false); });
+  for (const z0 of [262, 300]) put("T-hangars", B => S.tHangars(B, E.M, { w: 290 }), -845, z0 + 12, 2);
   const lp = KIND("light_plane"); for (let i = 0; i < 6; i++) aircraft(g, lp, [-960 + i * 45, 225], [0, 1]);
   labels.push(["T-hangars", [-845, 290], 8]); if (lp) labels.push(["light planes", [-870, 225], 5, "standin"]);
   // ---- landside: the road, the curbs, car parks, the radar
   pave(g, [-200, 527], [1100, 527], 24, M.road); stroke(g, [-200, 527], [1100, 527], 0.25, PAINT, M.white);
-  building("Multi-storey car park", () => { for (let k = 0; k < 4; k++) { const y = k * 4; box(g, [40, y, 560], [280, y + 0.5, 640], M.wall, k === 3); if (k) for (let x = 40; x <= 280; x += 20) for (let z = 560; z <= 640; z += 20) box(g, [Math.max(40, x - 0.6), y - 3.5, Math.max(560, z - 0.6)], [Math.min(280, x + 0.6), y, Math.min(640, z + 0.6)], M.wall); } });
+  put("Multi-storey car park", B => S.carPark(B, E.M, { w: 240, d: 80 }, SmallBuildings.mulberry(5)), 160, 600);
   labels.push(["Multi-storey car park", [160, 600], 16]);
   const lot = rect(420, 560, 700, 640); slab(g, lot, -0.5, 0.14, M.asphalt);
   for (let x = 424; x <= 696; x += 2.5) for (const [z0, z1] of [[562, 567], [588, 593], [607, 612], [633, 638]]) stroke(g, [x, z0], [x, z1], 0.12, 0.2, M.white);
   labels.push(["Car park", [560, 600], 3]);
-  building("Radar", () => { box(g, [-102, 0, 598], [-98, 22, 602], M.fence);
-  const radar = new T.Group(); radar.position.set(-100, 23, 600); g.add(radar);
-  radar.add(new T.Mesh(new T.BoxGeometry(14, 4, 1), M.white)); spinners.push([radar, 1.2]); addPiece(radar); });
+  const radarId = put("Radar", B => S.radarMast(B), -100, 600);
+  const radar = new T.Group(); radar.position.set(-100, 23.6, 600); g.add(radar);
+  const ant = new T.Mesh(new T.BoxGeometry(14, 4, 1), M.white); ant.position.y = 2; ant.castShadow = true; radar.add(ant);
+  radar.add(new T.Mesh(new T.CylinderGeometry(0.6, 0.6, 1.2, 10), M.dark)); spinOn(radarId, radar, 1.2);
   labels.push(["Surveillance radar", [-100, 600], 28]);
 
   // ---- the military side: the mech base, its link and hold, dispersal pans, the readiness platform, the fire station
@@ -546,8 +516,7 @@ function buildProposed(g, labels) {
   labels.push(["Dispersal hard standings", [1070, -520], 6]);
   slab(g, rect(880, -125, 990, -45), -0.5, TOP.apron, M.mil); link(g, [960, -main.w2], [960, -45], [1, 0], null);
   labels.push(["Operational readiness platform", [935, -85], 5]);
-  building("Fire station", () => { box(g, [-60, 0, -165], [20, 9, -125], M.terminal);
-  for (let i = 0; i < 4; i++) box(g, [-56 + i * 19, 0.12, -125], [-42 + i * 19, 6.5, -124.9], M.red, false); });
+  put("Fire station", B => S.fireStation(B, E.M), -22, -145);
   link(g, [-20, -main.w2], [-20, -125], [1, 0], null, 18); labels.push(["Fire station", [-20, -145], 12]);
   // ---- the fence, outside the landside road kept clear
   const F = [[-1150, -840], [1150, -840], [1150, 508], [-1150, 508]], posts = [];
@@ -577,15 +546,16 @@ loader.parse(glbBytes(YARD.glb), "", gltf => {
 box(yardG, [FOREMAN[0] - 18.5, 0.12, FOREMAN[1] - 0.25], [FOREMAN[0] - 18, 1.92, FOREMAN[1] + 0.25], M.pilot);
 
 // ---------------------------------------------------------------- scene state, labels, views
-let show = "proposed", built = null, labels = [], labelReach = null, gun = 5;
+let show = "proposed", built = null, labels = [], labelReach = null, gun = "shell";
 const statEl = document.getElementById("shotstat");
 controls.addEventListener("start", () => { labelReach = null; });
 const tagsEl = document.getElementById("tags");
 function rebuild() {
   if (built) { scene.remove(built); built.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   built = new T.Group(); scene.add(built); labels = []; spinners = []; tagsEl.innerHTML = "";
-  BUILDINGS = []; targets = []; fallers = []; bits = []; statEl.textContent = "";
+  E.clear(); statEl.textContent = "";
   if (show === "today") buildToday(built, labels); else buildProposed(built, labels);
+  E.finish(); seatSpinners();
   labels.push(["Foreman, 24 m", FOREMAN, 26]);
   for (const l of labels) { const el = document.createElement("div"); el.className = "tag " + (l[3] || ""); el.textContent = l[0]; tagsEl.appendChild(el); l.el = el; }
   document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
@@ -612,12 +582,12 @@ function view(name) {
 }
 document.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { show = b.dataset.show; rebuild(); });
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.dataset.view));
-document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = +b.dataset.gun;
+document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = b.dataset.gun;
   document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
-document.getElementById("repair").onclick = () => rebuild();
-bindFire(canvas, camera, () => gun);
-window.MOCKUP = { view, blast: (x, y, z, r) => blast(V(x, y, z), r), repair: rebuild,
-  buildings: () => BUILDINGS.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.alive.filter(Boolean).length, anchored: B.anchored })) };
+document.getElementById("repair").onclick = () => { E.reset(); statEl.textContent = ""; };
+E.bindFire(canvas, camera, () => gun);
+window.MOCKUP = { view, blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), unheld: () => E.unheld(), engine: E,
+  buildings: () => E.BLD.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.pieces.filter(p => E.PIECES[p].alive).length, collapsed: B.collapsed })) };
 canvas.addEventListener("keydown", e => {
   const s = 0.05, sph = new T.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
   if (e.key === "ArrowLeft") sph.theta -= s; else if (e.key === "ArrowRight") sph.theta += s;
@@ -647,8 +617,9 @@ const tmp = new T.Vector3();
 let last = 0;
 function frame(ms) {
   const dt = Math.min(0.05, (ms - last) / 1000 || 0); last = ms;
-  for (const [o, rate] of spinners) o.rotation.y += dt * rate;
-  stepBreakage(dt);
+  for (const s of spinners) { s.obj.rotation.y += dt * s.rate; if (s.pid != null) s.obj.visible = E.PIECES[s.pid].alive; }
+  E.step(dt);
+  if (E.FALLING.length || statEl.textContent) { let gone = 0; for (const P of E.PIECES) if (!P.alive) gone++; statEl.textContent = gone ? `${gone} pieces down, ${E.FALLING.length} falling` : ""; }
   resize(); controls.update(); renderer.render(scene, camera);
   const w = canvas.clientWidth, h = canvas.clientHeight;
   const reach = labelReach ?? Math.max(400, 2.2 * camera.position.distanceTo(controls.target));

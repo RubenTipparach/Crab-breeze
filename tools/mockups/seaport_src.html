@@ -88,7 +88,7 @@ td.n { font-family: var(--mono); white-space: nowrap; }
       <button data-view="cockpit">From the cockpit</button><button data-view="foot">On foot</button>
     </div>
     <div class="bar"><span class="lbl">Fire</span>
-      <button data-gun="5" aria-pressed="true">Cannon, 5 m</button><button data-gun="14">Missile, 14 m</button>
+      <button data-gun="cannon">Autocannon</button><button data-gun="shell" aria-pressed="true">120 mm shell</button><button data-gun="missile">Missile</button><button data-gun="demo">Demolition</button>
       <button id="repair">Repair all</button><span class="stat" id="shotstat"></span>
     </div>
     <div class="stage">
@@ -131,6 +131,12 @@ td.n { font-family: var(--mono); white-space: nowrap; }
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script>
 __KIT__
+</script>
+<script>
+__ENGINE__
+</script>
+<script>
+__SITE_BUILDINGS__
 </script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
@@ -193,6 +199,29 @@ const M = {
 };
 
 __SITE_KIT__
+// Everything built breaks (owner, 2026-10-29: "Make sure everything in seaport follow destructible rule", "Including
+// boats"): the buildings, cranes, stacks, jetties, pontoons, lights, buoys, fenders and bollards are the small-buildings
+// kit's (docs/mockups/site_buildings_kit.js); the ships and the luffing cranes are their glb models cut into 6 m cells
+// (BuildingEngine.fromObject); one engine breaks them all (docs/mockups/building_engine.js), the street's. A ship that
+// loses 40% of its hull goes down, its pieces sinking slowly through the water to the seabed.
+const S = window.SiteBuildings, K = window.SmallBuildings;
+// Where rubble comes to rest: the deck on land and quays, the dock floor in the dry dock, else the seabed.
+let GROUNDS = [];
+function groundAt(x, z) {
+  if (x > DOCK.x0 && x < DOCK.x1 && z > DOCK.z0 && z < 0 && show === "proposed") return DOCK.floor;
+  if (z < 0) return DECK;
+  for (const r of GROUNDS) if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return DECK;
+  return BED;
+}
+const E = BuildingEngine({ THREE: T, K: window.SmallBuildings, scene, ground: groundAt, waterY: 0 });
+// One built thing of the site kit at (x, z), turned by quarter turns (1: its front, +z, to +x), drawn from y; info
+// overrides the building's own (base: where its ground floor stands, else y; anchorBuilt; collapse).
+function put(name, draw, x = 0, z = 0, turn = 0, y = DECK, info = {}) {
+  const B = new SmallBuildings.Builder(); draw(B);
+  const id = E.building(Object.assign({ name, base: y }, info)); E.add(B, { x, y, z, turn, bld: id }); return id;
+}
+// A ship sinks once it has lost 40% of its hull below 4 m over its keel.
+const SINKS = { test: (P, r) => r.lo[1] < 4, frac: 0.6 };
 
 // ---------------------------------------------------------------- the ground and the water
 // A breakwater: a rubble mound from the seabed (50 m wide) to a 12 m crest 6 m over the water, with a concrete crown wall
@@ -204,7 +233,8 @@ function mound(g, p, q, seaLeft) {
   mesh.position.set(p[0], 0, p[1]); mesh.rotation.y = Math.atan2(q[0] - p[0], q[1] - p[1]);
   mesh.castShadow = mesh.receiveShadow = true; g.add(mesh);
   const d = [(q[0] - p[0]) / len, (q[1] - p[1]) / len], left = [d[1], -d[0]], s = seaLeft ? 1 : -1;
-  beam(g, [p[0] + left[0] * 4 * s, 7.5, p[1] + left[1] * 4 * s], [q[0] + left[0] * 4 * s, 7.5, q[1] + left[1] * 4 * s], 3, 3, M.crown);
+  const a = [p[0] + left[0] * 4 * s, p[1] + left[1] * 4 * s], b = [q[0] + left[0] * 4 * s, q[1] + left[1] * 4 * s];
+  put("Crown wall", B => { B.color(0xa7a49b); S.run(B, "concrete", Math.min(a[0], b[0]) - 1.5, 6, Math.min(a[1], b[1]) - 1.5, Math.max(a[0], b[0]) + 1.5, 9, Math.max(a[1], b[1]) + 1.5, 10); }, 0, 0, 0, 0, { base: 6 });
 }
 function land(g, dock) {
   const L = (x0, z0, x1, z1) => box(g, [x0, BED, z0], [x1, DECK, z1], M.ground, false);
@@ -220,13 +250,9 @@ function land(g, dock) {
 // A quay: reclaimed ground out to its wall, from the seabed to the deck, with fenders and bollards along its sea faces.
 function quay(g, x0, z0, x1, z1, faces = "s") {
   box(g, [x0, BED, z0], [x1, DECK, z1], M.quay, false);
+  GROUNDS.push([x0, z0, x1, z1]);
   const edge = (p, q, out) => {
-    const len = Math.hypot(q[0] - p[0], q[1] - p[1]), d = [(q[0] - p[0]) / len, (q[1] - p[1]) / len];
-    for (let s = 6; s < len - 3; s += 12) {
-      const c = [p[0] + d[0] * s + out[0] * 0.4, p[1] + d[1] * s + out[1] * 0.4];
-      box(g, [c[0] - 0.4 - Math.abs(d[0]) * 1.2, -1.5, c[1] - 0.4 - Math.abs(d[1]) * 1.2], [c[0] + 0.4 + Math.abs(d[0]) * 1.2, DECK - 0.3, c[1] + 0.4 + Math.abs(d[1]) * 1.2], M.fender);
-      if ((s / 12 | 0) % 2 === 0) cyl(g, [p[0] + d[0] * s - out[0] * 1.2, p[1] + d[1] * s - out[1] * 1.2], 0.35, DECK, 0.8, M.bollard, 10);
-    }
+    put("Fenders and bollards", B => S.quayEdge(B, p, q, out, DECK), 0, 0, 0, 0, { base: -1.5, anchorBuilt: true });
     strokeAt(g, [p[0] - out[0] * 2.5, p[1] - out[1] * 2.5], [q[0] - out[0] * 2.5, q[1] - out[1] * 2.5], 0.2, TOP.yard + 0.03, M.yellow);
   };
   if (faces.includes("s")) edge([x0, z1], [x1, z1], [0, 1]);
@@ -244,85 +270,61 @@ const loader = new T.GLTFLoader();
 const glbBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
 let pending = 1;
 const loaded = () => { if (--pending <= 0) document.getElementById("ready").style.display = "inline"; };
-// A model from the harbours change, its bow along `heading` ([x, z]); `y` lifts it (the waterline is its origin).
-function model(g, id, c, heading, y = 0, after) {
+// A model from the harbours change, its bow along `heading` ([x, z]); `y` lifts it (the waterline is its origin). Once
+// loaded it is cut into 6 m cells by the engine and breaks like a building (`info`: its name, collapse rule).
+let gen = 0, modelsLeft = 0;
+const holder = new T.Group(); scene.add(holder);
+function model(g, id, c, heading, y = 0, info = {}) {
   const B = BOATS[id]; if (!B) return;
-  const root = new T.Group(); root.position.set(c[0], y, c[1]); root.rotation.y = Math.atan2(heading[0], heading[1]); g.add(root);
-  pending++;
+  const my = gen; modelsLeft++; pending++;
+  const done = () => { loaded(); if (--modelsLeft === 0 && my === gen) finishSite(); };
   loader.parse(glbBytes(B.glb), "", gltf => {
-    gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
-    root.add(gltf.scene); if (after) after(root); loaded();
-  }, loaded);
-  return root;
+    if (my !== gen) { done(); return; }
+    const root = new T.Group(); root.position.set(c[0], y, c[1]); root.rotation.y = Math.atan2(heading[0], heading[1]);
+    root.add(gltf.scene); holder.add(root);
+    const surface = m => { const n = (m.material && m.material.name) || ""; return n === "GLASS" ? "glassDark" : /METAL|YELLOW|BLACK/.test(n) ? "metal" : "paint"; };
+    const Bm = E.fromObject(holder, 6, { surface }); holder.remove(root);
+    const lo = E.boundsOf(Bm).lo[1];
+    const bid = E.building(Object.assign({ name: id, base: lo, anchorBuilt: true }, info));
+    E.add(Bm, { bld: bid });
+    done();
+  }, done);
 }
-// A luffing crane (the harbours change's model), its jib out over the water along `out`, breakable as one piece.
-function luffing(g, c, out) {
-  model(g, "crane", c, [-out[0], -out[1]], DECK, root => { if (!built.children.includes(g) && g !== built) return; building("Luffing crane", () => addPiece(root), DECK); });
-}
-// A tug: a block-out stand-in (no model yet), 28 x 9 m.
+// A luffing crane (the harbours change's model), its jib out over the water along `out`.
+function luffing(g, c, out) { model(g, "crane", c, [-out[0], -out[1]], DECK, { name: "Luffing crane" }); }
+const ship = (g, id, c, heading, y = 0) => model(g, id, c, heading, y, { name: id, collapse: SINKS });
+// A tug: the kit's block-out stand-in (no model yet), 28 x 9 m.
 function tug(g, c, heading, labels, name) {
-  const root = new T.Group(); root.position.set(c[0], 0, c[1]); root.rotation.y = Math.atan2(heading[0], heading[1]); g.add(root);
-  box(root, [-4.5, -3.5, -14], [4.5, 2.2, 14], M.dark); box(root, [-4.6, 2.2, -14], [4.6, 2.6, 14], M.red);
-  box(root, [-3.5, 2.6, -2], [3.5, 7.5, 6], M.white); box(root, [-3.6, 6, -2.1], [3.6, 7, 6.1], M.glass);
-  cyl(root, [0, -4], 0.9, 2.6, 7, M.orange, 12);
+  put("Tug", B => S.tug(B), c[0], c[1], heading[0] > 0 ? 1 : heading[0] < 0 ? 3 : heading[1] < 0 ? 2 : 0, 0, { base: -3.5, collapse: { test: (P, r) => r.lo[1] < 2, frac: 0.6 } });
   if (name) labels.push([name, c, 10, "standin"]);
 }
 
 // ---------------------------------------------------------------- buildings
+// A shed, a warehouse or an office from its footprint: clad halls get roll doors to the front (+z, or +x when it runs
+// along z), offices are block or brick with windows round.
 function shed(g, name, x0, z0, x1, z1, h, m, labels, label) {
-  building(name, () => { box(g, [x0, DECK, z0], [x1, DECK + h, z1], m); box(g, [x0 - 1, DECK + h, z0 - 1], [x1 + 1, DECK + h + 1, z1 + 1], M.roof); }, DECK);
-  if (label) labels.push([label, [(x0 + x1) / 2, (z0 + z1) / 2], h + 6]);
+  const along = z1 - z0 > x1 - x0, w = along ? z1 - z0 : x1 - x0, d = along ? x1 - x0 : z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const office = m === M.brick || m === M.white;
+  put(name, B => office ? S.hut(B, E.M, { w, d, h: h + 0.15, wall: m === M.brick ? "brick" : "stucco", tint: 0xffffff, name: label && label.length < 16 ? label.toUpperCase() : null })
+    : S.cargoShed(B, E.M, { w, d, h, tint: m === M.clad ? 0x9aa4ad : 0x8d8a7c, doorH: Math.min(6, h - 2) }), cx, cz, along ? 1 : 0);
+  if (label) labels.push([label, [cx, cz], h + 6]);
 }
-// A ship-to-shore gantry of the 1980s: legs on two rails 30 m apart, its girder 42 m up running out over the ship as the
-// boom, the machinery house on the back reach, the A-frame and its stays, the trolley and its cab.
 function gantry(g, x, zLand, zSea, labels, name) {
-  building("Container gantry", () => {
-    for (const z of [zLand, zSea]) for (const s of [-1, 1]) box(g, [x + s * 9 - 1, DECK, z - 1], [x + s * 9 + 1, DECK + 40, z + 1], M.orange);
-    for (const z of [zLand, zSea]) box(g, [x - 10, DECK + 40, z - 1.5], [x + 10, DECK + 43, z + 1.5], M.orange);
-    for (const s of [-1, 1]) box(g, [x + s * 9 - 1, DECK + 10, zLand], [x + s * 9 + 1, DECK + 12, zSea], M.orange);
-    for (const s of [-1, 1]) beam(g, [x + s * 4, DECK + 44.5, zLand - 25], [x + s * 4, DECK + 44.5, zSea + 55], 2.2, 3, M.orange);
-    box(g, [x - 6, DECK + 46, zLand - 24], [x + 6, DECK + 53, zLand - 8], M.white);
-    for (const s of [-1, 1]) { beam(g, [x + s * 4, DECK + 46, zLand], [x, DECK + 70, (zLand + zSea) / 2], 1.2, 1.2, M.orange);
-      beam(g, [x + s * 4, DECK + 46, zSea], [x, DECK + 70, (zLand + zSea) / 2], 1.2, 1.2, M.orange);
-      beam(g, [x, DECK + 70, (zLand + zSea) / 2], [x + s * 4, DECK + 46, zSea + 50], 0.5, 0.5, M.steel); }
-    // the cab hangs from the boom on its hanger, which spans both boom beams (one 6 m piece, held beside them)
-    box(g, [x - 2.92, DECK + 40, zSea + 20.6], [x + 2.92, DECK + 46, zSea + 21.4], M.steel);
-    box(g, [x - 3, DECK + 38, zSea + 18], [x + 3, DECK + 43, zSea + 20.6], M.white); box(g, [x - 3, DECK + 38, zSea + 21.4], [x + 3, DECK + 43, zSea + 24], M.white);
-  }, DECK);
+  put("Container gantry", B => S.gantry(B, { gauge: zSea - zLand }), x, zLand);
   if (name) labels.push([name, [x, zSea + 20], 74]);
 }
-// A straddle carrier: four legs and a frame over one row of containers, 14 m tall.
-function straddle(g, c) {
-  building("Straddle carrier", () => {
-    for (const sx of [-1.9, 1.9]) for (const sz of [-4.5, 4.5]) box(g, [c[0] + sx - 0.3, DECK, c[1] + sz - 0.3], [c[0] + sx + 0.3, DECK + 13, c[1] + sz + 0.3], M.yellow);
-    box(g, [c[0] - 2.2, DECK + 13, c[1] - 5], [c[0] + 2.2, DECK + 14.2, c[1] + 5], M.yellow);
-    box(g, [c[0] - 1.2, DECK + 14.2, c[1] - 4.5], [c[0] + 1.2, DECK + 16.4, c[1] - 1.5], M.glass);
-  }, DECK);
-}
-// A stack block in the container yard: `cols` x `rows` stacks of 40 ft boxes, 1 to 4 high, colours and heights seeded.
-function stackBlock(g, x0, z0, cols, rows, rnd) {
-  building("Container stack", () => {
-    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
-      const h = 1 + Math.floor(rnd() * 4), x = x0 + i * 12.6, z = z0 + j * 2.9;
-      for (let k = 0; k < h; k++) box(g, [x, DECK + k * 2.6 + 0.05, z], [x + 12.2, DECK + (k + 1) * 2.6 + 0.05, z + 2.6], M.boxes[Math.floor(rnd() * M.boxes.length)]);
-    }
-  }, DECK + 0.05);
-}
+function straddle(g, c) { put("Straddle carrier", B => S.straddle(B), c[0], c[1]); }
+function stackBlock(g, x0, z0, cols, rows, rnd) { put("Container stack", B => S.stackBlock(B, { cols, rows }, rnd), x0, z0, 0, DECK + 0.05); }
 function lightTower(g, c, lamp, name, labels) {
-  building(name, () => { cyl(g, c, 2.5, 6, 12, M.white, 12); cyl(g, c, 2.6, 9, 3, lamp === M.lampRed ? M.red : M.green, 12);
-    cyl(g, c, 1.4, 18, 2, lamp, 12); }, 6);
+  put(name, B => S.lightTower(B, { red: lamp === M.lampRed }), c[0], c[1], 0, 6);
   labels.push([name, c, 24]);
 }
-function buoy(g, c, red) {
-  const b = new T.Group(); b.position.set(c[0], 0, c[1]); g.add(b);
-  const body = new T.Mesh(new T.CylinderGeometry(1.2, 1.6, 3, 10), red ? M.red : M.green); body.position.y = 0.5; b.add(body);
-  const top = new T.Mesh(red ? new T.CylinderGeometry(0.6, 0.6, 1.2, 8) : new T.ConeGeometry(0.8, 1.4, 8), red ? M.red : M.green); top.position.y = 2.7; b.add(top);
-  const l = new T.Mesh(new T.SphereGeometry(0.35, 8, 6), red ? M.lampRed : M.lampGreen); l.position.y = 3.6; b.add(l);
-}
+function buoy(g, c, red) { put("Buoy", B => S.buoy(B, { red }), c[0], c[1], 0, 0); }
 function tankFarm(g, labels) {
-  for (const [x, z] of [[150, -230], [210, -230], [270, -230], [150, -150], [210, -150], [270, -150]]) building("Oil tank", () => cyl(g, [x, z], 22, DECK, 18, M.tank, 32), DECK);
-  for (const z of [-270, -190, -110]) { box(g, [115, DECK, z - 0.6], [305, DECK + 1.8, z + 0.6], M.crown); }
-  for (const x of [115, 305]) box(g, [x - 0.6, DECK, -270], [x + 0.6, DECK + 1.8, -110], M.crown);
+  for (const [x, z] of [[150, -230], [210, -230], [270, -230], [150, -150], [210, -150], [270, -150]]) put("Oil tank", B => S.tank(B, { r: 22, h: 18, seg: 24 }), x, z);
+  put("Bund walls", B => { B.color(0xa7a49b);
+    for (const z of [-270, -190, -110]) S.run(B, "concrete", 115, 0, z - 0.6, 305, 1.8, z + 0.6, 10);
+    for (const x of [115, 305]) S.run(B, "concrete", x - 0.6, 0, -269.4, x + 0.6, 1.8, -110.6, 10); });
   labels.push(["Tank farm", [210, -190], 26]);
 }
 
@@ -338,8 +340,8 @@ function buildProposed(g, labels) {
   labels.push(["West breakwater", [-500, HEAD_Z], 10]); labels.push(["Entrance, 190 m", [(ENTRANCE[0] + ENTRANCE[1]) / 2, HEAD_Z], 4]);
   for (let z = 800; z <= 1700; z += 300) { buoy(g, [365, z], true); buoy(g, [485, z], false); }
   labels.push(["Channel buoys", [425, 1100], 8]);
-  for (const [z, h] of [[-60, 18], [-260, 32]]) building("Leading light", () => { box(g, [424, DECK, z - 1], [426, DECK + h, z + 1], M.white);
-    box(g, [423, DECK + h, z - 2], [427, DECK + h + 3, z + 2], M.orange); }, DECK);
+  for (const [z, h] of [[-60, 18], [-260, 32]]) put("Leading light", B => { B.color(0xe8e8e2); S.column(B, "stucco", 0, 0, 1, 0, h, 10, 6);
+    B.color(0xf06a12); B.box("paint", -0.5, h, -2, 0.5, h + 3, 2); B.color(0xffffff); B.box("lamp", -0.3, h + 3, -0.3, 0.3, h + 3.6, 0.3); }, 425, z);
   labels.push(["Leading lights", [425, -160], 40]);
 
   // ---- the container terminal
@@ -349,7 +351,7 @@ function buildProposed(g, labels) {
   for (const x of [-840, -700, -560]) straddle(g, [x, 116]);
   for (const z of [128, 156]) rails(g, [-898, z], [-422, z]);
   [-760, -660, -560].forEach((x, i) => gantry(g, x, 128, 156, labels, i === 1 ? "Ship-to-shore gantries" : null));
-  model(g, "freighter", [-660, 170], [1, 0]);
+  ship(g, "freighter", [-660, 170], [1, 0]);
   labels.push(["Container terminal", [-660, 60], 18]); labels.push(["container ship", [-600, 170], 24, "standin"]);
   rails(g, [-430, -40], [-880, -40]); rails(g, [-430, -40], [-200, -300]);
 
@@ -358,38 +360,39 @@ function buildProposed(g, labels) {
   shed(g, "Transit shed", -342, 30, -298, 270, 12, M.shed, labels, "Transit shed");
   for (const x of [-353, -287]) rails(g, [x, 10], [x, 290]);
   for (const z of [90, 200]) { luffing(g, [-350, z], [-1, 0]); luffing(g, [-290, z], [1, 0]); }
-  model(g, "freighter", [-370, 160], [0, 1]); model(g, "freighter", [-270, 170], [0, -1]);
+  ship(g, "freighter", [-370, 160], [0, 1]); ship(g, "freighter", [-270, 170], [0, -1]);
   labels.push(["General cargo pier", [-320, 290], 8]); labels.push(["luffing cranes", [-290, 200], 58, "standin"]);
 
   // ---- the ferry terminal: quay, linkspan, terminal, marshalling lanes
   quay(g, -200, 0, -40, 120, "s");
-  building("Ferry terminal", () => { box(g, [-190, DECK, 8], [-110, DECK + 10, 40], M.terminal); box(g, [-192, DECK + 10, 6], [-108, DECK + 11, 42], M.roof);
-    box(g, [-189, DECK + 3, 40], [-111, DECK + 9, 40.1], M.glass, false); }, DECK);
-  for (let k = 0; k < 6; k++) { strokeAt(g, [-100 + k * 10, 50], [-100 + k * 10, 108], 0.25, TOP.paint, M.white);
-    for (let c = 0; c < 6; c++) box(g, [-97 + k * 10, DECK, 55 + c * 9], [-93 + k * 10, DECK + 1.5, 59.5 + c * 9], M.boxes[(k + c) % 8], true); }
-  beam(g, [-120, DECK + 0.3, 112], [-120, DECK - 0.6, 131], 14, 0.6, M.steel);        // the linkspan, down to the stern door
-  for (const s of [-1, 1]) cyl(g, [-120 + s * 12, 128], 1.5, BED, DECK - BED + 2, M.dark, 12);
+  put("Ferry terminal", B => S.terminal(B, E.M, { w: 80, d: 32, name: "Ferry terminal" }), -150, 24);
+  put("Marshalled cars", B => { const C = [0x8a2c2a, 0xd8d2c0, 0x2c4a7a, 0x6a6a5a, 0xa87a3a, 0x3a5a3a];
+    for (let k = 0; k < 6; k++) for (let c = 0; c < 6; c++) S.carAt(B, -95 + k * 10, 0, 57 + c * 9, 0, C[(k + c) % 6]); });
+  for (let k = 0; k < 6; k++) strokeAt(g, [-100 + k * 10, 50], [-100 + k * 10, 108], 0.25, TOP.paint, M.white);
+  // the linkspan: its bridge from the quay down to the stern door, the lifting frame on two piles over its sea end
+  put("Linkspan", B => { B.color(0x6b7178); S.member(B, "metal", [-120, 0.3, 112], [-120, -0.6, 131], 14, 0.6);
+    for (const s of [-1, 1]) { B.color(0x2a2d31); S.column(B, "metal", -120 + s * 12, 128, 1.5, BED - DECK, 2, 12, 6); }
+    B.color(0xf2c02a); S.run(B, "metal", -133.5, 2, 127, -106.5, 3.5, 129, 7); }, 0, 0, 0, DECK, { base: BED, anchorBuilt: true });
+  ship(g, "ferry", [-120, 160], [0, 1]);
   model(g, "ferry", [-120, 160], [0, 1]);
   labels.push(["Ferry terminal", [-150, 24], 16]); labels.push(["Linkspan", [-120, 120], 6]); labels.push(["Marshalling lanes", [-75, 80], 5]);
 
   // ---- the harbour office (the jobs terminal, as today), port control, the pilot station and the tugs
   quay(g, -40, 0, 120, 100, "s");
   shed(g, "Harbour office", 10, 20, 26, 32, 9, M.brick, labels, "Harbour office, jobs terminal");
-  building("Port control tower", () => { box(g, [70, DECK, 30], [86, DECK + 32, 46], M.terminal);
-    box(g, [67, DECK + 32, 27], [89, DECK + 38, 49], M.glass); box(g, [66, DECK + 38, 26], [90, DECK + 39.5, 50], M.roof);
-    box(g, [77.5, DECK + 39.5, 37.5], [78.5, DECK + 48, 38.5], M.white); }, DECK);
+  put("Port control tower", B => S.baseTower(B, E.M, { h: 32 }), 78, 38);
   labels.push(["Port control", [78, 38], 54]);
   shed(g, "Pilot station", 96, 60, 112, 72, 6, M.white, labels, "Pilot station");
   tug(g, [20, 116], [1, 0], labels, "tugs"); tug(g, [70, 116], [1, 0]);
 
   // ---- the tanker jetty and the tank farm
-  for (let z = 0; z <= 420; z += 20) for (const x of [196, 204]) cyl(g, [x, z], 0.6, BED, 3 - BED, M.dark, 8);
-  box(g, [195, 3, -2], [205, 4, 420], M.quay, false);
-  box(g, [140, 3, 420], [260, 5.5, 440], M.quay, false);
-  for (let z = 4; z < 418; z += 8) box(g, [201.5, 4, z], [202.5, 5, z + 0.6], M.steel);
-  for (const s of [-1, 1]) beam(g, [202 + s * 0.6, 5.4, 0], [202 + s * 0.6, 5.4, 420], 0.8, 0.8, s < 0 ? M.yellow : M.steel);
-  building("Loading arms", () => { for (const x of [175, 195, 215, 235]) { box(g, [x - 1, 5.5, 432], [x + 1, 16, 434], M.steel);
-    beam(g, [x, 16, 433], [x, 9, 444], 0.8, 0.8, M.steel); } box(g, [150, 5.5, 422], [166, 10, 432], M.white); }, 5.5);
+  put("Tanker jetty", B => { S.pileDeck(B, { x0: 195, x1: 205, z0: -2, z1: 420, top: 4, bed: BED, pitch: 20, tile: 5 });
+    S.pileDeck(B, { x0: 140, x1: 260, z0: 420, z1: 440, top: 5.5, bed: BED, pitch: 12, tile: 5 });
+    B.color(0x6b7178); for (let z = 4; z < 418; z += 8) B.box("metal", 201.5, 4, z, 202.5, 5, z + 0.6);
+    for (const sx of [-1, 1]) { B.color(sx < 0 ? 0xf2c02a : 0x6b7178); S.run(B, "metal", 202 + sx * 0.6 - 0.4, 5, 0, 202 + sx * 0.6 + 0.4, 5.8, 420, 10); } }, 0, 0, 0, 0, { base: BED });
+  put("Loading arms", B => { for (const x of [175, 195, 215, 235]) { B.color(0x6b7178); S.run(B, "metal", x - 1, 0, 432, x + 1, 10.5, 434, 6); S.member(B, "metal", [x, 10.5, 433], [x, 3.5, 444], 0.8, 0.8); } }, 0, 0, 0, 5.5);
+  put("Jetty control house", B => S.hut(B, E.M, { w: 16, d: 10, h: 4.5 }), 158, 427, 0, 5.5);
+  ship(g, "tanker", [200, 454], [1, 0]);
   model(g, "tanker", [200, 454], [1, 0]);
   tankFarm(g, labels);
   labels.push(["Tanker jetty", [200, 430], 20]); labels.push(["tanker", [260, 454], 26, "standin"]);
@@ -401,34 +404,31 @@ function buildProposed(g, labels) {
   box(g, [DOCK.x0 + 0.4, DOCK.floor, DOCK.z0], [DOCK.x1 - 0.4, DECK, DOCK.z0 + 0.4], M.quay, false);
   for (const [a, b] of [[DOCK.x0 - 3, DOCK.x0], [DOCK.x1, DOCK.x1 + 3]]) box(g, [a, DECK, DOCK.z0 - 3], [b, DECK + 0.05, 0], M.quay, false);
   box(g, [DOCK.x0, DECK, DOCK.z0 - 3], [DOCK.x1, DECK + 0.05, DOCK.z0], M.quay, false);
-  for (let z = DOCK.z0 + 30; z < -30; z += 12) box(g, [358, DOCK.floor, z], [362, DOCK.floor + 1.5, z + 3], M.dark);
-  box(g, [DOCK.x0 - 4, BED, 0], [DOCK.x1 + 4, DECK, 4], M.steel);   // the caisson gate
-  model(g, "freighter", [360, -100], [0, 1], DOCK.floor + 1.5 + 7);
-  building("Goliath crane", () => { for (const x of [326, 394]) for (const z of [-118, -102]) box(g, [x - 1, DECK, z - 1], [x + 1, DECK + 52, z + 1], M.yellow);
-    for (const x of [326, 394]) box(g, [x - 1.5, DECK + 52, -120], [x + 1.5, DECK + 55, -100], M.yellow);
-    box(g, [322, DECK + 55, -114], [398, DECK + 60, -106], M.yellow); box(g, [354, DECK + 60, -114], [366, DECK + 65, -106], M.white); }, DECK);   // its crab rides on top
+  put("Keel blocks", B => { B.color(0x2a2d31); for (let z = DOCK.z0 + 30; z < -30; z += 12) B.box("concrete", 358, 0, z, 362, 1.5, z + 3); }, 0, 0, 0, DOCK.floor);
+  put("Dock gate", B => { B.color(0x6b7178); for (let x = DOCK.x0 - 4; x < DOCK.x1 + 4 - 1e-6; x += 8) for (let y = BED; y < DECK - 1e-6; y += 5.5) B.box("ribbed", x, y, 0, Math.min(DOCK.x1 + 4, x + 8), Math.min(DECK, y + 5.5), 4); }, 0, 0, 0, 0, { base: BED });
+  ship(g, "freighter", [360, -100], [0, 1], DOCK.floor + 1.5 + 7);
+  put("Goliath crane", B => S.goliath(B, { span: 68 }), 360, -110);
   labels.push(["Dry dock", [360, -170], 6]); labels.push(["Goliath crane", [360, -110], 64]);
   shed(g, "Shipyard shop", 400, -260, 470, -150, 18, M.clad, labels, "Shipyard shop");
 
   // ---- the fishing harbour: its mole, pontoons, trawlers, the fish market and a slipway
   quay(g, 440, 0, 455, 220, "swe");
-  for (const x of [500, 560, 620]) { box(g, [x - 1.5, -0.6, 10], [x + 1.5, 0.45, 150], M.crown);
-    for (let z = 20; z < 150; z += 14) for (const s of [-1, 1]) box(g, [x + s * 1.5, -0.6, z], [x + s * 9, 0.45, z + 1.4], M.crown); }
-  [[530, 40], [530, 96], [590, 68], [650, 40]].forEach(([x, z], i) => model(g, "fishing_boat", [x, z], [0, i % 2 ? 1 : -1]));
-  [[506, 30], [566, 120], [626, 100]].forEach(([x, z]) => model(g, "launch", [x + 5, z], [0, 1]));
+  for (const x of [500, 560, 620]) put("Pontoon", B => S.pontoon(B, { len: 140 }), x, 10, 0, 0);
+  [[530, 40], [530, 96], [590, 68], [650, 40]].forEach(([x, z], i) => ship(g, "fishing_boat", [x, z], [0, i % 2 ? 1 : -1]));
+  [[506, 30], [566, 120], [626, 100]].forEach(([x, z]) => ship(g, "launch", [x + 5, z], [0, 1]));
   shed(g, "Fish market", 470, -70, 560, -20, 8, M.shed, labels, "Fish market");
   beam(g, [675, DECK - 1, -12], [675, -4, 40], 20, 2, M.quay, false);   // the slipway, down into the water
   labels.push(["Fishing harbour", [570, 160], 6]); labels.push(["trawlers", [530, 40], 12, "standin"]);
 
   // ---- the coast guard quay, its boathouse, and the mech slipway
   quay(g, 740, 0, 840, 100, "sw");
-  model(g, "gunboat", [790, 106], [1, 0]);
+  ship(g, "gunboat", [790, 106], [1, 0]);
   shed(g, "Coast guard boathouse", 760, 20, 820, 70, 12, M.clad, labels, "Coast guard");
   // the slipway: 60 m wide, from the deck down to 6 m under the water at 1 in 8
   const ramp = new T.Mesh(new T.BoxGeometry(60, 2, Math.hypot(8.5, 68)), M.crown);
   ramp.position.set(870, (DECK - 6) / 2 - 1, 34); ramp.rotation.x = Math.atan2(8.5, 68); ramp.receiveShadow = true; g.add(ramp);
   for (const s of [-1, 1]) beam(g, [870 + s * 31, DECK + 0.6, 0], [870 + s * 31, -5.4, 68], 1.2, 1.2, M.yellow);
-  model(g, "gunboat", [870, 140], [0, 1]);
+  ship(g, "gunboat", [870, 140], [0, 1]);
   labels.push(["Mech slipway", [870, 30], 8]); labels.push(["gunboats", [790, 106], 10, "standin"]);
 
   // ---- landside: the port road, the main line, warehouses, customs, the car park
@@ -448,14 +448,11 @@ const pave = (g, p, q, w, m) => beam(g, [p[0], TOP.road - 0.05, p[1]], [q[0], TO
 function buildToday(g, labels) {
   land(g, false);
   slab(g, rect(-130, -40, 130, 0), DECK - 0.1, DECK + 0.05, M.quay);
-  for (let z = 0; z <= 230; z += 15) for (const x of [-12, 12]) cyl(g, [x, z], 0.6, BED, DECK - BED - 0.6, M.dark, 8);
-  box(g, [-15, DECK - 0.6, 0], [15, DECK, 200], M.quay, false);
-  for (let x = -105; x <= 105; x += 15) for (const z of [204, 226]) cyl(g, [x, z], 0.6, BED, DECK - BED - 0.6, M.dark, 8);
-  box(g, [-110, DECK - 0.6, 200], [110, DECK, 230], M.quay, false);
+  put("Pier on piles", B => { S.pileDeck(B, { x0: -15, x1: 15, z0: 0, z1: 200, top: DECK, bed: BED, pitch: 15 }); S.pileDeck(B, { x0: -110, x1: 110, z0: 200, z1: 230, top: DECK, bed: BED, pitch: 15 }); }, 0, 0, 0, 0, { base: BED });
   for (const x of [-70, 0, 70]) luffing(g, [x, 215], [0, 1]);
   for (const x of [-105, -25, 55]) shed(g, "Warehouse", x, -95, x + 50, -71, 12, M.shed, labels, null);
   shed(g, "Harbour office", 100, -30, 116, -18, 9, M.brick, labels, "Harbour office");
-  model(g, "freighter", [0, 900], [1, 0.3]);
+  ship(g, "freighter", [0, 900], [1, 0.3]);
   labels.push(["Pier and head on piles", [0, 215], 6, "today"]); labels.push(["Warehouses", [0, -83], 18, "today"]);
 }
 
@@ -470,15 +467,18 @@ loader.parse(glbBytes(YARD.glb), "", gltf => {
 box(yardG, [FOREMAN[0] - 18.5, DECK, FOREMAN[1] - 0.25], [FOREMAN[0] - 18, DECK + 1.8, FOREMAN[1] + 0.25], M.pilot);
 
 // ---------------------------------------------------------------- scene state, labels, views
-let show = "proposed", built = null, labels = [], labelReach = null, gun = 5;
+let show = "proposed", built = null, labels = [], labelReach = null, gun = "shell";
+// Every model is in: make the engine's meshes and support graphs.
+function finishSite() { E.finish(); const u = E.unheld(); if (u.length) console.log("unheld", JSON.stringify(u)); }
 const statEl = document.getElementById("shotstat");
 controls.addEventListener("start", () => { labelReach = null; });
 const tagsEl = document.getElementById("tags");
 function rebuild() {
-  if (built) { scene.remove(built); built.traverse(o => { if (o.geometry && o.geometry !== UNIT) o.geometry.dispose(); }); }
+  if (built) { scene.remove(built); built.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   built = new T.Group(); scene.add(built); labels = []; tagsEl.innerHTML = "";
-  BUILDINGS = []; targets = []; fallers = []; bits = []; statEl.textContent = "";
+  E.clear(); GROUNDS = []; statEl.textContent = ""; gen++; modelsLeft = 1;
   if (show === "today") buildToday(built, labels); else buildProposed(built, labels);
+  if (--modelsLeft === 0) finishSite();
   labels.push(["Foreman, 24 m", FOREMAN, 28]);
   for (const l of labels) { const el = document.createElement("div"); el.className = "tag " + (l[3] || ""); el.textContent = l[0]; tagsEl.appendChild(el); l.el = el; }
   document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
@@ -504,12 +504,13 @@ function view(name) {
 }
 document.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { show = b.dataset.show; rebuild(); });
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.dataset.view));
-document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = +b.dataset.gun;
+document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = b.dataset.gun;
   document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
-document.getElementById("repair").onclick = () => rebuild();
-bindFire(canvas, camera, () => gun);
-window.MOCKUP = { view, blast: (x, y, z, r) => blast(V(x, y, z), r), repair: rebuild, show: s => { show = s; rebuild(); },
-  buildings: () => BUILDINGS.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.alive.filter(Boolean).length, anchored: B.anchored })) };
+document.getElementById("repair").onclick = () => { E.reset(); statEl.textContent = ""; };
+E.bindFire(canvas, camera, () => gun);
+window.MOCKUP = { view, blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), show: s => { show = s; rebuild(); },
+  unheld: () => E.unheld(), engine: E,
+  buildings: () => E.BLD.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.pieces.filter(p => E.PIECES[p].alive).length, collapsed: B.collapsed, anchored: B.anchored })) };
 canvas.addEventListener("keydown", e => {
   const s = 0.05, sph = new T.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
   if (e.key === "ArrowLeft") sph.theta -= s; else if (e.key === "ArrowRight") sph.theta += s;
@@ -539,7 +540,8 @@ const tmp = new T.Vector3();
 let last = 0;
 function frame(ms) {
   const dt = Math.min(0.05, (ms - last) / 1000 || 0); last = ms;
-  stepBreakage(dt);
+  E.step(dt);
+  if (E.FALLING.length || statEl.textContent) { let gone = 0; for (const P of E.PIECES) if (!P.alive) gone++; statEl.textContent = gone ? `${gone} pieces down, ${E.FALLING.length} falling` : ""; }
   resize(); controls.update(); renderer.render(scene, camera);
   const w = canvas.clientWidth, h = canvas.clientHeight;
   const reach = labelReach ?? Math.max(400, 2.2 * camera.position.distanceTo(controls.target));

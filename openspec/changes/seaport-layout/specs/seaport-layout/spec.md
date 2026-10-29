@@ -17,9 +17,13 @@ harbour and a coast guard quay, each berth at least as long as the largest ship 
 - **THEN** the tanker jetty's berth is at least 150 m long and 10 m deep
 
 ### Requirement: A port's buildings break
-Every port building and crane SHALL be made of breakable pieces held by the small buildings' support rule, so a piece
-that loses what holds it falls.
+Every port building, crane, stack, jetty, pontoon, light, buoy and ship SHALL be made of breakable pieces held by the
+small buildings' support rule, so a piece that loses what holds it falls.
 
 #### Scenario: A gantry falls
 - **WHEN** the legs on both rails of a container gantry are destroyed
 - **THEN** its girder and boom fall
+
+#### Scenario: A holed ship sinks
+- **WHEN** a ship moored in the port loses 40% of its hull within 4 m of its keel
+- **THEN** the rest of it breaks up and sinks to the seabed

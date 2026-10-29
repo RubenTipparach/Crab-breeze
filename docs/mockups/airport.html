@@ -90,7 +90,7 @@ td.n { font-family: var(--mono); white-space: nowrap; }
       <button data-view="foot">On foot</button>
     </div>
     <div class="bar"><span class="lbl">Fire</span>
-      <button data-gun="5" aria-pressed="true">Cannon, 5 m</button><button data-gun="14">Missile, 14 m</button>
+      <button data-gun="cannon">Autocannon</button><button data-gun="shell" aria-pressed="true">120 mm shell</button><button data-gun="missile">Missile</button><button data-gun="demo">Demolition</button>
       <button id="repair">Repair all</button><span class="stat" id="shotstat"></span>
     </div>
     <div class="stage">
@@ -1399,6 +1399,1192 @@ td.n { font-family: var(--mono); white-space: nowrap; }
 })(this);
 
 </script>
+<script>
+// The building engine for Crab Breeze's 3D mockups: everything a page needs to draw buildings made with the
+// small-buildings kit (docs/mockups/small_buildings_kit.js) and to break them. One implementation, used by the street
+// (docs/mockups/small_buildings.html), the airport and the seaport (inlined by tools/mockups/gen_airport.py and
+// gen_seaport.py). It holds: the surfaces' generated textures and materials, the merged meshes (one draw a material,
+// each piece a run of triangles), each building's pieces and the kit's support rule (SmallBuildings.supportLinks and
+// standing), the shot (pieces blown out, big ones broken into chunks), the creak and fall of what is left hanging,
+// a building's collapse when it loses half its load-bearing walls, chunks and whole pieces falling and settling into
+// rubble piles at the angle of repose, dust, fire and flashes, and firing where the player points.
+//
+// Generalised from the street page (owner, 2026-10-29: "Airport is not up to standard of like suburban houses", "Make
+// sure everything in seaport follow destructible rule, Including boats"): a building stands at any height and any
+// quarter turn; the ground under the rubble is the page's own (a quay, the seabed); and any three.js model (a ship, a
+// crane) can be cut into pieces the same rule breaks (fromObject). Metres; y up.
+(function (root) {
+  'use strict';
+
+  function BuildingEngine(opts) {
+    const THREE = opts.THREE, K = opts.K, scene = opts.scene;
+    const clip = opts.clip || null;
+    const ground = opts.ground || (() => 0);      // the ground under (x, z) before any rubble: where pieces come to rest
+    const clipping = clip ? [clip] : [];
+
+    // ---------------------------------------------------------------- textures and materials
+    const TS = 512;
+    function noiseFn(seed) {
+      const h = (x, y) => { let n = (x * 374761393 + y * 668265263 + seed * 1442695041) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+      return (x, y, s) => { // tileable value noise, period TS/s cells
+        const P = Math.max(1, Math.round(TS / s)); const fx = x / s, fy = y / s, ix = Math.floor(fx), iy = Math.floor(fy), u = fx - ix, v = fy - iy;
+        const g = (a, b) => h(((a % P) + P) % P, ((b % P) + P) % P);
+        const su = u * u * (3 - 2 * u), sv = v * v * (3 - 2 * v);
+        return (g(ix, iy) * (1 - su) + g(ix + 1, iy) * su) * (1 - sv) + (g(ix, iy + 1) * (1 - su) + g(ix + 1, iy + 1) * su) * sv;
+      };
+    }
+    // Each generator fills colour (rgb 0..1) and height (0..1) per pixel through put(x, y, r, g, b, h).
+    function makeTex(gen, seed) {
+      const col = new Uint8ClampedArray(TS * TS * 4), hgt = new Float32Array(TS * TS);
+      const N = noiseFn(seed);
+      const put = (x, y, r, g, b, h) => { const i = y * TS + x; col[i * 4] = r * 255; col[i * 4 + 1] = g * 255; col[i * 4 + 2] = b * 255; col[i * 4 + 3] = 255; hgt[i] = h; };
+      for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) gen(x, y, N, put);
+      const toCanvas = (data) => { const c = document.createElement('canvas'); c.width = c.height = TS; c.getContext('2d').putImageData(new ImageData(data, TS, TS), 0, 0); return c; };
+      return { col: toCanvas(col), hgt, toCanvas };
+    }
+    function normalFrom(hgt, strength, toCanvas) {
+      const d = new Uint8ClampedArray(TS * TS * 4);
+      const H = (x, y) => hgt[((y + TS) % TS) * TS + ((x + TS) % TS)];
+      for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) {
+        const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+        const l = Math.hypot(dx, dy, 1); const i = (y * TS + x) * 4;
+        d[i] = (-dx / l * 0.5 + 0.5) * 255; d[i + 1] = (dy / l * 0.5 + 0.5) * 255; d[i + 2] = (1 / l * 0.5 + 0.5) * 255; d[i + 3] = 255;
+      }
+      return toCanvas(d);
+    }
+    const cl = (v) => Math.max(0, Math.min(1, v));
+    // Generators. Tile sizes (metres) in the kit's SURFACES.
+    const GEN = {
+      brick: (x, y, N, put) => { // 12 courses of 75 mm, 4 bricks of 225 mm across a 0.9 m tile
+        const ch = TS / 12, bw = TS / 4, row = Math.floor(y / ch), off = (row % 2) * bw / 2, bx = (x + off) % TS, col = Math.floor(bx / bw);
+        const mx = bx - col * bw, my = y - row * ch, mortar = mx < 5 || my < 5;
+        const v = N(col * 7 + row * 13, row * 3, 1) * 0.25 + N(x, y, 3) * 0.15 + N(x, y, 40) * 0.1;
+        if (mortar) put(x, y, 0.72 + v * 0.1, 0.70 + v * 0.1, 0.66 + v * 0.1, 0.25 + N(x, y, 2) * 0.1);
+        else { const k = 0.85 + v; put(x, y, cl(0.62 * k), cl(0.30 * k), cl(0.22 * k), 0.85 + N(x, y, 2) * 0.15); }
+      },
+      block: (x, y, N, put) => { const bh = TS / 4, bw = TS / 2, row = Math.floor(y / bh), bx = (x + (row % 2) * bw / 2) % TS; const m = (bx % bw) < 5 || (y % bh) < 5; const v = N(x, y, 2) * 0.12 + N(x, y, 30) * 0.06; put(x, y, 0.86 + v, 0.85 + v, 0.82 + v, m ? 0.3 : 0.8 + N(x, y, 3) * 0.2); },
+      siding: (x, y, N, put) => { const bh = TS / 5, f = (y % bh) / bh; const v = 0.9 + N(x, y, 60) * 0.06 + N(x, y, 4) * 0.03; const h = f * 0.9 + (f < 0.06 ? -0.6 : 0); put(x, y, v, v, v * 0.98, cl(h)); },
+      board: (x, y, N, put) => { const bw = TS / 3.3, f = (x % bw) / bw, batt = f < 0.12; const g = N(x * 0.2, y * 3, 4) * 0.15; const v = 0.82 + g; put(x, y, v, v * 0.95, v * 0.9, batt ? 1 : 0.5 + g); },
+      stucco: (x, y, N, put) => { const v = 0.88 + N(x, y, 3) * 0.08 + N(x, y, 20) * 0.04; put(x, y, v, v, v * 0.97, N(x, y, 3) * 0.7 + N(x, y, 10) * 0.3); },
+      adobe: (x, y, N, put) => { const v = 0.86 + N(x, y, 50) * 0.1 + N(x, y, 6) * 0.05; put(x, y, v, v * 0.97, v * 0.94, N(x, y, 50) * 0.5 + N(x, y, 6) * 0.3); },
+      shingle: (x, y, N, put) => { const rh = TS / 7, row = Math.floor(y / rh), tw = TS / 3, tx = (x + (row % 2) * tw / 2) % TS, f = (y % rh) / rh; const slot = (tx % tw) < 6; const v = 0.55 + N(Math.floor(tx / tw) + row * 5, row, 1) * 0.12 + N(x, y, 2) * 0.12; put(x, y, v, v * 0.98, v * 0.96, slot ? 0.1 : f * 0.6 + N(x, y, 2) * 0.3); },
+      tile: (x, y, N, put) => { const w = TS / 4, f = (x % w) / w, rh = TS / 3, g = (y % rh) / rh; const h = Math.sin(f * Math.PI) * 0.8 + g * 0.2; const v = 0.85 + N(Math.floor(x / w), Math.floor(y / rh), 1) * 0.12; put(x, y, v, v * 0.95, v * 0.9, h); },
+      metalRoof: (x, y, N, put) => { const w = TS / 2.5, f = (x % w) / w, seam = f < 0.04; const v = 0.86 + N(x, y, 80) * 0.06; put(x, y, v, v, v, seam ? 1 : 0.4 + Math.sin(f * Math.PI * 6) * 0.03); },
+      corrugated: (x, y, N, put) => { const v = 0.85 + N(x, y, 60) * 0.08; put(x, y, v, v, v, 0.5 + 0.5 * Math.sin(y / TS * Math.PI * 2 * 13)); },
+      ribbed: (x, y, N, put) => { const v = 0.92 + N(x, y, 60) * 0.04; const f = (x % (TS / 6)) / (TS / 6); put(x, y, v, v, v, f < 0.15 ? 1 : 0.5); },
+      skirt: (x, y, N, put) => { const f = (x % (TS / 8)) / (TS / 8); const v = 0.85 + N(x, y, 50) * 0.05; put(x, y, v, v, v * 0.97, f < 0.5 ? 0.8 : 0.3); },
+      concrete: (x, y, N, put) => { const v = 0.78 + N(x, y, 4) * 0.08 + N(x, y, 40) * 0.08 + (N(x, y, 1.5) > 0.93 ? -0.15 : 0); put(x, y, v, v * 0.99, v * 0.96, N(x, y, 3) * 0.6 + N(x, y, 20) * 0.4); },
+      roofing: (x, y, N, put) => { const v = 0.45 + N(x, y, 1.5) * 0.25; put(x, y, v, v, v, N(x, y, 1.5)); },
+      asphalt: (x, y, N, put) => { const v = 0.28 + N(x, y, 1.5) * 0.12 + N(x, y, 60) * 0.06; put(x, y, v, v, v * 1.02, N(x, y, 1.5)); },
+      smooth: (x, y, N, put) => { const v = 0.94 + N(x, y, 40) * 0.04; put(x, y, v, v, v, N(x, y, 8) * 0.2); },
+      shutter: (x, y, N, put) => { const f = (y % (TS / 16)) / (TS / 16); const v = 0.92 + N(x, y, 30) * 0.05; put(x, y, v, v, v, f); },
+      door: (x, y, N, put) => { const fx = (x % (TS / 2)) / (TS / 2), fy = (y % (TS / 2)) / (TS / 2); const p = fx > 0.15 && fx < 0.85 && fy > 0.1 && fy < 0.9; const v = 0.9 + N(x, y, 30) * 0.06; put(x, y, v, v, v, p ? 0.4 : 0.6); },
+      brushed: (x, y, N, put) => { const v = 0.82 + N(x * 0.02, y * 4, 3) * 0.12; put(x, y, v, v, v * 1.01, N(x * 0.02, y * 4, 3) * 0.3); },
+      laminate: (x, y, N, put) => { const v = 0.9 + N(x, y, 3) * 0.05; put(x, y, v, v, v, 0.5); },
+      wood: (x, y, N, put) => { const g = N(x * 0.15, y * 2, 3) * 0.3 + Math.sin((x + N(x, y, 50) * 40) * 0.25) * 0.05; const v = 0.75 + g; put(x, y, v, v * 0.92, v * 0.85, g); },
+      planks: (x, y, N, put) => { const w = TS / 7, k = Math.floor(x / w), f = (x % w) / w, gap = f < 0.04; const g = N(k * 13, y * 0.1, 3) * 0.2 + N(x * 0.2, y * 3, 4) * 0.1; const v = 0.72 + g; put(x, y, v, v * 0.9, v * 0.8, gap ? 0 : 0.6 + g * 0.5); },
+      pine: (x, y, N, put) => { const w = TS / 6, k = Math.floor(x / w), f = (x % w) / w, gap = f < 0.03; const knot = N(x, y, 12) > 0.9 ? -0.25 : 0; const g = N(k * 7, y * 0.2, 3) * 0.12 + N(x * 0.3, y * 2, 5) * 0.08; const v = 0.86 + g + knot; put(x, y, v, v * 0.88, v * 0.7, gap ? 0 : 0.6); },
+      floorTile: (x, y, N, put) => { const c = TS / 3, ix = Math.floor(x / c), iy = Math.floor(y / c), grout = (x % c) < 3 || (y % c) < 3; const chk = (ix + iy) % 2; const v = grout ? 0.6 : (chk ? 0.92 : 0.18) + N(x, y, 10) * 0.04; put(x, y, v, v, v * 0.98, grout ? 0.2 : 0.8); },
+      wallTile: (x, y, N, put) => { const c = TS / 6.6, grout = (x % c) < 3 || (y % c) < 3; const v = grout ? 0.7 : 0.95; put(x, y, v, v, v, grout ? 0.2 : 0.8); },
+      carpet: (x, y, N, put) => { const v = 0.75 + N(x, y, 1.5) * 0.15; put(x, y, v, v * 0.92, v * 0.85, N(x, y, 1.5)); },
+      fabric: (x, y, N, put) => { const w = ((x % 6) < 3) !== ((y % 6) < 3); const v = 0.86 + (w ? 0.05 : 0) + N(x, y, 20) * 0.05; put(x, y, v, v, v, w ? 0.6 : 0.4); },
+      grass: (x, y, N, put) => { const v = N(x, y, 2) * 0.25 + N(x, y, 30) * 0.2 + N(x, y, 120) * 0.15; put(x, y, cl(0.22 + v * 0.3), cl(0.36 + v * 0.35), cl(0.12 + v * 0.12), N(x, y, 2)); },
+      screen: (x, y, N, put) => { const g = (x % 4) < 1 || (y % 4) < 1; put(x, y, 0.2, 0.2, 0.2, g ? 1 : 0); },
+    };
+    const MATS = K.SURFACES;     // the surface table lives in the kit (one table for the mockups, the exporter and the game)
+    const materials = {};
+    function texMat(key) {
+      const [g, tile, rough, metal, ns] = MATS[key];
+      const t = makeTex(GEN[g], key.length * 31 + g.length);
+      const map = new THREE.CanvasTexture(t.col); map.encoding = THREE.sRGBEncoding;
+      const nrm = new THREE.CanvasTexture(normalFrom(t.hgt, ns, t.toCanvas));
+      for (const tx of [map, nrm]) { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(1 / tile, 1 / tile); tx.anisotropy = 8; }
+      return new THREE.MeshStandardMaterial({ map, normalMap: nrm, roughness: rough, metalness: metal, vertexColors: true, clippingPlanes: clipping });
+    }
+    const glows = []; // [material, day, dusk, night]
+    function special(key) {
+      const base = { vertexColors: true, clippingPlanes: clipping };
+      if (key === 'glass') return new THREE.MeshPhysicalMaterial({ ...base, color: 0x9ab4bc, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.32, depthWrite: false, envMapIntensity: 1.6 });
+      if (key === 'glassShop') return new THREE.MeshPhysicalMaterial({ ...base, color: 0xc8dade, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.18, depthWrite: false, envMapIntensity: 1.4 });
+      if (key === 'glassDark') return new THREE.MeshStandardMaterial({ ...base, color: 0x2a3640, roughness: 0.1, metalness: 0.2, envMapIntensity: 1.2 });
+      if (key === 'screen') return new THREE.MeshStandardMaterial({ ...base, color: 0x222222, transparent: true, opacity: 0.45, depthWrite: false });
+      if (key === 'water') return new THREE.MeshPhysicalMaterial({ ...base, color: 0x3aa6c8, roughness: 0.05, transparent: true, opacity: 0.8, depthWrite: false });
+      if (key === 'lamp') { const m = new THREE.MeshStandardMaterial({ ...base, color: 0xffffff, emissive: 0xfff2d8, emissiveIntensity: 0.5 }); glows.push([m, 0.5, 2.2, 3.0]); return m; }
+      if (key === 'lampRed' || key === 'lampGreen') { const m = new THREE.MeshStandardMaterial({ ...base, color: 0xffffff, emissive: key === 'lampRed' ? 0xff2a1a : 0x2aff4a, emissiveIntensity: 1.5 }); glows.push([m, 1.5, 2.5, 3.0]); return m; }
+      return null;
+    }
+    // Signs and awnings, made on demand from their text.
+    const SIGNS = {};
+    const M = {
+      sign(text, bg, fg, neon) {
+        const key = `sign:${text}|${bg}|${fg}|${neon ? 1 : 0}`;
+        if (!SIGNS[key]) {
+          const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+          const g = c.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, 512, 128);
+          g.font = '700 84px "Saira Condensed", "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+          if (neon) { g.shadowColor = fg; g.shadowBlur = 18; }
+          g.fillStyle = fg; g.fillText(text, 256, 68, 480);
+          if (neon) { g.shadowBlur = 0; g.lineWidth = 3; g.strokeStyle = '#ffffff'; g.globalAlpha = 0.5; g.strokeText(text, 256, 68, 480); g.globalAlpha = 1; }
+          const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.anisotropy = 8;
+          const m = new THREE.MeshStandardMaterial({ map, roughness: 0.5, vertexColors: true, clippingPlanes: clipping, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: neon ? 0.35 : 0.0 });
+          if (neon) glows.push([m, 0.35, 1.8, 2.4]); else glows.push([m, 0, 0.25, 0.45]);
+          SIGNS[key] = m;
+        }
+        return key;
+      },
+      awning(color) {
+        const key = `awning:${color}`;
+        if (!SIGNS[key]) {
+          const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+          for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#f4f1ea' : color; g.fillRect(i * 16, 0, 16, 128); }
+          const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(1 / 2.4, 1 / 2.4);
+          SIGNS[key] = new THREE.MeshStandardMaterial({ map, roughness: 0.85, vertexColors: true, clippingPlanes: clipping, side: THREE.DoubleSide });
+        }
+        return key;
+      },
+    };
+    function material(key) {
+      if (materials[key]) return materials[key];
+      let m = SIGNS[key] || special(key);
+      if (!m) m = MATS[key] ? texMat(key) : texMat(key === 'paint' ? 'paint' : 'trim');
+      materials[key] = m;
+      return m;
+    }
+
+    // ---------------------------------------------------------------- buildings, pieces and the merged meshes
+    // A building: { name, base (the height its ground floor stands on), lo, hi, pieces, walls, wallArea, collapsed,
+    // collapse (null: the kit's walls rule, half the load-bearing wall area lost; or { test(P), frac }),
+    // anchorBuilt (true: what the rule would not hold as drawn is held as built, see buildGraph) }.
+    const BLD = [];
+    // Every piece: { bld (-1 cannot break), alive, ranges, lo, hi, meta }.
+    const PIECES = [];
+    const merged = {};
+    function building(info = {}) {
+      BLD.push({ name: info.name || 'building', base: info.base || 0, collapse: info.collapse || null, info, pieces: [], walls: [], wallArea: 0, collapsed: false, lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9] });
+      return BLD.length - 1;
+    }
+    // Add a kit Builder's geometry at (x, y, z) turned by `turn` quarter turns about +y (1: local +x to world -z), as
+    // building `bld` (-1: scenery that cannot break).
+    function add(B, o = {}) {
+      const ox = o.x || 0, oy = o.y || 0, oz = o.z || 0, turn = ((o.turn || 0) % 4 + 4) % 4, bld = o.bld == null ? -1 : o.bld;
+      const cs = [1, 0, -1, 0][turn], sn = [0, 1, 0, -1][turn];
+      const P3 = (x, y, z) => [ox + cs * x + sn * z, oy + y, oz - sn * x + cs * z];
+      const D3 = (x, y, z) => [cs * x + sn * z, y, -sn * x + cs * z];
+      const base = PIECES.length;
+      for (let i = 0; i < B.pid; i++) {
+        const mt = B.meta[i];
+        let meta = null;
+        if (mt && mt.box) {
+          const [x0, y0, z0, x1, y1, z1] = mt.box, a = P3(x0, y0, z0), b = P3(x1, y1, z1);
+          meta = { mat: mt.mat, tint: mt.tint, box: [Math.min(a[0], b[0]), a[1], Math.min(a[2], b[2]), Math.max(a[0], b[0]), b[1], Math.max(a[2], b[2])] };
+        } else if (mt && mt.panel) { // a roof panel: an oriented box
+          const Pn = mt.panel;
+          meta = { mat: mt.mat, tint: mt.tint, panel: { c: P3(...Pn.c), size: Pn.size, axes: Pn.axes.map((v) => D3(...v)) } };
+        }
+        PIECES.push({ bld, alive: true, ranges: [], lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9], meta, tag: B.tags[i] || null });
+      }
+      for (const [key, a] of Object.entries(B.parts)) {
+        const m = merged[key] || (merged[key] = { p: [], n: [], u: [], c: [], t: [] });
+        for (let i = 0; i < a.p.length; i += 3) { m.p.push(...P3(a.p[i], a.p[i + 1], a.p[i + 2])); m.n.push(...D3(a.n[i], a.n[i + 1], a.n[i + 2])); }
+        for (const v of a.u) m.u.push(v);
+        for (const v of a.c) m.c.push(v);
+        for (const t of a.t) m.t.push(base + t);
+      }
+    }
+    function boundsOf(B) {
+      const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+      for (const a of Object.values(B.parts)) for (let i = 0; i < a.p.length; i += 3) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], a.p[i + k]); hi[k] = Math.max(hi[k], a.p[i + k]); }
+      return { lo, hi };
+    }
+    // A three.js model (a ship, a crane from its glb) as a kit Builder: its triangles in its own frame (the object's
+    // matrix is applied, so place it with add()), cut into pieces of about `cell` metres by where each triangle lies,
+    // each triangle in the 'paint' surface tinted with its material's colour. The pieces then stand and fall by the
+    // same rule as a building's.
+    function fromObject(obj, cell = 6, o = {}) {
+      const B = new K.Builder();
+      obj.updateMatrixWorld(true);
+      const inv = new THREE.Matrix4().copy(obj.matrixWorld).invert();
+      const cells = new Map(), v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+      obj.traverse((m) => {
+        if (!m.isMesh || !m.visible) return;
+        const g = m.geometry, P = g.attributes.position, I = g.index, mm = new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld);
+        const col = (m.material && m.material.color) ? '#' + m.material.color.getHexString() : '#888888';
+        const key = o.surface ? o.surface(m) : 'paint';
+        const n = I ? I.count : P.count;
+        for (let t = 0; t + 2 < n; t += 3) {
+          for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(P, I ? I.getX(t + k) : t + k).applyMatrix4(mm);
+          const c = [(v[0].x + v[1].x + v[2].x) / 3, (v[0].y + v[1].y + v[2].y) / 3, (v[0].z + v[1].z + v[2].z) / 3];
+          const ck = [Math.floor(c[0] / cell), Math.floor(c[1] / cell), Math.floor(c[2] / cell)].join(',');
+          if (!cells.has(ck)) cells.set(ck, []);
+          const nrm = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0]));
+          cells.get(ck).push({ key, col, pts: v.map((q) => [q.x, q.y, q.z]), n: [nrm.x, nrm.y, nrm.z] });
+        }
+      });
+      // each cell's tint is the model's own colour factor, as its material draws it
+      for (const tris of cells.values()) B.group(() => { for (const t of tris) { B.color(new THREE.Color(t.col).getHex()); B.poly(t.key, t.pts, t.n); } });
+      return B;
+    }
+
+    const TRANSPARENT = new Set(['glass', 'glassShop', 'screen', 'water']);
+    const MESH = {}, ORIG = {};
+    let group = new THREE.Group(); scene.add(group);
+    // Make the meshes from everything added, the buildings' support graphs and the rubble ground. Call once a scene is laid out.
+    function finish() {
+      for (const [key, a] of Object.entries(merged)) {
+        for (let t = 0; t < a.t.length;) {      // each piece's runs of triangles in this bucket, and its bounds
+          const pid = a.t[t]; let n = 1;
+          while (t + n < a.t.length && a.t[t + n] === pid) n++;
+          const P = PIECES[pid]; P.ranges.push({ key, start: t, count: n });
+          for (let i = t * 9; i < (t + n) * 9; i += 3) for (let k = 0; k < 3; k++) { P.lo[k] = Math.min(P.lo[k], a.p[i + k]); P.hi[k] = Math.max(P.hi[k], a.p[i + k]); }
+          t += n;
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(a.p, 3));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(a.u, 2));
+        g.setAttribute('color', new THREE.Float32BufferAttribute(a.c, 3));
+        g.computeBoundingSphere();
+        const m = new THREE.Mesh(g, material(key));
+        const tr = TRANSPARENT.has(key);
+        m.castShadow = !tr && key !== 'lamp'; m.receiveShadow = !tr;
+        if (tr) m.renderOrder = 2;
+        m.userData.key = key;
+        MESH[key] = m; ORIG[key] = Float32Array.from(a.p);
+        group.add(m);
+      }
+      buildGraph();
+      resetGrid();
+    }
+    // Everything gone: for a page that lays out another scene (the airport's Today against Proposed).
+    function clear() {
+      scene.remove(group); group.traverse((o) => { if (o.geometry && o.geometry !== unitBox) o.geometry.dispose(); });
+      group = new THREE.Group(); scene.add(group);
+      for (const k of Object.keys(merged)) delete merged[k];
+      for (const k of Object.keys(MESH)) { delete MESH[k]; delete ORIG[k]; }
+      for (const k of Object.keys(INST)) delete INST[k];
+      for (const k of Object.keys(RUBBLE)) delete RUBBLE[k];
+      PIECES.length = 0; BLD.length = 0; FALLING.length = 0; SCORCH.length = 0; rubbleDirty.clear(); dirtyKeys.clear();
+      GRID.clear(); stats.rubbleTris = 0;
+      if (fxReady) addFx();
+    }
+    const WALLMATS = new Set(K.WALLMATS);
+    // Support: the kit's links, built once a building. The load-bearing walls (for its collapse) are its wall-material
+    // pieces standing on its ground floor and over 1.5 m tall, or what its own `collapse.test` picks.
+    function buildGraph() {
+      PIECES.forEach((P, i) => { P.up = []; P.side = []; if (P.bld >= 0 && P.ranges.length) { const b = BLD[P.bld]; b.pieces.push(i); for (let k = 0; k < 3; k++) { b.lo[k] = Math.min(b.lo[k], P.lo[k]); b.hi[k] = Math.max(b.hi[k], P.hi[k]); } } });
+      for (const b of BLD) {
+        const L = b.pieces;
+        const rel = L.map((pid) => { const P = PIECES[pid]; return { lo: [P.lo[0], P.lo[1] - b.base, P.lo[2]], hi: [P.hi[0], P.hi[1] - b.base, P.hi[2]] }; });
+        const links = K.supportLinks(rel);
+        // A model cut into cells (a ship, a crane) or a structure on mixed footings (a quay's fenders and bollards) is held
+        // as built: a piece the rule would not hold as drawn counts as on the ground (its links stay its real shape), so
+        // it stays up until something it rests on is shot away.
+        b.anchored = 0;
+        if (b.info.anchorBuilt) {
+          const st = K.standing(rel, links, rel.map(() => true));
+          rel.forEach((q, i) => { if (!st.has(i)) { b.anchored++; rel[i] = { lo: [q.lo[0], 0, q.lo[2]], hi: q.hi }; } });
+        }
+        b.rel = rel;
+        L.forEach((pid, i) => {
+          const A = PIECES[pid], r = rel[i];
+          A.up = links.up[i].map((j) => L[j]); A.side = links.side[i].map((j) => L[j]);
+          const bearing = b.collapse ? b.collapse.test(A, r) : (A.meta && WALLMATS.has(A.meta.mat) && r.lo[1] < 1.2 && r.hi[1] - r.lo[1] > 1.5);
+          if (bearing) {
+            const area = Math.max(A.hi[0] - A.lo[0], A.hi[2] - A.lo[2]) * (A.hi[1] - A.lo[1]);
+            b.walls.push(pid); b.wallArea += area; A.area = area;
+          }
+        });
+      }
+    }
+    // Hide a piece's triangles in the merged meshes (collapse them to a point).
+    const dirtyKeys = new Set();
+    function hide(pid) {
+      for (const r of PIECES[pid].ranges) { MESH[r.key].geometry.attributes.position.array.fill(0, r.start * 9, (r.start + r.count) * 9); dirtyKeys.add(r.key); }
+    }
+    function flushHidden() {
+      for (const k of dirtyKeys) MESH[k].geometry.attributes.position.needsUpdate = true;
+      dirtyKeys.clear();
+    }
+
+    // ---------------------------------------------------------------- the rubble ground
+    // A sparse height grid over the page's own ground: pieces at rest stamp their tops into it, so piles grow.
+    const CELL = opts.cell || 0.5;
+    const GRID = new Map();
+    const cellOf = (x, z) => [Math.floor(x / CELL), Math.floor(z / CELL)];
+    function gridAt(x, z) { const [i, j] = cellOf(x, z); const h = GRID.get(i * 1e6 + j); return h != null ? h : ground((i + 0.5) * CELL, (j + 0.5) * CELL); }
+    function gridMax(x0, z0, x1, z1) {
+      const [i0, j0] = cellOf(x0, z0), [i1, j1] = cellOf(x1, z1);
+      let m = -1e9;
+      const si = Math.max(1, Math.ceil((i1 - i0) / 6)), sj = Math.max(1, Math.ceil((j1 - j0) / 6));
+      for (let j = j0; j <= j1; j += sj) for (let i = i0; i <= i1; i += si) { const h = GRID.get(i * 1e6 + j); m = Math.max(m, h != null ? h : ground((i + 0.5) * CELL, (j + 0.5) * CELL)); }
+      return m;
+    }
+    function gridStamp(x0, z0, x1, z1, top) {
+      const [i0, j0] = cellOf(x0, z0), [i1, j1] = cellOf(x1, z1);
+      if ((i1 - i0) * (j1 - j0) > 4e5) return;
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = i * 1e6 + j, h = GRID.get(k); if (h == null ? top > ground((i + 0.5) * CELL, (j + 0.5) * CELL) : top > h) GRID.set(k, top); }
+    }
+    function resetGrid() {
+      GRID.clear();
+      for (const P of PIECES) {
+        if (P.ranges.length === 0) continue;
+        const b = P.bld >= 0 ? BLD[P.bld] : null, base = b ? b.base : ground((P.lo[0] + P.hi[0]) / 2, (P.lo[2] + P.hi[2]) / 2);
+        const foundation = P.meta && P.meta.mat === 'concrete' && P.lo[1] < base - 0.1;
+        const paving = P.bld < 0 && P.hi[1] < base + 0.3;
+        if (foundation || paving) gridStamp(P.lo[0], P.lo[2], P.hi[0], P.hi[2], P.hi[1]);
+      }
+    }
+
+    // ---------------------------------------------------------------- chunks and falling pieces
+    const THIN = 0.06;              // pieces thinner than this (plaster faces, glass, signs) turn to dust
+    const CHUNK = 1.5;              // chunk size from a blast, metres
+    const MAX_FALLING = 1500;       // falling chunks and pieces at once (chunks are instanced, so cheap)
+    const REPOSE = Math.tan(35 * Math.PI / 180);
+    const FALLING = [];             // { kind: 'inst'|'mesh', ... }
+    const stats = { rubbleTris: 0 };
+    const INST = {}; const INST_CAP = 4000;
+    let unitBox = null;
+    function instFor(key) {
+      if (INST[key]) return INST[key];
+      if (!unitBox) {
+        const B = new K.Builder(); B.box('u', -0.5, -0.5, -0.5, 0.5, 0.5, 0.5);
+        const a = B.parts.u;
+        unitBox = new THREE.BufferGeometry();
+        unitBox.setAttribute('position', new THREE.Float32BufferAttribute(a.p, 3));
+        unitBox.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3));
+        unitBox.setAttribute('uv', new THREE.Float32BufferAttribute(a.u, 2));
+      }
+      const m = new THREE.InstancedMesh(unitBox, material(key).userData.instMat || instMaterial(key), INST_CAP);
+      m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true;
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      group.add(m);
+      return (INST[key] = { mesh: m, used: 0, dirty: false });
+    }
+    function instMaterial(key) { // the merged material without vertex colours (instances carry the tint)
+      const base = material(key);
+      const m = base.clone(); m.vertexColors = false; m.clippingPlanes = clipping;
+      base.userData.instMat = m;
+      return m;
+    }
+    const _mat = new THREE.Matrix4(), _scl = new THREE.Vector3(), _col = new THREE.Color();
+    function addChunk(key, tint, lo, hi, v, delay, q) {
+      if (FALLING.length >= MAX_FALLING) return false;
+      const I = instFor(key);
+      if (I.used >= INST_CAP) return false;
+      const slot = I.used++; I.mesh.count = I.used;
+      const pos = q ? new THREE.Vector3(...lo) : new THREE.Vector3((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
+      const size = q ? hi.slice() : [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+      _col.setRGB(tint[0], tint[1], tint[2]); I.mesh.setColorAt(slot, _col); I.mesh.instanceColor.needsUpdate = true;
+      const f = { kind: 'inst', I, slot, pos, q: q ? q.clone() : new THREE.Quaternion(), size, h: size.map((s) => s / 2), v, w: spin(size), delay, still: 0 };
+      writeInst(f); FALLING.push(f);
+      return true;
+    }
+    function writeInst(f) { _scl.set(f.size[0], f.size[1], f.size[2]); _mat.compose(f.pos, f.q, _scl); f.I.mesh.setMatrixAt(f.slot, _mat); f.I.dirty = true; }
+    function spin(size) { const s = 2.2 / Math.max(0.6, Math.max(...size)); return new THREE.Vector3((Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s); }
+    // A non-box piece (a window with its glass, a sofa, a car, a roof plane, part of a ship) falls whole as its own mesh.
+    function pieceMesh(pid, v, delay) {
+      if (FALLING.length >= MAX_FALLING) return;
+      const P = PIECES[pid];
+      const center = new THREE.Vector3((P.lo[0] + P.hi[0]) / 2, (P.lo[1] + P.hi[1]) / 2, (P.lo[2] + P.hi[2]) / 2);
+      const grp = new THREE.Group(); grp.position.copy(center);
+      for (const r of P.ranges) {
+        const g = MESH[r.key].geometry, O = ORIG[r.key];
+        const n = r.count * 9, p = new Float32Array(n);
+        for (let i = 0; i < n; i += 3) { const s = r.start * 9 + i; p[i] = O[s] - center.x; p[i + 1] = O[s + 1] - center.y; p[i + 2] = O[s + 2] - center.z; }
+        const ng = new THREE.BufferGeometry();
+        ng.setAttribute('position', new THREE.BufferAttribute(p, 3));
+        ng.setAttribute('normal', new THREE.BufferAttribute(g.attributes.normal.array.slice(r.start * 9, r.start * 9 + n), 3));
+        ng.setAttribute('uv', new THREE.BufferAttribute(g.attributes.uv.array.slice(r.start * 6, r.start * 6 + r.count * 6), 2));
+        ng.setAttribute('color', new THREE.BufferAttribute(g.attributes.color.array.slice(r.start * 9, r.start * 9 + n), 3));
+        const mm = new THREE.Mesh(ng, material(r.key)); mm.userData.key = r.key; grp.add(mm);
+      }
+      grp.userData.debris = true;
+      group.add(grp);
+      const size = [P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]];
+      FALLING.push({ kind: 'mesh', obj: grp, pos: grp.position, q: grp.quaternion, size, h: size.map((s) => s / 2), v, w: spin(size), delay, still: 0 });
+      stats.rubbleTris += P.ranges.reduce((s, r) => s + r.count, 0);
+    }
+    // What a destroyed piece becomes: dust, chunks of its material, or itself falling whole.
+    function breakOff(pid, vel, delay, from, chunk = CHUNK) {
+      const P = PIECES[pid];
+      const size = [P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]];
+      if (Math.min(...size) < THIN) { if (Math.random() < 0.15) dustAt(P.lo[0], P.lo[1], P.lo[2], 1, 0.5); return; }
+      if (!P.meta) { pieceMesh(pid, vel, delay); return; }
+      if (P.meta.panel) { // a roof panel falls as one tilted chunk of its roofing
+        const A = P.meta.panel.axes;
+        const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(...A[0]), new THREE.Vector3(...A[1]), new THREE.Vector3(...A[2])));
+        const v = from ? vel : vel.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0, (Math.random() - 0.5) * 1.2));
+        addChunk(P.meta.mat, P.meta.tint, P.meta.panel.c, P.meta.panel.size, v, delay + (from ? 0 : Math.random() * 0.15), q);
+        stats.rubbleTris += 12;
+        return;
+      }
+      const [x0, y0, z0, x1, y1, z1] = P.meta.box;
+      const nx = Math.min(4, Math.ceil((x1 - x0) / chunk)), ny = Math.min(4, Math.ceil((y1 - y0) / chunk)), nz = Math.min(4, Math.ceil((z1 - z0) / chunk));
+      for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) for (let k = 0; k < nz; k++) {
+        const a = [x0 + (x1 - x0) * i / nx, y0 + (y1 - y0) * j / ny, z0 + (z1 - z0) * k / nz];
+        const b = [x0 + (x1 - x0) * (i + 1) / nx, y0 + (y1 - y0) * (j + 1) / ny, z0 + (z1 - z0) * (k + 1) / nz];
+        const c = new THREE.Vector3((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+        const jit = () => (Math.random() - 0.5);
+        const away = from ? c.clone().sub(from).normalize().multiplyScalar(vel.length() * 0.5) : new THREE.Vector3(jit() * 1.5, 0, jit() * 1.5);
+        const v = vel.clone().multiplyScalar(0.6).add(away).add(new THREE.Vector3(jit() * 3, jit() * 2, jit() * 3));
+        addChunk(P.meta.mat, P.meta.tint, a, b, v, delay + (from ? 0 : (a[1] - y0) * 0.03 + Math.random() * 0.05));
+        stats.rubbleTris += 12;
+      }
+    }
+
+    // ---------------------------------------------------------------- dust, fire, flashes, scorch
+    function softSprite() {
+      const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+      const r = g.createRadialGradient(32, 32, 2, 32, 32, 31); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.5, 'rgba(255,255,255,0.5)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    }
+    let SPRITE = null, DUST = null, FIRE = null, fxReady = false;
+    function pool(n, size, blending) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 4), 4));
+      const mat = new THREE.PointsMaterial({ size, map: SPRITE, vertexColors: true, transparent: true, depthWrite: false, blending, sizeAttenuation: true });
+      const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 3; group.add(pts);
+      return { pts, n, next: 0, live: 0, life: new Float32Array(n), max: new Float32Array(n), vel: new Float32Array(n * 3), rgb: new Float32Array(n * 3), grav: 0, drag: 0.97 };
+    }
+    function emit(P, x, y, z, vx, vy, vz, life, rgb) {
+      const i = P.next; P.next = (P.next + 1) % P.n;
+      const pos = P.pts.geometry.attributes.position.array;
+      pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+      P.vel[i * 3] = vx; P.vel[i * 3 + 1] = vy; P.vel[i * 3 + 2] = vz;
+      P.life[i] = life; P.max[i] = life; P.rgb.set(rgb, i * 3); P.live = Math.max(P.live, life);
+    }
+    function stepPool(P, dt, alpha) {
+      if (P.live <= 0) return; // nothing alive: no work, no upload
+      P.live -= dt;
+      const pos = P.pts.geometry.attributes.position.array, col = P.pts.geometry.attributes.color.array;
+      for (let i = 0; i < P.n; i++) {
+        if (P.life[i] <= 0) { col[i * 4 + 3] = 0; continue; }
+        P.life[i] -= dt;
+        P.vel[i * 3 + 1] += P.grav * dt;
+        for (let k = 0; k < 3; k++) { P.vel[i * 3 + k] *= P.drag; pos[i * 3 + k] += P.vel[i * 3 + k] * dt; }
+        const fl = Math.max(0, ground(pos[i * 3], pos[i * 3 + 2])) + 0.05;
+        if (pos[i * 3 + 1] < fl) { pos[i * 3 + 1] = fl; P.vel[i * 3 + 1] *= -0.3; }
+        const f = Math.max(0, P.life[i] / P.max[i]);
+        col[i * 4] = P.rgb[i * 3]; col[i * 4 + 1] = P.rgb[i * 3 + 1]; col[i * 4 + 2] = P.rgb[i * 3 + 2];
+        col[i * 4 + 3] = alpha(f);
+      }
+      P.pts.geometry.attributes.position.needsUpdate = true; P.pts.geometry.attributes.color.needsUpdate = true;
+    }
+    function dustAt(x, y, z, n, spread, tone = [0.62, 0.58, 0.52]) {
+      if (!DUST) return;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, s = Math.random() * spread;
+        const v = 0.85 + Math.random() * 0.3;
+        emit(DUST, x + (Math.random() - 0.5) * spread * 0.5, y + Math.random() * spread * 0.3, z + (Math.random() - 0.5) * spread * 0.5, Math.cos(a) * s, 0.6 + Math.random() * spread * 0.4, Math.sin(a) * s, 3 + Math.random() * 4, [tone[0] * v, tone[1] * v, tone[2] * v]);
+      }
+    }
+    const FLASH = [];
+    let flashNext = 0;
+    function flash(p, r) {
+      const f = FLASH[flashNext]; flashNext = (flashNext + 1) % FLASH.length;
+      f.light.position.copy(p); f.ball.position.copy(p); f.t = 0; f.r = r; f.ball.visible = true;
+    }
+    const SCORCH = [];
+    function scorch(p, r) {
+      const m = new THREE.Mesh(new THREE.CircleGeometry(r * 0.8, 20), new THREE.MeshBasicMaterial({ color: 0x15120e, transparent: true, opacity: 0.55, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.position.set(p.x, gridAt(p.x, p.z) + 0.02 + (SCORCH.length * 0.001) % 0.05, p.z);
+      m.renderOrder = 1; group.add(m); SCORCH.push(m);
+    }
+    function addFx() {
+      SPRITE = SPRITE || softSprite();
+      DUST = pool(2500, 3.2, THREE.NormalBlending); DUST.grav = 0.25; DUST.drag = 0.985;
+      FIRE = pool(600, 0.45, THREE.AdditiveBlending); FIRE.grav = -9.81; FIRE.drag = 0.99;
+      FLASH.length = 0;
+      for (let i = 0; i < 3; i++) {
+        const light = new THREE.PointLight(0xffb060, 0, 40, 2);
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+        ball.visible = false; group.add(light, ball);
+        FLASH.push({ light, ball, t: 1, r: 1 });
+      }
+      fxReady = true;
+    }
+
+    // ---------------------------------------------------------------- the shot
+    const WEAPONS = opts.weapons || { cannon: { r: 1.3, label: 'Autocannon', throwV: 9 }, shell: { r: 3.2, label: '120 mm shell', throwV: 14 }, missile: { r: 5.5, label: 'Missile', throwV: 18, flies: true }, demo: { r: 9, label: 'Demolition', throwV: 22 } };
+    function blast(p, wkey) {
+      if (!fxReady) addFx();
+      const W = typeof wkey === 'string' ? WEAPONS[wkey] : wkey, r = W.r;
+      flash(p, r);
+      for (let i = 0; i < 20 * r; i++) { const a = Math.random() * 6.28, e = Math.random() * 1.2, s = 6 + Math.random() * 14; emit(FIRE, p.x, p.y, p.z, Math.cos(a) * Math.cos(e) * s, Math.sin(e) * s, Math.sin(a) * Math.cos(e) * s, 0.25 + Math.random() * 0.5, [1.0, 0.55 + Math.random() * 0.3, 0.2]); }
+      dustAt(p.x, p.y, p.z, Math.round(25 * r), r * 0.9);
+      if (p.y < gridAt(p.x, p.z) + 1.0) scorch(p, r);
+      const hitB = new Set();
+      let hit = 0;
+      for (let pid = 0; pid < PIECES.length; pid++) {
+        const P = PIECES[pid];
+        if (!P.alive || P.bld < 0) continue;
+        const dx = Math.max(P.lo[0] - p.x, 0, p.x - P.hi[0]), dy = Math.max(P.lo[1] - p.y, 0, p.y - P.hi[1]), dz = Math.max(P.lo[2] - p.z, 0, p.z - P.hi[2]);
+        const d = Math.hypot(dx, dy, dz);
+        if (d > r) continue;
+        P.alive = false; hide(pid); hitB.add(P.bld); hit++;
+        const c = new THREE.Vector3((P.lo[0] + P.hi[0]) / 2, (P.lo[1] + P.hi[1]) / 2, (P.lo[2] + P.hi[2]) / 2);
+        const dir = c.clone().sub(p); if (dir.lengthSq() < 1e-4) dir.set(0, 1, 0); dir.normalize();
+        const v = dir.multiplyScalar(W.throwV * (1 - d / r) + 1.5).add(new THREE.Vector3(0, 2 + Math.random() * 3, 0));
+        breakOff(pid, v, 0, p);
+      }
+      let fell = 0;
+      for (const b of hitB) fell += settleBuilding(b);
+      flushHidden();
+      return { hit, fell };
+    }
+    // What still stands: from the ground up through 'up' links freely, and at most three 'side' steps. A building that
+    // loses half its load-bearing walls (or its own `collapse.frac`) comes down whole.
+    function settleBuilding(b) {
+      const B = BLD[b];
+      if (B.collapsed) return 0;
+      const left = B.walls.reduce((s, pid) => s + (PIECES[pid].alive ? PIECES[pid].area : 0), 0);
+      const frac = B.collapse ? B.collapse.frac : 0.5;
+      if (B.walls.length && left < B.wallArea * frac) {
+        B.collapsed = true;
+        let n = 0;
+        for (const pid of B.pieces) {
+          const P = PIECES[pid];
+          if (!P.alive) continue;
+          if (!B.collapse && P.lo[1] - B.base < 0.6 && P.hi[1] - B.base < 1.2) continue; // the slab and what sits on it stay
+          P.alive = false; hide(pid); n++;
+          breakOff(pid, new THREE.Vector3((Math.random() - 0.5) * 1.5, -0.5, (Math.random() - 0.5) * 1.5), 0.5 + (P.lo[1] - B.base) * 0.04 + Math.random() * 0.15, null, 2.2);
+        }
+        dustAt((B.lo[0] + B.hi[0]) / 2, B.base + 1, (B.lo[2] + B.hi[2]) / 2, 240, Math.max(6, (B.hi[0] - B.lo[0]) * 0.35));
+        return n;
+      }
+      const L = B.pieces, idx = new Map(L.map((pid, i) => [pid, i]));
+      const local = { up: L.map((pid) => PIECES[pid].up.map((q) => idx.get(q))), side: L.map((pid) => PIECES[pid].side.map((q) => idx.get(q))) };
+      const st = K.standing(B.rel, local, L.map((pid) => PIECES[pid].alive));
+      const best = new Set([...st.keys()].map((i) => L[i]));
+      let n = 0;
+      for (const pid of B.pieces) {
+        const P = PIECES[pid];
+        if (!P.alive || best.has(pid)) continue;
+        P.alive = false; hide(pid); n++;
+        breakOff(pid, new THREE.Vector3((Math.random() - 0.5) * 0.8, -0.2, (Math.random() - 0.5) * 0.8), 0.25 + Math.random() * 0.6, null);
+        dustAt((P.lo[0] + P.hi[0]) / 2, P.lo[1], (P.lo[2] + P.hi[2]) / 2, 2, 0.8);
+      }
+      return n;
+    }
+    // Pieces that the kit's rule would not hold as built (they hang, or float): reported by a page so it can fix them.
+    function unheld() {
+      const out = [];
+      for (const B of BLD) {
+        const L = B.pieces, idx = new Map(L.map((pid, i) => [pid, i]));
+        const local = { up: L.map((pid) => PIECES[pid].up.map((q) => idx.get(q))), side: L.map((pid) => PIECES[pid].side.map((q) => idx.get(q))) };
+        const st = K.standing(B.rel, local, L.map(() => true));
+        const n = L.length - st.size;
+        if (n) out.push({ name: B.name, unheld: n, of: L.length });
+      }
+      return out;
+    }
+
+    // ---------------------------------------------------------------- physics of what falls
+    const _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+    function stepDebris(dt) {
+      for (let i = FALLING.length - 1; i >= 0; i--) {
+        const d = FALLING[i];
+        if (d.delay > 0) {
+          d.delay -= dt;
+          d.pos.x += (Math.random() - 0.5) * 0.02; d.pos.z += (Math.random() - 0.5) * 0.02; // the creak
+          if (Math.random() < dt * 4) dustAt(d.pos.x, d.pos.y - d.h[1], d.pos.z, 1, 0.4);
+          if (d.kind === 'inst') writeInst(d);
+          continue;
+        }
+        d.age = (d.age || 0) + dt;
+        d.v.y -= 9.81 * dt;
+        d.pos.addScaledVector(d.v, dt);
+        const wl = d.w.length();
+        if (wl > 1e-4) { _q.setFromAxisAngle(d.w.clone().divideScalar(wl), wl * dt); d.q.premultiply(_q); }
+        _m.makeRotationFromQuaternion(d.q); const e = _m.elements;
+        const hy = Math.abs(e[1]) * d.h[0] + Math.abs(e[5]) * d.h[1] + Math.abs(e[9]) * d.h[2];
+        const hx = Math.abs(e[0]) * d.h[0] + Math.abs(e[4]) * d.h[1] + Math.abs(e[8]) * d.h[2];
+        const hz = Math.abs(e[2]) * d.h[0] + Math.abs(e[6]) * d.h[1] + Math.abs(e[10]) * d.h[2];
+        const floor = gridMax(d.pos.x - hx * 0.6, d.pos.z - hz * 0.6, d.pos.x + hx * 0.6, d.pos.z + hz * 0.6);
+        let rest = false;
+        if (d.pos.y - hy < floor) {
+          d.pos.y = floor + hy;
+          if (d.v.y < -2.5) { d.v.y *= -0.2; d.v.x *= 0.55; d.v.z *= 0.55; d.w.multiplyScalar(0.5); if (Math.random() < 0.4) dustAt(d.pos.x, floor, d.pos.z, 2, 0.6); }
+          else { d.v.y = 0; d.v.x *= 0.82; d.v.z *= 0.82; d.w.multiplyScalar(0.7); }
+          // Angle of repose: slide toward the lowest neighbour 1 m away if the drop is too steep.
+          let low = floor, lx = 0, lz = 0;
+          for (let a = 0; a < 8; a++) { const ax = Math.cos(a * Math.PI / 4), az = Math.sin(a * Math.PI / 4); const g = gridAt(d.pos.x + ax * (hx + 0.6), d.pos.z + az * (hz + 0.6)); if (g < low) { low = g; lx = ax; lz = az; } }
+          if (floor - low > REPOSE * (Math.max(hx, hz) + 0.6)) { d.v.x += lx * 9 * dt + lx * 0.4; d.v.z += lz * 9 * dt + lz * 0.4; d.still = 0; }
+          else if (d.v.lengthSq() < 0.15 && d.w.lengthSq() < 0.2) d.still += dt; else d.still = 0;
+          if (d.still > 0.2 || d.age > 6) rest = true;
+        } else if (d.pos.y < (opts.waterY ?? -1e9)) { d.v.multiplyScalar(Math.pow(0.15, dt)); } // in the water: drag, a slow sink
+        if (d.kind === 'inst') writeInst(d);
+        if (rest) {
+          // A pile rises by the piece's thickness, not its tilted bounding box (a roof plane lies flat-ish).
+          const thick = d.kind === 'inst' ? Math.min(...d.size) : 0.5;
+          gridStamp(d.pos.x - hx * 0.85, d.pos.z - hz * 0.85, d.pos.x + hx * 0.85, d.pos.z + hz * 0.85, floor + Math.min(hy * 2, Math.max(thick, 0.3)) * 0.85);
+          if (d.kind === 'mesh') bake(d.obj);
+          FALLING.splice(i, 1);
+        } else if (d.pos.y < -60) FALLING.splice(i, 1);
+      }
+      for (const I of Object.values(INST)) if (I.dirty) { I.mesh.instanceMatrix.needsUpdate = true; I.dirty = false; }
+    }
+    // A whole piece at rest is baked into one static rubble mesh a material (rebuilt for that material only).
+    const RUBBLE = {}, rubbleDirty = new Set(); let rubbleTimer = 0;
+    function bake(o) {
+      o.updateMatrixWorld(true);
+      const nm = new THREE.Matrix3(), v = new THREE.Vector3();
+      for (const m of o.children) {
+        const key = m.userData.key;
+        const R = RUBBLE[key] || (RUBBLE[key] = { p: [], n: [], u: [], c: [], mesh: null });
+        const g = m.geometry, P = g.attributes.position, N = g.attributes.normal;
+        nm.getNormalMatrix(m.matrixWorld);
+        for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld); R.p.push(v.x, v.y, v.z); v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); R.n.push(v.x, v.y, v.z); }
+        for (const x of g.attributes.uv.array) R.u.push(x);
+        for (const x of g.attributes.color.array) R.c.push(x);
+        g.dispose(); rubbleDirty.add(key);
+      }
+      group.remove(o);
+    }
+    function rebuildRubble() {
+      for (const key of rubbleDirty) {
+        const R = RUBBLE[key];
+        if (R.mesh) { group.remove(R.mesh); R.mesh.geometry.dispose(); R.mesh = null; }
+        if (!R.p.length) continue;
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(R.p, 3));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute(R.n, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(R.u, 2));
+        g.setAttribute('color', new THREE.Float32BufferAttribute(R.c, 3));
+        g.computeBoundingSphere();
+        R.mesh = new THREE.Mesh(g, material(key)); R.mesh.castShadow = true; R.mesh.receiveShadow = true; R.mesh.userData.debris = true;
+        group.add(R.mesh);
+      }
+      rubbleDirty.clear();
+    }
+    const TRACERS = [], MISSILES = [];
+    function stepFx(dt) {
+      rubbleTimer += dt;
+      if (rubbleDirty.size && rubbleTimer > 0.5) { rubbleTimer = 0; rebuildRubble(); }
+      for (const f of FLASH) {
+        if (f.t >= 1) continue;
+        f.t += dt / 0.45;
+        const k = Math.min(1, f.t);
+        f.light.intensity = 120 * Math.pow(1 - k, 2) * f.r;
+        f.ball.scale.setScalar(f.r * (0.3 + 0.9 * Math.sqrt(k)));
+        f.ball.material.opacity = 0.9 * (1 - k);
+        if (k >= 1) { f.ball.visible = false; f.light.intensity = 0; }
+      }
+      if (DUST) stepPool(DUST, dt, (f) => 0.55 * Math.min(1, f * 1.6) * Math.min(1, (1 - f) * 8 + 0.2));
+      if (FIRE) stepPool(FIRE, dt, (f) => f);
+      for (const t of TRACERS.slice()) { t.life -= dt; t.line.material.opacity = Math.max(0, t.life / 0.08); if (t.life <= 0) { group.remove(t.line); TRACERS.splice(TRACERS.indexOf(t), 1); } }
+      for (const m of MISSILES.slice()) {
+        m.t += dt;
+        const k = Math.min(1, m.t / m.dur);
+        m.obj.position.lerpVectors(m.a, m.b, k);
+        emit(DUST, m.obj.position.x, m.obj.position.y, m.obj.position.z, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 1.8, [0.85, 0.85, 0.85]);
+        if (k >= 1) { group.remove(m.obj); MISSILES.splice(MISSILES.indexOf(m), 1); blast(m.b, m.w); }
+      }
+    }
+    function step(dt) { stepDebris(dt); stepFx(dt); }
+
+    // ---------------------------------------------------------------- firing where the player points
+    const ray = new THREE.Raycaster();
+    // ndc: the pointer in normalised device coordinates. extra: more objects the shot can land on (the ground, models).
+    function fireAt(ndc, camera, wkey, extra = []) {
+      if (!fxReady) addFx();
+      ray.setFromCamera(ndc, camera);
+      const targets = Object.values(MESH).filter((m) => !TRANSPARENT.has(m.userData.key) || m.userData.key === 'glass' || m.userData.key === 'glassShop').concat(extra);
+      const hits = ray.intersectObjects(targets, true);
+      let p = hits.length ? hits[0].point : null;
+      if (!p) { const t = -ray.ray.origin.y / ray.ray.direction.y; if (t > 0 && t < 4000) p = ray.ray.origin.clone().addScaledVector(ray.ray.direction, t); }
+      if (!p) return null;
+      const muzzle = camera.position.clone().add(new THREE.Vector3(0, -0.6, 0));
+      const W = WEAPONS[wkey];
+      if (W.flies) {
+        const obj = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0xd8d8d0, emissive: 0xff8030, emissiveIntensity: 0.6 }));
+        obj.position.copy(muzzle); obj.lookAt(p); obj.rotateX(Math.PI / 2); group.add(obj);
+        MISSILES.push({ obj, a: muzzle, b: p.clone(), t: 0, dur: Math.max(0.15, muzzle.distanceTo(p) / 220), w: wkey });
+        return p;
+      }
+      const g = new THREE.BufferGeometry().setFromPoints([muzzle, p]);
+      const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 1 }));
+      group.add(line); TRACERS.push({ line, life: 0.08 });
+      blast(p.clone(), wkey);
+      return p;
+    }
+    // A click that does not drag fires the weapon weapon() names where the pointer is.
+    function bindFire(canvas, camera, weapon, extra = () => []) {
+      let downAt = null;
+      canvas.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+      canvas.addEventListener('pointerup', (e) => {
+        if (!downAt) return;
+        const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+        downAt = null;
+        if (moved >= 6 || e.button !== 0) return;
+        const rect = canvas.getBoundingClientRect();
+        fireAt(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera, weapon(), extra());
+      });
+    }
+    // Everything back as built.
+    function reset() {
+      for (const [k, m] of Object.entries(MESH)) { m.geometry.attributes.position.array.set(ORIG[k]); m.geometry.attributes.position.needsUpdate = true; }
+      for (const P of PIECES) P.alive = true;
+      for (const b of BLD) b.collapsed = false;
+      for (const f of FALLING) if (f.kind === 'mesh') group.remove(f.obj);
+      for (const R of Object.values(RUBBLE)) { if (R.mesh) group.remove(R.mesh); R.p = []; R.n = []; R.u = []; R.c = []; R.mesh = null; }
+      FALLING.length = 0;
+      group.children.filter((o) => o.userData.debris).forEach((o) => group.remove(o));
+      for (const I of Object.values(INST)) { I.used = 0; I.mesh.count = 0; }
+      stats.rubbleTris = 0;
+      for (const s of SCORCH) group.remove(s);
+      SCORCH.length = 0;
+      resetGrid();
+    }
+    return {
+      GEN, makeTex, normalFrom, material, materials, glows, M, TRANSPARENT, MESH, PIECES, BLD, WEAPONS, FALLING, stats,
+      building, add, boundsOf, fromObject, finish, clear, reset, blast, fireAt, bindFire, step, unheld, gridAt, dustAt,
+    };
+  }
+  root.BuildingEngine = BuildingEngine;
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+<script>
+// Large buildings, structures and machines for the airport and the seaport (openspec/changes/airport-layout,
+// seaport-layout), built from the small-buildings kit's own parts (docs/mockups/small_buildings_kit.js) so they reach
+// the suburban houses' standard (owner, 2026-10-29: "Airport is not up to standard of like suburban houses"): real walls
+// with framed, glazed openings, roll-up and hangar doors, floors and roofs in panels, columns, stairs, furniture, signs,
+// every piece breakable by the kit's support rule. Each function draws into a kit Builder in metres, the building's
+// front facing +z, standing on y = 0; a page places it with BuildingEngine.add (docs/mockups/building_engine.js).
+//
+// A big building is built the way one is: bays of at most BAY metres between columns, floors and roofs in TILE metre
+// panels, so a shot takes out a bay, not a whole facade. Angled members (a jet bridge's tunnel, an arch, a crane's boom)
+// are oriented plates: each a piece the engine drops as a tilted chunk of its material.
+(function (root) {
+  'use strict';
+  const K = root.SmallBuildings || (typeof require !== 'undefined' ? require('./small_buildings_kit.js') : null);
+  const { wall, tiles, place, FURN } = K;
+  const BAY = 6, TILE = 5;
+
+  // ---------------------------------------------------------------- vectors and oriented plates
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const mul = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const len = (a) => Math.hypot(a[0], a[1], a[2]);
+  const norm = (a) => { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  // An oriented box: centre c, unit axes [a0, a1, a2], sizes [s0, s1, s2]; a piece of its own (falls as one tilted chunk).
+  function plate(B, mat, c, axes, size) {
+    B.group(() => {
+      const h = size.map((s) => s / 2);
+      const P = (i, j, k) => add(add(add(c, mul(axes[0], i * h[0])), mul(axes[1], j * h[1])), mul(axes[2], k * h[2]));
+      const face = (n, pts) => B.poly(mat, pts, n);
+      face(axes[0], [P(1, -1, -1), P(1, 1, -1), P(1, 1, 1), P(1, -1, 1)]);
+      face(mul(axes[0], -1), [P(-1, -1, -1), P(-1, -1, 1), P(-1, 1, 1), P(-1, 1, -1)]);
+      face(axes[1], [P(-1, 1, -1), P(-1, 1, 1), P(1, 1, 1), P(1, 1, -1)]);
+      face(mul(axes[1], -1), [P(-1, -1, -1), P(1, -1, -1), P(1, -1, 1), P(-1, -1, 1)]);
+      face(axes[2], [P(-1, -1, 1), P(1, -1, 1), P(1, 1, 1), P(-1, 1, 1)]);
+      face(mul(axes[2], -1), [P(-1, -1, -1), P(-1, 1, -1), P(1, 1, -1), P(1, -1, -1)]);
+      B.meta[B.cur] = { mat, tint: B.tint.slice(), panel: { c, size, axes } };
+    });
+  }
+  // A member from p to q, w wide and h deep (a beam, a tunnel, a boom, a stay), as one oriented plate.
+  function member(B, mat, p, q, w, h) {
+    const d = norm(sub(q, p));
+    let s = cross(d, [0, 1, 0]); if (len(s) < 1e-6) s = [1, 0, 0]; s = norm(s);
+    const n = norm(cross(s, d));
+    plate(B, mat, mul(add(p, q), 0.5), [d, n, s], [len(sub(q, p)), h, w]);
+  }
+  // A vertical cylinder from y0 to y1 cut into lifts of at most `lift` metres, each a piece.
+  function column(B, mat, x, z, r, y0, y1, seg = 12, lift = 6) {
+    const n = Math.max(1, Math.ceil((y1 - y0) / lift - 1e-6));
+    for (let i = 0; i < n; i++) B.cyl(mat, 'y', [x, 0, z], r, y0 + (y1 - y0) * i / n, y0 + (y1 - y0) * (i + 1) / n, seg);
+  }
+  // A long box cut into lengths of at most `piece` metres along its longest side (a girder, a parapet, a crown wall).
+  function run(B, mat, x0, y0, z0, x1, y1, z1, piece = BAY) {
+    const lx = x1 - x0, lz = z1 - z0;
+    const n = Math.max(1, Math.ceil(Math.max(lx, lz) / piece - 1e-6));
+    for (let i = 0; i < n; i++) {
+      if (lx >= lz) B.box(mat, x0 + lx * i / n, y0, z0, x0 + lx * (i + 1) / n, y1, z1);
+      else B.box(mat, x0, y0, z0 + lz * i / n, x1, y1, z0 + lz * (i + 1) / n);
+    }
+  }
+
+  // ---------------------------------------------------------------- facades
+  // Opening makers for one bay [a, b] of one storey [y0, y1]: what a real facade of each kind has in a structural bay.
+  const BAYS = {
+    blank: () => [],
+    windows: (a, b, y0, y1) => (b - a > 2.2 ? [{ kind: 'win', a: a + 0.9, b: b - 0.9, y0: y0 + 1.0, y1: Math.min(y1 - 0.6, y0 + 2.4), frameTint: 0xd8dcde }] : []),
+    ribbon: (a, b, y0, y1) => [{ kind: 'ribbon', a: a + 0.25, b: b - 0.25, y0: y0 + 1.0, y1: y1 - 0.8, frameTint: 0x8d9196, sill: false, lights: Math.max(2, Math.round((b - a) / 1.5)) }],
+    glazed: (a, b, y0, y1) => [{ kind: 'pic', a: a + 0.2, b: b - 0.2, y0: y0 + 0.3, y1: y1 - 0.5, frameTint: 0x5a5f66, frameMat: 'metal', sill: false, lights: Math.max(2, Math.round((b - a) / 1.5)) }],
+    entrance: (a, b, y0, y1) => [{ kind: 'shop', a: a + 0.2, b: b - 0.2, y0, y1: Math.min(y1 - 0.4, y0 + 3.4), door: 1, frameTint: 0x8d9196 }],
+    roll: (a, b, y0, y1, o) => [{ kind: 'roll', a: a + 0.3, b: b - 0.3, y0, y1: Math.min(y1 - 0.5, y0 + (o.doorH || 4.5)), doorTint: o.doorTint || 0xe9e6de }],
+    door: (a, b, y0, y1) => [{ kind: 'door', a: (a + b) / 2 - 0.5, b: (a + b) / 2 + 0.5, y0, y1: y0 + 2.2, doorMat: 'metal', doorTint: 0x8d9196, stoop: false }],
+    open: (a, b, y0, y1) => [{ kind: 'gap', a, b, y0, y1 }],
+  };
+  // One face: along `axis` at `c`, from s0 to s1, `out` +1 when outside is on its + side, for each storey of `storeys`
+  // ([y0, y1] pairs), bays of at most BAY metres each filled by `spec(bay, storey)` (a BAYS key or a function).
+  function face(B, o, axis, c, s0, s1, out, spec) {
+    const n = Math.max(1, Math.round((s1 - s0) / (o.bay || BAY)));
+    o.storeys.forEach(([y0, y1], st) => {
+      for (let i = 0; i < n; i++) {
+        const a = s0 + (s1 - s0) * i / n, b = s0 + (s1 - s0) * (i + 1) / n;
+        const kind = typeof spec === 'function' ? spec(i, st, n) : spec;
+        const ops = (BAYS[kind] || BAYS.blank)(a, b, y0, y1, o);
+        B.color(o.tint);
+        wall(B, o.wall, axis, c, a, b, o.t, y0, y1, out, ops, { inner: o.inner === false ? null : 'plaster' });
+      }
+    });
+  }
+  // A hall: walls on four faces in bays, a slab, upper floors and a flat roof in panels, interior columns on a grid.
+  // o: { x0, x1, z0, z1, storeys: [[y0, y1]...], wall, tint, t, front, back, left, right (bay specs), col (grid, metres),
+  //      roof: { parapet, tint, wall }, floorMat, furnish(B) }
+  function hall(B, o) {
+    o = Object.assign({ t: 0.3, wall: 'block', tint: 0xe2ddd2, col: 12, bay: BAY }, o);
+    const { x0, x1, z0, z1, t } = o, top = o.storeys[o.storeys.length - 1][1];
+    B.color(0xbab4aa); tiles(B, 'concrete', x0, -0.3, z0, x1, o.storeys[0][0], z1, null, TILE);
+    face(B, o, 'x', z1 - t / 2, x0, x1, 1, o.front || 'windows');
+    face(B, o, 'x', z0 + t / 2, x0, x1, -1, o.back || 'blank');
+    face(B, o, 'z', x0 + t / 2, z0 + t, z1 - t, -1, o.left || 'blank');
+    face(B, o, 'z', x1 - t / 2, z0 + t, z1 - t, 1, o.right || 'blank');
+    // interior columns, one lift a storey, under every floor and the roof
+    const nx = Math.max(1, Math.round((x1 - x0) / o.col)), nz = Math.max(1, Math.round((z1 - z0) / o.col));
+    o.storeys.forEach(([y0, y1]) => {
+      for (let i = 1; i < nx; i++) for (let k = 1; k < nz; k++) {
+        const x = x0 + (x1 - x0) * i / nx, z = z0 + (z1 - z0) * k / nz;
+        B.color(0xd8d4cc); B.box('concrete', x - 0.3, y0, z - 0.3, x + 0.3, y1 - 0.3, z + 0.3);
+      }
+    });
+    // floors between storeys and the roof, in panels resting on the walls and the columns
+    o.storeys.forEach(([, y1], st) => {
+      const last = st === o.storeys.length - 1;
+      B.color(last ? 0x6d6a66 : 0xbab4aa);
+      tiles(B, last ? 'roofing' : 'concrete', x0 + t, y1 - 0.3, z0 + t, x1 - t, y1 + (last ? 0.006 : 0), z1 - t, null, TILE);
+      if (!last) { B.color(0xffffff); tiles(B, o.floorMat || 'floorTile', x0 + t, y1, z0 + t, x1 - t, y1 + 0.012, z1 - t, null, TILE); }
+    });
+    B.color(0xffffff); tiles(B, o.floorMat || 'floorTile', x0 + t, o.storeys[0][0], z0 + t, x1 - t, o.storeys[0][0] + 0.012, z1 - t, null, TILE);
+    // the parapet and its coping, in lengths
+    const par = o.roof && o.roof.parapet != null ? o.roof.parapet : 0.8;
+    if (par > 0) {
+      B.color(o.tint);
+      run(B, o.wall, x0, top, z1 - t, x1, top + par, z1); run(B, o.wall, x0, top, z0, x1, top + par, z0 + t);
+      run(B, o.wall, x0, top, z0 + t, x0 + t, top + par, z1 - t); run(B, o.wall, x1 - t, top, z0 + t, x1, top + par, z1 - t);
+      B.color(0xd8d2c6);
+      run(B, 'concrete', x0 - 0.05, top + par, z1 - t - 0.05, x1 + 0.05, top + par + 0.08, z1 + 0.05);
+      run(B, 'concrete', x0 - 0.05, top + par, z0 - 0.05, x1 + 0.05, top + par + 0.08, z0 + t + 0.05);
+    }
+    if (o.furnish) o.furnish(B);
+    return top + par;
+  }
+  // A sign band and its sign on the front at height y.
+  function signBand(B, M, text, x, y, z, w, bg = '#1d4f8f', fg = '#ffffff') {
+    B.color(parseInt(bg.slice(1), 16)); B.box('paint', x - w / 2 - 0.3, y - 0.6, z, x + w / 2 + 0.3, y + 0.6, z + 0.06);
+    if (M) B.sign(M.sign(text, bg, fg), x, y, z + 0.065, w, 1.0, '+z');
+  }
+  // Rows of airport seats, a counter, a desk: dressing for a hall's floor at height y.
+  function seats(B, x0, x1, z, y, n = 1) {
+    for (let r = 0; r < n; r++) for (let x = x0; x + 0.6 <= x1; x += 0.62) place(B, x + 0.3, y, z + r * 1.8, 2, FURN.chair(0x2f5f8f));
+  }
+
+  // ---------------------------------------------------------------- the airport
+  // A terminal: two storeys, a glazed airside face with gates, an entrance landside under a canopy, check-in counters,
+  // seats at the gates. w along x, d deep, airside to -z (the apron), landside to +z.
+  function terminal(B, M, o) {
+    const w = o.w, d = o.d, x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2;
+    const top = hall(B, { x0, x1, z0, z1, storeys: [[0.15, 7.15], [7.15, 14.15]], wall: 'ribbed', tint: 0xd9d6cc, col: 12,
+      front: (i, st) => (st === 0 ? (i % 4 === 1 ? 'entrance' : 'glazed') : 'ribbon'), back: 'glazed', left: (i, st) => (st === 0 && i === 1 ? 'door' : 'ribbon'), right: (i, st) => (st === 0 && i === 1 ? 'door' : 'ribbon'),
+      furnish(B) {
+        for (let x = x0 + 8; x < x1 - 8; x += 14) { place(B, x, 0.15, z1 - 9, 2, FURN.counter(0x2f5f8f)); place(B, x + 4, 0.15, z1 - 9, 2, FURN.counter(0x2f5f8f)); }
+        for (let x = x0 + 4; x < x1 - 10; x += 24) seats(B, x, x + 10, z0 + 6, 7.165, 3);
+      } });
+    // the landside canopy on its columns, and the sign
+    B.color(0x8d9196); for (let x = x0 + 3; x <= x1 - 3; x += 12) column(B, 'metal', x, z1 + 8, 0.25, 0, 6.5, 10);
+    B.color(0xc8ccce); tiles(B, 'metalRoof', x0, 6.5, z1, x1, 6.8, z1 + 9, null, TILE);
+    signBand(B, M, o.name.toUpperCase(), 0, top - 2.2, z1 + 0.02, Math.min(30, w * 0.5));
+    return top;
+  }
+  // A pier: a glazed concourse on a single storey raised over the apron on columns, a ramp at its root.
+  function concourse(B, M, o) {
+    const w = o.w, d = o.d, x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2;
+    return hall(B, { x0, x1, z0, z1, storeys: [[0.15, 5.0], [5.0, 10.0]], wall: 'ribbed', tint: 0xd9d6cc, col: 10,
+      front: (i, st) => (st === 1 ? 'glazed' : i % 3 === 0 ? 'roll' : 'blank'), back: (i, st) => (st === 1 ? 'glazed' : i % 3 === 0 ? 'roll' : 'blank'), left: 'glazed', right: 'glazed', doorTint: 0x8d9196, doorH: 3.6,
+      furnish(B) { for (let z = z0 + 6; z < z1 - 12; z += 20) { seats(B, x0 + 3, x0 + 9, z, 5.012, 4); seats(B, x1 - 9, x1 - 3, z, 5.012, 4); } } });
+  }
+  // A jet bridge from a rotunda at `face` ([x, y, z], the terminal's face at the bridge's floor) to an aircraft's door.
+  function jetBridge(B, face, door) {
+    const R = [face[0], 5.6, face[2]];
+    B.color(0x2a2d31); column(B, 'metal', face[0], face[2], 0.9, 0, 4.2, 12, 5);
+    B.color(0xa9aeb3); B.cyl('metal', 'y', [face[0], 0, face[2]], 2.6, 4.2, 7.4, 16);
+    const cab = [door[0], door[1] + 0.2, door[2]], dir = sub(cab, R), L = len(dir), u = norm(dir);
+    const pt = (s) => add(R, mul(u, s));
+    const cuts = [2.4, L * 0.42, L * 0.72, L - 2.2];
+    [[3.4, 3.2], [3.2, 3.0], [3.0, 2.8]].forEach(([w, h], i) => { B.color(0xa9aeb3); member(B, 'ribbed', pt(cuts[i]), pt(cuts[i + 1] + 0.6), w, h); });
+    B.color(0x9aa4ad); member(B, 'metal', pt(L - 2.6), pt(L), 4.0, 3.4);
+    const foot = pt(L * 0.66);
+    B.color(0x2a2d31); B.box('metal', foot[0] - 0.4, 0, foot[2] - 0.4, foot[0] + 0.4, foot[1] - 1.5, foot[2] + 0.4);
+    B.box('rubber', foot[0] - 1.6, 0, foot[2] - 0.6, foot[0] + 1.6, 1.1, foot[2] + 0.6);
+  }
+  // An arched maintenance hangar: block side and back walls, steel arch in plates (each rests on the one below), the
+  // doors slid back, a mezzanine of offices inside. w wide (x), d deep (z), the door to +z.
+  function archHangar(B, M, o) {
+    const w = o.w, d = o.d, x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2, wallH = o.wallH, rise = o.rise;
+    B.color(0xbab4aa); tiles(B, 'concrete', x0, -0.3, z0, x1, 0.12, z1, null, TILE);
+    const o2 = { storeys: [[0.12, wallH]], wall: 'block', tint: 0xcfcac0, t: 0.4 };
+    face(B, o2, 'z', x0 + 0.2, z0, z1, -1, (i) => (i % 3 === 1 ? 'ribbon' : 'blank'));
+    face(B, o2, 'z', x1 - 0.2, z0, z1, 1, (i) => (i % 3 === 1 ? 'ribbon' : 'blank'));
+    face(B, o2, 'x', z0 + 0.2, x0 + 0.4, x1 - 0.4, -1, (i, st, n) => (i === Math.floor(n / 2) ? 'door' : 'blank'));
+    // the arch: 18 plates around, 8 along, each resting on the one below; the end cap above the back wall in strips
+    const seg = 18, along = 8, a = w / 2, cx = 0;
+    const at = (ang) => [cx + Math.cos(ang) * a, wallH + Math.sin(ang) * rise];
+    for (let i = 0; i < seg; i++) {
+      const p = at(Math.PI * i / seg), q = at(Math.PI * (i + 1) / seg);
+      const tng = norm([q[0] - p[0], q[1] - p[1], 0]), nrm = norm(cross([0, 0, 1], tng));
+      for (let j = 0; j < along; j++) {
+        const za = z0 + d * j / along, zb = z0 + d * (j + 1) / along;
+        B.color(0x9aa2a8);
+        plate(B, 'corrugatedArc', [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (za + zb) / 2], [tng, nrm, [0, 0, 1]], [len([q[0] - p[0], q[1] - p[1], 0]) + 0.05, 0.25, zb - za]);
+      }
+    }
+    for (let i = 0; i < 12; i++) { // the back end cap, vertical strips under the arch
+      const xa = x0 + w * i / 12, xb = x0 + w * (i + 1) / 12, xm = (xa + xb) / 2;
+      const yTop = wallH + rise * Math.sqrt(Math.max(0, 1 - (xm / a) * (xm / a))) - 0.3;
+      if (yTop > wallH + 0.3) { B.color(0xcfcac0); run(B, 'ribbed', xa, wallH, z0, xb, yTop, z0 + 0.3, 6); }
+    }
+    // the doors, slid back to either side of the open front
+    B.color(0x9aa4ad);
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { const xa = s < 0 ? x0 - 0.5 + k * 6 : x1 - 18 + k * 6; B.box('ribbed', xa, 0, z1 + 0.8 + k * 0.4, xa + 6, wallH + rise * 0.3, z1 + 1.1 + k * 0.4); }
+    // offices along the back wall, on a mezzanine
+    B.color(0xd8d4cc); for (let x = x0 + 4; x <= x1 - 4; x += 8) B.box('concrete', x - 0.25, 0.12, z0 + 7.8, x + 0.25, 4.0, z0 + 8.3);
+    B.color(0xbab4aa); tiles(B, 'concrete', x0 + 0.4, 4.0, z0 + 0.4, x1 - 0.4, 4.3, z0 + 8.3, null, TILE);
+    B.color(0xe8e2d0); for (let x = x0 + 2; x < x1 - 4; x += 6) place(B, x, 4.3, z0 + 3, 0, FURN.desk());
+    B.color(0xf2c02a); run(B, 'metal', x0 + 0.4, 4.3, z0 + 8.2, x1 - 0.4, 5.3, z0 + 8.3, 6);
+    for (let z = z0 + 12; z <= z1 - 8; z += 8) { place(B, x0 + 1.2, 0.12, z, 1, FURN.workbench()); place(B, x1 - 1.2, 0.12, z, 3, FURN.workbench()); }   // along the walls, clear of the aircraft
+  }
+  // A control tower: a base building, a concrete shaft in lifts, the glazed cab with its catwalk and roof, the mast.
+  function tower(B, M, o) {
+    const h = o.h;
+    hall(B, { x0: -25, x1: 25, z0: -12, z1: 18, storeys: [[0.15, 5.15], [5.15, 10.15]], wall: 'block', tint: 0xe0dccf, col: 10, front: (i, st) => (st === 0 && i === 4 ? 'entrance' : 'windows'), back: 'windows', left: 'windows', right: 'windows' });
+    B.color(0xd8d4cc);
+    for (let y = 10.15; y < h - 0.01; y += 5) for (const [a, b] of [[-6, -4.5], [4.5, 6]]) { B.box('concrete', a, y, -6, b, Math.min(h, y + 5), 6); B.box('concrete', -4.5, y, a, 4.5, Math.min(h, y + 5), b); }
+    // the cab: a slab, glazed faces all round, the roof
+    B.color(0xbab4aa); tiles(B, 'concrete', -10, h - 0.3, -10, 10, h + 0.2, 10, null, 5);
+    const cab = { storeys: [[h + 0.2, h + 6.2]], wall: 'metal', tint: 0x5a5f66, t: 0.2, bay: 4 };
+    face(B, cab, 'x', 9.9, -10, 10, 1, 'glazed'); face(B, cab, 'x', -9.9, -10, 10, -1, 'glazed');
+    face(B, cab, 'z', -9.9, -9.8, 9.8, -1, 'glazed'); face(B, cab, 'z', 9.9, -9.8, 9.8, 1, 'glazed');
+    B.color(0x6d6a66); tiles(B, 'roofing', -10.6, h + 6.2, -10.6, 10.6, h + 6.6, 10.6, null, 5);
+    B.color(0xe8e2d0); place(B, 0, h + 0.2, 6, 2, FURN.desk()); place(B, -4, h + 0.2, 6, 2, FURN.desk()); place(B, 4, h + 0.2, 6, 2, FURN.desk());
+    B.color(0xe8e8e2); B.box('trim', -0.25, h + 6.6, -0.25, 0.25, h + 14.6, 0.25);
+    B.color(0xffffff); B.box('lampGreen', -0.4, h + 14.6, 0.0, 0.4, h + 15.4, 1.2); B.box('lamp', -0.4, h + 14.6, -1.2, 0.4, h + 15.4, 0.0);
+  }
+  // The mech base's own tower: a hollow block shaft, a glazed cab on top (today: a plain box cab, no glass).
+  function baseTower(B, M, o) {
+    const h = o.h || 30;
+    B.color(0xbab4aa); tiles(B, 'concrete', -6, -0.3, -6, 6, 0.15, 6, null, TILE);
+    const sh = { storeys: [], wall: 'block', tint: 0xcfcac0, t: 0.4, bay: 6 };
+    for (let y = 0.15; y < h - 0.01; y += 5) sh.storeys.push([y, Math.min(h, y + 5)]);
+    face(B, sh, 'x', 5.8, -6, 6, 1, (i, st) => (st === 0 && i === 1 ? 'door' : st % 2 ? 'windows' : 'blank'));
+    face(B, sh, 'x', -5.8, -6, 6, -1, (i, st) => (st % 2 ? 'windows' : 'blank'));
+    face(B, sh, 'z', -5.8, -5.6, 5.6, -1, 'blank'); face(B, sh, 'z', 5.8, -5.6, 5.6, 1, 'blank');
+    B.color(0xbab4aa); tiles(B, 'concrete', -8, h, -8, 8, h + 0.4, 8, null, 4);
+    const cab = { storeys: [[h + 0.4, h + 5.4]], wall: o.today ? 'block' : 'metal', tint: o.today ? 0xcfcac0 : 0x5a5f66, t: 0.2, bay: 4 };
+    const g = o.today ? 'windows' : 'glazed';
+    face(B, cab, 'x', 6.9, -7, 7, 1, g); face(B, cab, 'x', -6.9, -7, 7, -1, g); face(B, cab, 'z', -6.9, -6.8, 6.8, -1, g); face(B, cab, 'z', 6.9, -6.8, 6.8, 1, g);
+    B.color(0x6d6a66); tiles(B, 'roofing', -8.5, h + 5.4, -8.5, 8.5, h + 5.8, 8.5, null, 4);
+    B.color(0xe8e2d0); place(B, 0, h + 0.4, 4, 2, FURN.desk()); place(B, -3, h + 0.4, 4, 2, FURN.desk());
+  }
+  // A de-icing spray boom: a mast and its arm reaching over the pad (the arm to -x).
+  function sprayBoom(B) {
+    B.color(0xf2c02a); B.box('concrete', -2, -0.2, -2, 2, 0.4, 2);
+    column(B, 'metal', 0, 0, 1.4, 0.4, 12, 12, 6);
+    member(B, 'metal', [1, 12.6, 0], [-20, 14, 0], 1.2, 1.2);
+    for (let x = -18; x <= -4; x += 3.5) { B.color(0x2a2d31); B.box('metal', x - 0.15, 12.4, -0.15, x + 0.15, 12.8, 0.15); }
+  }
+  // The surveillance radar's mast (its turning antenna is the page's own spinner).
+  function radarMast(B) {
+    B.color(0xbab4aa); B.box('concrete', -4, -0.3, -4, 4, 0.5, 4);
+    B.color(0x8a8f92); for (const [x, z] of [[-1.6, -1.6], [1.6, -1.6], [1.6, 1.6], [-1.6, 1.6]]) run(B, 'metal', x - 0.15, 0.5, z - 0.15, x + 0.15, 22, z + 0.15, 6);
+    for (let y = 4; y < 22; y += 5) { run(B, 'metal', -1.75, y, -1.75, 1.75, y + 0.2, -1.45); run(B, 'metal', -1.75, y, 1.45, 1.75, y + 0.2, 1.75); }
+    B.color(0x6b7178); B.box('metal', -2, 22, -2, 2, 23, 2);
+  }
+  // A fire station: an engine hall with four red doors, the crew's two storeys beside it, the hose tower.
+  function fireStation(B, M) {
+    hall(B, { x0: -40, x1: 10, z0: -20, z1: 20, storeys: [[0.15, 9.15]], wall: 'brick', tint: 0xffffff, front: (i) => (i < 8 ? 'roll' : 'blank'), bay: 6, doorTint: 0xb8160f, doorH: 6.5, left: 'windows', back: 'windows' });
+    hall(B, { x0: 10, x1: 30, z0: -20, z1: 20, storeys: [[0.15, 4.15], [4.15, 8.15]], wall: 'brick', tint: 0xffffff, front: (i, st) => (st === 0 && i === 1 ? 'entrance' : 'windows'), right: 'windows', back: 'windows' });
+    B.color(0xffffff); for (let y = 0.15; y < 20; y += 5) { run(B, 'brick', 30, y, -20, 36, y + 5, -19.6); run(B, 'brick', 30, y, -14.4, 36, y + 5, -14); B.box('brick', 35.6, y, -19.6, 36, y + 5, -14.4); }
+    signBand(B, M, 'FIRE STATION', -15, 10.2, 20.02, 22, '#b8160f');
+  }
+  // A cargo shed: a long clad hall, a dock door in every other bay, an office at one end.
+  function cargoShed(B, M, o) {
+    const w = o.w, d = o.d, h = o.h || 13;
+    hall(B, { x0: -w / 2, x1: w / 2, z0: -d / 2, z1: d / 2, storeys: [[0.15, h + 0.15]], wall: 'ribbed', tint: o.tint || 0x9aa4ad, col: 18, front: (i) => (i % 2 ? 'roll' : 'blank'), back: (i) => (i % 3 === 1 ? 'roll' : 'blank'), left: (i) => (i === 1 ? 'entrance' : 'ribbon'), right: 'blank', doorH: o.doorH || 6, doorTint: o.doorTint || 0x5a6a7a, inner: false });
+    if (o.name) signBand(B, M, o.name, -w / 2 + 16, h - 2, d / 2 + 0.02, 24, o.sign || '#2c5d9c');
+  }
+  // A row of T-hangars: a low steel shed, a door in each bay.
+  function tHangars(B, M, o) {
+    hall(B, { x0: -o.w / 2, x1: o.w / 2, z0: -12, z1: 12, storeys: [[0.12, 5.12]], wall: 'ribbed', tint: 0xb8bcbe, col: 12, bay: 12, front: 'roll', back: 'blank', doorH: 4, doorTint: 0xd8d8d0, roof: { parapet: 0.3 }, inner: false });
+  }
+  // The multi-storey car park: four open decks on a 10 m column grid, edge parapets, a ramp, cars.
+  function carPark(B, M, o, rnd) {
+    const w = o.w, d = o.d, x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2, lv = 3.2;
+    B.color(0xbab4aa); tiles(B, 'concrete', x0, -0.3, z0, x1, 0.1, z1, null, TILE);
+    for (let k = 1; k <= 3; k++) {
+      const y = 0.1 + k * lv;
+      for (let x = x0; x <= x1 + 1e-6; x += 10) for (let z = z0; z <= z1 + 1e-6; z += 10) { B.color(0xd8d4cc); B.box('concrete', Math.max(x0, x - 0.3), y - lv, Math.max(z0, z - 0.3), Math.min(x1, x + 0.3), y - 0.3, Math.min(z1, z + 0.3)); }
+      B.color(0xc8c2b6); tiles(B, 'concrete', x0, y - 0.3, z0, x1, y, z1, null, TILE);
+      B.color(0xd8d4cc); run(B, 'concrete', x0, y, z0, x1, y + 1.0, z0 + 0.25); run(B, 'concrete', x0, y, z1 - 0.25, x1, y + 1.0, z1);
+      run(B, 'concrete', x0, y, z0 + 0.25, x0 + 0.25, y + 1.0, z1 - 0.25); run(B, 'concrete', x1 - 0.25, y, z0 + 0.25, x1, y + 1.0, z1 - 0.25);
+    }
+    const CARS = [0x8a2c2a, 0xd8d2c0, 0x2c4a7a, 0x6a6a5a, 0xa87a3a, 0x3a5a3a, 0x1a1a1a];
+    for (let k = 0; k <= 3; k++) for (let i = 0; i < 18; i++) if (rnd() < 0.55) carAt(B, x0 + 6 + (i % 9) * (w - 12) / 8, k === 0 ? 0.1 : 0.1 + k * lv, i < 9 ? z0 + 6 : z1 - 6, i < 9 ? 0 : 2, CARS[Math.floor(rnd() * CARS.length)]);
+  }
+  // A parked car standing on a deck at y: the kit's sedan, its wheels as boxes so the whole car is one piece at any height.
+  function carAt(B, x, y, z, rot, tint) {
+    const L = 2.35;
+    place(B, x, y, z, rot, [['paint', -0.88, 0.32, -L, 0.88, 0.92, L, tint], ['glassDark', -0.8, 0.92, -1.15, 0.8, 1.38, 0.95, 0x2a3a44], ['paint', -0.78, 1.38, -1.05, 0.78, 1.42, 0.85, tint],
+      ['metal', -0.9, 0.3, L, 0.9, 0.45, L + 0.08, 0xb8bcc0], ['metal', -0.9, 0.3, -L - 0.08, 0.9, 0.45, -L, 0xb8bcc0], ['lamp', -0.75, 0.62, L, -0.45, 0.75, L + 0.01, 0xfff4d0], ['lamp', 0.45, 0.62, L, 0.75, 0.75, L + 0.01, 0xfff4d0],
+      ['rubber', -0.98, 0, L - 1.0, -0.76, 0.66, L - 0.3, 0x1c1c1c], ['rubber', 0.76, 0, L - 1.0, 0.98, 0.66, L - 0.3, 0x1c1c1c], ['rubber', -0.98, 0, -L + 0.3, -0.76, 0.66, -L + 1.0, 0x1c1c1c], ['rubber', 0.76, 0, -L + 0.3, 0.98, 0.66, -L + 1.0, 0x1c1c1c]], 'car');
+  }
+  // A fuel or oil tank: staves around (each grounded), the roof in segments resting on them, a bund wall handled by the page.
+  function tank(B, o) {
+    const r = o.r, h = o.h, seg = o.seg || 16;
+    B.color(0xbab4aa); B.cyl('concrete', 'y', [0, 0, 0], r + 0.6, -0.3, 0.3, seg);
+    for (let i = 0; i < seg; i++) {
+      const a = 2 * Math.PI * i / seg, b = 2 * Math.PI * (i + 1) / seg, m = (a + b) / 2;
+      const c = [Math.cos(m) * r, 0.3 + h / 2, Math.sin(m) * r], tng = [-Math.sin(m), 0, Math.cos(m)], out = [Math.cos(m), 0, Math.sin(m)];
+      const wch = 2 * r * Math.sin(Math.PI / seg) + 0.05;
+      const lifts = Math.max(1, Math.ceil(h / 6));
+      for (let k = 0; k < lifts; k++) { B.color(o.tint || 0xdcdcd2); plate(B, 'metal', [c[0], 0.3 + h * (k + 0.5) / lifts, c[2]], [tng, [0, 1, 0], out], [wch, h / lifts, 0.3]); }
+      const top = 0.3 + h, rise = r * 0.12;
+      const p = [Math.cos(m) * r * 0.5, top + rise * 0.5, Math.sin(m) * r * 0.5];
+      const dn = norm([Math.cos(m) * r, -rise, Math.sin(m) * r]), up = norm(cross(tng, dn));
+      B.color(o.roofTint || 0xc8c8be); plate(B, 'metal', p, [dn, up[1] < 0 ? mul(up, -1) : up, tng], [Math.hypot(r, rise), 0.25, r * 2 * Math.PI / seg * 0.5 + 0.3]);
+    }
+  }
+  // A mech hangar of the game's mech base (cb_core::world::bases): three block walls and a slab roof, open to the front.
+  function mechHangar(B, M, o) {
+    const w = o.w, d = o.d, h = o.h, t = 1.5, x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2;
+    B.color(0xbab4aa); tiles(B, 'concrete', x0, -0.3, z0, x1, 0.12, z1, null, TILE);
+    const oo = { storeys: [[0.12, h]], wall: 'block', tint: 0xcfcac0, t };
+    face(B, oo, 'z', x0 + t / 2, z0, z1, -1, 'blank'); face(B, oo, 'z', x1 - t / 2, z0, z1, 1, 'blank');
+    face(B, oo, 'x', z0 + t / 2, x0 + t, x1 - t, -1, (i) => (i === 3 ? 'door' : 'blank'));
+    for (let x = x0 + 11; x < x1 - 1; x += 11) { B.color(0x8d9196); B.box('metal', x - 0.5, h - 2.5, z0 + t, x + 0.5, h, z1); }
+    B.color(0x80858a); tiles(B, 'metalRoof', x0, h, z0, x1, h + 0.6, z1, null, TILE);
+    B.color(0xf2c02a); B.box('paint', x0 + t, 0.12, z1 - 1, x1 - t, 0.13, z1 - 0.5);
+  }
+  // A small airfield building: one storey, windows round, a door at the front.
+  function hut(B, M, o) {
+    const h = o.h || 4.15;   // over 6 m it is two storeys
+    hall(B, { x0: -o.w / 2, x1: o.w / 2, z0: -o.d / 2, z1: o.d / 2, storeys: h > 6 ? [[0.15, (h + 0.15) / 2], [(h + 0.15) / 2, h]] : [[0.15, h]], wall: o.wall || 'block', tint: o.tint || 0xe0dccf, col: 8,
+      front: (i, st, n) => (i === Math.floor(n / 2) ? 'door' : 'windows'), back: 'windows', left: 'windows', right: 'windows' });
+    if (o.name) signBand(B, M, o.name, 0, (o.h || 4.15) - 0.6, o.d / 2 + 0.02, Math.min(o.w - 2, 10));
+  }
+
+  // ---------------------------------------------------------------- the seaport
+  // Painted steel (the gantries, the straddles, the goliath) is 'paint': the 'metal' surface reads as bare steel.
+  // A ship-to-shore container gantry of the 1980s: legs on rails `gauge` apart (z), its girder 42 m up running out over
+  // the water as the boom, the machinery house, the A-frame and its stays, the trolley and cab. Rigid: a page builds it
+  // as a machine (BuildingEngine.building({ rigid: true })).
+  function gantry(B, o) {
+    const g = o.gauge || 30, out = o.out || 55, back = o.back || 25, H = 40;
+    B.color(0xf06a12);
+    for (const z of [0, g]) for (const s of [-9, 9]) { run(B, 'paint', s - 1, 0, z - 1, s + 1, H, z + 1, 10); B.box('paint', s - 2, 0, z - 2.5, s + 2, 1.5, z + 2.5); }
+    for (const z of [0, g]) run(B, 'paint', -10, H, z - 1.5, 10, H + 3, z + 1.5, 10);
+    for (const s of [-9, 9]) run(B, 'paint', s - 1, 10, 0, s + 1, 12, g, 10);
+    for (const s of [-4, 4]) member(B, 'paint', [s, H + 4.5, -back], [s, H + 4.5, g + out], 2.2, 3);
+    B.color(0xe8e8e2); B.box('ribbed', -6, H + 6, -back + 1, 6, H + 13, -back + 17);
+    B.color(0xf06a12);
+    for (const s of [-4, 4]) { member(B, 'paint', [s, H + 6, 0], [0, H + 30, g / 2], 1.2, 1.2); member(B, 'paint', [s, H + 6, g], [0, H + 30, g / 2], 1.2, 1.2); }
+    B.color(0x6b7178); for (const s of [-4, 4]) member(B, 'metal', [0, H + 30, g / 2], [s, H + 6, g + out - 5], 0.5, 0.5);
+    B.color(0xe8e8e2); B.box('ribbed', -3, H - 2, g + 18, 3, H + 4.5, g + 24); B.color(0xffffff); B.box('glass', -2.6, H - 1.5, g + 24, 2.6, H + 1.5, g + 24.05);
+  }
+  // A straddle carrier: four legs and a frame over one row of boxes, its cab on top. Rigid.
+  function straddle(B) {
+    B.color(0xf2c02a);
+    for (const sx of [-1.9, 1.9]) for (const sz of [-4.5, 4.5]) { B.box('paint', sx - 0.3, 0, sz - 0.3, sx + 0.3, 13, sz + 0.3); B.color(0x1c1c1c); B.cyl('rubber', 'x', [sx, 0.6, sz], 0.6, sx - 0.35, sx + 0.35, 10); B.color(0xf2c02a); }
+    run(B, 'paint', -2.2, 13, -5, -1.4, 14.2, 5, 10); run(B, 'paint', 1.4, 13, -5, 2.2, 14.2, 5, 10);
+    B.box('paint', -1.4, 13, -5, 1.4, 14.2, -4); B.box('paint', -1.4, 13, 4, 1.4, 14.2, 5);
+    B.color(0xe8e8e2); B.box('paint', -1.2, 14.2, -4.5, 1.2, 16.4, -2); B.color(0xffffff); B.box('glass', -1.1, 15.0, -2.0, 1.1, 16.2, -1.95);
+  }
+  // A stack block: cols x rows stacks of 40 ft boxes, 1-4 high, liners' colours; each box a piece. A page builds the
+  // block as one building; each box rests on the one under it.
+  const LINERS = [0x2f5f8f, 0xa8322a, 0x3f6e3a, 0x8a8a84, 0xc0682a, 0x6b4a2e, 0x2a6a72, 0xb59a3a];
+  function stackBlock(B, o, rnd) {
+    for (let i = 0; i < o.cols; i++) for (let j = 0; j < o.rows; j++) {
+      const h = 1 + Math.floor(rnd() * 4), x = i * 12.6, z = j * 2.9;
+      for (let k = 0; k < h; k++) { B.color(LINERS[Math.floor(rnd() * LINERS.length)]); B.box('corrugated', x, k * 2.6, z, x + 12.2, (k + 1) * 2.6 - 0.02, z + 2.6); }
+    }
+  }
+  // A goliath crane over a dry dock: legs either side of `span`, the girder and the crab riding on top of it. Rigid.
+  function goliath(B, o) {
+    const s = o.span / 2, H = o.h || 52;
+    B.color(0xf2c02a);
+    for (const x of [-s, s]) { for (const z of [-8, 8]) run(B, 'paint', x - 1, 0, z - 1, x + 1, H, z + 1, 10); run(B, 'paint', x - 1.5, H, -10, x + 1.5, H + 3, 10, 10); B.box('paint', x - 2, 0, -10, x + 2, 1.5, 10); }
+    run(B, 'paint', -s - 4, H + 3, -4, s + 4, H + 8, 4, 15);
+    B.color(0xe8e8e2); B.box('ribbed', -6, H + 8, -4, 6, H + 13, 4);
+  }
+  // A light tower on a breakwater head: white tower in lifts, a coloured band, the lantern and its gallery.
+  function lightTower(B, o) {
+    B.color(0xe8e8e2); column(B, 'stucco', 0, 0, 2.5, 0, 12, 14, 4);
+    B.color(o.red ? 0xb8160f : 0x1e7a3a); B.cyl('paint', 'y', [0, 0, 0], 2.62, 3.0, 6.0, 14);
+    B.color(0xd8d2c6); B.cyl('concrete', 'y', [0, 0, 0], 3.4, 12, 12.4, 14);
+    B.color(0xffffff); B.cyl(o.red ? 'lampRed' : 'lampGreen', 'y', [0, 0, 0], 1.4, 12.4, 14.4, 12);
+    B.color(0x2a2d31); B.cyl('metal', 'y', [0, 0, 0], 1.7, 14.4, 15.0, 12);
+  }
+  // A lateral buoy: a float, its cage and topmark, the light. Red is a can, green a cone (IALA A).
+  function buoy(B, o) {
+    const c = o.red ? 0xb8160f : 0x1e7a3a;
+    B.color(c); B.cyl('paint', 'y', [0, 0, 0], 1.5, -1.0, 1.2, 12);
+    B.color(c); for (const [x, z] of [[-0.8, -0.8], [0.8, -0.8], [0.8, 0.8], [-0.8, 0.8]]) B.box('metal', x - 0.08, 1.2, z - 0.08, x + 0.08, 3.4, z + 0.08);
+    B.color(c); B.box('metal', -0.9, 3.3, -0.9, 0.9, 3.4, 0.9); if (o.red) B.box('paint', -0.5, 3.4, -0.5, 0.5, 4.4, 0.5); else B.cyl('paint', 'y', [0, 0, 0], 0.55, 3.4, 4.2, 8);
+    B.color(0xffffff); const top = o.red ? 4.4 : 4.2; B.box(o.red ? 'lampRed' : 'lampGreen', -0.2, top, -0.2, 0.2, top + 0.4, 0.2);
+  }
+  // A deck on piles (a pier, a jetty's trestle or head): pile caps on piles every `pitch` metres, the deck in panels on
+  // top, a kerb along both edges. x0..x1 by z0..z1, deck top at `top`, piles down to `bed`.
+  function pileDeck(B, o) {
+    const { x0, x1, z0, z1, top, bed } = o, pitch = o.pitch || 10;
+    const nx = Math.max(1, Math.round((x1 - x0) / pitch)), nz = Math.max(1, Math.round((z1 - z0) / pitch));
+    for (let i = 0; i <= nx; i++) for (let k = 0; k <= nz; k++) {
+      const x = Math.min(x1 - 0.6, Math.max(x0 + 0.6, x0 + (x1 - x0) * i / nx)), z = Math.min(z1 - 0.6, Math.max(z0 + 0.6, z0 + (z1 - z0) * k / nz));
+      B.color(0x5a5850); column(B, 'concrete', x, z, 0.5, bed, top - 1.2, 10, 8);
+      B.color(0xbab4aa); B.box('concrete', x - 0.9, top - 1.2, z - 0.9, x + 0.9, top - 0.6, z + 0.9);
+    }
+    B.color(0xbab4aa); tiles(B, 'concrete', x0, top - 0.6, z0, x1, top, z1, null, o.tile || TILE);
+    B.color(0xd8d2c6);
+    if (o.kerbs !== false) { if (x1 - x0 > z1 - z0) { run(B, 'concrete', x0, top, z0, x1, top + 0.3, z0 + 0.3); run(B, 'concrete', x0, top, z1 - 0.3, x1, top + 0.3, z1); } else { run(B, 'concrete', x0, top, z0, x0 + 0.3, top + 0.3, z1); run(B, 'concrete', x1 - 0.3, top, z0, x1, top + 0.3, z1); } }
+  }
+  // Fenders and bollards along a quay's sea face from p to q (axis-aligned), `out` the sea side unit [x, z], at deck y.
+  function quayEdge(B, p, q, out, y) {
+    const ax = Math.abs(q[0] - p[0]) > Math.abs(q[1] - p[1]) ? 0 : 1, L = Math.abs(q[ax] - p[ax]), dir = Math.sign(q[ax] - p[ax]);
+    for (let s = 6, k = 0; s < L - 3; s += 12, k++) {
+      const c = [p[0], p[1]]; c[ax] += dir * s;
+      const lo = [c[0], c[1]], hi = [c[0], c[1]];
+      lo[ax] -= 1.2; hi[ax] += 1.2;
+      const o = 1 - ax; // the across-face coordinate: the fender stands from the face out 0.8 m
+      lo[o] = Math.min(c[o], c[o] + out[o] * 0.8); hi[o] = Math.max(c[o], c[o] + out[o] * 0.8);
+      B.color(0x1c1c1c); B.box('rubber', lo[0], -1.5, lo[1], hi[0], y - 0.3, hi[1]);
+      if (k % 2 === 0) { B.color(0x2d2f33); B.cyl('metal', 'y', [c[0] - out[0] * 1.2, 0, c[1] - out[1] * 1.2], 0.35, y, y + 0.8, 10); }
+    }
+  }
+  // A floating pontoon with finger berths, its deck just over the water at y = 0.45.
+  function pontoon(B, o) {
+    B.color(0xa7a49b);
+    run(B, 'concrete', -1.5, -0.6, 0, 1.5, 0.45, o.len, 6);
+    for (let z = 10; z < o.len; z += 14) for (const s of [-1, 1]) run(B, 'concrete', s < 0 ? -9 : 1.5, -0.6, z, s < 0 ? -1.5 : 9, 0.45, z + 1.4, 4);
+  }
+  // A tug of the 1980s: a block-out stand-in (no model yet), 28 x 9 m, bow to +z; a page builds it as a rigid machine.
+  function tug(B) {
+    B.color(0x2a2d31); run(B, 'metal', -4.5, -3.5, -14, 4.5, 2.2, 14, 7);
+    B.color(0xb8160f); run(B, 'paint', -4.6, 2.2, -14, 4.6, 2.6, 14, 7);
+    B.color(0x1c1c1c); for (let z = -12; z <= 12; z += 4) for (const s of [-1, 1]) B.box('rubber', s * 4.5 - 0.3, 0.6, z - 0.8, s * 4.5 + 0.3, 2.2, z + 0.8);
+    B.color(0xe8e8e2); B.box('trim', -3.5, 2.6, -2, 3.5, 7.5, 6); B.color(0xffffff); B.box('glassDark', -3.55, 6, -1.9, 3.55, 7, 5.9);
+    B.color(0xf06a12); B.cyl('paint', 'y', [0, 0, -4], 0.9, 2.6, 9.6, 12);
+  }
+
+  root.SiteBuildings = { BAY, TILE, BAYS, plate, member, column, run, face, hall, signBand, seats,
+    terminal, concourse, jetBridge, archHangar, tower, baseTower, sprayBoom, radarMast, fireStation, cargoShed, tHangars, carPark, tank, mechHangar, hut,
+    carAt, gantry, straddle, stackBlock, goliath, lightTower, buoy, pileDeck, quayEdge, pontoon, tug, LINERS };
+  if (typeof module !== 'undefined' && module.exports) module.exports = root.SiteBuildings;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script>
@@ -1455,12 +2641,12 @@ const M = {
   hangar: mat(0x8f979c, { roughness: 0.55, metalness: 0.35, side: T.DoubleSide }), pilot: mat(0x2f6fd0),
   pad: mat(0x5c5c56), heli: mat(0x3c6e3c),
 };
-// The site kit for Crab Breeze's 3D site mockups (the airport, the seaport): the shapes they are built from and the
-// breakable buildings, one implementation inlined into each page by its generator (gen_airport.py, gen_seaport.py).
-// The page loads SmallBuildings (the small-buildings kit) first and defines T (three.js), PI, `built` (the group rebuilt
-// on Repair) and statEl (where a shot's result is written) before using any of it. Metres; x east, y up, z south.
+// The site kit for Crab Breeze's 3D site mockups (the airport, the seaport): the shapes the ground is laid out from
+// (paving, paint, kerbs, plain boxes for small dressing), one implementation inlined into each page by its generator
+// (gen_airport.py, gen_seaport.py). The page defines T (three.js) and PI first. The buildings are not drawn here: they
+// are the small-buildings kit's (docs/mockups/site_buildings_kit.js) and break by docs/mockups/building_engine.js.
+// Metres; x east, y up, z south.
 function box(g, lo, hi, m, shadow = true) {
-  if (BLD) return addBox(g, lo, hi, m, shadow);
   const mesh = new T.Mesh(new T.BoxGeometry(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]), m);
   mesh.position.set((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
   mesh.castShadow = shadow; mesh.receiveShadow = true; g.add(mesh); return mesh;
@@ -1473,7 +2659,7 @@ function beam(g, P, Q, w, h, m, shadow = true) {
   const p = new T.Vector3(...P), q = new T.Vector3(...Q), len = p.distanceTo(q);
   const mesh = new T.Mesh(new T.BoxGeometry(w, h, len), m);
   mesh.position.copy(p).add(q).multiplyScalar(0.5); mesh.lookAt(q);
-  mesh.castShadow = shadow; mesh.receiveShadow = true; g.add(mesh); if (BLD) addPiece(mesh); return mesh;
+  mesh.castShadow = shadow; mesh.receiveShadow = true; g.add(mesh); return mesh;
 }
 const stroke = (g, p, q, w, y, m) => strokeAt(g, p, q, w, y, m);
 function strokeAt(g, p, q, w, y, m) {
@@ -1490,123 +2676,31 @@ function outlineRect(g, r, w, y, m) {
   const P = [[r.min[0], r.min[1]], [r.max[0], r.min[1]], [r.max[0], r.max[1]], [r.min[0], r.max[1]]];
   for (let k = 0; k < 4; k++) stroke(g, P[k], P[(k + 1) % 4], w, y, m);
 }
-const cyl = (g, c, r, y0, h, m, seg = 24) => { const t = new T.Mesh(new T.CylinderGeometry(r, r, h, seg), m); t.position.set(c[0], y0 + h / 2, c[1]); t.castShadow = t.receiveShadow = true; g.add(t); if (BLD) addPiece(t); return t; };
+const cyl = (g, c, r, y0, h, m, seg = 24) => { const t = new T.Mesh(new T.CylinderGeometry(r, r, h, seg), m); t.position.set(c[0], y0 + h / 2, c[1]); t.castShadow = t.receiveShadow = true; g.add(t); return t; };
 
-// ---------------------------------------------------------------- destructible buildings
-// Every building breaks the small-buildings way (owner, 2026-10-29: "use our breakable framework, all buildings are
-// destructible"). A building's boxes split into pieces of at most CHUNK metres, drawn as one instanced mesh per material;
-// its other shapes (a tank, a tunnel, a hangar's arch segment) are a piece each. The small-buildings kit decides what
-// stands (SmallBuildings.supportLinks and standing, the rule the game's buildings use): a piece stands while it reaches
-// the ground through pieces under it, or through at most MAX_SIDE pieces beside it. Click a building to fire at it.
-const K = window.SmallBuildings, CHUNK = [10, 6, 10], UNIT = new T.BoxGeometry(1, 1, 1), ZERO = new T.Matrix4().makeScale(0, 0, 0);
-let BLD = null, BUILDINGS = [], targets = [], fallers = [], bits = [];
-function building(name, fn) {
-  const prev = BLD; BLD = { name, pieces: [], groups: new Map(), g: null }; fn(); finishBuilding(BLD); BLD = prev;
+// Every building is the small-buildings kit's (owner, 2026-10-29: "Airport is not up to standard of like suburban houses"):
+// drawn by docs/mockups/site_buildings_kit.js on the kit's Builder, broken by the one engine the street uses
+// (docs/mockups/building_engine.js): pieces blown out, what is left hanging creaks and falls, a building that loses
+// half its load-bearing walls comes down, the rubble settles in piles.
+const S = window.SiteBuildings;
+const E = BuildingEngine({ THREE: T, K: window.SmallBuildings, scene, ground: () => 0.05 });
+// One building of the site kit at (x, z), turned by quarter turns (1: its front, +z, to +x), standing at y.
+function put(name, draw, x = 0, z = 0, turn = 0, y = 0) {
+  const B = new SmallBuildings.Builder(); draw(B);
+  const id = E.building({ name, base: y }); E.add(B, { x, y, z, turn, bld: id }); return id;
 }
-function addBox(g, lo, hi, m, shadow) {
-  BLD.g = BLD.g || g;
-  const n = [0, 1, 2].map(a => Math.max(1, Math.ceil((hi[a] - lo[a]) / CHUNK[a] - 1e-6)));
-  const key = m.uuid + (shadow ? "s" : "");
-  if (!BLD.groups.has(key)) BLD.groups.set(key, { m, shadow, list: [] });
-  const grp = BLD.groups.get(key), at = (a, i) => lo[a] + (hi[a] - lo[a]) * i / n[a];
-  for (let i = 0; i < n[0]; i++) for (let j = 0; j < n[1]; j++) for (let k = 0; k < n[2]; k++) {
-    const pl = [at(0, i), at(1, j), at(2, k)], ph = [at(0, i + 1), at(1, j + 1), at(2, k + 1)];
-    grp.list.push(BLD.pieces.length); BLD.pieces.push({ lo: pl, hi: ph, grp, m });
+// A turning thing (a radar antenna) on top of a building: shown while the piece under it stands.
+let spinners = [];
+function spinOn(id, obj, rate) { spinners.push({ id, obj, rate, pid: null }); }
+function seatSpinners() {
+  for (const s of spinners) {
+    if (s.id == null) continue;
+    const p = s.obj.position; let best = null;
+    for (const pid of E.BLD[s.id].pieces) { const P = E.PIECES[pid];
+      if (p.x >= P.lo[0] - 0.5 && p.x <= P.hi[0] + 0.5 && p.z >= P.lo[2] - 0.5 && p.z <= P.hi[2] + 0.5 && P.hi[1] <= p.y + 0.5 && (!best || P.hi[1] > E.PIECES[best].hi[1])) best = pid; }
+    s.pid = best;
   }
-  return null;
 }
-function addPiece(o) {
-  BLD.g = BLD.g || o.parent;
-  o.updateMatrixWorld(true);
-  const b = new T.Box3().setFromObject(o);
-  BLD.pieces.push({ lo: b.min.toArray(), hi: b.max.toArray(), obj: o });
-  o.userData.piece = [BLD, BLD.pieces.length - 1]; targets.push(o);
-}
-function finishBuilding(B) {
-  if (!B.pieces.length) return;
-  const m4 = new T.Matrix4();
-  for (const grp of B.groups.values()) {
-    const im = new T.InstancedMesh(UNIT, grp.m, grp.list.length);
-    grp.list.forEach((pi, i) => { const P = B.pieces[pi]; P.im = im; P.idx = i;
-      m4.makeScale(P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]).setPosition((P.lo[0] + P.hi[0]) / 2, (P.lo[1] + P.hi[1]) / 2, (P.lo[2] + P.hi[2]) / 2);
-      im.setMatrixAt(i, m4); });
-    im.castShadow = grp.shadow; im.receiveShadow = true; im.userData.bld = [B, grp.list];
-    B.g.add(im); targets.push(im);
-  }
-  // the kit's rule reads "on the ground" as starting within 5 cm of 0; a door sill at 12 cm stands on the ground here
-  B.sup = B.pieces.map(P => ({ lo: [P.lo[0], P.lo[1] <= 0.25 ? 0 : P.lo[1], P.lo[2]], hi: P.hi }));
-  B.links = K.supportLinks(B.sup); B.alive = B.pieces.map(() => true);
-  // a piece the rule would not hold as built (a bridge's tunnel hung off its rotunda) is anchored and reported
-  // (the links stay those of its real shape; only the grounding test, B.ground, counts it as on the ground)
-  const st0 = K.standing(B.sup, B.links, B.alive); B.anchored = 0;
-  B.ground = B.sup.map((q, i) => st0.has(i) ? q : (B.anchored++, { lo: [q.lo[0], 0, q.lo[2]], hi: q.hi }));
-  if (B.anchored) console.log(`${B.name}: ${B.anchored} of ${B.pieces.length} pieces anchored`);
-  B.lo = [0, 1, 2].map(a => Math.min(...B.pieces.map(P => P.lo[a]))); B.hi = [0, 1, 2].map(a => Math.max(...B.pieces.map(P => P.hi[a])));
-  BUILDINGS.push(B);
-}
-function hidePiece(P) {
-  if (P.obj) { P.obj.visible = false; return; }
-  P.im.setMatrixAt(P.idx, ZERO); P.im.instanceMatrix.needsUpdate = true;
-}
-// A piece that has lost its support drops as one body, tips a little and lies where it lands.
-function fall(P) {
-  let o = P.obj;
-  if (!o) { hidePiece(P); o = new T.Mesh(UNIT, P.m); o.scale.set(P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]);
-    o.position.set((P.lo[0] + P.hi[0]) / 2, (P.lo[1] + P.hi[1]) / 2, (P.lo[2] + P.hi[2]) / 2); o.castShadow = o.receiveShadow = true; built.add(o); }
-  const r = () => (Math.random() - 0.5) * 0.6;
-  fallers.push({ o, v: 0, drop: Math.max(0, P.lo[1]), done: 0, spin: [r(), r(), r()] });
-}
-function blast(p, radius) {
-  let hit = 0, fell = 0;
-  const flash = new T.Mesh(new T.SphereGeometry(1, 16, 12), new T.MeshBasicMaterial({ color: 0xffb040, transparent: true, opacity: 0.9 }));
-  flash.position.copy(p); built.add(flash); bits.push({ o: flash, flash: radius, life: 0.5 });
-  for (const B of BUILDINGS) {
-    if (p.x < B.lo[0] - radius || p.x > B.hi[0] + radius || p.y < B.lo[1] - radius || p.y > B.hi[1] + radius || p.z < B.lo[2] - radius || p.z > B.hi[2] + radius) continue;
-    let any = false;
-    B.pieces.forEach((P, i) => {
-      if (!B.alive[i]) return;
-      const dx = Math.max(P.lo[0] - p.x, 0, p.x - P.hi[0]), dy = Math.max(P.lo[1] - p.y, 0, p.y - P.hi[1]), dz = Math.max(P.lo[2] - p.z, 0, p.z - P.hi[2]);
-      if (dx * dx + dy * dy + dz * dz > radius * radius) return;
-      B.alive[i] = false; hidePiece(P); any = true; hit++;
-      for (let k = 0; k < 3 && bits.length < 400; k++) debris(P, p);
-    });
-    if (!any) continue;
-    const st = K.standing(B.ground, B.links, B.alive);
-    B.pieces.forEach((P, i) => { if (B.alive[i] && !st.has(i)) { B.alive[i] = false; fall(P); fell++; } });
-  }
-  statEl.textContent = `last shot: ${hit} pieces destroyed, ${fell} fell`;
-  return { hit, fell };
-}
-function debris(P, p) {
-  const s = 0.5 + Math.random() * 1.2, o = new T.Mesh(UNIT, P.m || P.obj.material);
-  o.scale.set(s, s * 0.7, s); o.castShadow = true;
-  o.position.set(P.lo[0] + Math.random() * (P.hi[0] - P.lo[0]), P.lo[1] + Math.random() * (P.hi[1] - P.lo[1]), P.lo[2] + Math.random() * (P.hi[2] - P.lo[2]));
-  const v = o.position.clone().sub(p).normalize().multiplyScalar(8 + Math.random() * 14); v.y += 6 + Math.random() * 8;
-  built.add(o); bits.push({ o, v, life: 6 });
-}
-function stepBreakage(dt) {
-  for (let i = fallers.length - 1; i >= 0; i--) { const f = fallers[i];
-    f.v += 9.81 * dt; const d = Math.min(f.v * dt, f.drop - f.done); f.done += d; f.o.position.y -= d;
-    f.o.rotation.x += f.spin[0] * dt; f.o.rotation.z += f.spin[2] * dt;
-    if (f.done >= f.drop - 1e-3) fallers.splice(i, 1); }
-  for (let i = bits.length - 1; i >= 0; i--) { const b = bits[i]; b.life -= dt;
-    if (b.flash) { b.o.scale.setScalar(b.flash * (1.2 - b.life)); b.o.material.opacity = Math.max(0, b.life * 1.8); }
-    else if (b.o.position.y > 0.3) { b.v.y -= 9.81 * dt; b.o.position.addScaledVector(b.v, dt); b.o.rotation.x += dt * 3; }
-    if (b.life <= 0) { built.remove(b.o); bits.splice(i, 1); } }
-}
-// A click that does not drag fires at the building under it, with the blast radius radius() gives.
-function bindFire(canvas, camera, radius) {
-  let downAt = null;
-  canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
-  canvas.addEventListener("pointerup", e => {
-    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
-    const r = canvas.getBoundingClientRect(), rc = new T.Raycaster();
-    rc.setFromCamera(new T.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-    const h = rc.intersectObjects(targets, true).find(i => { for (let o = i.object; o; o = o.parent) if (!o.visible) return false; return true; });
-    if (h) blast(h.point, radius());
-  });
-}
-
 // Paving from p to q ([x, z]), w wide, flush with the runway.
 const pave = (g, p, q, w, m, top = TOP.taxi) => beam(g, [p[0], top - 0.31, p[1]], [q[0], top - 0.31, q[1]], w, 0.62, m, false);
 // Every flat layer has its own height, at least 3 cm from the next, so no two surfaces share a plane (CLAUDE.md
@@ -1747,70 +2841,32 @@ function door(k, c, n) {
   const fwd = k.length_m * 0.5 - k.length_m * 0.13;
   return [c[0] + n[0] * fwd + left[0] * (f / 2 + 0.4), 0.12 + k.rest_m - 0.5, c[1] + n[1] * fwd + left[1] * (f / 2 + 0.4)];
 }
-// A jet bridge: a rotunda on a column at the terminal's face, a telescoping tunnel in three sections down to a cab at
-// the door, the last section on a drive column with its wheels.
-function jetBridge(g, face, dr) {
-  const R = [face[0], 5.6, face[1]];
-  cyl(g, face, 0.9, 0, 4.2, M.dark);
-  cyl(g, face, 2.6, 4.2, 3.2, M.bridge);
-  const cab = [dr[0], dr[1] + 0.2, dr[2]], dir = new T.Vector3(cab[0] - R[0], cab[1] - R[1], cab[2] - R[2]);
-  const len = dir.length(); dir.normalize();
-  const pt = s => [R[0] + dir.x * s, R[1] + dir.y * s, R[2] + dir.z * s];
-  const cuts = [2.4, len * 0.42, len * 0.72, len - 2.2];
-  [[3.4, 3.2], [3.2, 3.0], [3.0, 2.8]].forEach(([w, h], i) => beam(g, pt(cuts[i]), pt(cuts[i + 1] + 0.6), w, h, M.bridge));
-  const c = pt(len - 1.2);
-  const cabMesh = beam(g, pt(len - 2.6), pt(len), 4.0, 3.4, M.clad);
-  const foot = pt(len * 0.66);
-  box(g, [foot[0] - 0.4, 0, foot[2] - 0.4], [foot[0] + 0.4, foot[1] - 1.5, foot[2] + 0.4], M.dark);
-  box(g, [foot[0] - 1.6, 0, foot[2] - 0.6], [foot[0] + 1.6, 1.1, foot[2] + 0.6], M.dark);
-  return cabMesh && c;
-}
 // A gate: the stand's lines on the apron, its aircraft and its bridge from the terminal face point `face`.
 function gate(g, k, c, n, face, labels, name) {
-  const side = [n[1], -n[0]], L = k.length_m, S = k.span_m;
+  const side = [n[1], -n[0]], L = k.length_m, span = k.span_m;
   stroke(g, [c[0] - n[0] * (L / 2 + 30), c[1] - n[1] * (L / 2 + 30)], [c[0] + n[0] * (L / 2 - 2), c[1] + n[1] * (L / 2 - 2)], 0.3, PAINT, M.yellow);
   const stop = [c[0] + n[0] * (L / 2 - 4), c[1] + n[1] * (L / 2 - 4)];
   stroke(g, [stop[0] - side[0] * 4, stop[1] - side[1] * 4], [stop[0] + side[0] * 4, stop[1] + side[1] * 4], 0.5, PAINT, M.yellow);
   // the stand's safety line, red, round the parked aircraft
-  const hw = S / 2 + 4, hl = L / 2 + 4, Pq = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]].map(([a, b]) => [c[0] + side[0] * a + n[0] * b, c[1] + side[1] * a + n[1] * b]);
+  const hw = span / 2 + 4, hl = L / 2 + 4, Pq = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]].map(([a, b]) => [c[0] + side[0] * a + n[0] * b, c[1] + side[1] * a + n[1] * b]);
   for (let i = 0; i < 4; i++) stroke(g, Pq[i], Pq[(i + 1) % 4], 0.25, PAINT_LOW, M.red);
   aircraft(g, k, c, n);
-  building("Jet bridge", () => jetBridge(g, face, door(k, c, n)));
+  // the bridge's rotunda stands 3 m out from the terminal face, on the apron side
+  put("Jet bridge", B => S.jetBridge(B, [face[0] - n[0] * 3, 0, face[1] - n[1] * 3], door(k, c, n)));
   if (name) labels.push([name, c, k.height_m + 4, "standin"]);
 }
 
 // ---------------------------------------------------------------- buildings
-function archHangar(g, x0, x1, z0, z1, wallH, rise, labels, name) { building(name || "Hangar", () => {
-  const w = x1 - x0, cx = (x0 + x1) / 2, d = z1 - z0;
-  box(g, [x0, 0, z0], [x0 + 1.5, wallH, z1], M.hangar);
-  box(g, [x1 - 1.5, 0, z0], [x1, wallH, z1], M.hangar);
-  box(g, [x0, 0, z1 - 1.5], [x1, wallH, z1], M.hangar);
-  // the arch in eight segments, each a piece resting on the walls
-  for (let s = 0; s < 8; s++) {
-    const arch = new T.Mesh(new T.CylinderGeometry(w / 2, w / 2, d / 8, 40, 1, true, -PI / 2, PI), M.hangar);
-    arch.rotation.x = -PI / 2; arch.scale.z = rise / (w / 2); arch.position.set(cx, wallH, z0 + d * (s + 0.5) / 8); arch.castShadow = arch.receiveShadow = true; g.add(arch); addPiece(arch);
-  }
-  const cap = new T.Mesh(new T.CircleGeometry(w / 2, 40, 0, PI), M.hangar);
-  cap.scale.y = rise / (w / 2); cap.position.set(cx, wallH, z1); g.add(cap); addPiece(cap);
-  // the doors, slid back to either side of the open front
-  box(g, [x0 - 0.5, 0, z0 - 2], [x0 + 18, wallH + rise * 0.3, z0 - 0.8], M.clad);
-  box(g, [x1 - 18, 0, z0 - 2], [x1 + 0.5, wallH + rise * 0.3, z0 - 0.8], M.clad);
-  stroke(g, [x0 + 2, z0 + 1], [x1 - 2, z0 + 1], 0.6, PAINT, M.yellow);
-  if (name) labels.push([name, [cx, (z0 + z1) / 2], wallH + rise + 4]);
-}); }
-function tower(g, c, h, labels) { building("Control tower", () => {
-  box(g, [c[0] - 25, 0, c[1] - 12], [c[0] + 25, 10, c[1] + 18], M.terminal);
-  cyl(g, c, 6, 0, h, M.wall, 20);
-  cyl(g, c, 11, h, 1, M.roof, 8);
-  const cab = new T.Mesh(new T.CylinderGeometry(10.5, 9, 6, 8, 1), M.glass); cab.position.set(c[0], h + 4, c[1]); g.add(cab); addPiece(cab);
-  cyl(g, c, 11.5, h + 7, 1, M.roof, 8);
-  box(g, [c[0] - 0.25, h + 8, c[1] - 0.25], [c[0] + 0.25, h + 16, c[1] + 0.25], M.wall);
-  // the aerodrome beacon: green and white, turning
-  const beacon = new T.Group(); beacon.position.set(c[0], h + 16.4, c[1]);   // seated on the mast g.add(beacon);
-  for (const [m, z] of [[M.lampGreen, 0.6], [M.lamp, -0.6]]) { const l = new T.Mesh(new T.BoxGeometry(0.8, 0.8, 1.6), m); l.position.z = z; beacon.add(l); }
-  spinners.push([beacon, 2.0]); addPiece(beacon);
+function archHangar(g, x0, x1, z0, z1, wallH, rise, labels, name) {
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  put(name || "Hangar", B => S.archHangar(B, E.M, { w: x1 - x0, d: z1 - z0, wallH, rise }), cx, cz, 2);   // its door to the apron (-z)
+  stroke(g, [x0 + 2, z0 - 3], [x1 - 2, z0 - 3], 0.6, PAINT, M.yellow);
+  if (name) labels.push([name, [cx, cz], wallH + rise + 4]);
+}
+function tower(g, c, h, labels) {
+  put("Control tower", B => S.tower(B, E.M, { h }), c[0], c[1]);
   labels.push(["Control tower, beacon", c, h + 20]);
-}); }
+}
 function windsock(g, p, d) {
   box(g, [p[0] - 0.12, 0, p[1] - 0.12], [p[0] + 0.12, 8, p[1] + 0.12], M.white);
   for (let k = 0; k < 5; k++) { const q = [p[0] + d[0] * (0.4 + k * 0.6), p[1] + d[1] * (0.4 + k * 0.6)], r = 0.5 - k * 0.06;
@@ -1825,31 +2881,19 @@ function helipad(g, c, labels, name) {
   for (const [x0, z0, x1, z1] of [[-3, -4.5, -3, 4.5], [3, -4.5, 3, 4.5], [-3, 0, 3, 0]]) stroke(g, [c[0] + x0, c[1] + z0], [c[0] + x1, c[1] + z1], 1, PAINT + 0.08, M.white);
   if (name) labels.push([name, c, 4]);
 }
-let spinners = [];
-
 // ---------------------------------------------------------------- the mech base (as the game draws it)
 function mechBase(g, today, labels) {
   const site = rect(MIL.x0, MIL.z0, MIL.x1, MIL.z1);
   slab(g, site, -0.5, TOP.apron, M.mil);
   const cx = (MIL.x0 + MIL.x1) / 2, pitch = HANGAR.w + HANGAR.gap, zb = MIL.z0 + HANGAR.back;
   for (let i = 0; i < 3; i++) {
-    const x = cx + (i - 1) * pitch, lo = [x - HANGAR.w / 2, zb], hi = [x + HANGAR.w / 2, zb + HANGAR.d], top = 0.12 + HANGAR.h, w = HANGAR.wall;
-    building("Mech hangar", () => {
-    box(g, [lo[0] - w, 0, lo[1]], [lo[0], top, hi[1]], M.wall);
-    box(g, [hi[0], 0, lo[1]], [hi[0] + w, top, hi[1]], M.wall);
-    box(g, [lo[0] - w, 0, lo[1] - w], [hi[0] + w, top, lo[1]], M.wall);
-    box(g, [lo[0] - w, top, lo[1] - w], [hi[0] + w, top + w, hi[1]], M.roof); });
+    const x = cx + (i - 1) * pitch, lo = [x - HANGAR.w / 2, zb], hi = [x + HANGAR.w / 2, zb + HANGAR.d], top = 0.12 + HANGAR.h;
+    put("Mech hangar", B => S.mechHangar(B, E.M, { w: HANGAR.w, d: HANGAR.d, h: top }), x, zb + HANGAR.d / 2);
     stroke(g, [lo[0], hi[1] - 0.5], [hi[0], hi[1] - 0.5], 1, 0.15, M.yellow);
   }
   for (let i = 0; i < 3; i++) outlineRect(g, rect(cx + (i - 1) * 80 - 20, MIL.z1 - 60, cx + (i - 1) * 80 + 20, MIL.z1 - 20), 1, 0.15, M.yellow);
   const t = [MIL.x1 - 40, MIL.z1 - 40];
-  building("Base tower", () => { if (today) { box(g, [t[0] - 6, 0, t[1] - 6], [t[0] + 6, 36, t[1] + 6], M.wall); box(g, [t[0] - 9, 36, t[1] - 9], [t[0] + 9, 44, t[1] + 9], M.roof); }
-  else {
-    box(g, [t[0] - 6, 0, t[1] - 6], [t[0] + 6, 30, t[1] + 6], M.wall);
-    box(g, [t[0] - 8, 30, t[1] - 8], [t[0] + 8, 31, t[1] + 8], M.roof);
-    box(g, [t[0] - 7, 31, t[1] - 7], [t[0] + 7, 36, t[1] + 7], M.glass);
-    box(g, [t[0] - 8.5, 36, t[1] - 8.5], [t[0] + 8.5, 37, t[1] + 8.5], M.roof);
-  } });
+  put(today ? "Box tower" : "Base tower", B => S.baseTower(B, E.M, { h: today ? 36 : 30, today }), t[0], t[1]);
   labels.push(["Mech hangars", [cx, zb + HANGAR.d / 2], 40]);
   labels.push([today ? "Box tower" : "Base tower", t, today ? 48 : 41, today ? "today" : ""]);
 }
@@ -1890,38 +2934,29 @@ function buildProposed(g, labels) {
   // ---- the civil side
   slab(g, rect(-40, 195, 920, 430), -0.5, TOP.apron, M.apron);                 // the main apron
   // Terminal 1: linear, four gates
-  building("Terminal 1", () => {
-  box(g, [0, 0, 430], [320, 16, 470], M.terminal);
-  box(g, [-4, 16, 426], [324, 17.2, 474], M.roof);
-  box(g, [2, 4, 429.9], [318, 14, 430], M.glass, false);
-  box(g, [0, 0, 470], [320, 8.5, 485], M.roof); });   // the curbside canopy
+  put("Terminal 1", B => S.terminal(B, E.M, { w: 320, d: 40, name: "Terminal 1" }), 160, 450);
   labels.push(["Terminal 1", [160, 450], 20]);
   const air = KIND("airliner");
   [40, 120, 200, 280].forEach((x, i) => gate(g, air, [x, 430 - 8 - air.length_m / 2], [0, 1], [x - 14, 430], labels, i === 1 ? "airliner" : null));
   // Terminal 2: the main hall and a pier with gates either side
-  building("Terminal 2", () => {
-  box(g, [420, 0, 440], [700, 20, 505], M.terminal);
-  box(g, [416, 20, 436], [704, 21.5, 509], M.roof);
-  box(g, [422, 5, 439.9], [698, 18, 440], M.glass, false);
-  box(g, [545, 0, 240], [575, 11, 440], M.terminal); box(g, [543, 11, 238], [577, 12, 442], M.roof);
-  box(g, [544.9, 4, 245], [545, 9, 435], M.glass, false); box(g, [575, 4, 245], [575.1, 9, 435], M.glass, false); });
+  put("Terminal 2", B => S.terminal(B, E.M, { w: 280, d: 65, name: "Terminal 2" }), 560, 472.5);
+  put("Pier", B => S.concourse(B, E.M, { w: 30, d: 200 }), 560, 340);
   labels.push(["Terminal 2", [560, 470], 24]); labels.push(["Pier", [560, 300], 14]);
   for (const z of [280, 340, 400]) {
     gate(g, air, [545 - 8 - air.length_m / 2, z], [1, 0], [545, z - 14], labels, z === 340 ? "jet bridges" : null);
     gate(g, air, [575 + 8 + air.length_m / 2, z], [-1, 0], [575, z + 14], labels, null);
   }
   // Cargo
-  building("Cargo terminal", () => { box(g, [720, 0, 335], [900, 13, 400], M.clad); box(g, [716, 13, 331], [904, 14, 404], M.roof);
-  for (let i = 0; i < 6; i++) box(g, [730 + i * 28, 0.12, 334.5], [748 + i * 28, 7, 335], M.dark, false); });
+  put("Cargo terminal", B => S.cargoShed(B, E.M, { w: 180, d: 65, name: "AIR CARGO" }), 810, 367.5, 2);
   const fr = KIND("freighter"); if (fr) { gate(g, fr, [810, 335 - 8 - fr.length_m / 2], [0, 1], [760, 335], labels, "freighter"); }
   labels.push(["Cargo terminal", [810, 370], 17]);
   // De-icing pad: a ring to stop on and two spray booms
   slab(g, rect(935, 200, 1015, 280), -0.5, TOP.apron, M.apron); ring(g, [975, 240], 30, 0.6, PAINT, M.orange);
-  for (const s of [-1, 1]) building("Spray boom", () => { box(g, [975 + s * 34 - 1.5, 0, 238], [975 + s * 34 + 1.5, 12, 242], M.yellow); beam(g, [975 + s * 34, 12, 240], [975 + s * 14, 14, 240], 1.2, 1.2, M.yellow); });
+  for (const s of [-1, 1]) put("Spray boom", B => S.sprayBoom(B), 975 + s * 34, 240, s < 0 ? 2 : 0);   // each arm over the pad
   taxi(g, [975, TAXI_Z], [975, 200], 30); labels.push(["De-icing pad", [975, 240], 16]);
   // Fuel farm: four tanks in a bund
   outlineRect(g, rect(960, 330, 1090, 440), 1.2, 0.8, M.wall);
-  for (const [x, z] of [[990, 360], [1060, 360], [990, 410], [1060, 410]]) building("Fuel tank", () => cyl(g, [x, z], 13, 0, 14, M.tank, 32));
+  for (const [x, z] of [[990, 360], [1060, 360], [990, 410], [1060, 410]]) put("Fuel tank", B => S.tank(B, { r: 13, h: 14 }), x, z);
   labels.push(["Fuel farm", [1025, 385], 18]);
   tower(g, [370, 480], 55, labels);
   // Maintenance: two arched hangars, an airliner and the freighter inside
@@ -1933,24 +2968,24 @@ function buildProposed(g, labels) {
   slab(g, rect(-360, 195, -200, 330), -0.5, TOP.apron, M.apron);
   const heli = AIR.kinds.find(k => k.role === "Helicopter");
   [[-330, 232], [-280, 232], [-230, 232]].forEach((c, i) => { helipad(g, c, labels, i === 1 ? "Helipads" : null); if (heli && i !== 1) aircraft(g, heli, c, [0, -1]); });
-  building("Helicopter hangar", () => { box(g, [-350, 0, 280], [-250, 10, 322], M.clad); box(g, [-352, 10, 278], [-248, 11, 324], M.roof); box(g, [-340, 0.12, 279.6], [-260, 8, 280], M.dark, false); });
+  put("Helicopter hangar", B => S.cargoShed(B, E.M, { w: 100, d: 42, h: 10, doorH: 8 }), -300, 301, 2);
   labels.push(["Helicopter hangar", [-300, 300], 13]); if (heli) labels.push(["helicopter", [-330, 232], 6, "standin"]);
   // General aviation: two rows of T-hangars and light aircraft on their apron
   slab(g, rect(-1000, 195, -680, 340), -0.5, TOP.apron, M.apron);
-  for (const z0 of [262, 300]) building("T-hangars", () => { box(g, [-990, 0, z0], [-700, 5, z0 + 24], M.clad); box(g, [-992, 5, z0 - 1], [-698, 5.6, z0 + 25], M.roof);
-    for (let i = 0; i < 24; i++) box(g, [-988 + i * 12, 0.12, z0 - 0.1], [-979 + i * 12, 4, z0], M.dark, false); });
+  for (const z0 of [262, 300]) put("T-hangars", B => S.tHangars(B, E.M, { w: 290 }), -845, z0 + 12, 2);
   const lp = KIND("light_plane"); for (let i = 0; i < 6; i++) aircraft(g, lp, [-960 + i * 45, 225], [0, 1]);
   labels.push(["T-hangars", [-845, 290], 8]); if (lp) labels.push(["light planes", [-870, 225], 5, "standin"]);
   // ---- landside: the road, the curbs, car parks, the radar
   pave(g, [-200, 527], [1100, 527], 24, M.road); stroke(g, [-200, 527], [1100, 527], 0.25, PAINT, M.white);
-  building("Multi-storey car park", () => { for (let k = 0; k < 4; k++) { const y = k * 4; box(g, [40, y, 560], [280, y + 0.5, 640], M.wall, k === 3); if (k) for (let x = 40; x <= 280; x += 20) for (let z = 560; z <= 640; z += 20) box(g, [Math.max(40, x - 0.6), y - 3.5, Math.max(560, z - 0.6)], [Math.min(280, x + 0.6), y, Math.min(640, z + 0.6)], M.wall); } });
+  put("Multi-storey car park", B => S.carPark(B, E.M, { w: 240, d: 80 }, SmallBuildings.mulberry(5)), 160, 600);
   labels.push(["Multi-storey car park", [160, 600], 16]);
   const lot = rect(420, 560, 700, 640); slab(g, lot, -0.5, 0.14, M.asphalt);
   for (let x = 424; x <= 696; x += 2.5) for (const [z0, z1] of [[562, 567], [588, 593], [607, 612], [633, 638]]) stroke(g, [x, z0], [x, z1], 0.12, 0.2, M.white);
   labels.push(["Car park", [560, 600], 3]);
-  building("Radar", () => { box(g, [-102, 0, 598], [-98, 22, 602], M.fence);
-  const radar = new T.Group(); radar.position.set(-100, 23, 600); g.add(radar);
-  radar.add(new T.Mesh(new T.BoxGeometry(14, 4, 1), M.white)); spinners.push([radar, 1.2]); addPiece(radar); });
+  const radarId = put("Radar", B => S.radarMast(B), -100, 600);
+  const radar = new T.Group(); radar.position.set(-100, 23.6, 600); g.add(radar);
+  const ant = new T.Mesh(new T.BoxGeometry(14, 4, 1), M.white); ant.position.y = 2; ant.castShadow = true; radar.add(ant);
+  radar.add(new T.Mesh(new T.CylinderGeometry(0.6, 0.6, 1.2, 10), M.dark)); spinOn(radarId, radar, 1.2);
   labels.push(["Surveillance radar", [-100, 600], 28]);
 
   // ---- the military side: the mech base, its link and hold, dispersal pans, the readiness platform, the fire station
@@ -1961,8 +2996,7 @@ function buildProposed(g, labels) {
   labels.push(["Dispersal hard standings", [1070, -520], 6]);
   slab(g, rect(880, -125, 990, -45), -0.5, TOP.apron, M.mil); link(g, [960, -main.w2], [960, -45], [1, 0], null);
   labels.push(["Operational readiness platform", [935, -85], 5]);
-  building("Fire station", () => { box(g, [-60, 0, -165], [20, 9, -125], M.terminal);
-  for (let i = 0; i < 4; i++) box(g, [-56 + i * 19, 0.12, -125], [-42 + i * 19, 6.5, -124.9], M.red, false); });
+  put("Fire station", B => S.fireStation(B, E.M), -22, -145);
   link(g, [-20, -main.w2], [-20, -125], [1, 0], null, 18); labels.push(["Fire station", [-20, -145], 12]);
   // ---- the fence, outside the landside road kept clear
   const F = [[-1150, -840], [1150, -840], [1150, 508], [-1150, 508]], posts = [];
@@ -1992,15 +3026,16 @@ loader.parse(glbBytes(YARD.glb), "", gltf => {
 box(yardG, [FOREMAN[0] - 18.5, 0.12, FOREMAN[1] - 0.25], [FOREMAN[0] - 18, 1.92, FOREMAN[1] + 0.25], M.pilot);
 
 // ---------------------------------------------------------------- scene state, labels, views
-let show = "proposed", built = null, labels = [], labelReach = null, gun = 5;
+let show = "proposed", built = null, labels = [], labelReach = null, gun = "shell";
 const statEl = document.getElementById("shotstat");
 controls.addEventListener("start", () => { labelReach = null; });
 const tagsEl = document.getElementById("tags");
 function rebuild() {
   if (built) { scene.remove(built); built.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   built = new T.Group(); scene.add(built); labels = []; spinners = []; tagsEl.innerHTML = "";
-  BUILDINGS = []; targets = []; fallers = []; bits = []; statEl.textContent = "";
+  E.clear(); statEl.textContent = "";
   if (show === "today") buildToday(built, labels); else buildProposed(built, labels);
+  E.finish(); seatSpinners();
   labels.push(["Foreman, 24 m", FOREMAN, 26]);
   for (const l of labels) { const el = document.createElement("div"); el.className = "tag " + (l[3] || ""); el.textContent = l[0]; tagsEl.appendChild(el); l.el = el; }
   document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
@@ -2027,12 +3062,12 @@ function view(name) {
 }
 document.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { show = b.dataset.show; rebuild(); });
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.dataset.view));
-document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = +b.dataset.gun;
+document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = b.dataset.gun;
   document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
-document.getElementById("repair").onclick = () => rebuild();
-bindFire(canvas, camera, () => gun);
-window.MOCKUP = { view, blast: (x, y, z, r) => blast(V(x, y, z), r), repair: rebuild,
-  buildings: () => BUILDINGS.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.alive.filter(Boolean).length, anchored: B.anchored })) };
+document.getElementById("repair").onclick = () => { E.reset(); statEl.textContent = ""; };
+E.bindFire(canvas, camera, () => gun);
+window.MOCKUP = { view, blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), unheld: () => E.unheld(), engine: E,
+  buildings: () => E.BLD.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.pieces.filter(p => E.PIECES[p].alive).length, collapsed: B.collapsed })) };
 canvas.addEventListener("keydown", e => {
   const s = 0.05, sph = new T.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
   if (e.key === "ArrowLeft") sph.theta -= s; else if (e.key === "ArrowRight") sph.theta += s;
@@ -2062,8 +3097,9 @@ const tmp = new T.Vector3();
 let last = 0;
 function frame(ms) {
   const dt = Math.min(0.05, (ms - last) / 1000 || 0); last = ms;
-  for (const [o, rate] of spinners) o.rotation.y += dt * rate;
-  stepBreakage(dt);
+  for (const s of spinners) { s.obj.rotation.y += dt * s.rate; if (s.pid != null) s.obj.visible = E.PIECES[s.pid].alive; }
+  E.step(dt);
+  if (E.FALLING.length || statEl.textContent) { let gone = 0; for (const P of E.PIECES) if (!P.alive) gone++; statEl.textContent = gone ? `${gone} pieces down, ${E.FALLING.length} falling` : ""; }
   resize(); controls.update(); renderer.render(scene, camera);
   const w = canvas.clientWidth, h = canvas.clientHeight;
   const reach = labelReach ?? Math.max(400, 2.2 * camera.position.distanceTo(controls.target));

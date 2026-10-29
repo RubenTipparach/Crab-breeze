@@ -4,6 +4,8 @@
 - [x] 0.1b Second pass, a whole airport after the references (owner, 2026-10-29: "That airfield looks kinda simple")
 - [x] 0.1c Z-fighting gone (every flat layer its own height) and every building breakable in the mockup with the
       small-buildings kit's support rule (owner, 2026-10-29: "more zfighting, also use our breakable framework")
+- [x] 0.1d Buildings up to the houses' standard: drawn on the small-buildings kit (bays, framed glazing, doors, floors,
+      roofs in panels, interiors) and broken by the street's engine (`docs/mockups/building_engine.js`)
 - [ ] 0.2 Owner approves the mockup (no game code before it); AP1 to AP3 in the survey
 - [ ] 1.1 The strip: flattened, checked when the runway is placed; `runway_gap_m` 100 m; tests
 - [ ] 1.2 `cb_core::world::airfield::layout`: taxiway, links, holds, entries, stands, buildings; tests (inside, no overlaps, clear)

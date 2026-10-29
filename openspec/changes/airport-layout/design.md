@@ -122,16 +122,23 @@ small-buildings kit's support rule decides what stands after a hit (`SmallBuildi
 rule `cb_core::small_buildings::damage` mirrors): a piece stands while it reaches the ground through the pieces under it,
 or through at most `MAX_SIDE` (3) pieces beside it. A piece lost from under others drops them.
 
-- **Pieces.** A block splits into pieces of at most 10 x 6 x 10 m; a tank, a tunnel section, a glazed cab or a tenth of a
-  hangar's arch (cut in eight segments along its length) is a piece of its own. Terminal 1 is 741 pieces, Terminal 2 and
-  its pier 1342, a maintenance hangar 106, the tower 37.
-- **Built to the rule.** Every piece touches what holds it (the kit links only bounds within 4 cm): the tower's beacon
-  sits on its mast, the car park's decks stand on a 20 m column grid. The mockup reports any piece the rule would not hold
-  as built; there are none.
+- **Built like the houses** (owner, 2026-10-29: "Airport is not up to standard of like suburban houses"). Every building
+  is drawn on the small-buildings kit's Builder by `docs/mockups/site_buildings_kit.js`, with the kit's own parts: walls
+  in structural bays of at most 6 m with real openings (glazed curtain walls, ribbon windows, entrances, roll-up and
+  hangar doors, each framed and glazed), floors and roofs in 5 m panels on interior columns, parapets and copings,
+  stairs, check-in counters, gate seating, desks, workbenches and cars, signs from the kit's sign maker. Angled members
+  (a jet bridge's tunnel, a hangar's arch, a boom) are oriented plates, each a piece that falls as one tilted chunk.
+- **One engine.** `docs/mockups/building_engine.js` is the street's engine, taken out of the small-buildings page so the
+  street, the airport and the seaport share it: the generated PBR textures, merged meshes (one draw a material), the shot
+  (pieces blown out, big ones broken into chunks), the creak and fall of what is left hanging, a building that loses half
+  its load-bearing walls coming down whole, the rubble settling in piles at the angle of repose, dust, fire and flashes.
+- **Built to the rule.** Every piece is held as built: `MOCKUP.unheld()` reports none, the node check of every building
+  type in the kit reports none.
+- **Measured on the mockup** (block-out art, no GPU here): 34 buildings, 30 249 pieces, 496 568 triangles in 26 draws (one
+  a material); the largest building, the car park, 6 874 pieces. Support links are computed once at load, per building.
+  A demolition charge at Terminal 1's face takes out 99 pieces; what they held falls.
 - **In the game** each building becomes a breakable kit set (the small buildings' path: `kit.rs` pieces, `damage.rs`),
   with its colliders from the same pieces, so AP2 is answered: solid and breakable from the start.
-- **Cost.** One instanced draw per material per building while whole; about 4 500 pieces for the whole airport, their
-  support links computed once at load (pairwise per building, the largest 1342 pieces, under 1 M pair tests).
 
 ## Mockup
 

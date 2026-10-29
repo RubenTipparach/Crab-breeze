@@ -31,13 +31,23 @@ seabed at -14 inside the breakwaters.
 The ships are the harbours change's own models (`assets/models/boats`) at true size: the freighter stands in for the
 container ship. The tugs are block-out stand-ins until a model exists.
 
-## 2. Every building breaks
+## 2. Everything breaks, the boats too
 
-The airport's rule (`airport-layout` section 6), through the same code: `tools/mockups/site_kit.js` holds the shapes and
-the breakable buildings for both pages, with each building's own ground level (`building(name, fn, groundY)`), so a shed
-on a 2.5 m quay stands on its quay. Every piece is held as built; none needs anchoring (the gantry's cab hangs on a hanger
-held beside the boom, the goliath's crab rides on top of its girder). Destroying the legs on both rails of a gantry drops
-its girder and boom (measured: 41 pieces fall); destroying the control tower's shaft drops its cab (28 pieces).
+Owner, 2026-10-29: "Make sure everything in seaport follow destructible rule", "Including boats". The airport's rule
+(`airport-layout` section 6), through the same code: every building, crane, container stack, straddle carrier, jetty,
+pier, pontoon, linkspan, dock gate, light, buoy, fender, bollard, crown wall and tank is drawn on the small-buildings
+kit's Builder by `docs/mockups/site_buildings_kit.js` and broken by `docs/mockups/building_engine.js`, the street's
+engine. Each stands on its own ground (a shed on the 2.5 m quay, a jetty's piles on the seabed, a pontoon on the water).
+
+- **Ships and the luffing cranes** are their own glb models (`assets/models/boats`), cut by the engine into 6 m cells
+  (`BuildingEngine.fromObject`), each cell a piece in the model's own colours, held as built. A ship goes down once it has
+  lost 40% of its hull within 4 m of its keel: its pieces break off and sink slowly through the water to the seabed. A
+  demolition charge on the container ship's side sinks it (measured: 27 pieces blown out, the other 88 go down).
+- **Measured on the mockup:** 103 breakable things, 15 022 pieces, 218 934 triangles in 26 draws; nothing the rule would
+  not hold as built (114 pieces of the models and the fenders are held as drawn). Destroying the legs on both rails of a
+  gantry drops its girder and boom (21 of its 29 pieces); a demolition charge at the port control tower's foot brings
+  296 of its pieces down.
+- Rubble rests on the deck over land and quays, the floor in the dry dock and the seabed elsewhere.
 
 ## 3. In the game (after approval)
 
@@ -48,9 +58,9 @@ the port's footprint are shaped to it (SP2): quays and breakwaters stand on the 
 
 ## 4. Cost
 
-Per full port, block-out geometry: about 4 900 breakable pieces (the container stacks 2 730 of them), drawn as one
-instanced draw per material per building, about 140 draws; the breakwaters, quays and paint about 60 draws; the ships
-their models' LODs. Support links are computed once at load, per building (the largest, a stack block, 182 pieces). Not
+Per full port, as the mockup draws it: about 15 000 breakable pieces in 26 merged draws (one a material), about 219 000
+triangles; the breakwaters, quays and paint about 60 draws more. Support links are computed once at load, per building
+(the largest, the transit shed, 1 707 pieces). Not
 measured: the cloud session has no GPU.
 
 ## Open questions
