@@ -70,6 +70,8 @@ pub struct Blow {
     pub penetration_mm: f32,
     /// Structure points it takes from a part it beats.
     pub damage: f32,
+    /// How much of a struck mech's stance it breaks, in blows (close-combat 2b).
+    pub stance: f32,
 }
 
 /// What a hit carries, from a gun or a strike, and who fired it.
@@ -457,6 +459,15 @@ pub fn fly_shots(
                 &mut civil,
                 &mut boat_hits,
             );
+            // A blow on a mech wears its stance; the one that breaks it knocks it down, driven along the blow
+            // (close-combat 2b). Gun hits never do (owner, 2026-10-29: "guns do not").
+            if let cb_core::weapons::Struck::Mech { mech, .. } = struck
+                && let Some((mut sim, spec, _, _)) = mechs.iter_mut().find(|m| m.2.0 == mech)
+            {
+                let f = cb_core::mech::forward(sim.curr.heading_rad);
+                let side = if dir.cross(f).y < 0.0 { 1.0 } else { -1.0 };
+                sim.stance.hit(blow.stance, Vec2::new(dir.x, dir.z), side, &spec.melee);
+            }
         }
     }
     // Beams burn the first thing on their line (weapon-kinds): the same hit rules as a round.

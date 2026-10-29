@@ -91,6 +91,8 @@ pub struct GameData {
     pub ground_marks: ground_marks::GroundMarksConfig,
     /// `data/fx/battle_fx.ron`.
     pub battle_fx: battle_fx::BattleFxConfig,
+    /// The melee moves and gun recoil, `data/combat/melee_moves.ron` (close-combat 2.4, 2.5).
+    pub melee_moves: mech::MeleeMoves,
     /// `data/world/sun_flare.ron`.
     pub sun: sun_flare::SunLook,
     /// `data/world/units.ron`.
@@ -220,6 +222,7 @@ impl GameData {
             grass,
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
             battle_fx: data::load_ron(&root.join("fx/battle_fx.ron"))?,
+            melee_moves: data::load_ron(&root.join("combat/melee_moves.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units,
             air_traffic: data::load_ron(&root.join("world/air_traffic.ron"))?,
@@ -361,6 +364,22 @@ mod tests {
                 (m.file, cfg)
             })
             .collect()
+    }
+
+    /// A roster mech's stance breaks in 2, 3 or 4 blows by its class (close-combat 2b; owner, 2026-10-29: "2,3,4
+    /// light mech, mid, heavy"): the light Picket and Ironhorse in 2, the heavy Foreman, Sapper and Mule in 4.
+    #[test]
+    fn light_mechs_fall_in_two_blows_mid_in_three_and_heavy_in_four() {
+        let mechs = roster_configs();
+        assert_eq!(mechs.len(), 8);
+        for (file, cfg) in &mechs {
+            let want = match file.trim_start_matches("mechs/").trim_end_matches(".ron") {
+                "picket" | "ironhorse" => 2.0,
+                "foreman" | "sapper" | "mule" => 4.0,
+                _ => 3.0,
+            };
+            assert_eq!(cfg.melee.stance_break_at, want, "{file}");
+        }
     }
 
     /// Every roster mech has rockets and skates, each with stats of its own (survey C15, owner, 2026-10-26: "every

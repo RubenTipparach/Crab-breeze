@@ -1,0 +1,14 @@
+/* the melee lab's controls, inlined by tools/mockups/gen_melee_lab.py */
+/* the melee lab: moves, playback and the keyframe editor */
+.mel-ed { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 10px 12px; margin-bottom: 8px; display: grid; gap: 8px; }
+.mel-ed .row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.mel-ed label { font: 500 12px var(--mono); color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.mel-ed select, .mel-ed input[type=number] { font: 500 13px var(--mono); background: var(--bg); color: var(--ink); border: 1px solid var(--edge); border-radius: 3px; padding: 6px; min-height: 34px; }
+.mel-ed input[type=number] { width: 7ch; }
+.mel-ed .sl { display: grid; grid-template-columns: 3ch 1fr 7ch; gap: 8px; align-items: center; flex: 1 1 240px; min-width: 0; }
+.mel-ed .sl input[type=range] { min-width: 0; accent-color: var(--accent); }
+.mel-ed .sl output { font: 500 12px var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.mel-ed .keys button { min-height: 32px; padding: 6px 9px; font-size: 13px; }
+.mel-ed .keys button.hit { border-style: dashed; }
+.mel-ed .status { font: 500 12px var(--mono); color: var(--muted); }
+.mel-ed .grid6 { display: flex; flex-wrap: wrap; gap: 6px 18px; }

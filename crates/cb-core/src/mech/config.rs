@@ -420,6 +420,8 @@ pub struct MechConfig {
     pub weapon_heat: crate::weapons::WeaponHeatConfig,
     /// Close combat: melee range and the arms' strikes (openspec change `close-combat`).
     pub melee: super::melee::MeleeConfig,
+    /// The gun arms' aim at the aim point (openspec change `arm-aim`).
+    pub arm_aim: super::arm_aim::ArmAimConfig,
     /// The stand-in's bones and sockets.
     pub nodes: Vec<NodeSpec>,
     /// The stand-in's boxes.
@@ -496,6 +498,7 @@ impl Default for MechConfig {
             weapons: crate::weapons::default_weapons(),
             weapon_heat: crate::weapons::WeaponHeatConfig::default(),
             melee: super::melee::MeleeConfig::default(),
+            arm_aim: super::arm_aim::ArmAimConfig::default(),
             nodes: Vec::new(),
             boxes: Vec::new(),
         }
@@ -546,6 +549,7 @@ impl Validate for MechConfig {
         positive("locomotion.water_climb_m_s", l.water_climb_m_s)?;
         positive("locomotion.water_drag_m_s2", l.water_drag_m_s2)?;
         self.melee.validate()?;
+        self.arm_aim.validate()?;
         within("locomotion.skim_depth_share", l.skim_depth_share, 0.0, 2.0)?;
         positive("locomotion.skim_rise_m_s", l.skim_rise_m_s)?;
         let g = &self.gait;

@@ -1,0 +1,30 @@
+<!-- the melee lab's controls, inlined by tools/mockups/gen_melee_lab.py -->
+    <div class="bar" role="group" aria-label="Melee" id="mel-bar">
+      <span class="lbl">Melee</span>
+    </div>
+    <div class="bar" role="group" aria-label="Melee playback">
+      <span class="lbl">Play</span>
+      <button id="mel-play" class="go">Play</button>
+      <button id="mel-loop" aria-pressed="false">Loop</button>
+      <button id="mel-spar" aria-pressed="true">Sparring partner</button>
+      <button id="mel-edit" aria-pressed="false">Edit keys</button>
+      <label class="lbl" style="display:flex;gap:6px;align-items:center">Speed <select id="mel-speed" style="font:500 13px var(--mono);min-height:34px"><option value="0.1">0.1x</option><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option></select></label>
+      <div class="scrub"><input type="range" id="mel-scrub" min="0" max="1000" value="0" aria-label="Move timeline"><output id="mel-t">0.00 s</output></div>
+    </div>
+    <div class="mel-ed" id="mel-ed" hidden>
+      <div class="row keys" id="mel-keys" aria-label="Keys"></div>
+      <div class="row">
+        <label>Key time <input type="number" id="mel-kt" step="0.01" min="0"></label>
+        <label>Hit lands at <input type="number" id="mel-hit" step="0.01" min="0"></label>
+        <button id="mel-add">Add key here</button>
+        <button id="mel-del">Delete key</button>
+        <label>Bone <select id="mel-bone"></select></label>
+      </div>
+      <div class="grid6" id="mel-sliders"></div>
+      <div class="row">
+        <button id="mel-save" class="go">Save move</button>
+        <button id="mel-reset">Reset to default</button>
+        <button id="mel-copy">Copy JSON</button>
+        <span class="status" id="mel-status">Pick a key, then a bone, and drag. Turns in radians, slides in metres.</span>
+      </div>
+    </div>
