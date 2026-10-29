@@ -1,7 +1,7 @@
 """Crab Breeze: the cockpit interiors, built to the pilot's eye, their surfaces baked to PBR maps.
 
   /opt/blender/blender --background --factory-startup --python tools/blender/build_cockpit.py -- \
-      [--variant wall|jockey|harness] [--size 4096] [--samples 16] [--map-samples 4] [--no-denoise] [--no-bake]
+      [--variant wall|jockey|harness] [--size 2048] [--samples 16] [--map-samples 4] [--no-denoise] [--no-bake]
 
 Run tools/blender/bake_cockpit_panels.py, tools/textures/gen_cockpit_displays.py and
 tools/textures/gen_mech_plating.mjs first: this script reads their maps. It writes one interior as glTF
@@ -2269,7 +2269,8 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
     ap.add_argument("--variant", choices=sorted(VARIANTS), default="wall")
-    ap.add_argument("--size", type=int, default=4096)
+    # 2048 px at most (CLAUDE.md section 7; owner, 2026-10-28: "No 4k textures 2k only")
+    ap.add_argument("--size", type=int, default=2048)
     ap.add_argument("--samples", type=int, default=16, help="contact occlusion samples (denoised after)")
     ap.add_argument("--map-samples", type=int, default=4, help="samples for the colour, normal, roughness, metal and emission passes")
     ap.add_argument("--no-denoise", action="store_true")

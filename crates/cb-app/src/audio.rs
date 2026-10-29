@@ -247,7 +247,14 @@ impl Plugin for SoundPlugin {
 
 fn load_library(mut lib: ResMut<Library>, assets: Res<AssetServer>, data: Res<Data>, mut volume: ResMut<GlobalVolume>) {
     let cfg = &data.0.audio.cues;
-    *volume = GlobalVolume::new(Volume::Linear(db_to_gain(cfg.master_db)));
+    // `CB_MUTE=1` silences the game alone for test runs on the owner's desktop (owner, 2026-10-28: "make sure to mute
+    // audio for future game tests", "just game audio").
+    let gain = if crate::cli::switched_off("CB_MUTE") {
+        0.0
+    } else {
+        db_to_gain(cfg.master_db)
+    };
+    *volume = GlobalVolume::new(Volume::Linear(gain));
     for cue in ASKED.iter().filter(|c| !cfg.cues.contains_key(**c)) {
         error!("sound `{cue}` is asked for by the game but is not in data/audio/cues.ron");
     }
@@ -747,9 +754,11 @@ fn level_voices(
     ear: Res<Ear>,
     data: Res<Data>,
     settings: Res<crate::settings::Settings>,
+    master: Res<GlobalVolume>,
 ) {
     let cfg = &data.0.audio.cues;
-    let player = settings.0.sfx_volume;
+    // A sink's volume set after it starts replaces the master volume it started with (`CB_MUTE`): it is multiplied in.
+    let player = settings.0.sfx_volume * master.volume.to_linear();
     for (v, l, at, mut sink) in &mut voices {
         let g = if v.inside {
             1.0

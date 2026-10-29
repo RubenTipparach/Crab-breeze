@@ -45,6 +45,9 @@ struct Click {
     since_s: f32,
 }
 
+/// Marks a house lot's id in `Pilot::shot`, apart from the buildings' ids.
+const HOUSE_ID: u32 = 1 << 31;
+
 #[derive(Resource)]
 struct Pilot {
     script: Script,
@@ -64,6 +67,8 @@ struct Pilot {
     service_seen: f32,
     /// When the skates were last toggled (real seconds): one press, then wait for it to take.
     toggled_s: f32,
+    /// The beat wanted the throttle at zero last frame: X is pressed once, as a player taps it, not every frame.
+    zero_held: bool,
     /// When the track was last logged.
     logged_s: f32,
     /// When the world was first seen ready (a Continue is restored on the frame after).
@@ -80,6 +85,9 @@ struct Pilot {
     detour_side: f32,
     /// Jobs the pilot could not reach and gave up on (`AcceptByMail` passes them over).
     gave_up: Vec<u32>,
+    /// The buildings and houses (`HOUSE_ID` set) `FireAtNearest` has fired at, and where it aims now.
+    shot: Vec<u32>,
+    aim: Vec3,
     /// The person, car or building a beat chose, kept while it lasts.
     goal_id: Option<u32>,
     /// A beat's goal on the ground (x, z).
@@ -119,6 +127,7 @@ impl Plugin for PlaytestPlugin {
             brain: None,
             service_seen: 0.0,
             toggled_s: 0.0,
+            zero_held: false,
             logged_s: 0.0,
             ready_s: None,
             failures: Vec::new(),
@@ -129,6 +138,8 @@ impl Plugin for PlaytestPlugin {
             detour_until: 0.0,
             detour_side: 1.0,
             gave_up: Vec::new(),
+            shot: Vec::new(),
+            aim: Vec3::ZERO,
             goal_id: None,
             goal: Vec2::ZERO,
             route: Vec::new(),
@@ -145,7 +156,42 @@ impl Plugin for PlaytestPlugin {
         .add_systems(PreUpdate, (press_keys, hold_buttons).after(bevy::input::InputSystems))
         .add_systems(Update, play.in_set(crate::sim::PresentSet::Input))
         .init_resource::<FrameLog>()
-        .add_systems(Last, log_frames);
+        .add_systems(Last, (log_frames, free_mouse, shots));
+    }
+}
+
+/// A scripted run never holds the desktop's mouse (owner, 2026-10-28: "Just don't lock my mouse to the game screen if
+/// you're running a test"): the pilot turns the view and clicks through its own actions and pointer events, so the
+/// cursor is let go and shown again at the end of every frame, whatever the game set during it.
+/// `CB_SHOTS_EVERY_S=<s>`: the game window alone saved every so many seconds of the take to `output/perf/shots/`, to look
+/// at what a run drew without capturing the desktop the owner is using (an instrument).
+fn shots(mut commands: Commands, time: Res<Time<Real>>, t: Option<Res<Pilot>>, mut last: Local<f32>) {
+    let Some(every) = std::env::var("CB_SHOTS_EVERY_S").ok().and_then(|v| v.parse::<f32>().ok()) else {
+        return;
+    };
+    let Some(t) = t else { return };
+    if !t.started || every <= 0.0 {
+        return;
+    }
+    let now = time.elapsed_secs();
+    if now - *last < every {
+        return;
+    }
+    *last = now;
+    let dir = std::path::Path::new("output/perf/shots");
+    let _ = std::fs::create_dir_all(dir);
+    let path = dir.join(format!("{}-{:06.1}-beat{}.png", t.script.name, now, t.beat));
+    commands
+        .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+        .observe(bevy::render::view::screenshot::save_to_disk(path));
+}
+
+fn free_mouse(mut cursor: Single<&mut bevy::window::CursorOptions>) {
+    if cursor.grab_mode != bevy::window::CursorGrabMode::None {
+        cursor.grab_mode = bevy::window::CursorGrabMode::None;
+    }
+    if !cursor.visible {
+        cursor.visible = true;
     }
 }
 
@@ -688,7 +734,7 @@ fn play(
             done = !s.menu.is_open() && in_beat > 0.5;
         }
         Beat::Board => {
-            act = board(p, s.access.0.as_ref());
+            act = board(p, s.access.0.as_ref(), &s.data.0.pilot);
             if let Some(a) = s.access.0.as_ref() {
                 dist = Some(p.distance_to_stair(a) + if p.mode == PilotMode::OnFoot { 100.0 } else { 0.0 });
             }
@@ -1227,8 +1273,50 @@ fn play(
                 }
             }
         }
-        Beat::WalkIntoBuilding(within, storeys) => {
-            if t.route.is_empty() {
+        Beat::WalkIntoHouse(within) if t.route.is_empty() => {
+            // Out in front of the door, in through it and into the front room, where the beat ends (a look round there
+            // follows in the script): the kit's first leaf is its front door, and `small_buildings::walk`'s test walks
+            // the same line. Deeper, an inner wall can stand across it (the first suburb run stopped there).
+            let feet = Vec2::new(p.feet.x, p.feet.z);
+            let small = &s.plan.small;
+            let best = small
+                .candidates(feet, *within)
+                .into_iter()
+                .filter(|l| !t.shot.contains(&(l | HOUSE_ID)))
+                .filter(|l| s.live.structures.houses.alive(*l).is_none_or(|a| a.iter().all(|x| *x)))
+                .filter_map(|l| {
+                    let lot = small.lots.get(l as usize)?;
+                    let leaf = small.kit(l).leaves.first()?;
+                    let mid = Vec2::new(leaf.hinge.x, leaf.hinge.z) + leaf.shut * (leaf.width_m * 0.5);
+                    let outside = lot.to_world(mid - leaf.inward * 3.0);
+                    Some((outside.distance(feet), l, lot, mid, leaf.inward))
+                })
+                .min_by(|a, b| a.0.total_cmp(&b.0));
+            match best {
+                Some((d, l, lot, mid, inward)) => {
+                    let at = |q: Vec2| {
+                        let w = lot.to_world(q);
+                        Vec3::new(w.x, lot.ground_m, w.y)
+                    };
+                    t.route = [-3.0, 1.5, 3.5].iter().map(|k| at(mid + inward * *k)).collect();
+                    t.goal_id = Some(l);
+                    t.route_i = 0;
+                    info!(
+                        "playtest: into house lot {l} by its front door, {d:.0} m off ({} points)",
+                        t.route.len()
+                    );
+                }
+                None if in_beat > 8.0 => {
+                    fail(&mut t, now, &format!("no standing house within {within:.0} m"));
+                    return;
+                }
+                None => {}
+            }
+        }
+        Beat::WalkIntoBuilding(..) | Beat::WalkIntoHouse(_) => {
+            if let Beat::WalkIntoBuilding(within, storeys) = &beat
+                && t.route.is_empty()
+            {
                 let feet = Vec2::new(p.feet.x, p.feet.z);
                 let rng = crate::buildings::building_rng(x.seed.0);
                 let cfg = &x.colliders.0.cfg;
@@ -1274,10 +1362,14 @@ fn play(
                 let flat = Vec2::new(goal.x - p.feet.x, goal.z - p.feet.z).length();
                 let left: f32 = flat + t.route.windows(2).skip(t.route_i).map(|w| w[0].distance(w[1])).sum::<f32>();
                 dist = Some(left);
-                if flat < 0.6 {
+                // A house's last point is the middle of its front room, where furniture may stand: within 1.5 m of it
+                // the pilot is in the room (the second suburb run stopped 1 m short of it, past the door).
+                let last = t.route_i + 1 == t.route.len();
+                let reach_m = if last && matches!(beat, Beat::WalkIntoHouse(_)) { 1.5 } else { 0.6 };
+                if flat < reach_m {
                     t.route_i += 1;
                     if t.route_i == t.route.len() {
-                        info!("playtest: up the stair, feet at {:.1} m (started at the door)", p.feet.y);
+                        info!("playtest: route walked, feet at {:.1} m (started at the door)", p.feet.y);
                         done = true;
                     }
                 } else {
@@ -1549,6 +1641,67 @@ fn play(
             act.fire_missile = t.count > 0 && now - t.next_s < 0.25;
             done = t.count >= *n && now - t.next_s > 4.0;
         }
+        Beat::FireAtNearest(kind, each, n) => {
+            // The next target: the nearest building (or house) 60 to 800 m from the mech not fired at yet (nearer, the
+            // mech would take its own blasts).
+            if t.count == 0 || (now - t.next_s > *each && t.count < *n) {
+                let here = Vec2::new(m.pos.x, m.pos.z);
+                let near = |p: Vec3| p.distance(eye);
+                let next = if kind == "house" {
+                    // A plain pass over every lot and building: the collision grid's box query over 800 m took the
+                    // main thread 280 ms in the capital, a frame that long at each new target (a test cost, not the game's).
+                    s.plan
+                        .small
+                        .lots
+                        .iter()
+                        .enumerate()
+                        .map(|(l, lot)| (l as u32, lot))
+                        .filter(|(l, lot)| !t.shot.contains(&(l | HOUSE_ID)) && lot.centre.distance(here) < 800.0)
+                        .map(|(l, lot)| (l | HOUSE_ID, Vec3::new(lot.centre.x, lot.ground_m + 3.0, lot.centre.y)))
+                        .filter(|c| near(c.1) > 60.0)
+                        .min_by(|a, b| near(a.1).total_cmp(&near(b.1)))
+                } else {
+                    s.plan
+                        .buildings
+                        .iter()
+                        .filter(|bl| !t.shot.contains(&bl.id) && bl.footprint.centre().distance(here) < 800.0)
+                        .map(|bl| {
+                            let c = bl.footprint.centre();
+                            (bl.id, Vec3::new(c.x, s.plan.terrain.height_at(c.x, c.y) + bl.height_m * 0.35, c.y))
+                        })
+                        .filter(|c| near(c.1) > 60.0)
+                        .min_by(|a, b| near(a.1).total_cmp(&near(b.1)))
+                };
+                match next {
+                    Some((id, at)) => {
+                        t.shot.push(id);
+                        t.aim = at;
+                        t.count += 1;
+                        t.next_s = now;
+                        say(&format!(
+                            "PLAYTEST_TARGET {} {kind} {} at ({:.0}, {:.0}), {:.0} m",
+                            t.count,
+                            id & !HOUSE_ID,
+                            at.x,
+                            at.z,
+                            at.distance(eye)
+                        ));
+                    }
+                    None => {
+                        fail(&mut t, now, &format!("no {kind} left within 800 m"));
+                        return;
+                    }
+                }
+            }
+            let d = t.aim - eye;
+            let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+            act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, t.aim, pitch, 0.12);
+            act.throttle_zero = true;
+            let on_target = now - t.next_s;
+            act.fire[0] = on_target > 0.8;
+            act.fire_missile = on_target > 1.0 && (on_target - 1.0) % 2.5 < 0.25;
+            done = t.count >= *n && on_target > *each;
+        }
         Beat::StartMission(which) => {
             let kind = match which.as_str() {
                 "Defence" => cb_core::missions::MissionKind::Defence,
@@ -1749,6 +1902,7 @@ fn play(
             | Beat::Scope(..)
             | Beat::MultiLock(_)
             | Beat::FireAtGround(..)
+            | Beat::FireAtNearest(..)
             | Beat::LandOnFortress(_)
             | Beat::DriveCar(..)
     ) && dist.is_none();
@@ -1804,6 +1958,11 @@ fn play(
     } else {
         t.progress_game_s = game_s;
     }
+    // A player taps X once to zero the throttle; the beats ask for it every frame they want it at zero, which played
+    // the cockpit's switch click every step (owner, 2026-10-28: "Its the mfd click", "So the bot was causing that").
+    let zero = act.throttle_zero;
+    act.throttle_zero = zero && !t.zero_held;
+    t.zero_held = zero;
     acc.script = Some(act);
     if done {
         info!("playtest: beat {} {beat:?} done in {in_beat:.1} s", t.beat);
@@ -2092,6 +2251,24 @@ fn place(kind: &str, here: Vec2, s: &Scene, x: &More) -> Option<(Vec2, String)> 
                 .map(|c| (c.centre, format!("city {}", c.id)))
                 .collect(),
         ),
+        // the nearest house lot more than 300 m off (a suburb to bring down)
+        "house" => pick(
+            s.plan
+                .small
+                .lots
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| l.centre.distance(here) > 300.0)
+                .map(|(i, l)| (l.centre, format!("house lot {i}")))
+                .collect(),
+        ),
+        // the city farthest from here (the fast-flight runs)
+        "farthest-city" => s
+            .plan
+            .cities
+            .iter()
+            .max_by(|a, b| a.centre.distance(here).total_cmp(&b.centre.distance(here)))
+            .map(|c| (c.centre, format!("city {}, {:.0} m off", c.id, c.centre.distance(here)))),
         _ => None,
     }
 }

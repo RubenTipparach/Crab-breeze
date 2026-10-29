@@ -211,6 +211,29 @@ pub struct CabinGlass(pub Vec<[Vec3; 3]>);
 /// A layer no camera draws: the hull and the screen wall go there while the pilot sits sealed in an interior.
 const UNSEEN_LAYER: usize = 30;
 
+/// The bones whose plating is the hull around the cabin, hidden from the seat; every other bone (the hips, the legs,
+/// the shoulders, the arms and the weapons they carry) stays in view (owner, 2026-10-28: "I understand hiding the
+/// torso, buat arms, legs and stuff shouldnt be hidden from cockpit view").
+const HULL_BONES: [&str; 3] = ["torso_twist", "torso", "cockpit"];
+
+/// A joint whose name starts so carries a weapon (a cannon over a shoulder, built on the cockpit's own bone): what hangs
+/// under it is never hull (`tools/blender/build_mechs.py`, the Sapper's `GUN_cannon_R`).
+const WEAPON_JOINT: &str = "GUN_";
+
+/// Whether a mesh is hull: the nearest contract bone above it is one of `HULL_BONES`, with no weapon joint
+/// (`WEAPON_JOINT`) between. `bone_of` names an entity's contract bone or weapon joint, if it is one; `parent` steps up
+/// the hierarchy.
+fn is_hull<'a>(mesh: Entity, bone_of: impl Fn(Entity) -> Option<&'a str>, parent: impl Fn(Entity) -> Option<Entity>) -> bool {
+    let mut at = parent(mesh);
+    while let Some(e) = at {
+        if let Some(b) = bone_of(e) {
+            return !b.starts_with(WEAPON_JOINT) && HULL_BONES.contains(&b);
+        }
+        at = parent(e);
+    }
+    false
+}
+
 /// Is this an interior node of the screen wall, a window on the world (material `SCREEN_allview`)? The interior
 /// generator names the wall's mesh nodes `<part>_allview`; its `SCREEN_<name>_screen` nodes are the console's
 /// monitors, which stay in the cabin.
@@ -920,7 +943,7 @@ fn bind_interior(
             }
             commands
                 .entity(l)
-                .insert(bevy::camera::visibility::RenderLayers::layer(crate::pilot::COCKPIT_LAYER));
+                .insert(bevy::camera::visibility::RenderLayers::layer(crate::cockpit_space::cabin_layer()));
         }
         info!(
             "cockpit interior bound: {} meshes, {} of them the screen wall ({} triangles, cut into {} meshes), {} rides",
@@ -1116,17 +1139,31 @@ fn publish_access(
     roots: Query<(&MechSim, &MechRig, &MechSpec), With<Piloted>>,
     globals: Query<&GlobalTransform>,
     data: Res<Data>,
+    (plan, live, interiors): (Res<Plan>, Res<Live>, Res<crate::walk_in::InteriorColliders>),
     mut out: ResMut<MechAccessNow>,
 ) {
+    // Where the pilot can stand: the same scene they walk in (`pilot::step_pilot`).
+    let scene = Scene {
+        plan: &plan,
+        dug: &live.dug,
+        trees: Some(&live.forest),
+        structures: Some(&live.structures),
+        platforms: &live.platforms,
+        interiors: Some(&interiors.0),
+    };
     out.0 = roots.iter().next().and_then(|(sim, rig, spec)| {
         let at = |n: &str| globals.get(rig.sockets[n]).ok().map(|g| g.translation());
         let hatch = at("HATCH_entry")?;
+        // The boarding rope's foot, under the crane's tip (`rope`), moved out of anything solid to where a pilot can
+        // stand: Use reaches only 2 m from it (owner, 2026-10-29), and a mech parked facing a wall dropped its rope
+        // against the wall, 1.98 m from the nearest place to stand.
+        let foot = rope_foot(sim.curr.pos, hatch, data.0.boarding.crane_reach_m);
+        let free = scene.push_out_at(Vec2::new(foot.x, foot.z), data.0.pilot.body_radius_m, foot.y);
         Some(MechAccess {
-            // The boarding rope's foot, under the crane's tip (`rope`). The kneel stops as far as the
-            // legs can go, so the hatch stays high and the pilot is winched up (owner, 2026-10-24:
-            // "there should be a rope dangling down for me the player to climb up", "extend a crane
-            // out then lower the rope").
-            ladder_base: rope_foot(sim.curr.pos, hatch, data.0.boarding.crane_reach_m),
+            // The kneel stops as far as the legs can go, so the hatch stays high and the pilot is winched up (owner,
+            // 2026-10-24: "there should be a rope dangling down for me the player to climb up", "extend a crane out
+            // then lower the rope").
+            ladder_base: Vec3::new(free.x, foot.y, free.y),
             hatch_entry: hatch,
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,
@@ -1170,7 +1207,7 @@ pub fn step_mech(
     mut fx: MessageWriter<Fx>,
     // The pilot's targets, and the fog an enemy pod locks on the pilot through (survey F2).
     (targeting, fog_now): (Res<crate::targeting::TargetState>, Res<crate::ground_fog::FogNow>),
-    mut contacts: MessageWriter<GroundContact>,
+    (mut contacts, mut shake_kicks): (MessageWriter<GroundContact>, MessageWriter<crate::pilot::ShakeKick>),
 ) {
     let _t = crate::perf_hud::slow("step_mech");
     let _all = crate::perf_hud::section("step_mech");
@@ -1689,6 +1726,15 @@ pub fn step_mech(
                 "muzzle_autocannon"
             };
             fx.write(Fx::new(recipe, muzzle).toward(dir));
+            // The pilot's own guns and missiles shake the cockpit as they fire (openspec change `cockpit-shake`).
+            if piloted {
+                let what = match recipe {
+                    "muzzle_rocket" => cb_core::fx::Fired::Missile,
+                    "muzzle_cannon" => cb_core::fx::Fired::Heavy,
+                    _ => cb_core::fx::Fired::Light,
+                };
+                shake_kicks.write(crate::pilot::ShakeKick(data.0.fx.shake.fired(what)));
+            }
         }
 
         // Footfalls: spray and ripples in water; on dry ground a contact for the ground marks, which
@@ -2148,28 +2194,45 @@ fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s:
 #[derive(Component)]
 pub struct OwnLayers;
 
-fn cockpit_layer(
+pub(crate) fn cockpit_layer(
     mut commands: Commands,
     pilot: Res<PilotSim>,
     data: Res<Data>,
-    mech: Query<(Entity, &MechSim, Option<&Interior>), With<Piloted>>,
+    mech: Query<(Entity, &MechSim, Option<&Interior>, Option<&MechRig>), With<Piloted>>,
     children: Query<&Children>,
+    (parents, names): (Query<&ChildOf>, Query<&Name>),
     meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, (With<Mesh3d>, Without<OwnLayers>)>,
 ) {
     use bevy::camera::visibility::RenderLayers;
-    let Some((root, sim, interior)) = mech.iter().next() else { return };
+    let Some((root, sim, interior, rig)) = mech.iter().next() else {
+        return;
+    };
     let inside = pilot.curr.mode == PilotMode::Seated && sim.hatch.is_closed(&data.0.boarding);
-    let cabin = RenderLayers::layer(crate::pilot::COCKPIT_LAYER);
+    // The cabin goes to the cockpit pass by stand-ins in the mech's own frame (`cockpit_space`), fed from its source
+    // layer; `CB_COCKPIT_WORLD=1` draws the parts themselves where they stand in the world, as before.
+    let cabin = RenderLayers::layer(crate::cockpit_space::cabin_layer());
     let unseen = RenderLayers::layer(UNSEEN_LAYER);
+    let bone_of = |e: Entity| {
+        if let Ok(n) = names.get(e)
+            && n.as_str().starts_with(WEAPON_JOINT)
+        {
+            return Some(n.as_str());
+        }
+        let rig = rig?;
+        (0..BONES.len()).find(|&i| rig.bone_entity(i) == e).map(|i| BONES[i].name)
+    };
+    let parent = |e: Entity| parents.get(e).ok().map(|p| p.parent());
     for e in children.iter_descendants(root) {
         let Ok(layers) = meshes.get(e) else { continue };
-        // A mech with an interior shows the cabin alone from the seat (mech-roster section 2): the screen wall
-        // and the hull, which stand between the pilot and the world, are not drawn, so the world shows through.
+        // A mech with an interior shows the cabin from the seat (mech-roster section 2): the screen wall and the
+        // hull around the cabin, which stand between the pilot and the world, are not drawn, so the world shows
+        // through; the hips, legs, arms and weapons stay in the world, seen through the screens.
         let want = match (inside, interior) {
             (false, _) => None,
             (true, None) => Some(&cabin),
             (true, Some(i)) if i.meshes.contains(&e) && !i.windows.contains(&e) => Some(&cabin),
-            (true, Some(_)) => Some(&unseen),
+            (true, Some(i)) if i.windows.contains(&e) || is_hull(e, bone_of, parent) => Some(&unseen),
+            (true, Some(_)) => None,
         };
         match (want, layers) {
             (Some(w), Some(l)) if l == w => {}
@@ -2329,6 +2392,21 @@ pub fn socket_steady(
     transforms: &Query<&Transform, Without<crate::pilot::PilotCamera>>,
     parents: &Query<&ChildOf>,
 ) -> Option<Transform> {
+    let e = *rig.sockets.get(name)?;
+    chain_steady(rig, e, None, transforms, parents)
+}
+
+/// Where entity `e` of a mech is, as `socket_steady` finds a socket: the product of the local transforms from it up to
+/// `stop` (not included; `None`: to the top, the world), the stride left out of the pelvis. Up to the mech's root it is
+/// the part's place in the mech's own frame, a few metres at most whatever the mech's place in the world
+/// (`cockpit_space`).
+pub fn chain_steady<F: bevy::ecs::query::QueryFilter>(
+    rig: &MechRig,
+    e: Entity,
+    stop: Option<Entity>,
+    transforms: &Query<&Transform, F>,
+    parents: &Query<&ChildOf>,
+) -> Option<Transform> {
     let pelvis = BONES.iter().position(|b| b.name == "pelvis").map(|i| rig.bones[i].entity);
     let local = |e: Entity| {
         let mut t = transforms.get(e).ok().copied().unwrap_or_default();
@@ -2337,13 +2415,56 @@ pub fn socket_steady(
         }
         t
     };
-    let e = *rig.sockets.get(name)?;
     transforms.get(e).ok()?;
     let mut acc = local(e);
     let mut at = e;
     while let Ok(p) = parents.get(at) {
         at = p.parent();
+        if Some(at) == stop {
+            break;
+        }
         acc = local(at).mul_transform(acc);
     }
     Some(acc)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// From the seat only the torso's plating is hidden: a gun on a shoulder or a forearm, the hips and the legs stay
+    /// in view (owner, 2026-10-28: "this guys gun is NOT visible").
+    #[test]
+    fn only_the_torso_hull_is_hidden_from_the_seat() {
+        // 0 root, 1 pelvis, 2 torso_twist, 3 torso, 4 cockpit, 5 shoulder_L; meshes 10 under the cockpit bone
+        // (through a plain node 20), 11 under the shoulder, 12 under the pelvis, 13 under the root.
+        let e = |i: u32| Entity::from_raw_u32(i + 1).unwrap();
+        let bones = [
+            (1, "pelvis"),
+            (2, "torso_twist"),
+            (3, "torso"),
+            (4, "cockpit"),
+            (5, "shoulder_L"),
+            (0, "root"),
+        ];
+        let bone_of = |x: Entity| bones.iter().find(|(i, _)| e(*i) == x).map(|(_, n)| *n);
+        let up = [(1, 0), (2, 1), (3, 2), (4, 3), (5, 3), (20, 4), (10, 20), (11, 5), (12, 1), (13, 0)];
+        let parent = |x: Entity| up.iter().find(|(c, _)| e(*c) == x).map(|(_, p)| e(*p));
+        assert!(is_hull(e(10), bone_of, parent), "the chest plating");
+        assert!(!is_hull(e(11), bone_of, parent), "the shoulder gun");
+        assert!(!is_hull(e(12), bone_of, parent), "the hips");
+        assert!(!is_hull(e(13), bone_of, parent), "a part on the root");
+        // A cannon over the shoulder built on the cockpit's bone, under its own weapon joint 30: mesh 14.
+        let bone_of = |x: Entity| {
+            if x == e(30) {
+                Some("GUN_cannon_R")
+            } else {
+                bones.iter().find(|(i, _)| e(*i) == x).map(|(_, n)| *n)
+            }
+        };
+        let up = [(1, 0), (2, 1), (3, 2), (4, 3), (30, 4), (14, 30), (20, 4), (10, 20)];
+        let parent = |x: Entity| up.iter().find(|(c, _)| e(*c) == x).map(|(_, p)| e(*p));
+        assert!(!is_hull(e(14), bone_of, parent), "the shoulder cannon on the cockpit's bone");
+        assert!(is_hull(e(10), bone_of, parent), "the plating beside it still");
+    }
 }

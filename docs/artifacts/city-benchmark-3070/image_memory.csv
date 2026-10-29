@@ -1,0 +1,7 @@
+what,mb
+Panorama cockpit maps (8 at 4096 px),512.0
+Two generated 4096 px images,170.6
+Building texture arrays (2 x 14 layers),149.4
+Two generated 2048 px images,42.6
+Sky cube,24.0
+Everything else (hundreds of smaller images),1341.4

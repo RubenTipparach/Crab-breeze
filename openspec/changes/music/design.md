@@ -61,6 +61,11 @@ state when they end. The switch and the fade lengths are pure rules in `cb-core`
 `fade_progress`), tested; the plugin only plays what they say (survey A2, owner 2026-10-26: "Approve all", then "Go
 and implement").
 
+Every level, the fading cue's too, is the cue's share of the fade times the music level of this frame, which carries
+the player's music volume: a change on Options is heard at once (owner, 2026-10-28: "audio options should take effect
+right away not when menu is closed"). A fading cue once kept the gain it had when the fade began, and the menu's pause
+froze the fade, so the slider did nothing to it until the menu closed.
+
 ## 3a. Over everything, ducked under the radio and the alarms
 
 Survey A3, decided (owner, 2026-10-26: "Approve all", then "Go and implement"): the score plays over everything,

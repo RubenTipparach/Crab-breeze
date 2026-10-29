@@ -285,7 +285,7 @@ impl MechState {
         let target = self.throttle * sk.speed_max_m_s;
         let along = self.vel.dot(fwd);
         let side = self.vel - fwd * along;
-        let push = sk.accel_m_s2 * skate_curve(along, sk.speed_max_m_s) * dt_s;
+        let push = sk.accel_m_s2 * sk.ground_accel_scale * skate_curve(along, sk.speed_max_m_s) * dt_s;
         let along = if target > along && along >= 0.0 {
             (along + push).min(target)
         } else if target < along && along <= 0.0 {
@@ -893,12 +893,14 @@ mod tests {
             ..Default::default()
         };
         run(&mut m, on, DT, &FlatGround::default());
-        run(&mut m, MechControls::default(), 5.0, &FlatGround::default());
+        // On the ground the wheels push 4 times the air's 12 m/s2 (`ground_accel_scale`): `120 tanh(48 t / 120)`, about
+        // 64 m/s at 1.5 s and 116 m/s at 5 s.
+        run(&mut m, MechControls::default(), 1.5, &FlatGround::default());
+        let v1 = m.vel.length();
+        assert!((55.0..75.0).contains(&v1), "1.5 s: {v1} m/s");
+        run(&mut m, MechControls::default(), 3.5, &FlatGround::default());
         let v5 = m.vel.length();
-        assert!((40.0..70.0).contains(&v5), "5 s: {v5} m/s");
-        run(&mut m, MechControls::default(), 10.0, &FlatGround::default());
-        let v15 = m.vel.length();
-        assert!(v15 > 100.0 && v15 <= 120.0, "15 s: {v15} m/s");
+        assert!(v5 > 105.0 && v5 <= 120.0, "5 s: {v5} m/s");
     }
 
     #[test]

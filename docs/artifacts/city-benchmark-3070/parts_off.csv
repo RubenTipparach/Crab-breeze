@@ -1,0 +1,11 @@
+switched_off,gpu_ms,shadow_ms,meshes
+Nothing,190.8,108.8,16254
+Trees,171.0,99.7,15752
+Grass,163.3,72.7,15104
+People,148.0,77.8,18686
+Occlusion culling,143.1,63.5,16771
+Ground fog,125.6,64.8,16728
+Clouds,110.2,49.3,14568
+SSAO,99.1,49.0,16024
+The sun's shadows,39.1,0,8369
+Buildings,6.1,0.6,11043

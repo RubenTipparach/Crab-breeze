@@ -53,9 +53,11 @@ call: the owner asked for the TWR only).
 ## Skate drive
 
 Along the heading, `a = accel * (1 - (v / v_max)^2)` toward `throttle * v_max`, so
-`v(t) = v_max * tanh(accel * t / v_max)` from a stand: 55 m/s at 5 s, 91 m/s at 10 s, 109 m/s at
+`v(t) = v_max * tanh(accel * t / v_max)` from a stand in the air: 55 m/s at 5 s, 91 m/s at 10 s, 109 m/s at
 15 s. Easing off brakes at 15 m/s2. Velocity across the heading decays at the grip, 1.2 per second,
-so a turn at speed slides before it bites; turn rate 90 degrees a second. Pose: pelvis 0.6 m lower,
+so a turn at speed slides before it bites; turn rate 90 degrees a second. On the ground the wheels push
+`ground_accel_scale` (4) times as hard as in the air (owner, 2026-10-28: "4x the acceleration from skate if not in
+the air"), along the legs' heading, as before; in the air the push is `accel` alone, along the view. Pose: pelvis 0.6 m lower,
 feet staggered 1.6 m, no stepping. In the air with skates on, WASD thrusts along the view's heading
 (forward, back, strafe) with the same curve along the thrust direction, and burns the skate budget
 only while a direction is held. On the ground the skates burn while switched on.

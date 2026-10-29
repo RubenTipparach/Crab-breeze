@@ -1,0 +1,25 @@
+// City destruction, for performance (owner, 2026-10-27: "focus on the city area", "city destructions can cause massive
+// frame drops", "our target is constant 60fps through the whole time"). Free roam starts on a street of the capital
+// beside the mech: board, then bring down the 15 nearest buildings 60 to 800 m off, 8 s each (the main gun held, a
+// missile every 2.5 s), then hold still while the debris settles. Every frame goes to
+// output/perf/city-destruction-frames.csv; a `perf_probe` build answers on 127.0.0.1:7878 meanwhile.
+//
+//   CB_UNCAPPED=1 ./target/release/crab-breeze --playtest city-destruction > output/perf/city-destruction.log 2>&1
+(
+    name: "city-destruction",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                WalkToMech(6.0),
+                Board,
+                Wait(3.0),
+                FireAtNearest("building", 8.0, 15),
+                Wait(20.0),
+                LookAround(10.0),
+            ],
+        ),
+    ],
+)

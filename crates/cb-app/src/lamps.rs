@@ -432,7 +432,9 @@ fn light_lamps(
         l.lot
             .is_some_and(|lot| live.as_ref().is_some_and(|live| live.structures.houses.states.contains_key(&lot)))
     };
-    let near = if on > 0.0 {
+    // `CB_NO_LAMPS=1` gives no lamp a real light (an instrument, to measure the night: openspec change
+    // `night-frame`); the heads still glow.
+    let near = if on > 0.0 && !crate::cli::switched_off("CB_NO_LAMPS") {
         nearest(&lamps, eye.translation, |k| cfg.real_m_of(k), cfg.real_lamps as usize, damaged)
     } else {
         Vec::new()

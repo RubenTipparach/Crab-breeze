@@ -25,6 +25,10 @@
     ],
     lod_hysteresis_m: 6.0,
     crossfade_m: 15.0,
+    // Only the nearest level (within 25 m) casts the sun's shadow: every casting tile is drawn again into each
+    // shadow cascade, and grass to 300 m cost the capital about 30 ms of the GPU's shadow pass (city-frame,
+    // 2026-10-28). 3 casts from every level.
+    shadow_lods: 1,
 
     // Where grass grows: not on what is built (as the trees, with tighter margins), not on the
     // beach (the ground's sand band is 2.5 m above the sea, crates/cb-app/src/ground.rs), not in

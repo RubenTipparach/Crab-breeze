@@ -1,0 +1,20 @@
+// The densest city scene held still, for switching parts off one at a time (CLAUDE.md section 7: the cockpit, the
+// densest scene): free roam starts on a street of the capital; board, then look round from the cockpit for 40 s.
+//
+//   CB_UNCAPPED=1 CB_NO_GRASS=1 ./target/release/crab-breeze --playtest city-stand > output/perf/city-stand.log 2>&1
+(
+    name: "city-stand",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                WalkToMech(6.0),
+                Board,
+                Wait(5.0),
+                LookAround(40.0),
+            ],
+        ),
+    ],
+)

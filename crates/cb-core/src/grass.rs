@@ -108,6 +108,9 @@ pub struct GrassConfig {
     pub lod_hysteresis_m: f32,
     /// Blades a farther level drops shrink away over this band before the boundary, metres.
     pub crossfade_m: f32,
+    /// How many of the nearest levels cast the sun's shadow; tiles at farther levels cast none (each casting tile is
+    /// drawn again into every shadow cascade: city-frame, 2026-10-28).
+    pub shadow_lods: u32,
     /// What grass keeps clear of.
     pub clearance: GrassClearance,
     /// No grass on ground lower than this above the sea (the sand), metres.
@@ -259,6 +262,7 @@ impl Default for GrassConfig {
             ],
             lod_hysteresis_m: 6.0,
             crossfade_m: 15.0,
+            shadow_lods: 3,
             clearance: GrassClearance::default(),
             beach_m: 2.5,
             slope_bare: [0.6, 1.1],
@@ -383,6 +387,13 @@ impl Validate for GrassConfig {
         }
         within("lod_hysteresis_m", self.lod_hysteresis_m, 0.0, 100.0)?;
         within("crossfade_m", self.crossfade_m, 0.0, 200.0)?;
+        if self.shadow_lods as usize > self.lods.len() {
+            return Err(format!(
+                "`shadow_lods` ({}) is more than the {} levels",
+                self.shadow_lods,
+                self.lods.len()
+            ));
+        }
         let c = &self.clearance;
         within("clearance.city_m", c.city_m, 0.0, 1000.0)?;
         within("clearance.park_inset_m", c.park_inset_m, 0.0, 100.0)?;
@@ -1102,6 +1113,7 @@ mod tests {
                 segments: 2,
                 width_scale: 1.0,
             }],
+            shadow_lods: 1,
             ..Default::default()
         };
         cfg.validate().unwrap();

@@ -196,6 +196,7 @@ fn play_beds(
     time: Res<Time>,
     ready: Res<crate::loading::GameReady>,
     settings: Res<crate::settings::Settings>,
+    master: Res<bevy::audio::GlobalVolume>,
 ) {
     if !ready.0 {
         return;
@@ -241,7 +242,8 @@ fn play_beds(
         let Some(b) = beds.playing.get_mut(name) else { continue };
         b.db = rules::ease(b.db, target.unwrap_or(silent), dt, cfg.ease_s);
         if let Ok(mut s) = sinks.get_mut(b.voice) {
-            s.set_volume(Volume::Linear(db_to_gain(b.db) * sfx));
+            // A sink's volume set after it starts replaces the master volume it started with: it is multiplied in.
+            s.set_volume(Volume::Linear(db_to_gain(b.db) * sfx * master.volume.to_linear()));
         }
         if target.is_none() && b.db < cfg.stop_below_db {
             commands.entity(b.voice).despawn();

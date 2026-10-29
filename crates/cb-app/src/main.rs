@@ -23,6 +23,7 @@ mod civil_standing;
 mod civilians;
 mod cli;
 mod clouds_render;
+mod cockpit_space;
 mod combat;
 mod day_night;
 mod defence;
@@ -42,6 +43,7 @@ mod input;
 mod interact;
 mod lamps;
 mod loading;
+mod lod_fade;
 mod main_menu;
 mod mech;
 mod menu;
@@ -49,6 +51,7 @@ mod mfd;
 mod mfd_apps;
 mod missions;
 mod music;
+mod one_sided;
 mod particles;
 mod paving;
 mod pbr_set;
@@ -56,6 +59,7 @@ mod people_take;
 mod people_vat;
 mod perf_gate;
 mod perf_hud;
+mod perf_probe;
 mod physics;
 mod pilot;
 mod playtest;
@@ -69,6 +73,7 @@ mod screens_cube;
 mod settings;
 #[cfg(test)]
 mod shader_check;
+mod shader_warmup;
 mod showcase;
 mod sim;
 mod skins;
@@ -186,6 +191,8 @@ fn main() -> AppExit {
     .add_plugins(textures::TexturesPlugin);
     #[cfg(feature = "hitch_spans")]
     app.add_plugins(hitch_spans::HitchCountsPlugin);
+    #[cfg(feature = "perf_probe")]
+    app.add_plugins(perf_probe::PerfProbePlugin);
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }
@@ -309,7 +316,18 @@ fn main() -> AppExit {
         eprintln!("data failed to load, stopping: {e}");
         return AppExit::error();
     }
+    // A scripted run plays a player's mode but never writes over the player's save (save-game: "Scripted runs neither
+    // save nor restore"; a script may still continue one).
+    if (scripted || args.playtest.is_some())
+        && let Some(mut saving) = app.world_mut().get_resource_mut::<save_game::Saving>()
+    {
+        saving.write = false;
+    }
     app.add_plugins(save_game::SaveGamePlugin);
+    // Shaders compiled behind the loading screen, not mid-game (city-frame section 5).
+    app.add_plugins(shader_warmup::ShaderWarmupPlugin);
+    app.add_plugins(one_sided::OneSidedPlugin);
+    app.add_plugins(cockpit_space::CockpitSpacePlugin);
     app.add_plugins((air_bases::AirBasesPlugin, air_drop::AirDropPlugin));
     app.add_plugins(air_traffic::AirTrafficPlugin);
     // Harm to civilians, cars and civil aircraft costs career standing, by one rule (survey W34, W37, W42).

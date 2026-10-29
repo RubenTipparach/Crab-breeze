@@ -23,6 +23,11 @@
     night_ambient_share: 0.10,
     night_sky_light_share: 0.06,
     moon_full_share: 0.35,
+    // The moon casts in 2 cascades to 250 m, not the sun's 3 to 700 m (openspec change `night-frame` NF2, provisional):
+    // a low moon's cascades took in every house along its line, and midnight's shadows cost the suburbs about 1.5 ms
+    // of the frame on the CPU (switched off: 13.4 ms p50 against 15.4 over three rounds).
+    moon_cascades: 2,
+    moon_shadow_far_m: 250.0,
     // The sun's and moon's direct light fades in over their first 2.5 degrees.
     horizon_fade_deg: 2.5,
     // Stars come out as the sun sinks from 4 to 14 degrees below the horizon.

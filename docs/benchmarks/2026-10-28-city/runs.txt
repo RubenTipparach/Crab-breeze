@@ -1,0 +1,74 @@
+## Release, old against new
+city-cruise-new1       n   1971  p50  72.13  p95 160.83  p99 195.80  max   251.8  >11.1 100.0%  >16.7 100.0%
+city-cruise-new2       n   1435  p50  40.27  p95  80.50  p99  86.89  max   225.7  >11.1 100.0%  >16.7  99.9%
+city-cruise-old1       n    303  p50 201.14  p95 327.22  p99 350.65  max   433.6  >11.1 100.0%  >16.7 100.0%
+city-cruise-old2       n    314  p50 227.42  p95 366.12  p99 377.25  max   385.5  >11.1 100.0%  >16.7 100.0%
+city-stand-new1        n   1645  p50  26.97  p95  32.79  p99  37.03  max   106.6  >11.1 100.0%  >16.7  99.5%
+city-stand-new2        n    954  p50  41.78  p95  98.24  p99 121.39  max   126.8  >11.1 100.0%  >16.7  99.9%
+city-stand-old1        n    215  p50 201.22  p95 261.93  p99 279.99  max   311.2  >11.1 100.0%  >16.7 100.0%
+city-stand-old2        n    184  p50 245.19  p95 301.59  p99 314.32  max   317.8  >11.1 100.0%  >16.7 100.0%
+
+city-cruise-new1         6 fps  152.5 ms  GPU sum 145.7 ms  meshes   5659 | per_view_shadow_pass 76.7, main_opaque_pass_3d 34.6, early prepass 31.4, lightprobe_irradiance_map 0.9, lightprobe_radiance_map 0.8
+city-cruise-new2        24 fps   44.0 ms  GPU sum  38.0 ms  meshes   6652 | per_view_shadow_pass 18.6, main_opaque_pass_3d 8.0, early prepass 6.9, main_transparent_pass_3d 1.6, lightprobe_irradiance_map 0.9
+city-cruise-old1         5 fps  209.0 ms  GPU sum 172.4 ms  meshes  10614 | per_view_shadow_pass 84.5, main_opaque_pass_3d 42.4, early prepass 37.0, early_mesh_preprocessing 3.1, late prepass 1.3
+city-cruise-old2         3 fps  295.3 ms  GPU sum 292.5 ms  meshes  21790 | per_view_shadow_pass 164.2, main_opaque_pass_3d 61.6, early prepass 56.2, early_mesh_preprocessing 6.0, bin_unpacking 1.5
+city-stand-new1         38 fps   26.9 ms  GPU sum  25.9 ms  meshes   7111 | per_view_shadow_pass 13.8, main_opaque_pass_3d 4.9, early prepass 4.1, lightprobe_irradiance_map 1.0, lightprobe_radiance_map 0.8
+city-stand-new2         23 fps   49.8 ms  GPU sum  46.7 ms  meshes   6376 | per_view_shadow_pass 21.2, main_opaque_pass_3d 12.1, early prepass 10.5, lightprobe_irradiance_map 0.9, lightprobe_radiance_map 0.8
+city-stand-old1          5 fps  212.1 ms  GPU sum 213.1 ms  meshes  19687 | per_view_shadow_pass 115.0, main_opaque_pass_3d 43.1, early prepass 37.7, main_transparent_pass_3d 7.7, early_mesh_preprocessing 5.9
+city-stand-old2          5 fps  224.4 ms  GPU sum 210.5 ms  meshes  22497 | per_view_shadow_pass 107.0, main_opaque_pass_3d 47.4, early prepass 39.8, main_transparent_pass_3d 7.1, early_mesh_preprocessing 4.7
+
+## Switching parts off (probe build, main 0f2e307)
+CB_NO_BUILDINGS         60 fps   16.8 ms  GPU sum   6.1 ms  meshes  11043 | main_transparent_pass_3d 1.4, main_opaque_pass_3d 0.9, lightprobe_irradiance_map 0.9, lightprobe_radiance_map 0.8, per_view_shadow_pass 0.6
+CB_NO_CLOUDS             8 fps  128.5 ms  GPU sum 110.2 ms  meshes  14568 | per_view_shadow_pass 49.3, main_opaque_pass_3d 26.0, early prepass 22.3, main_transparent_pass_3d 6.5, early_mesh_preprocessing 2.1
+CB_NO_GRASS              6 fps  181.6 ms  GPU sum 163.3 ms  meshes  15104 | per_view_shadow_pass 72.7, main_opaque_pass_3d 39.9, early prepass 35.1, main_transparent_pass_3d 6.8, early_mesh_preprocessing 4.2
+CB_NO_GROUND_FOG         8 fps  128.0 ms  GPU sum 125.6 ms  meshes  16728 | per_view_shadow_pass 64.8, main_opaque_pass_3d 27.8, early prepass 22.7, main_transparent_pass_3d 6.6, late prepass 1.4
+CB_NO_OCCLUSION          6 fps  155.6 ms  GPU sum 143.1 ms  meshes  16771 | per_view_shadow_pass 63.5, main_opaque_pass_3d 29.2, early prepass 27.9, early_mesh_preprocessing 10.2, main_transparent_pass_3d 6.9
+CB_NO_PEOPLE             6 fps  155.4 ms  GPU sum 148.0 ms  meshes  18686 | per_view_shadow_pass 77.8, main_opaque_pass_3d 30.0, early prepass 25.9, lightprobe_irradiance_map 4.4, early_mesh_preprocessing 4.3
+CB_NO_SHADOWS           17 fps   58.7 ms  GPU sum  39.1 ms  meshes   8369 | main_opaque_pass_3d 14.2, early prepass 13.7, main_transparent_pass_3d 6.6, ui 1.3, lightprobe_irradiance_map 1.0
+CB_NO_SSAO              10 fps  101.0 ms  GPU sum  99.1 ms  meshes  16024 | per_view_shadow_pass 49.0, main_opaque_pass_3d 19.9, early prepass 19.0, main_transparent_pass_3d 7.4, lightprobe_irradiance_map 1.2
+CB_NO_TREES              5 fps  184.6 ms  GPU sum 171.0 ms  meshes  15752 | per_view_shadow_pass 99.7, main_opaque_pass_3d 29.6, early prepass 26.8, main_transparent_pass_3d 7.3, early_mesh_preprocessing 3.6
+base                     5 fps  208.1 ms  GPU sum 190.8 ms  meshes  16254 | per_view_shadow_pass 108.8, main_opaque_pass_3d 36.8, early prepass 33.7, early_mesh_preprocessing 6.7, bin_unpacking 1.8
+
+## Variants (probe build)
+now-a-2                  5 fps  187.4 ms  GPU sum 189.5 ms  meshes   6999 | per_view_shadow_pass 96.6, main_opaque_pass_3d 44.0, early prepass 36.8, main_transparent_pass_3d 6.4, late prepass 3.4
+now-a                    9 fps  120.5 ms  GPU sum 110.2 ms  meshes   7545 | per_view_shadow_pass 63.3, main_opaque_pass_3d 22.4, early prepass 19.4, lightprobe_irradiance_map 1.2, lightprobe_radiance_map 1.1
+now-b-2                  5 fps  203.9 ms  GPU sum 182.2 ms  meshes   5918 | per_view_shadow_pass 98.1, main_opaque_pass_3d 38.0, early prepass 35.8, main_transparent_pass_3d 6.6, ui 1.1
+now-b                    7 fps  142.1 ms  GPU sum 132.6 ms  meshes   6573 | per_view_shadow_pass 77.6, main_opaque_pass_3d 26.9, early prepass 24.1, main_transparent_pass_3d 1.1, lightprobe_irradiance_map 1.0
+old-a-2                  4 fps  280.4 ms  GPU sum 250.1 ms  meshes  15829 | per_view_shadow_pass 123.5, main_opaque_pass_3d 62.1, early prepass 55.0, early_mesh_preprocessing 3.4, bin_unpacking 1.7
+old-a                    3 fps  311.7 ms  GPU sum 312.1 ms  meshes  18756 | per_view_shadow_pass 170.9, main_opaque_pass_3d 66.0, early prepass 62.1, main_transparent_pass_3d 7.4, early_mesh_preprocessing 2.2
+old-b-2                  4 fps  237.3 ms  GPU sum 229.2 ms  meshes  18883 | per_view_shadow_pass 119.9, main_opaque_pass_3d 49.8, early prepass 45.4, main_transparent_pass_3d 6.7, early_mesh_preprocessing 3.7
+old-b                    4 fps  251.2 ms  GPU sum 230.4 ms  meshes  14651 | per_view_shadow_pass 127.4, main_opaque_pass_3d 45.7, early prepass 42.5, main_transparent_pass_3d 7.2, early_mesh_preprocessing 3.9
+rooms80-a                8 fps  130.8 ms  GPU sum 133.1 ms  meshes   7051 | per_view_shadow_pass 99.2, main_opaque_pass_3d 17.0, early prepass 13.9, lightprobe_irradiance_map 0.9, lightprobe_radiance_map 0.8
+rooms80-b                6 fps  153.4 ms  GPU sum 131.9 ms  meshes   6263 | per_view_shadow_pass 82.6, main_opaque_pass_3d 20.3, early prepass 18.5, main_transparent_pass_3d 6.6, ui 1.1
+rooms80-dress150-a      42 fps   24.9 ms  GPU sum  24.4 ms  meshes   6181 | per_view_shadow_pass 11.8, main_opaque_pass_3d 5.2, early prepass 4.5, lightprobe_irradiance_map 0.9, lightprobe_radiance_map 0.8
+rooms80-dress150-b      63 fps   16.0 ms  GPU sum   7.6 ms  meshes   6298 | per_view_shadow_pass 2.2, main_opaque_pass_3d 1.5, lightprobe_irradiance_map 1.0, early prepass 0.9, lightprobe_radiance_map 0.8
+rooms80-dress150-far300-a    65 fps   15.6 ms  GPU sum   9.1 ms  meshes   5925 | per_view_shadow_pass 2.3, main_opaque_pass_3d 1.5, ui 1.3, lightprobe_irradiance_map 1.0, early prepass 0.9
+rooms80-dress150-far300-b    59 fps   17.2 ms  GPU sum   9.1 ms  meshes   5958 | main_opaque_pass_3d 2.3, per_view_shadow_pass 2.2, early prepass 1.6, lightprobe_irradiance_map 1.0, lightprobe_radiance_map 0.7
+
+## Release variants
+cascades2-1            n    625  p50  68.42  p95  88.21  p99  92.74  max    96.5  >11.1 100.0%  >16.7 100.0%
+cascades2-2            n   2705  p50  13.57  p95  20.80  p99  78.39  max   111.4  >11.1  99.7%  >16.7   8.7%
+dress100-1             n   1949  p50  22.28  p95  27.88  p99  32.18  max   149.6  >11.1 100.0%  >16.7  96.4%
+dress100-2             n   3055  p50  14.04  p95  17.14  p99  21.53  max   117.1  >11.1  99.9%  >16.7   7.0%
+dress150-1             n    955  p50  45.23  p95  54.81  p99  60.27  max    86.3  >11.1 100.0%  >16.7  99.8%
+dress150-2             n    622  p50  70.78  p95  88.16  p99  93.01  max   100.5  >11.1 100.0%  >16.7 100.0%
+cascades2-1             15 fps   67.5 ms  GPU sum  66.0 ms  meshes   6669 | per_view_shadow_pass 27.7, main_opaque_pass_3d 18.8, early prepass 16.5, lightprobe_irradiance_map 1.0, lightprobe_radiance_map 0.8
+cascades2-2             67 fps   20.6 ms  GPU sum  13.9 ms  meshes   6625 | per_view_shadow_pass 5.0, main_opaque_pass_3d 3.5, early prepass 2.5, lightprobe_irradiance_map 0.9, lightprobe_radiance_map 0.8
+dress100-1              46 fps   21.9 ms  GPU sum  17.0 ms  meshes   6239 | per_view_shadow_pass 4.9, main_opaque_pass_3d 4.4, early prepass 3.6, ui 1.0, lightprobe_irradiance_map 1.0
+dress100-2              71 fps   14.3 ms  GPU sum   6.6 ms  meshes   6459 | per_view_shadow_pass 1.5, main_opaque_pass_3d 1.4, lightprobe_irradiance_map 0.9, lightprobe_radiance_map 0.8, early prepass 0.8
+dress150-1              22 fps   46.1 ms  GPU sum  44.0 ms  meshes   5764 | per_view_shadow_pass 15.9, main_opaque_pass_3d 12.3, early prepass 11.7, main_transparent_pass_3d 1.3, lightprobe_irradiance_map 1.0
+dress150-2              13 fps   79.5 ms  GPU sum  76.2 ms  meshes   6560 | per_view_shadow_pass 36.7, main_opaque_pass_3d 18.9, early prepass 16.9, main_transparent_pass_3d 1.1, lightprobe_irradiance_map 0.9
+## suburb-destruction, release, old (city-frame, storm shade on the main thread, debris 600/2500/400 m) against new (storm shade off the main thread, debris 200/800/250 m), order old1 new1 new2 old2
+old1 fly p50 49.2 p99 110 max 122 over 50 ms 307 | destroy p50 23.9 p99 48 max 138 over 50 ms 30 | settle p50 18.3 p99 34 max 123 over 50 ms 6
+new1 fly p50 41.5 p99 87 max 91 over 50 ms 195 | destroy p50 36.2 p99 52 max 59 over 50 ms 41 | settle p50 39.9 p99 45 max 49 over 50 ms 0
+new2 fly p50 62.0 p99 98 max 105 over 50 ms 437 | destroy p50 58.4 p99 73 max 95 over 50 ms 1646 | settle p50 56.5 p99 69 max 91 over 50 ms 523
+old2 fly p50 45.1 p99 107 max 121 over 50 ms 269 | destroy p50 31.9 p99 59 max 144 over 50 ms 78 | settle p50 34.5 p99 43 max 106 over 50 ms 4
+
+## fast-flight, release, old (plain2: before the tree distance fix and the traffic cut) against new (plain3); hot = started straight after another run, the rest cooled (card memory back at idle, 60 s)
+hot-new1  n  29530 p50   8.9 p95  15.2 p99  25.0 over 16.7 ms   4% over 11.1 ms  26% | above 800 m p50   8.3
+hot-new2  n  21900 p50  22.0 p95  63.5 p99  92.8 over 16.7 ms 100% over 11.1 ms 100% | above 800 m p50  23.4
+new1      n  34669 p50  13.6 p95  40.1 p99  69.2 over 16.7 ms  33% over 11.1 ms  96% | above 800 m p50  14.7
+new2      n  53346 p50   9.2 p95  22.9 p99  45.7 over 16.7 ms   9% over 11.1 ms  29% | above 800 m p50   8.8
+new3      n  26260 p50  16.9 p95  53.7 p99  81.0 over 16.7 ms  52% over 11.1 ms 100% | above 800 m p50  17.7
+old1      n  18601 p50  26.1 p95  72.9 p99 107.0 over 16.7 ms 100% over 11.1 ms 100% | above 800 m p50  29.4
+old2      n  30826 p50  13.8 p95  47.5 p99  81.7 over 16.7 ms  36% over 11.1 ms  96% | above 800 m p50  16.2

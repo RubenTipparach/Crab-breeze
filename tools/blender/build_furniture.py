@@ -14,7 +14,7 @@ triangulated mesh with UVs in metres.
 Conventions the game relies on (`docs/design/furniture.md`):
 - local frame in metres, glTF axes: y up, the item's front faces +z, origin on the floor;
 - one node `MODEL`, one mesh, one primitive in the one material `furniture` shared by every item, textured by
-  one 4096 px atlas (`assets/textures/furniture/`: albedo, normal, ORM) baked here in Cycles from procedural
+  one 2048 px atlas, laid out on a 4096 px grid (`assets/textures/furniture/`: albedo, normal, ORM) baked here in Cycles from procedural
   shaders, so all furniture is one draw call; the atlas's bottom strip holds a swatch per kit surface key for
   the block furniture;
 - COLOR_0 is (1, 1, 1, tint mask): alpha 1 on the surface the placement's tint multiplies into;
@@ -987,19 +987,17 @@ def lift(I):
             y = 0.5 + k * 0.18
             I.add(box((xi - s * 0.13 - 0.01, y, 0.09), (xi - s * 0.13 + 0.01, y + 0.04, 0.12)), "metal", 0x8A8E92)
         for zs in (-1, 1):  # the arms: outer box, telescoping inner box, screw pad
-            parts = [("metal", grey, box((-0.05, 1.60, 0.0), (0.05, 1.70, 0.74), 0.006, 1)),
-                     ("metal", 0x6A6E72, box((-0.036, 1.612, 0.70), (0.036, 1.688, 1.06), 0.004, 1)),
-                     ("metal", 0x8A8E92, cyl("y", (0, 0, 1.025), 0.035, 1.688, 1.73, seg=12)),
-                     ("rubber", pad, cyl("y", (0, 0, 1.025), 0.065, 1.73, 1.755, seg=16)),
+            # Each arm built along its own side (z times zs) and swung by the angle times zs, so no part is mirrored:
+            # turned half round and mirrored in x, the far arms came out inside out, ten pieces drawn from inside
+            # (tools/build/check_winding.py, 2026-10-28). The same shape as before.
+            parts = [("metal", grey, box((-0.05, 1.60, min(0.0, 0.74 * zs)), (0.05, 1.70, max(0.0, 0.74 * zs)), 0.006, 1)),
+                     ("metal", 0x6A6E72, box((-0.036, 1.612, min(0.70 * zs, 1.06 * zs)), (0.036, 1.688, max(0.70 * zs, 1.06 * zs)), 0.004, 1)),
+                     ("metal", 0x8A8E92, cyl("y", (0, 0, 1.025 * zs), 0.035, 1.688, 1.73, seg=12)),
+                     ("rubber", pad, cyl("y", (0, 0, 1.025 * zs), 0.065, 1.73, 1.755, seg=16)),
                      ("metal", grey, cyl("y", (0, 0, 0.0), 0.06, 1.58, 1.72, seg=14))]
-            ang = math.degrees(math.atan2(0.50, 0.96)) * (-s)
+            ang = math.degrees(math.atan2(0.50, 0.96)) * (-s) * zs
             for surf, col, bm in parts:
-                if zs < 0:
-                    rot(bm, "y", 180)
-                    rot(bm, "y", ang)
-                    bm.transform(Matrix.Scale(-1, 4, Vector((1, 0, 0))))
-                else:
-                    rot(bm, "y", ang)
+                rot(bm, "y", ang)
                 bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
                 move(bm, (xi + s * 0.02, 0, zs * 0.11))
                 I.add(bm, surf, col, sharp=50 if surf == "rubber" else None)
@@ -1049,7 +1047,9 @@ ITEMS = {
 # One procedural shader per surface key: the look a part of that surface is baked with. Coordinates are object
 # space in metres (Blender axes), so grain, weave and print hold one scale on every item and every swatch.
 
-ATLAS = 4096  # px, square
+ATLAS = 4096  # px, square: the layout's grid (UVs are fractions of it)
+# The maps are baked at this, the layout scaled down to it (CLAUDE.md section 7; owner, 2026-10-28: "No 4k textures 2k only").
+MAX_MAP_PX = 2048
 SWATCH = 256  # px, one swatch of a kit surface
 SWATCH_KEYS = ["fabric", "wood", "metal", "counter", "trim", "paint", "glassDark", "glassShop", "lamp", "product",
                "rubber", "stainless", "concrete"]
@@ -1637,20 +1637,26 @@ def build_all(quick):
     density, regions = layout(scales)
     real = {name: round(scales[name] * side) for name, (x, y, side) in regions.items()}
     print("TEXEL", real)
-    if quick:
-        density, regions = density // 4, {n: (x // 4, y // 4, s // 4) for n, (x, y, s) in regions.items()}
-    size = ATLAS // 4 if quick else ATLAS
+    # The layout stays on the full grid, which every UV, rect and manifest number is a fraction of; only the bake is
+    # drawn at the atlas's size. (Shrinking the layout itself halved every item's UVs against the 2048 px atlas, which
+    # put the TV on another item's tile: owner, 2026-10-28, "something got messed up with the furniture textures".)
+    shrink = 4 if quick else max(1, ATLAS // MAX_MAP_PX)
+    density //= shrink
+    size = ATLAS // shrink
     print(f"LAYOUT {density} px/m")
     atlas = {k: np.zeros((size, size, 4), dtype=np.float32) for k in ("albedo", "normal", "rough", "metal", "ao")}
     atlas["normal"][:, :] = (0.5, 0.5, 1.0, 1.0)
     atlas["ao"][:, :] = 1.0
     for name, (x, y, side) in regions.items():
+        x, y, side = x // shrink, y // shrink, side // shrink
         baked = bake_passes([objs[name]], side, 12 if quick else 48)
         for k, a in baked.items():
             atlas[k][y:y + side, x:x + side] = a
         print(f"BAKED {name} at {x},{y} side {side} px")
     swatches = {}
-    sw = SWATCH // 4 if quick else SWATCH
+    # The swatch row is laid out on the full grid (`rect` keeps UVs as its fractions) and drawn at the atlas's scale:
+    # the 2048 px cap halved the atlas and the full-size row ran off its edge.
+    sw = SWATCH // shrink
     for i, surf in enumerate(SWATCH_KEYS):
         o = swatch_object(surf)
         baked = bake_passes([o], sw, 4)

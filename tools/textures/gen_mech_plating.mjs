@@ -25,7 +25,27 @@ await page.setContent("<!doctype html><body></body>");
 // the crab air fortress's features, so its armour is laid out against its own hull (tools/mockups/fortress_layout.json)
 await page.evaluate(l => { window.__LAYOUT = l; }, JSON.parse(fs.readFileSync(path.resolve("tools/mockups/fortress_layout.json"), "utf8")));
 await page.addScriptTag({ path: KIT });
-const out = await page.evaluate(() => window.__out);
+// No map over 2048 px (CLAUDE.md section 7; owner, 2026-10-28: "No 4k textures 2k only"): the kit draws at its own
+// size, unchanged, and each sheet is scaled down here so its longer side is at most MAX_MAP_PX.
+const MAX_MAP_PX = 2048;
+const out = await page.evaluate(async (max) => {
+  const res = {};
+  for (const [name, url] of Object.entries(window.__out)) {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const k = Math.min(1, max / Math.max(img.width, img.height));
+    if (k === 1) { res[name] = url; continue; }
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * k);
+    c.height = Math.round(img.height * k);
+    const g = c.getContext("2d");
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, 0, 0, c.width, c.height);
+    res[name] = c.toDataURL("image/png");
+  }
+  return res;
+}, MAX_MAP_PX);
 for (const [name, url] of Object.entries(out)) {
   fs.writeFileSync(path.join(OUT, name + ".png"), Buffer.from(url.split(",")[1], "base64"));
   console.log("wrote", name);

@@ -1,0 +1,25 @@
+// Flat out across the map on the jets, for performance (owner, 2026-10-27: "then focus on flying as fast as you can
+// across the map"). Free roam from the capital: board, then fly at 150 m to the city farthest away, and from there to
+// the city farthest from it, three legs: the whole island streams in and out at the jets' top speed. Every frame goes
+// to output/perf/fast-flight-frames.csv.
+//
+//   CB_UNCAPPED=1 ./target/release/crab-breeze --playtest fast-flight > output/perf/fast-flight.log 2>&1
+(
+    name: "fast-flight",
+    stuck_s: 30.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                WalkToMech(6.0),
+                Board,
+                Wait(2.0),
+                JetToNearest("farthest-city", 150.0),
+                JetToNearest("farthest-city", 150.0),
+                JetToNearest("farthest-city", 150.0),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)

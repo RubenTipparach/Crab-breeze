@@ -9,7 +9,9 @@
     body_radius_m: 0.35,
     pitch_limit_deg: 85.0,
     max_wade_depth_m: 1.2,
-    board_reach_m: 25.0,
+    // Use reaches the mech only within 2 m of the rope's foot (owner, 2026-10-29: "e to step into cockpit must only
+    // be with in 2 meter radius of the end of the ropw").
+    board_reach_m: 2.0,
     climb_speed_m_s: 7.0,
     // Seated, the view stays within 90 degrees of the mech's nose; past it the mech turns at its own
     // rate. Free look (held) is unlimited (openspec/changes/seated-look; owner, 2026-10-24).

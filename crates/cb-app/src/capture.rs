@@ -54,6 +54,9 @@ struct Script {
     /// The offscreen image the building variant draws the pilot's view into (window shots come out
     /// black on macOS when the window is behind another; the bench's offscreen image does not).
     offscreen: Option<Handle<Image>>,
+    /// `CB_STILLS_SEAT`: the seated view's yaw and pitch when the look round began, and which of `SEAT_VIEWS`
+    /// is next.
+    seat: Option<(f32, f32, usize)>,
 }
 
 impl Plugin for StillsPlugin {
@@ -74,6 +77,7 @@ impl Plugin for StillsPlugin {
             tour_settled_s: None,
             fall_shots: 0,
             offscreen: None,
+            seat: None,
         })
         .add_after_world_spawn(offscreen_for_buildings)
         .add_game_systems(Update, run_script)
@@ -204,6 +208,23 @@ fn buildings_beats(
 /// The stills script's beat for taking a job on the MAIL page (`CB_STILLS_MAIL`), out of the numbered run: entered
 /// after the outline shot, it goes on to the stride.
 const MAIL_BEAT: usize = 50;
+
+/// The stills script's beat for looking round from the seat (`CB_STILLS_SEAT=1`), out of the numbered run.
+const SEAT_BEAT: usize = 51;
+
+/// `CB_STILLS_SEAT`: most frames spent turning to one view before it is shot where it stands.
+const SEAT_MAX_FRAMES: u32 = 150;
+
+/// `CB_STILLS_SEAT`: the views shot from the seat, as (name, degrees left of where the seated view first
+/// pointed, degrees up from it), for comparing what of the mech shows from the cockpit with the mockup's view
+/// from `EYE_pilot`.
+const SEAT_VIEWS: [(&str, f32, f32); 5] = [
+    ("ahead", 0.0, 0.0),
+    ("left45", 45.0, 0.0),
+    ("right45", -45.0, 0.0),
+    ("down-left", 45.0, -30.0),
+    ("down-right", -45.0, -30.0),
+];
 
 const POSTER_SHOTS: [(f32, bool, f32); 2] = [(45.0, false, 13.0), (45.0, true, 13.0)];
 
@@ -525,6 +546,72 @@ fn run_script(
             } {
                 shoot(&mut commands, &script.dir, "cockpit.png");
                 next = true;
+            }
+        }
+        // `CB_STILLS_SEAT`: from the seat, free look held, the view turned by look input (as a player's
+        // mouse turns it) to each of `SEAT_VIEWS`, held there a few frames, and shot.
+        5 if crate::cli::switched_off("CB_STILLS_SEAT") => {
+            script.seat = Some((pilot.curr.yaw_rad, pilot.curr.pitch_rad, 0));
+            steam_shot.1 = 0;
+            script.beat = SEAT_BEAT;
+            script.beat_started_s = now;
+            return;
+        }
+        SEAT_BEAT => {
+            let Some((yaw0, pitch0, i)) = script.seat else { return };
+            let Some(&(name, left_deg, up_deg)) = SEAT_VIEWS.get(i) else {
+                // The last still is read back from the GPU and written some frames later: the app goes once it is on
+                // disk (or after 300 frames, whatever happened).
+                *exit_frames += 1;
+                let last = script.dir.join(format!("seat-{}.png", SEAT_VIEWS[SEAT_VIEWS.len() - 1].0));
+                if last.exists() || *exit_frames > 300 {
+                    exit.write(AppExit::Success);
+                }
+                return;
+            };
+            let dyaw = (yaw0 + left_deg.to_radians() - pilot.curr.yaw_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU)
+                - std::f32::consts::PI;
+            let dpitch = pitch0 + up_deg.to_radians() - pilot.curr.pitch_rad;
+            // Turned by input, it settles in a few frames; past `SEAT_MAX_FRAMES` it is shot where it stands, with how
+            // far off it was, so a view the controls cannot reach still ends the run.
+            *exit_frames += 1;
+            if exit_frames.is_multiple_of(10) {
+                println!(
+                    "STILLS_SEAT_AIM {name} off_yaw_deg={:.1} off_pitch_deg={:.1}",
+                    dyaw.to_degrees(),
+                    dpitch.to_degrees()
+                );
+            }
+            let gave_up = *exit_frames > SEAT_MAX_FRAMES;
+            let on = gave_up || (dyaw.abs() < 0.01 && dpitch.abs() < 0.01);
+            acc.script = Some(Actions {
+                free_look: true,
+                look_delta_deg: if on {
+                    Vec2::ZERO
+                } else {
+                    // A small, capped step a frame: a slow renderer's long frame can apply one frame's input to
+                    // several simulation steps, and a bigger step overshoots and swings round.
+                    Vec2::new(-dyaw.to_degrees() * 0.1, dpitch.to_degrees() * 0.1).clamp(Vec2::splat(-3.0), Vec2::splat(3.0))
+                },
+                ..default()
+            });
+            if on {
+                steam_shot.1 += 1;
+                if steam_shot.1 > 6 {
+                    println!(
+                        "STILLS_SEAT {name} yaw_deg={:.1} pitch_deg={:.1} off_yaw_deg={:.1} off_pitch_deg={:.1}",
+                        pilot.curr.yaw_rad.to_degrees(),
+                        pilot.curr.pitch_rad.to_degrees(),
+                        dyaw.to_degrees(),
+                        dpitch.to_degrees()
+                    );
+                    *exit_frames = 0;
+                    shoot(&mut commands, &script.dir, &format!("seat-{name}.png"));
+                    script.seat = Some((yaw0, pitch0, i + 1));
+                    steam_shot.1 = 0;
+                }
+            } else {
+                steam_shot.1 = 0;
             }
         }
         // Free look held, looking down at the dash's centre screen: the outline on the screen pointed at

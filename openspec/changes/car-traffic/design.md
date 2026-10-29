@@ -141,6 +141,49 @@ What landed, where it differs from the plan above, and what it measured.
   under the drawn road and 0.2 m under the pavement (their eye 1.55 m over the asphalt); the walking rule now stands
   every body on the drawn surface (`WorldPlan::walk_top_at` in `Scene::support_at`, the people's feet by the same
   `City::surface_top`), so the eye is 1.70 m over the road and a sedan's roof 1.65 m.
+- **Cost at the capital's density, and stepping far cars less often** (2026-10-28, after the desktop's city run on the
+  RTX 3070, `docs/benchmarks/2026-10-28-city/report.md` on `perf-probe`: `step_traffic` about 4.2 ms a fixed step for
+  about 1 100 cars on its slow frames, twice that when a slow frame runs two steps). `cb-tools traffic-bench` now steps
+  the traffic as the game does (the wheels on the drawn road over the live `Scene`, the refill kept out of the view cone
+  and behind cover through the same `traffic::in_cone` and `traffic::sight_blocked` the game calls) from three eyes:
+  standing on foot, a mech striding at 8 m/s and skating at 20 m/s along the streets from the start, frightening and
+  shoving cars as in the game. `Traffic::cost` (`StepCost`) times each part of a step. Measured on the Mac (Apple M4
+  Max, CPU only, headless, release, seed 42, old and new interleaved old, new, new, old, 3 600 steps, means per step):
+
+  | Part | Standing, before | after | Skating, before | after |
+  | --- | ---: | ---: | ---: | ---: |
+  | Each lane's cars (map, sorted) | 0.017 | 0.012 | 0.017 | 0.013 |
+  | Junctions (right of way) | 0.023 | 0.020 | 0.023 | 0.020 |
+  | Following (leaders, driver model) | 0.027 | 0.019 | 0.033 | 0.024 |
+  | Placing on the road | 0.012 | 0.006 | 0.013 | 0.006 |
+  | Loose bodies (shoved cars, wrecks) | 0.001 | 0.000 | 0.180 | 0.025 |
+  | Refill | 0.049 | 0.010 | 0.038 | 0.008 |
+  | **Step and refill, mean** | **0.146** | **0.073** | **0.324** | **0.103** |
+  | p95 | 0.201 | 0.113 | 0.499 | 0.163 |
+  | p99 | 0.246 | 0.126 | 0.555 | 0.200 |
+
+  About 1 000 cars round the start. The largest cost was not the car following but the loose bodies: every car a mech
+  shoves off its lane stays a free body for ten minutes, and each was stepped every fixed step (its wheels on the
+  ground, its hull against the walls), so the cost grew the longer a mech walked the streets. Three minutes of skating
+  (10 800 steps, about 1 250 cars, about 100 loose): before 0.776 ms mean, p95 1.480; after 0.148 ms, p95 0.233. The
+  game on the Mac reads `car_traffic` 0.2 to 0.4 ms a frame, about three times the bench, so the desktop's 4 ms is
+  consistent with that growth on a slower CPU. What changed:
+  - **Far cars are stepped less often** (`step_lod` in `traffic.ron`): within 300 m of the eye every fixed step, to
+    600 m every 2nd, beyond every 4th, each with the time it was owed (`Car::owed_s`), its turn counted from its id so
+    the far cars' steps are spread evenly. Right of way is still settled for every car every step, so a far car's
+    grant and the lights hold as before; a car stepped late sees the others where they are now, never nearer than they
+    are, and it never moves past the gap it measured ahead (the car in front or the stop line). A car is drawn gliding
+    between its own steps (`Car::drawn`), so a far car stepped every fourth step does not jump.
+  - **A loose body at rest sleeps** while no mech or person is within 20 m, no other body is moving within 15 m and no
+    blast went off within `fear_blast_m` since the last step.
+  - **The lanes are refilled every 4th fixed step** (`refill_every_steps`), with the 4 cars a step owed since the last
+    (`Traffic::refill`).
+  - The per-step maps were rebuilt as sorted lists (each lane's cars, the junctions' waiting cars, the refill's lane
+    counts), each lane's share of a car is worked out once, and a car that did not move is not placed again.
+  Only the stepping by distance changes an outcome: with `step_lod` at 1 the seed 11 traffic is the old golden to the
+  bit; the golden was re-recorded for it (455 cars, as before). The no-deadlock, red-light, fill and following tests
+  pass unchanged. The game's timing guard is now `car_traffic` (it was `step_traffic`, the same name as the air
+  traffic's, so the two were summed in the hitch reports). The desktop has not measured it yet.
 
 ## Open questions
 

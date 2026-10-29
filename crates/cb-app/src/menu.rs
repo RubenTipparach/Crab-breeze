@@ -117,16 +117,6 @@ pub(crate) enum MenuButton {
     Controls,
     Back,
     Quit,
-    Mouse(i32),
-    Fov(i32),
-    /// Sound effects volume down or up a step.
-    Sfx(i32),
-    /// Music volume down or up a step.
-    Music(i32),
-    Invert,
-    Shadows,
-    Vsync,
-    Fullscreen,
     /// Free roam's time of day (owner, 2026-10-28: "in free roam there is a toggle to pick time of
     /// day, or stop changinign time of day (freeze ToD)", "this is in the pause menu"): the clock an
     /// hour on (or back).
@@ -135,6 +125,101 @@ pub(crate) enum MenuButton {
     SetHour(u32),
     /// The clock frozen, or running again.
     FreezeClock,
+}
+
+/// A change to one setting, from the Options page of the pause menu or of the main menu: one implementation for both
+/// (owner, 2026-10-28: "game needs options in main menu"). Each is saved at once, so it survives a quit or a crash
+/// (owner, 2026-10-25), and takes effect at once.
+#[derive(Component, Clone, Copy, PartialEq, Debug)]
+pub(crate) enum Tweak {
+    Mouse(i32),
+    Fov(i32),
+    /// Sound effects volume down or up a step.
+    Sfx(i32),
+    /// Music volume down or up a step.
+    Music(i32),
+    Shake(i32),
+    Invert,
+    Shadows,
+    Vsync,
+    Fullscreen,
+}
+
+impl Tweak {
+    fn apply(self, s: &mut cb_core::settings::Settings) {
+        match self {
+            Tweak::Mouse(n) => s.nudge_mouse(n),
+            Tweak::Fov(n) => s.nudge_fov(n),
+            Tweak::Sfx(n) => s.nudge_sfx(n),
+            Tweak::Music(n) => s.nudge_music(n),
+            Tweak::Shake(n) => s.nudge_shake(n),
+            Tweak::Invert => s.invert_pitch ^= true,
+            Tweak::Shadows => s.shadows ^= true,
+            Tweak::Vsync => s.vsync ^= true,
+            Tweak::Fullscreen => s.fullscreen ^= true,
+        }
+    }
+}
+
+/// A button an option row carries: a menu button, or a setting's change.
+trait RowButton: Copy {
+    fn spawn(self, parent: &mut ChildSpawnerCommands, text: &str, width: f32);
+}
+
+impl RowButton for MenuButton {
+    fn spawn(self, parent: &mut ChildSpawnerCommands, text: &str, width: f32) {
+        button_sized(parent, text, self, width);
+    }
+}
+
+impl RowButton for Tweak {
+    /// Needs nothing but the settings, so it works on the main menu, with no world behind it.
+    fn spawn(self, parent: &mut ChildSpawnerCommands, text: &str, width: f32) {
+        button_frame(parent, text, self, width).observe(move |_: On<PointerClick>, mut settings: ResMut<Settings>| {
+            info!("menu: {self:?} pressed");
+            self.apply(&mut settings.0);
+            save(&settings);
+        });
+    }
+}
+
+/// The Options page's rows, on the pause menu and the main menu alike.
+pub(crate) fn options_rows(p: &mut ChildSpawnerCommands, s: &cb_core::settings::Settings) {
+    let on = |b: bool| if b { "ON".to_string() } else { "OFF".to_string() };
+    option_row(
+        p,
+        "Mouse sensitivity",
+        format!("{:.2}", s.mouse_deg_per_px),
+        &[("-", Tweak::Mouse(-1)), ("+", Tweak::Mouse(1))],
+    );
+    option_row(p, "Invert mouse", on(s.invert_pitch), &[("Flip", Tweak::Invert)]);
+    option_row(
+        p,
+        "Field of view",
+        format!("{:.0} deg", s.fov_deg),
+        &[("-", Tweak::Fov(-1)), ("+", Tweak::Fov(1))],
+    );
+    option_row(
+        p,
+        "Sound effects",
+        format!("{:.0} %", s.sfx_volume * 100.0),
+        &[("-", Tweak::Sfx(-1)), ("+", Tweak::Sfx(1))],
+    );
+    option_row(
+        p,
+        "Music",
+        format!("{:.0} %", s.music_volume * 100.0),
+        &[("-", Tweak::Music(-1)), ("+", Tweak::Music(1))],
+    );
+    option_row(
+        p,
+        "Camera shake",
+        format!("{:.0} %", s.camera_shake * 100.0),
+        &[("-", Tweak::Shake(-1)), ("+", Tweak::Shake(1))],
+    );
+    option_row(p, "Shadows", on(s.shadows), &[("Flip", Tweak::Shadows)]);
+    option_row(p, "Vsync", on(s.vsync), &[("Flip", Tweak::Vsync)]);
+    option_row(p, "Fullscreen", on(s.fullscreen), &[("Flip", Tweak::Fullscreen)]);
 }
 
 /// Opens, closes and draws the menu.
@@ -391,91 +476,80 @@ fn press(
         MenuButton::Quit => {
             exit.write(AppExit::Success);
         }
-        // Every change is saved at once, so it survives a quit or a crash (owner, 2026-10-25).
-        MenuButton::Mouse(n) => changed(p, |s| s.nudge_mouse(n)),
-        MenuButton::Fov(n) => changed(p, |s| s.nudge_fov(n)),
-        MenuButton::Sfx(n) => changed(p, |s| s.nudge_sfx(n)),
-        MenuButton::Music(n) => changed(p, |s| s.nudge_music(n)),
-        MenuButton::Invert => changed(p, |s| s.invert_pitch ^= true),
-        MenuButton::Shadows => changed(p, |s| s.shadows ^= true),
-        MenuButton::Vsync => changed(p, |s| s.vsync ^= true),
-        MenuButton::Fullscreen => changed(p, |s| s.fullscreen ^= true),
         MenuButton::Hour(n) => p.clock.0.shift(n as f32),
         MenuButton::SetHour(h) => p.clock.0.set_hour(h as f32),
         MenuButton::FreezeClock => p.clock.0.frozen ^= true,
     }
 }
 
-/// Changes the settings with `f` and saves them.
-fn changed(p: Press, f: impl FnOnce(&mut cb_core::settings::Settings)) {
-    f(&mut p.settings.0);
-    save(p.settings);
-}
-
 fn label(s: &str, size: f32, colour: Color) -> (Text, TextFont, TextColor) {
     (Text::new(s), TextFont::from_font_size(size), TextColor(colour))
 }
 
+/// A button's frame and label, carrying `what`; the caller says what a click does.
+fn button_frame<'a>(parent: &'a mut ChildSpawnerCommands, text: &str, what: impl Component, width: f32) -> EntityCommands<'a> {
+    let mut b = parent.spawn((
+        what,
+        Node {
+            width: px(width),
+            padding: UiRect::axes(px(16.0), px(10.0)),
+            border: UiRect::all(px(2.0)),
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        BorderColor::all(DIM),
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+    ));
+    b.with_children(|b| {
+        b.spawn(label(text, 28.0, INK));
+    });
+    b
+}
+
 fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton, width: f32) {
-    parent
-        .spawn((
-            what,
-            Node {
-                width: px(width),
-                padding: UiRect::axes(px(16.0), px(10.0)),
-                border: UiRect::all(px(2.0)),
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            BorderColor::all(DIM),
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
-        ))
-        .observe(
-            move |_: On<PointerClick>,
-                  mut commands: Commands,
-                  mut menu: ResMut<Menu>,
-                  mut back: ResMut<BackTo>,
-                  mut settings: ResMut<Settings>,
-                  mut time: ResMut<Time<Virtual>>,
-                  mut cursor: Single<&mut CursorOptions>,
-                  mut career: Option<ResMut<crate::career::CareerRun>>,
-                  roster: Res<Roster>,
-                  mut free: Option<ResMut<crate::missions::FreeRoamRun>>,
-                  mut exit: MessageWriter<AppExit>,
-                  mut clock: ResMut<crate::day_night::Clock>,
-                  (mut tab, terminal, plan, data, near): (
-                ResMut<TerminalTab>,
-                Option<Res<crate::air_bases::AtTerminal>>,
-                Res<crate::world::Plan>,
-                Res<Data>,
-                Res<crate::air_drop::Where>,
-            )| {
-                press(
-                    what,
-                    Press {
-                        tab: &mut tab,
-                        terminal: terminal.map(|t| t.0),
-                        plan: &plan,
-                        bases: &data.0.world.bases,
-                        near: &near,
-                        menu: &mut menu,
-                        back: &mut back,
-                        settings: &mut settings,
-                        time: &mut time,
-                        cursor: &mut cursor,
-                        clock: &mut clock,
-                    },
-                    &roster.0,
-                    career.as_deref_mut(),
-                    free.as_deref_mut(),
-                    &mut exit,
-                    &mut commands,
-                );
-            },
-        )
-        .with_children(|b| {
-            b.spawn(label(text, 28.0, INK));
-        });
+    button_frame(parent, text, what, width).observe(
+        move |_: On<PointerClick>,
+              mut commands: Commands,
+              mut menu: ResMut<Menu>,
+              mut back: ResMut<BackTo>,
+              mut settings: ResMut<Settings>,
+              mut time: ResMut<Time<Virtual>>,
+              mut cursor: Single<&mut CursorOptions>,
+              mut career: Option<ResMut<crate::career::CareerRun>>,
+              roster: Res<Roster>,
+              mut free: Option<ResMut<crate::missions::FreeRoamRun>>,
+              mut exit: MessageWriter<AppExit>,
+              mut clock: ResMut<crate::day_night::Clock>,
+              (mut tab, terminal, plan, data, near): (
+            ResMut<TerminalTab>,
+            Option<Res<crate::air_bases::AtTerminal>>,
+            Res<crate::world::Plan>,
+            Res<Data>,
+            Res<crate::air_drop::Where>,
+        )| {
+            press(
+                what,
+                Press {
+                    tab: &mut tab,
+                    terminal: terminal.map(|t| t.0),
+                    plan: &plan,
+                    bases: &data.0.world.bases,
+                    near: &near,
+                    menu: &mut menu,
+                    back: &mut back,
+                    settings: &mut settings,
+                    time: &mut time,
+                    cursor: &mut cursor,
+                    clock: &mut clock,
+                },
+                &roster.0,
+                career.as_deref_mut(),
+                free.as_deref_mut(),
+                &mut exit,
+                &mut commands,
+            );
+        },
+    );
 }
 
 fn button(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton) {
@@ -508,7 +582,7 @@ fn tabs(p: &mut ChildSpawnerCommands, back: Menu) {
 }
 
 /// One row of the Options page: its name, its value, and its buttons.
-fn option_row(p: &mut ChildSpawnerCommands, name: &str, value: String, buttons: &[(&str, MenuButton)]) {
+fn option_row(p: &mut ChildSpawnerCommands, name: &str, value: String, buttons: &[(&str, impl RowButton)]) {
     p.spawn(Node {
         column_gap: px(16.0),
         align_items: AlignItems::Center,
@@ -530,7 +604,7 @@ fn option_row(p: &mut ChildSpawnerCommands, name: &str, value: String, buttons: 
             label(&value, 24.0, INK),
         ));
         for (t, b) in buttons {
-            button_sized(row, t, *b, 90.0);
+            b.spawn(row, t, 90.0);
         }
     });
 }
@@ -591,7 +665,6 @@ fn draw(
         root.insert(UiTargetCamera(cam));
     }
     let s = settings.0;
-    let on = |b: bool| if b { "ON".to_string() } else { "OFF".to_string() };
     root.with_children(|r| {
         r.spawn((
             Node {
@@ -659,34 +732,7 @@ fn draw(
             Menu::Options => {
                 tabs(p, back.0);
                 p.spawn(label("OPTIONS", 40.0, INK));
-                option_row(
-                    p,
-                    "Mouse sensitivity",
-                    format!("{:.2}", s.mouse_deg_per_px),
-                    &[("-", MenuButton::Mouse(-1)), ("+", MenuButton::Mouse(1))],
-                );
-                option_row(p, "Invert mouse", on(s.invert_pitch), &[("Flip", MenuButton::Invert)]);
-                option_row(
-                    p,
-                    "Field of view",
-                    format!("{:.0} deg", s.fov_deg),
-                    &[("-", MenuButton::Fov(-1)), ("+", MenuButton::Fov(1))],
-                );
-                option_row(
-                    p,
-                    "Sound effects",
-                    format!("{:.0} %", s.sfx_volume * 100.0),
-                    &[("-", MenuButton::Sfx(-1)), ("+", MenuButton::Sfx(1))],
-                );
-                option_row(
-                    p,
-                    "Music",
-                    format!("{:.0} %", s.music_volume * 100.0),
-                    &[("-", MenuButton::Music(-1)), ("+", MenuButton::Music(1))],
-                );
-                option_row(p, "Shadows", on(s.shadows), &[("Flip", MenuButton::Shadows)]);
-                option_row(p, "Vsync", on(s.vsync), &[("Flip", MenuButton::Vsync)]);
-                option_row(p, "Fullscreen", on(s.fullscreen), &[("Flip", MenuButton::Fullscreen)]);
+                options_rows(p, &s);
                 button(p, "Back", MenuButton::Back);
             }
             Menu::Controls => {

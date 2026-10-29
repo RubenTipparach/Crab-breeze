@@ -1374,7 +1374,8 @@ mod tests {
     fn the_shipped_radii_are_the_owners() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
         let world: crate::world::WorldConfig = crate::data::load_ron(&root.join("world/world.ron")).unwrap();
-        assert_eq!(world.dressing.dress_radius_m, 250.0);
+        // 150 m, was the owner's 250 m: provisional until the owner looks (openspec change `city-frame`, F1).
+        assert_eq!(world.dressing.dress_radius_m, 150.0);
         assert_eq!(world.dressing.massing_radius_m, 1_500.0);
     }
 

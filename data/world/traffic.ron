@@ -25,7 +25,14 @@
     spawn_within_m: 1000.0,
     despawn_beyond_m: 1200.0,
     hidden_beyond_m: 400.0,
+    // A car's small parts drawn only near, dithered out over the last 15 % of each range, casting no shadow (only
+    // the body and cabin do): 16 meshes and shadow casters a car became 2 casters, and 2 meshes past 400 m
+    // (city-frame, 2026-10-28: the capital's 1 100 cars were most of its 20 000 meshes in view). The body and cabin
+    // cast only within 20 m (owner, 2026-10-28: "I wouldnt even bother giving them shadows more than 20m awway").
+    detail: (interior_m: 30.0, trim_m: 200.0, wheels_m: 400.0, shadow_m: 20.0, fade_share: 0.15),
     spawn_per_step: 4,
+    // the lanes short of cars are looked for every 4th fixed step, 4 cars a step since the last (2026-10-28)
+    refill_every_steps: 4,
     // Each driver's own cruising speed: 40-60 km/h in town, 90-110 on highways.
     city_speed_km_h: (40.0, 60.0),
     highway_speed_km_h: (90.0, 110.0),
@@ -63,5 +70,14 @@
         green_s: 24.0,
         amber_s: 3.0,
         all_red_s: 2.0,
+    ),
+    // How often a car is stepped by its distance from the eye (2026-10-28, the desktop's city run: traffic took about
+    // 4 ms a fixed step for 1 100 cars). Within 300 m every fixed step, to 600 m every 2nd, beyond every 4th, each
+    // with the time it was owed and never past the gap ahead of it; their steps are spread over the fixed steps by id.
+    step_lod: (
+        near_m: 300.0,
+        mid_m: 600.0,
+        mid_every: 2,
+        far_every: 4,
     ),
 )

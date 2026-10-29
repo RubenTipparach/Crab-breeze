@@ -100,6 +100,7 @@ fn spawn_chunks(
     let cfg = &data.0.world.debris;
     let eye = camera.single().ok().map(GlobalTransform::translation);
     let chunks = std::mem::take(&mut live.new_chunks);
+    let (offered, bodies_before) = (chunks.len(), queue.dynamic.len());
     // One puff per far building per frame, in building order.
     let mut puffed: Vec<u32> = Vec::new();
     for c in chunks {
@@ -129,6 +130,13 @@ fn spawn_chunks(
             .id();
         queue.dynamic.push_back(e);
     }
+    crate::probe_event!(
+        "debris: {offered} chunks, {} new bodies, {} far puffs; {} moving, {} resting",
+        queue.dynamic.len() - bodies_before,
+        puffed.len(),
+        queue.dynamic.len(),
+        queue.resting.len()
+    );
     while queue.dynamic.len() > cfg.max_dynamic as usize {
         if let Some(e) = queue.dynamic.pop_front() {
             commands.entity(e).insert(RigidBody::Static);

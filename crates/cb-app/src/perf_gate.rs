@@ -134,11 +134,24 @@ fn describe(d: &bevy::render::render_resource::PipelineDescriptor) -> String {
     let path = |h: &Handle<Shader>| h.path().map_or_else(|| format!("{:?}", h.id()), |p| p.to_string());
     match d {
         P::RenderPipelineDescriptor(r) => format!(
-            "{} | vs {} | fs {} | {} defs",
+            "{} | vs {} | fs {} | {} defs: {}",
             r.label.as_deref().unwrap_or("?"),
             path(&r.vertex.shader),
             r.fragment.as_ref().map_or_else(|| "-".to_string(), |f| path(&f.shader)),
-            r.vertex.shader_defs.len()
+            r.vertex.shader_defs.len(),
+            // The variant itself (vertex layout, material features, view flags): what a warm-up behind the loading
+            // screen has to draw so this one compiles there instead (city-frame section 5).
+            r.vertex
+                .shader_defs
+                .iter()
+                .map(|d| match d {
+                    bevy::shader::ShaderDefVal::Bool(n, true) => n.to_string(),
+                    bevy::shader::ShaderDefVal::Bool(n, false) => format!("!{n}"),
+                    bevy::shader::ShaderDefVal::Int(n, v) => format!("{n}={v}"),
+                    bevy::shader::ShaderDefVal::UInt(n, v) => format!("{n}={v}"),
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
         ),
         P::ComputePipelineDescriptor(c) => {
             format!("{} | cs {}", c.label.as_deref().unwrap_or("?"), path(&c.shader))

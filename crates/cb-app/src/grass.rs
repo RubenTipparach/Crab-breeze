@@ -20,6 +20,7 @@ use crate::world::{Live, Plan};
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::primitives::Aabb;
 use bevy::camera::visibility::{NoAutoAabb, RenderLayers};
+use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, MeshTag, MeshVertexBufferLayoutRef};
 use bevy::pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin};
 use bevy::prelude::*;
@@ -338,6 +339,11 @@ impl Grass {
                         ))
                         .id(),
                 );
+                if tile.lod >= self.cfg.shadow_lods as usize
+                    && let Some(e) = tile.entity
+                {
+                    commands.entity(e).insert(NotShadowCaster);
+                }
             }
         }
     }
@@ -449,6 +455,11 @@ fn stream_tiles(
             t.lod = lod;
             if let Some(e) = t.entity {
                 commands.entity(e).insert(Mesh3d(g.meshes[lod].clone()));
+                if lod >= cfg.shadow_lods as usize {
+                    commands.entity(e).insert(NotShadowCaster);
+                } else {
+                    commands.entity(e).remove::<NotShadowCaster>();
+                }
             }
         }
         if t.bake.is_none() && t.job.is_none() && started < cfg.bakes_per_frame {

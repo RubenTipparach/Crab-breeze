@@ -55,7 +55,8 @@ world. A mech with an interior instead:
 | --- | --- |
 | the interior (seat, dash, frame, MFDs, sticks) | cockpit layer |
 | the screen wall: interior nodes ending `_allview` (the `SCREEN_*_screen` nodes are console monitors and stay) | not drawn: the world shows through, as the page's screens show it |
-| the rest of the mech (hull, chest armour, arms, legs) | not drawn (a layer no camera renders): it would stand between the screens and the world |
+| the hull around the cabin: every mesh whose nearest contract bone is `torso_twist`, `torso` or `cockpit` | not drawn (a layer no camera renders): it would stand between the screens and the world |
+| the hips, legs, shoulders, arms and the weapons on them | drawn in the world, seen through the screens (owner, 2026-10-28: "I understand hiding the torso, buat arms, legs and stuff shouldnt be hidden from cockpit view"; every shipped mech carries its weapons on a shoulder, forearm or hand) |
 
 **The openings cut into the cabin** (`cb-app::screen_cut`). An interior is a closed box: each window quad has a back
 plate 2 cm behind it, the pod's inner wall 4.2 cm behind, and a backing face in its own plane, so hiding the quads alone

@@ -284,6 +284,7 @@ impl Boat {
             pose: self.kit_pose(kit),
             parity: self.id,
             building: BOAT_CHUNK_BASE + self.id,
+            sizes: Default::default(),
         }
     }
 
