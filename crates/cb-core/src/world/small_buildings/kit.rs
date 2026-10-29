@@ -614,6 +614,11 @@ impl Kits {
         self.kits.iter().position(|k| k.id == id && !k.kind.is_site())
     }
 
+    /// The ship kit a boat of `kind` is drawn and broken from (the seaport's `freighter`, `ferry`...), by index.
+    pub fn ship(&self, kind: &str) -> Option<usize> {
+        self.kits.iter().position(|k| k.kind == Kind::Ship && k.id == kind)
+    }
+
     /// Adds the kits a site's table lists (`site.json`'s `kits`, each with its piece table beside it), their glbs in
     /// `folder` under `assets/models/`. Returns the index of each, in the table's order. An error names the file.
     pub fn add_site(&mut self, dir: &Path, folder: &str, entries: Vec<serde_json::Value>) -> Result<Vec<usize>, String> {

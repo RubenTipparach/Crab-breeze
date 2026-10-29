@@ -156,6 +156,30 @@ struct Jobs {
     furniture: BTreeMap<u32, (Furnished, Task<Option<Mesh>>)>,
 }
 
+/// A boat under way drawn from its ship kit (the seaport's freighter, ferry...): the child of its boat's root that
+/// `boats::draw_boats` poses (the kit's waterline on the water, a sinking kit's motion on top); its meshes are this
+/// file's, LOD0 its own per piece once it is broken, as a ship at the quays (owner, 2026-10-29: "make sure this damage
+/// system works on moving ships too").
+#[derive(Component)]
+pub struct ShipKit {
+    /// The boat's id.
+    pub boat: u32,
+    /// Its kit's index in `plan.small.kits`.
+    pub kit: usize,
+}
+
+/// A drawn ship kit's entities and the mesh being built for it.
+struct ShipDressed {
+    lod0: Vec<Entity>,
+    own: bool,
+    version: u32,
+    job: Option<Task<Vec<(String, Mesh)>>>,
+}
+
+/// Every ship kit drawn now, by its `ShipKit` entity.
+#[derive(Resource, Default)]
+struct Ships(BTreeMap<Entity, ShipDressed>);
+
 /// Draws the houses and small businesses.
 pub struct SmallBuildingsPlugin;
 
@@ -163,6 +187,7 @@ impl Plugin for SmallBuildingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HouseKits>()
             .init_resource::<Houses>()
+            .init_resource::<Ships>()
             .add_systems(Startup, start_loading)
             .add_systems(Update, bind.run_if(|k: Res<HouseKits>| !k.ready))
             .add_game_systems(FixedUpdate, sink_ships.in_set(crate::sim::SimSet::World))
@@ -177,6 +202,7 @@ impl Plugin for SmallBuildingsPlugin {
                     finish_jobs,
                     swing_leaves,
                     pose_sinking,
+                    draw_ship_kits,
                 )
                     .chain()
                     .in_set(crate::sim::PresentSet::Pose)
@@ -1171,6 +1197,92 @@ fn finish_jobs(
             ))
             .id();
         d.furniture = Some((kind, e));
+    }
+}
+
+/// Gives each boat drawn from a ship kit its meshes (its LODs, as the quay's ships), and once it is broken its own LOD0
+/// with a slot per piece, meshed on the pool; frees what a boat that is gone left. A boat's slots in the state buffer
+/// are never freed (a few hundred words a broken boat).
+#[allow(clippy::too_many_arguments)]
+fn draw_ship_kits(
+    mut commands: Commands,
+    plan: Res<Plan>,
+    kits: Res<HouseKits>,
+    boats: Res<crate::boats::Boats>,
+    drawn: Query<(Entity, &ShipKit)>,
+    mut ships: ResMut<Ships>,
+    mut states: ResMut<BuildingStates>,
+    mut buffers: ResMut<Assets<ShaderBuffer>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    ships.0.retain(|e, _| drawn.contains(*e));
+    for (e, sk) in &drawn {
+        let Some(draw) = kits.kits.get(sk.kit) else { continue };
+        let kit = &plan.small.kits.kits[sk.kit];
+        let d = ships.0.entry(e).or_insert_with(|| {
+            let reach = reach_of(kit);
+            let mut lod0 = Vec::new();
+            for (prims, r) in [
+                (&draw.lod0, range_past(0.0, LOD0_M, reach)),
+                (&draw.lod1, range_past(LOD0_M, LOD1_M, reach)),
+                (&draw.lod2, range_past(LOD1_M, LOD2_M, reach)),
+            ] {
+                for p in prims {
+                    let Some(m) = kits.plain.get(&p.surface) else { continue };
+                    let mut c = commands.spawn((
+                        Mesh3d(p.mesh.clone()),
+                        MeshMaterial3d(m.clone()),
+                        Transform::IDENTITY,
+                        r.clone(),
+                        ChildOf(e),
+                    ));
+                    if NO_SHADOW.contains(&p.surface.as_str()) || std::ptr::eq(prims, &draw.lod2) {
+                        c.insert(NotShadowCaster);
+                    }
+                    lod0.push(c.id());
+                }
+            }
+            ShipDressed {
+                lod0,
+                own: false,
+                version: 0,
+                job: None,
+            }
+        });
+        // Broken: its state words, and its own LOD0 (once), meshed on the pool.
+        let Some(state) = boats.traffic.boat(sk.boat).and_then(|b| b.pieces.as_ref()) else {
+            continue;
+        };
+        let key = cb_core::ships::BOAT_CHUNK_BASE + sk.boat;
+        if state.version != d.version {
+            let base = states.base(key, kit.pieces.len(), &mut buffers);
+            let words: Vec<u32> = state.alive.iter().map(|&a| u32::from(a)).collect();
+            states.write(key, &words);
+            d.version = state.version;
+            if !d.own && d.job.is_none() {
+                let all = plan.small.kits.clone();
+                let k = sk.kit;
+                let lod0 = draw.lod0.clone();
+                let textured = kits.textured.clone();
+                d.job = Some(AsyncComputeTaskPool::get().spawn(async move { own_lod0(&all.kits[k], &lod0, base, &textured) }));
+            }
+        }
+        let Some(built) = d.job.as_mut().and_then(check_ready) else {
+            continue;
+        };
+        d.job = None;
+        for old in d.lod0.drain(..) {
+            commands.entity(old).despawn();
+        }
+        for (surface, mesh) in built {
+            let Some(m) = kits.state.get(&surface) else { continue };
+            let mut c = commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(m.clone()), Transform::IDENTITY, ChildOf(e)));
+            if NO_SHADOW.contains(&surface.as_str()) {
+                c.insert(NotShadowCaster);
+            }
+            d.lod0.push(c.id());
+        }
+        d.own = true;
     }
 }
 

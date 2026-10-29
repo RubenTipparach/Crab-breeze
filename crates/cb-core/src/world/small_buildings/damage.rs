@@ -8,7 +8,7 @@
 use super::kit::{Chunking, Kit};
 use super::lots::Lots;
 use crate::world::destruct::Chunk;
-use glam::Vec3;
+use glam::{Affine3A, Vec3};
 use std::collections::{BTreeMap, VecDeque};
 
 /// A chunk's `building` for a house: this plus the lot id (city building ids stay below it).
@@ -82,12 +82,12 @@ impl Sinking {
 
     /// Its motion in its kit's frame (applied to the kit before the lot's own pose): down by `drop_m`, leaning about
     /// the middle of its keel.
-    pub fn transform(&self, kit: &Kit) -> glam::Affine3A {
+    pub fn transform(&self, kit: &Kit) -> Affine3A {
         let c = Vec3::new((kit.lo.x + kit.hi.x) * 0.5, 0.0, (kit.lo.z + kit.hi.z) * 0.5);
         let axis = if self.along_x { Vec3::X } else { Vec3::Z };
-        glam::Affine3A::from_translation(c - Vec3::Y * self.drop_m)
-            * glam::Affine3A::from_axis_angle(axis, self.tilt_rad)
-            * glam::Affine3A::from_translation(-c)
+        Affine3A::from_translation(c - Vec3::Y * self.drop_m)
+            * Affine3A::from_axis_angle(axis, self.tilt_rad)
+            * Affine3A::from_translation(-c)
     }
 }
 
@@ -154,23 +154,18 @@ pub fn standing_pieces(pieces: &[super::kit::Piece], max_side_steps: u32, alive:
     best.iter().map(Option::is_some).collect()
 }
 
-/// The chunks a piece of `kit` on `lot` becomes (world frame), `collapse` making them coarser; `sinking` moves them
-/// with a ship going down.
-fn chunks_of(kit: &Kit, piece: usize, lots: &Lots, lot: u32, collapse: bool, sinking: Option<&Sinking>) -> Vec<Chunk> {
+/// The chunks a piece of `kit` becomes, `pose` taking its frame to the world (its lot's or its ship's, with a sinking
+/// ship's motion), `collapse` making them coarser.
+fn chunks_of(kit: &Kit, piece: usize, pose: Affine3A, building: u32, collapse: bool) -> Vec<Chunk> {
     let p = &kit.pieces[piece];
-    let l = &lots.lots[lot as usize];
     let size = p.hi - p.lo;
     if size.min_element() < DUST_M {
         return Vec::new();
     }
-    let building = HOUSE_CHUNK_BASE + lot;
-    let moved = sinking.map(|s| s.transform(kit));
-    let world = |c: Vec3| l.point_to_world(moved.map_or(c, |m| m.transform_point3(c)));
-    // The world size of a box turned by the lot's heading (its bounds).
-    let turned = |s: Vec3| {
-        let (sn, cs) = l.heading_rad.sin_cos();
-        Vec3::new(s.x * cs.abs() + s.z * sn.abs(), s.y, s.x * sn.abs() + s.z * cs.abs())
-    };
+    // The world size of a box turned by the pose (its bounds).
+    let m = pose.matrix3;
+    let turned = |s: Vec3| -> Vec3 { (m.x_axis.abs() * s.x + m.y_axis.abs() * s.y + m.z_axis.abs() * s.z).into() };
+
     match &p.chunking {
         Chunking::Box { .. } => {
             let step = if collapse { COLLAPSE_CHUNK_M } else { CHUNK_M };
@@ -184,7 +179,7 @@ fn chunks_of(kit: &Kit, piece: usize, lots: &Lots, lot: u32, collapse: bool, sin
                         let c = p.lo + cell * (Vec3::new(i as f32, j as f32, k as f32) + 0.5);
                         out.push(Chunk {
                             building,
-                            centre: world(c),
+                            centre: pose.transform_point3(c),
                             size: turned(cell),
                         });
                     }
@@ -194,91 +189,44 @@ fn chunks_of(kit: &Kit, piece: usize, lots: &Lots, lot: u32, collapse: bool, sin
         }
         Chunking::Panel { .. } | Chunking::Whole => vec![Chunk {
             building,
-            centre: world((p.lo + p.hi) * 0.5),
+            centre: pose.transform_point3((p.lo + p.hi) * 0.5),
             size: turned(size.min(Vec3::splat(4.0))),
         }],
     }
 }
 
-/// Every damaged house and small business.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Houses {
-    /// By lot id.
-    pub states: BTreeMap<u32, HouseState>,
+/// One breakable kit somewhere in the world: a house's lot, a site's building, a ship at sea. `pose` takes the kit's
+/// frame to the world before a sinking ship's own motion; `parity` picks a ship's lean; `building` names its chunks.
+/// The one place a kit breaks, settles, collapses and sinks: `Houses` for the lots, `ships::Boat` for the ships under
+/// way (owner, 2026-10-29: "make sure this damage system works on moving ships too").
+pub struct Breakable<'a> {
+    /// The kit.
+    pub kit: &'a Kit,
+    /// Its frame in the world.
+    pub pose: Affine3A,
+    /// Which way a ship leans going down.
+    pub parity: u32,
+    /// Its chunks' `building`.
+    pub building: u32,
 }
 
-impl Houses {
-    /// Which pieces of `lot` stand (`None`: all of them).
-    pub fn alive(&self, lot: u32) -> Option<&[bool]> {
-        self.states.get(&lot).map(|s| s.alive.as_slice())
-    }
-
-    /// Its state's version (0 while whole).
-    pub fn version(&self, lot: u32) -> u32 {
-        self.states.get(&lot).map_or(0, |s| s.version)
-    }
-
-    /// A world point in `lot`'s kit frame, through a sinking ship's motion.
-    fn to_kit(&self, lots: &Lots, lot: u32, p: Vec3) -> Vec3 {
-        let l = &lots.lots[lot as usize];
-        let q = l.point_to_local(p);
-        match self.states.get(&lot).and_then(|s| s.sinking.as_ref()) {
-            Some(s) => s.transform(lots.kit(lot)).inverse().transform_point3(q),
-            None => q,
+impl Breakable<'_> {
+    /// Its frame in the world now, a sinking ship's motion included.
+    pub fn pose_now(&self, state: Option<&HouseState>) -> Affine3A {
+        match state.and_then(|s| s.sinking.as_ref()) {
+            Some(s) => self.pose * s.transform(self.kit),
+            None => self.pose,
         }
     }
 
-    /// A sinking ship's motion in its kit's frame (`Sinking::transform`), if `lot` is one.
-    pub fn sink_transform(&self, lots: &Lots, lot: u32) -> Option<glam::Affine3A> {
-        let s = self.states.get(&lot)?.sinking.as_ref()?;
-        Some(s.transform(lots.kit(lot)))
-    }
-
-    /// Takes every sinking ship down by `dt` seconds over the ground `seabed` (x, z to its height): each gathers speed
-    /// to its top, leans to its lean, settles into the seabed once its keel meets it, and is gone (every piece) once
-    /// it is under. Returns the lots that moved, and of them those just gone.
-    pub fn step_sinking(&mut self, lots: &Lots, dt: f32, seabed: &dyn Fn(glam::Vec2) -> f32) -> (Vec<u32>, Vec<u32>) {
-        let (mut moved, mut gone) = (Vec::new(), Vec::new());
-        if !dt.is_finite() || dt <= 0.0 {
-            return (moved, gone);
-        }
-        for (&lot, st) in self.states.iter_mut() {
-            let Some(s) = st.sinking.as_mut() else { continue };
-            if st.alive.iter().all(|a| !a) {
-                continue;
-            }
-            let l = &lots.lots[lot as usize];
-            let kit = lots.kit(lot);
-            let floor = seabed(l.centre);
-            if s.burying {
-                s.drop_m += s.top_m_s * SINK_BURY * dt;
-            } else {
-                s.speed_m_s = (s.speed_m_s + SINK_ACCEL_M_S2 * dt).min(s.top_m_s);
-                s.drop_m += s.speed_m_s * dt;
-                s.tilt_rad += (s.tilt_to_rad - s.tilt_rad) * (dt * 0.15).min(1.0);
-                if l.ground_m + kit.lo.y - s.drop_m <= floor {
-                    s.burying = true;
-                }
-            }
-            moved.push(lot);
-            if l.ground_m + kit.hi.y - s.drop_m < floor - 0.5 {
-                st.alive.iter_mut().for_each(|a| *a = false);
-                st.version += 1;
-                gone.push(lot);
-            }
-        }
-        (moved, gone)
-    }
-
-    /// The standing piece of `lot` that holds world point `p`, if any.
-    pub fn solid_at(&self, lots: &Lots, lot: u32, p: Vec3) -> Option<u32> {
-        lots.lots.get(lot as usize)?;
-        let kit = lots.kit(lot);
-        let q = self.to_kit(lots, lot, p);
+    /// The standing piece holding world point `p`, if any.
+    pub fn solid_at(&self, state: Option<&HouseState>, p: Vec3) -> Option<u32> {
+        let q = self.pose_now(state).inverse().transform_point3(p);
+        let kit = self.kit;
         if q.cmplt(kit.lo - Vec3::splat(0.1)).any() || q.cmpgt(kit.hi + Vec3::splat(0.1)).any() {
             return None;
         }
-        let alive = self.alive(lot);
+        let alive = state.map(|s| s.alive.as_slice());
         kit.pieces
             .iter()
             .enumerate()
@@ -286,36 +234,29 @@ impl Houses {
             .map(|(i, _)| i as u32)
     }
 
-    /// Breaks every standing piece of `lot` within `radius_m` of world point `centre`, then whatever
-    /// that leaves without support, then, when too little wall is left, everything above the floor.
-    pub fn break_sphere(&mut self, lots: &Lots, lot: u32, centre: Vec3, radius_m: f32) -> Broken {
-        let Some(l) = lots.lots.get(lot as usize) else {
-            return Broken::default();
-        };
+    /// Breaks every standing piece within `radius_m` of world point `centre`, then what that leaves without support,
+    /// then, when too little wall is left, everything above the floor; a ship holed at its waterline goes down.
+    pub fn break_sphere(&self, state: &mut Option<HouseState>, centre: Vec3, radius_m: f32) -> Broken {
         if !centre.is_finite() || !radius_m.is_finite() || radius_m <= 0.0 {
             return Broken::default();
         }
-        let _ = l;
-        let kit = lots.kit(lot);
-        let c = self.to_kit(lots, lot, centre);
-        let hit: Vec<usize> = kit
+        let c = self.pose_now(state.as_ref()).inverse().transform_point3(centre);
+        let hit: Vec<usize> = self
+            .kit
             .pieces
             .iter()
             .enumerate()
-            .filter(|(_, p)| {
-                let nearest = c.clamp(p.lo, p.hi);
-                nearest.distance(c) <= radius_m
-            })
+            .filter(|(_, p)| c.clamp(p.lo, p.hi).distance(c) <= radius_m)
             .map(|(i, _)| i)
             .collect();
-        self.remove(lots, lot, &hit)
+        self.remove(state, &hit)
     }
 
-    /// Removes `pieces` of `lot` and settles it (`break_sphere`'s second half).
-    pub fn remove(&mut self, lots: &Lots, lot: u32, pieces: &[usize]) -> Broken {
-        let kit = lots.kit(lot);
+    /// Removes `pieces` and settles it (`break_sphere`'s second half). A state stays `None` while nothing is broken.
+    pub fn remove(&self, slot: &mut Option<HouseState>, pieces: &[usize]) -> Broken {
+        let kit = self.kit;
         let n = kit.pieces.len();
-        let state = self.states.entry(lot).or_insert_with(|| HouseState {
+        let state = slot.get_or_insert_with(|| HouseState {
             alive: vec![true; n],
             collapsed: false,
             version: 0,
@@ -330,7 +271,7 @@ impl Houses {
         if state.alive == before {
             // Nothing was touched: a whole building is left without a state.
             if state.version == 0 {
-                self.states.remove(&lot);
+                *slot = None;
             }
             return Broken::default();
         }
@@ -339,7 +280,7 @@ impl Houses {
             && state.sinking.is_none()
             && pieces.iter().any(|&i| i < n && kit.pieces[i].lo.y < w + SINK_HOLED_M)
         {
-            state.sinking = Some(Sinking::start(kit, lot));
+            state.sinking = Some(Sinking::start(kit, self.parity));
         }
         let mut collapsed = false;
         let stands = standing(kit, &state.alive);
@@ -364,16 +305,151 @@ impl Houses {
         }
         state.version += 1;
         let gone: Vec<u32> = (0..n).filter(|&i| before[i] && !state.alive[i]).map(|i| i as u32).collect();
-        let sinking = state.sinking;
+        let pose = self.pose_now(Some(state));
         let chunks = gone
             .iter()
-            .flat_map(|&i| chunks_of(kit, i as usize, lots, lot, collapsed, sinking.as_ref()))
+            .flat_map(|&i| chunks_of(kit, i as usize, pose, self.building, collapsed))
             .collect();
         Broken {
             pieces: gone,
             chunks,
             collapsed,
         }
+    }
+
+    /// Starts a ship going down whole now (sunk by its hit points or swamped, not holed piece by piece): its state
+    /// made if it had none. False when it is no ship or already going down.
+    pub fn sink(&self, slot: &mut Option<HouseState>) -> bool {
+        if self.kit.waterline_m.is_none() {
+            return false;
+        }
+        let n = self.kit.pieces.len();
+        let state = slot.get_or_insert_with(|| HouseState {
+            alive: vec![true; n],
+            collapsed: false,
+            version: 0,
+            sinking: None,
+        });
+        if state.sinking.is_some() {
+            return false;
+        }
+        state.sinking = Some(Sinking::start(self.kit, self.parity));
+        state.version += 1;
+        true
+    }
+
+    /// Takes a sinking ship down by `dt` seconds over a seabed at `floor_m` (its keel's world height as placed is the
+    /// pose's): it gathers speed to its top, leans to its lean, settles into the seabed once its keel meets it, and once
+    /// it is under, every piece is gone. True when it moved; `state.alive` all false once it is gone.
+    pub fn step_sinking(&self, state: &mut HouseState, floor_m: f32, dt: f32) -> bool {
+        let Some(s) = state.sinking.as_mut() else { return false };
+        if !dt.is_finite() || dt <= 0.0 || state.alive.iter().all(|a| !a) {
+            return false;
+        }
+        let keel = self.pose.translation.y + self.kit.lo.y;
+        if s.burying {
+            s.drop_m += s.top_m_s * SINK_BURY * dt;
+        } else {
+            s.speed_m_s = (s.speed_m_s + SINK_ACCEL_M_S2 * dt).min(s.top_m_s);
+            s.drop_m += s.speed_m_s * dt;
+            s.tilt_rad += (s.tilt_to_rad - s.tilt_rad) * (dt * 0.15).min(1.0);
+            if keel - s.drop_m <= floor_m {
+                s.burying = true;
+            }
+        }
+        if self.pose.translation.y + self.kit.hi.y - s.drop_m < floor_m - 0.5 {
+            state.alive.iter_mut().for_each(|a| *a = false);
+            state.version += 1;
+        }
+        true
+    }
+}
+
+/// A lot's kit frame in the world: its centre at its ground, turned by its heading.
+pub fn lot_pose(l: &super::lots::Lot) -> Affine3A {
+    Affine3A::from_rotation_translation(
+        glam::Quat::from_rotation_y(l.heading_rad),
+        Vec3::new(l.centre.x, l.ground_m, l.centre.y),
+    )
+}
+
+/// Every damaged house and small business.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Houses {
+    /// By lot id.
+    pub states: BTreeMap<u32, HouseState>,
+}
+
+impl Houses {
+    /// Which pieces of `lot` stand (`None`: all of them).
+    pub fn alive(&self, lot: u32) -> Option<&[bool]> {
+        self.states.get(&lot).map(|s| s.alive.as_slice())
+    }
+
+    /// Its state's version (0 while whole).
+    pub fn version(&self, lot: u32) -> u32 {
+        self.states.get(&lot).map_or(0, |s| s.version)
+    }
+
+    /// `lot` as a breakable kit.
+    fn breakable<'a>(lots: &'a Lots, lot: u32) -> Breakable<'a> {
+        Breakable {
+            kit: lots.kit(lot),
+            pose: lot_pose(&lots.lots[lot as usize]),
+            parity: lot,
+            building: HOUSE_CHUNK_BASE + lot,
+        }
+    }
+
+    /// A sinking ship's motion in its kit's frame (`Sinking::transform`), if `lot` is one.
+    pub fn sink_transform(&self, lots: &Lots, lot: u32) -> Option<Affine3A> {
+        let s = self.states.get(&lot)?.sinking.as_ref()?;
+        Some(s.transform(lots.kit(lot)))
+    }
+
+    /// Takes every sinking ship down by `dt` seconds over the ground `seabed` (x, z to its height)
+    /// (`Breakable::step_sinking`). Returns the lots that moved, and of them those just gone.
+    pub fn step_sinking(&mut self, lots: &Lots, dt: f32, seabed: &dyn Fn(glam::Vec2) -> f32) -> (Vec<u32>, Vec<u32>) {
+        let (mut moved, mut gone) = (Vec::new(), Vec::new());
+        for (&lot, st) in self.states.iter_mut() {
+            let was = st.alive.iter().any(|a| *a);
+            if Self::breakable(lots, lot).step_sinking(st, seabed(lots.lots[lot as usize].centre), dt) {
+                moved.push(lot);
+                if was && st.alive.iter().all(|a| !a) {
+                    gone.push(lot);
+                }
+            }
+        }
+        (moved, gone)
+    }
+
+    /// The standing piece of `lot` that holds world point `p`, if any.
+    pub fn solid_at(&self, lots: &Lots, lot: u32, p: Vec3) -> Option<u32> {
+        lots.lots.get(lot as usize)?;
+        Self::breakable(lots, lot).solid_at(self.states.get(&lot), p)
+    }
+
+    /// Breaks every standing piece of `lot` within `radius_m` of world point `centre` (`Breakable::break_sphere`).
+    pub fn break_sphere(&mut self, lots: &Lots, lot: u32, centre: Vec3, radius_m: f32) -> Broken {
+        if lots.lots.get(lot as usize).is_none() {
+            return Broken::default();
+        }
+        let mut slot = self.states.remove(&lot);
+        let b = Self::breakable(lots, lot).break_sphere(&mut slot, centre, radius_m);
+        if let Some(st) = slot {
+            self.states.insert(lot, st);
+        }
+        b
+    }
+
+    /// Removes `pieces` of `lot` and settles it (`Breakable::remove`).
+    pub fn remove(&mut self, lots: &Lots, lot: u32, pieces: &[usize]) -> Broken {
+        let mut slot = self.states.remove(&lot);
+        let b = Self::breakable(lots, lot).remove(&mut slot, pieces);
+        if let Some(st) = slot {
+            self.states.insert(lot, st);
+        }
+        b
     }
 }
 

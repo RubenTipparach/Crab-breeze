@@ -10,6 +10,7 @@ use super::lanes::{self, End, Route, SeaGrid};
 use super::{FERRY, FISHING, FREIGHTER, LAUNCH, ROWING, Sea, ShipsConfig, TANKER, heading_of};
 use crate::jobs::SeaSite;
 use crate::rng::SimRng;
+use crate::world::small_buildings::Kits;
 use crate::world::{Lake, WorldPlan};
 use glam::Vec2;
 use std::collections::BTreeMap;
@@ -443,6 +444,20 @@ impl Traffic {
             }
         }
         out
+    }
+
+    /// One fixed step of every boat drawn from a ship kit that is going down (`Boat::step_kit`), over the seabed
+    /// `seabed` gives at a point (x, z).
+    pub fn step_kits(&mut self, kits: &Kits, seabed: &dyn Fn(Vec2) -> f32, dt_s: f32) {
+        for b in self
+            .boats
+            .iter_mut()
+            .filter(|b| matches!(b.phase, Phase::Sinking { .. } | Phase::Sunk { .. }))
+        {
+            let Some(k) = kits.ship(&b.kind) else { continue };
+            let floor = seabed(b.pos);
+            b.step_kit(&kits.kits[k], floor, dt_s);
+        }
     }
 
     /// Makes the timetable's boats near the pilot real and lets far ones go.

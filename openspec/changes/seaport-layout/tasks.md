@@ -19,6 +19,10 @@
       terminal; its quays walked on as fixed platforms and a wall from the water
 - [x] 2.4 Ships as kits that sink in place when holed at the waterline, still broken piece by piece, settling into the
       seabed and gone (`small_buildings::damage::Sinking`)
+- [x] 2.5 The traffic's boats under way the same (owner, 2026-10-29: "make sure this damage system works on moving
+      ships too"): a kind with a ship kit (freighter, tanker, ferry, fishing boat, launch, tug, gunboat; not the rowing
+      boat) is drawn from it, a round breaks its pieces where it is now, holed at its waterline it founders and goes
+      down through the kit, gone under the seabed (`Breakable`, `Boat::break_sphere`, `Boat::step_kit`)
 - [ ] 2.3 The mech slipway: a walkable ramp into skimming water
 - [ ] 3.1 Stills: `CB_STILLS_FX=harbour` before and after
 - [ ] 3.2 Playtest on the owner's machine: skim in through the entrance, wade up the slipway

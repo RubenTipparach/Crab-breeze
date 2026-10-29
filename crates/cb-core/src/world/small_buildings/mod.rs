@@ -9,7 +9,7 @@ pub mod lots;
 pub mod paving;
 pub mod walk;
 
-pub use damage::{Broken, HOUSE_CHUNK_BASE, Houses};
+pub use damage::{Breakable, Broken, HOUSE_CHUNK_BASE, HouseState, Houses, Sinking, lot_pose};
 pub use kit::{Kit, Kits};
 pub use lots::{Lot, Lots, Placed, SmallBuildingsConfig, Zone};
 pub use paving::Paving;

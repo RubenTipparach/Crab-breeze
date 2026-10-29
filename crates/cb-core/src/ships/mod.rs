@@ -12,7 +12,7 @@ pub mod harm;
 pub mod lanes;
 pub mod traffic;
 
-pub use boat::{Boat, BoatView, Errand, Neighbour, Phase};
+pub use boat::{BOAT_CHUNK_BASE, Boat, BoatView, Errand, Neighbour, Phase};
 pub use harbour::{Footprint, Harbour};
 pub use lanes::{End, Route, SeaGrid};
 pub use traffic::Traffic;

@@ -763,7 +763,11 @@ mod tests {
         use super::super::small_buildings::{Houses, Lots, Placed};
         let (kits, sites) = shipped();
         let sea = sites.seaport.unwrap();
-        let p = sea.placements.iter().find(|p| p.ship && kits.kits[p.kit].id == "freighter").unwrap();
+        let p = sea
+            .placements
+            .iter()
+            .find(|p| p.ship && kits.kits[p.kit].id == "freighter")
+            .unwrap();
         let k = kits.kits[p.kit].clone();
         let draft = k.waterline_m.expect("a ship has its waterline");
         // The freighter afloat on still water at y = 0 over a seabed 14 m down.
@@ -772,10 +776,23 @@ mod tests {
             centre: Vec2::ZERO,
             ground_m: -draft,
             heading_rad: 0.0,
-            rect: super::super::small_buildings::lots::footprint(Vec2::new(k.lo.x, k.lo.z), Vec2::new(k.hi.x, k.hi.z), Vec2::ZERO, 0.0, 0.0),
+            rect: super::super::small_buildings::lots::footprint(
+                Vec2::new(k.lo.x, k.lo.z),
+                Vec2::new(k.hi.x, k.hi.z),
+                Vec2::ZERO,
+                0.0,
+                0.0,
+            ),
             zone: Zone::Seaport,
         };
-        let lots = Lots::new(Arc::new(kits), Placed { lots: vec![lot], ..Default::default() }, 4096.0);
+        let lots = Lots::new(
+            Arc::new(kits),
+            Placed {
+                lots: vec![lot],
+                ..Default::default()
+            },
+            4096.0,
+        );
         let mut h = Houses::default();
         // A shell into its side, at the waterline.
         let side = Vec3::new(k.hi.x, 0.0, (k.lo.z + k.hi.z) * 0.5);
@@ -804,6 +821,71 @@ mod tests {
         }
         assert!(gone, "under the seabed it is gone");
         assert!(h.alive(0).unwrap().iter().all(|a| !a));
+    }
+
+    #[test]
+    fn a_freighter_under_way_breaks_where_it_is_founders_when_holed_and_goes_down_as_the_quay_s_do() {
+        use crate::ships::{Boat, BoatSpec, Errand, Phase};
+        let (kits, _) = shipped();
+        let k = kits
+            .ship("freighter")
+            .map(|i| kits.kits[i].clone())
+            .expect("the seaport's freighter kit");
+        let w = k.waterline_m.unwrap();
+        let spec = BoatSpec {
+            size_m: [18.0, 26.0, 120.0],
+            draft_m: w,
+            speed_m_s: 7.0,
+            accel_m_s2: 0.05,
+            turn_deg_s: 2.0,
+            hp: 4000.0,
+            armour_mm: 10.0,
+            crew: 20,
+            sink_s: 90.0,
+            model: String::new(),
+            tint: [0.2, 0.26, 0.34],
+            burns: false,
+        };
+        let mut b = Boat::new(
+            7,
+            "freighter",
+            &spec,
+            Errand::Anchor { at: Vec2::ZERO },
+            Vec2::new(500.0, 300.0),
+            1.0,
+        );
+        let mid = (k.lo.z + k.hi.z) * 0.5;
+        // Its highest piece (the bridge's top), well over its waterline.
+        let high = k
+            .pieces
+            .iter()
+            .max_by(|a, b| a.hi.y.total_cmp(&b.hi.y))
+            .map(|p| (p.lo + p.hi) * 0.5)
+            .unwrap();
+        // It has sailed on 60 m: a shot where it was misses, a shot into its upperworks where it is breaks pieces and
+        // leaves it afloat.
+        let was = b.kit_pose(&k).transform_point3(high);
+        b.pos += crate::ships::ahead(b.heading_rad) * 60.0;
+        assert!(b.break_sphere(&k, was, 1.5).pieces.is_empty(), "a shot where it was misses");
+        let top = b.kit_pose(&k).transform_point3(high);
+        assert!(!b.break_sphere(&k, top, 1.5).pieces.is_empty(), "a shot where it is breaks it");
+        assert!(b.afloat(), "broken above its waterline it sails on");
+        // Holed at its waterline: it founders and goes down whole, as a ship at the quays does.
+        let side = b.kit_pose(&k).transform_point3(Vec3::new(k.hi.x, w, mid));
+        assert!(!b.break_sphere(&k, side, 2.0).pieces.is_empty());
+        assert!(matches!(b.phase, Phase::Sinking { .. }), "holed at its waterline it founders");
+        let mut steps = 0;
+        while b.phase != Phase::Gone && steps < 60 * 60 * 20 {
+            b.step_kit(&k, -20.0, 1.0 / 60.0);
+            steps += 1;
+        }
+        assert_eq!(b.phase, Phase::Gone, "under the seabed it is gone");
+        assert!(b.pieces.as_ref().unwrap().alive.iter().all(|a| !a));
+        // One sunk by its hit points (no hole) still goes down through its kit.
+        let mut c = Boat::new(8, "freighter", &spec, Errand::Anchor { at: Vec2::ZERO }, Vec2::ZERO, 0.0);
+        assert!(c.founder());
+        c.step_kit(&k, -20.0, 1.0 / 60.0);
+        assert!(c.pieces.as_ref().is_some_and(|s| s.sinking.is_some()));
     }
 
     #[test]
