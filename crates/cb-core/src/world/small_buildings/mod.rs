@@ -114,7 +114,10 @@ mod tests {
         let kinds: Vec<_> = plan.sites.iter().map(|s| s.template.kind).collect();
         eprintln!(
             "sites: {:?}",
-            plan.sites.iter().map(|s| (s.template.kind, s.origin, s.turn, s.ground_m, s.city)).collect::<Vec<_>>()
+            plan.sites
+                .iter()
+                .map(|s| (s.template.kind, s.origin, s.turn, s.ground_m, s.city))
+                .collect::<Vec<_>>()
         );
         assert!(kinds.contains(&crate::world::sites::SiteKind::Airport), "an airport: {kinds:?}");
         assert!(kinds.contains(&crate::world::sites::SiteKind::Seaport), "a seaport: {kinds:?}");
@@ -129,7 +132,10 @@ mod tests {
             // The ground is shaped to every pad: flat at its height a cell inside its edges.
             for (r, y) in s.pads() {
                 let m = Vec2::splat(30.0);
-                let inner = crate::world::layout::Rect { min: r.min + m, max: r.max - m };
+                let inner = crate::world::layout::Rect {
+                    min: r.min + m,
+                    max: r.max - m,
+                };
                 for p in [inner.min, inner.max, inner.centre(), Vec2::new(inner.min.x, inner.max.y)] {
                     let h = plan.height_at(p.x, p.y);
                     assert!((h - y).abs() < 0.3, "{:?} pad at {p}: ground {h}, pad {y}", s.template.kind);

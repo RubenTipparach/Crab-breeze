@@ -110,7 +110,11 @@ impl Harbour {
 
     /// The harbour the seaport is (openspec change `seaport-layout` section 3b): its berth, mouth and terminal the
     /// site's marks, its office the site's harbour office, its deck the site's quay deck; it draws nothing of its own.
-    pub fn of_port(site: &crate::world::sites::PlacedSite, kits: &crate::world::small_buildings::Kits, cfg: &HarbourConfig) -> Option<Self> {
+    pub fn of_port(
+        site: &crate::world::sites::PlacedSite,
+        kits: &crate::world::small_buildings::Kits,
+        cfg: &HarbourConfig,
+    ) -> Option<Self> {
         let out = site.out();
         let side = out.perp();
         let (berth, mouth, terminal) = (site.mark("berth")?, site.mark("mouth")?, site.mark("terminal")?);
@@ -207,7 +211,10 @@ pub fn place(sites: &Sites, sea: &Sea, cfg: &HarbourConfig) -> Vec<Harbour> {
     let mut out: Vec<Harbour> = Vec::new();
     for p in &sites.ports {
         if out.len() < cfg.most {
-            out.push(Harbour { id: out.len() as u32, ..p.clone() });
+            out.push(Harbour {
+                id: out.len() as u32,
+                ..p.clone()
+            });
         }
     }
     for &(city, rect) in &sites.cities {
