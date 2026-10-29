@@ -41,14 +41,15 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
 
 ## 3c. Houses (owner: "Do the same for houses")
 
-- [ ] 3.12 Houses' glass: no glow, 25 % see-through at night through the same dusk curve
-- [ ] 3.13 Houses' inside surfaces and furniture carry the room light from 4 m cells a storey; a whole house is
+- [x] 3.12 Houses' glass: no glow, 25 % see-through at night through the same dusk curve
+- [x] 3.13 Houses' inside surfaces and furniture carry the room light from 4 m cells a storey; a whole house is
   lit or dark by a hash of its lot (owner: "consider an entire house lit or unlit"; design section 2b)
 
 ## 3b. Lit rooms (owner: "I dont want the glass itself to glow, I want to see the room lits")
 
-- [ ] 3.6 The glass loses its night emission (`window_light` off in `building_array.wesl` and `building_surface.wesl`)
-- [ ] 3.7 A ceiling fitting in the furniture kit for every room type, emissive when its room is lit; each room
+- [x] 3.6 The glass loses its night emission (`window_light` off in `building_array.wesl` and `building_surface.wesl`)
+- [ ] 3.7 (Room light by distance from the room's point, gated per room, built for towers and houses; the
+  ceiling fitting's emissive panel is not yet) A ceiling fitting in the furniture kit for every room type, emissive when its room is lit; each room
   vertex brightened by its distance from its room's light point when the room mesh is built (owner: "brighten
   them by distance from a point"), gated by its room slot through `WindowLights` (tests: a dark room's vertices
   get no light at any hour; the light falls with distance from the fitting; rooms of one flat switch together)
@@ -57,6 +58,13 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
 - [ ] 3.8 Past 250 m the glass draws an interior-mapped room per window cell, lit by the same rule
 - [ ] 3.9 Glass is air to light in the voxels, so a room spills out of its window (test: the street in front of
   a lit room's window is lit, the street in front of a solid wall is not)
+
+## 3d. First in-game stills (2026-10-29, lavapipe, 22:00)
+
+- [x] 3.14 `docs/screenshots/night-light/ingame-2200-city-street.png`: lit offices seen through clear glass on both
+  sides of the street, some on, some off; far towers keep their painted windows. `ingame-2200-house-near.png`: the
+  whole house lit from inside behind its windows. Room light 12 cd/m2 (3 read dim behind the 25 % night glass).
+  `CB_STILLS_SETTLE_S` lets a view settle until late pipelines are in (a late road pipeline showed as pale fog).
 
 ## 4. Proof
 

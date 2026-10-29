@@ -1352,6 +1352,13 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // The house nearest the largest city, from 22 m off at eye height (night-voxel-light: its rooms at night).
+    View {
+        name: "house-near",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // A dune suburb from 900 m, where the ground is drawn at step 2: its streets lie on that ground
     // (lot-access task 2.3; seed 42's street that floated highest, 2.7 m, measured 2026-10-28).
     View {
@@ -1720,6 +1727,20 @@ fn city_view(plan: &crate::world::Plan, air: bool) -> ([f32; 3], [f32; 3]) {
     ([start.x, ground + 2.0, start.y], [ahead.x, ground + 8.0, ahead.y])
 }
 
+/// 22 m off the house lot nearest the largest city's middle, at eye height, looking at its middle 3 m up: close enough
+/// that its rooms and furniture are drawn (`small_buildings`, within 150 m).
+fn house_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    let c = plan.cities.iter().max_by(|a, b| a.half_size_m.total_cmp(&b.half_size_m)).map_or(Vec2::ZERO, |c| c.centre);
+    let Some(lot) = plan.small.lots.iter().min_by(|a, b| a.centre.distance(c).total_cmp(&b.centre.distance(c)).then(a.kit.cmp(&b.kit))) else {
+        return ([c.x, 2.0, c.y], [c.x + 100.0, 2.0, c.y]);
+    };
+    let front = Vec2::new(lot.heading_rad.sin(), lot.heading_rad.cos());
+    let eye = lot.centre + front * 22.0;
+    let ground = plan.terrain.height_at(eye.x, eye.y);
+    info!("house view: lot at {} kit {}", lot.centre, lot.kit);
+    ([eye.x, ground + 1.7, eye.y], [lot.centre.x, lot.ground_m + 3.0, lot.centre.y])
+}
+
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
 fn city_up_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
     // The city with the most cloud overhead (the storm decks are where the cloud's base shows).
@@ -1876,6 +1897,7 @@ fn run_weather_script(
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
             "city-street" => city_view(&plan, false),
+            "house-near" => house_view(&plan),
             "city-air" => city_view(&plan, true),
             "suburb-far" => {
                 let at = Vec2::new(-6939.0, -3000.0);
@@ -1931,7 +1953,10 @@ fn run_weather_script(
         // `CB_STILLS_BURST=<n>`: n stills of the view on consecutive frames (`weather-<name>-<k>.png`), the
         // instrument for flicker between frames (a value that changes frame to frame shows as a difference).
         let burst: usize = std::env::var("CB_STILLS_BURST").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
-        if t > 8.0 && script.frames > 12 {
+        // `CB_STILLS_SETTLE_S=<s>`: seconds a view settles before its still (8 by default). Under the software
+        // renderer a pipeline compiled late leaves its meshes undrawn, the fog showing through where they are.
+        let settle_s: f32 = std::env::var("CB_STILLS_SETTLE_S").ok().and_then(|v| v.parse().ok()).unwrap_or(8.0);
+        if t > settle_s && script.frames > 12 {
             let k = script
                 .shots
                 .iter()
