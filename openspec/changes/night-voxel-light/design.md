@@ -184,8 +184,15 @@ lot lamps", with a reference of a terminal apron at night: tall white masts alon
 - **Estimated:** about 40 masts and 60 car-park lamps an airport, about 30 and 20 a seaport. That adds about 150
   lamps to the island's 5,241.
 
+**The masts stand at the gates** (owner, 2026-10-29: "Lights need to be close to the terminal where planes park..please
+reuse airfield artifact and place lights next to the boarding tunnels"). One 25 m mast per gate, beside its jet
+bridge's rotunda, on the side away from the bridge, 6 m out from the face. Its floodlights are aimed down onto that
+gate's stand. They are drawn on the approved airport page itself (`tools/mockups/airport_src.html`, the Night
+button), so the game takes their positions from the same layout as the bridges (`export_sites.cjs`). The page draws
+the night in its own group, outside what the export reads, until the owner approves it.
+
 **Mockup first** (CLAUDE.md section 4, owner 2026-10-28: "Please make mockups before editing game code"):
-`docs/mockups/runway_lights.html`. A 2,000 m runway at night with every light group, the taxiway, a terminal
+`docs/mockups/airport.html` (Night), the approved airport page; the first stand-in, `docs/mockups/runway_lights.html`, is superseded by it. A 2,000 m runway at night with every light group, the taxiway, a terminal
 with its apron masts and car park, and a seaport shed lit, from final approach, on the ground and from above, beside the Foreman and a pilot. No game
 code for this until the owner has looked at it.
 
