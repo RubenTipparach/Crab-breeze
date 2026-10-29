@@ -83,6 +83,16 @@ function hitGeneric(P, t, b) {
 // Crab Breeze: sitting down to be boarded (owner, 2026-10-24: "have the mech sit down on the
 // ground so that pilots can enter/exit"). k runs 0 (standing) to 1 (sat): the legs fold to a deep
 // crouch with the pelvis carried down by bendLegs, the torso bows forward, the arms come in.
+// Where a mech's arms would sink into its folding thighs, the kneel alone moves them clear (owner, 2026-10-29: "ONLY
+// MODDIFYING THE KNEELING POSE"): radians added on top of the kneel's own arm pose and scaled by the kneel, so standing,
+// walking and the models are untouched. out swings the shoulders outward, fwd forward, elb bends the elbows (negative
+// bends further). Measured clear of the legs at 75% and 100% kneel: Foreman 0.73 m, Harrow 0.23, Roustabout 0.37, Mule 0.30.
+const KNEEL_ARMS = {
+  foreman: { elb: -0.3 },
+  harrow: { elb: -0.6 },
+  roustabout: { out: 0.6, fwd: -0.25 },
+  mule: { out: 0.6, fwd: -0.5 },
+};
 function sitPose(P, b, k) {
   if (!k) return;
   const e = k * k * (3 - 2 * k);
@@ -90,6 +100,9 @@ function sitPose(P, b, k) {
   P.add("waist", 0.28 * e, 0, 0); P.add("chest", 0.12 * e, 0, 0);
   P.add("shL", 0.5 * e, 0, 0.1 * e); P.add("shR", 0.5 * e, 0, -0.1 * e);
   P.add("elbL", -0.6 * e); P.add("elbR", -0.6 * e);
+  const h = KNEEL_ARMS[b.id]; if (!h) return;
+  P.add("shL", (h.fwd || 0) * e, 0, (h.out || 0) * e); P.add("shR", (h.fwd || 0) * e, 0, -(h.out || 0) * e);
+  P.add("elbL", (h.elb || 0) * e); P.add("elbR", (h.elb || 0) * e);
 }
 
 function applyPose(b, P) {

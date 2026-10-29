@@ -922,6 +922,12 @@ pub struct WorldConfig {
     /// `GameData::load` (never from `world.ron`); with none, no lots are placed.
     #[serde(skip)]
     pub small_kits: std::sync::Arc<super::small_buildings::Kits>,
+    /// Where the airport and the seaport go (openspec changes `airport-layout`, `seaport-layout`).
+    pub sites: super::sites::SitesConfig,
+    /// The airport's and the seaport's layouts, read from `assets/models/sites/` by `GameData::load` (never from
+    /// `world.ron`); with none, no site is placed.
+    #[serde(skip)]
+    pub site_templates: super::sites::SiteTemplates,
 }
 
 /// Physics debris: where chunks become rigid bodies, and how many (openspec change
@@ -1032,6 +1038,8 @@ impl Default for WorldConfig {
             interiors: super::interior::InteriorConfig::default(),
             small_buildings: super::small_buildings::SmallBuildingsConfig::default(),
             small_kits: Default::default(),
+            sites: super::sites::SitesConfig::default(),
+            site_templates: Default::default(),
             debris: DebrisConfig::default(),
         }
     }
@@ -1132,6 +1140,7 @@ impl Validate for WorldConfig {
         self.dressing.validate()?;
         self.interiors.validate()?;
         self.small_buildings.validate()?;
+        self.sites.validate()?;
         self.debris.validate()?;
         Ok(())
     }

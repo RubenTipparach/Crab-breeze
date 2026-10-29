@@ -970,6 +970,10 @@ fn drive_mech(
             let own = rotations.iter().find(|(n, _)| *n == spec.name).map(|(_, q)| *q);
             d[i] = own.unwrap_or(inherited);
             let bind = &rig.bones[i];
+            // The kneel's arm offset is a turn in the bone's own rest axes (mech-arm-clearance).
+            if let Some((_, off)) = p.arms.iter().find(|(n, q)| *n == spec.name && *q != Quat::IDENTITY) {
+                d[i] = d[i] * bind.rest_model_rot * *off * bind.rest_model_rot.inverse();
+            }
             if rig.cut[i] {
                 continue;
             }

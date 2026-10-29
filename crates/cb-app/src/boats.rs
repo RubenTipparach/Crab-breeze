@@ -111,6 +111,8 @@ impl SeaJobs {
 #[derive(Component)]
 struct BoatDraw {
     id: u32,
+    /// Its ship kit's child, when its kind is drawn from one.
+    kit: Option<Entity>,
 }
 
 /// An oil slick: the boat that left it.
@@ -270,6 +272,31 @@ fn spawn_harbours(
     });
     let crane = assets.load(GltfAssetLabel::Scene(0).from_asset("models/boats/crane.glb"));
     for h in &traffic.harbours {
+        if h.port {
+            // The seaport (seaport-layout): its buildings, cranes and quays are the site's lots and ground
+            // (`small_buildings`); its quays' tops are walked on as fixed platforms in the world's frame.
+            if let Some(site) = plan.sites.iter().find(|s| s.city == h.city) {
+                let slabs = site
+                    .solids
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (lo, hi))| Slab {
+                        name: format!("{FIXED_PREFIX}port_quay_{}_{i}", h.id),
+                        min: Vec2::new(lo.x, lo.z),
+                        max: Vec2::new(hi.x, hi.z),
+                        centre: Vec2::new(lo.x + hi.x, lo.z + hi.z) * 0.5,
+                        top_m: hi.y,
+                        slope: Vec2::ZERO,
+                    })
+                    .collect();
+                live.platforms.push(Platform {
+                    slabs,
+                    pose: bevy::math::Affine3A::IDENTITY,
+                    was: bevy::math::Affine3A::IDENTITY,
+                });
+            }
+            continue;
+        }
         let frame = harbour_frame(h);
         live.platforms.push(Platform {
             slabs: quay_slabs(h),
@@ -656,6 +683,9 @@ fn step_boats(
     let sea = sea(&plan);
     let boats = &mut *boats;
     boats.traffic.step(cfg, &sea, at, time.delta_secs());
+    // Boats drawn from a ship kit go down through it, as the quay's ships do (`small_buildings::damage::Sinking`).
+    let seabed = |p: Vec2| plan.terrain.height_at(p.x, p.y);
+    boats.traffic.step_kits(&plan.small.kits, &seabed, time.delta_secs());
     let flee = cfg.fight.flee_hostile_m;
     for b in &mut boats.traffic.boats {
         if let Some(h) = hostiles.0.iter().find(|h| Vec2::new(h.aim.x, h.aim.z).distance(b.pos) < flee) {
@@ -712,6 +742,7 @@ fn hit_boats(
     mut harmed: MessageWriter<BoatHarmed>,
     mut fx: MessageWriter<Fx>,
     mut wrecked: Local<BTreeSet<u32>>,
+    mut live: ResMut<Live>,
 ) {
     let cfg = &data.0.ships;
     let pilot_id = piloted.iter().next().map(|m| m.0);
@@ -737,14 +768,42 @@ fn hit_boats(
                 }
             }
         }
+        // A boat drawn from a ship kit also loses the pieces the round reaches (the houses' rule for its reach), and
+        // holed at its waterline founders, as a ship at the quays does; a blast breaks one already going down too.
+        let reach = if hit.boat.is_some() {
+            1.3f32.max(1.2 * 2.2 * hit.blast_mj.max(0.01).cbrt())
+        } else {
+            crater_r * hit.blast_mj.max(0.01).cbrt() * 1.3
+        };
+        if hit.boat.is_none() {
+            for b in t.boats.iter_mut().filter(|b| !b.afloat() && b.pos.distance(at) < reach + 80.0) {
+                if let Some(k) = plan.small.kits.ship(&b.kind) {
+                    live.new_chunks
+                        .extend(b.break_sphere(&plan.small.kits.kits[k], hit.at, reach).chunks);
+                }
+            }
+        }
         for (id, pen, dmg) in struck {
             let Some(b) = t.boat_mut(id) else { continue };
             let Some(spec) = cfg.kinds.get(&b.kind) else { continue };
             let crewed = b.crewed();
             let hp = b.hp;
-            let sank = b.hit(pen, dmg, spec);
+            // A kind whose hull decides (a tanker, a freighter) is not sunk by its hit points.
+            let kit = plan.small.kits.ship(&b.kind);
+            let mut sank = if kit.is_some() && spec.sink_hull_share > 0.0 {
+                b.hit_hull(pen, dmg, spec);
+                false
+            } else {
+                b.hit(pen, dmg, spec)
+            };
+            if let Some(k) = kit {
+                let afloat = b.afloat() || sank;
+                live.new_chunks
+                    .extend(b.break_sphere(&plan.small.kits.kits[k], hit.at, reach).chunks);
+                sank |= afloat && !b.afloat();
+            }
             b.alarm(at, cfg.fight.flee_s);
-            if b.hp < hp
+            if (b.hp < hp || sank)
                 && let Some(h) = harm::report(b, cause, crewed, sank)
             {
                 harmed.write(harmed_msg(b, &bases, &plan, h.sunk));
@@ -843,7 +902,8 @@ fn draw_boats(
     pilot: Res<PilotSim>,
     me: Query<&MechSim, With<Piloted>>,
     assets: Res<AssetServer>,
-    mut drawn: Query<(Entity, &BoatDraw, &mut Transform)>,
+    drawn: Query<(Entity, &BoatDraw)>,
+    mut tfs: Query<&mut Transform>,
     mut fx: MessageWriter<Fx>,
     mut spray: Local<f32>,
 ) {
@@ -852,25 +912,48 @@ fn draw_boats(
     let look = &data.0.water_look;
     let seconds = time.elapsed_secs();
     let t = &boats.traffic;
+    let kits = &plan.small.kits;
     let mut seen = BTreeSet::new();
-    for (e, d, mut tf) in &mut drawn {
+    for (e, d) in &drawn {
         let Some(b) = t.boat(d.id) else {
             commands.entity(e).despawn();
             continue;
         };
         let Some(spec) = cfg.kinds.get(&b.kind) else { continue };
         seen.insert(d.id);
-        *tf = pose(b, spec, &plan, look, seconds, cfg.fight.list_deg);
+        let (root, kit) = kit_pose(b, spec, &plan, look, seconds, cfg.fight.list_deg, kits);
+        if let Ok(mut tf) = tfs.get_mut(e) {
+            *tf = root;
+        }
+        if let (Some(c), Some(k)) = (d.kit, kit)
+            && let Ok(mut tf) = tfs.get_mut(c)
+        {
+            *tf = k;
+        }
     }
     for b in t.boats.iter().filter(|b| !seen.contains(&b.id)) {
         let Some(spec) = cfg.kinds.get(&b.kind) else { continue };
-        let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(spec.model.clone()));
-        commands.spawn((
-            Name::new(format!("boat {} {}", b.kind, b.id)),
-            WorldAssetRoot(scene),
-            pose(b, spec, &plan, look, seconds, cfg.fight.list_deg),
-            BoatDraw { id: b.id },
-        ));
+        let (root, kit) = kit_pose(b, spec, &plan, look, seconds, cfg.fight.list_deg, kits);
+        let name = Name::new(format!("boat {} {}", b.kind, b.id));
+        match (kits.ship(&b.kind), kit) {
+            // Drawn from its ship kit: the kit's meshes are `small_buildings::draw_ship_kits`'.
+            (Some(k), Some(child)) => {
+                let root = commands.spawn((name, root, Visibility::Visible)).id();
+                let c = commands
+                    .spawn((
+                        crate::small_buildings::ShipKit { boat: b.id, kit: k },
+                        child,
+                        Visibility::Inherited,
+                        ChildOf(root),
+                    ))
+                    .id();
+                commands.entity(root).insert(BoatDraw { id: b.id, kit: Some(c) });
+            }
+            _ => {
+                let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(spec.model.clone()));
+                commands.spawn((name, WorldAssetRoot(scene), root, BoatDraw { id: b.id, kit: None }));
+            }
+        }
     }
     // Spray at the bows of boats under way within 500 m, every 0.4 s.
     *spray += time.delta_secs();
@@ -888,6 +971,31 @@ fn draw_boats(
             fx.write(Fx::new("skate_spray", Vec3::new(bow.x, y, bow.y)).scaled((b.speed_m_s / 8.0).clamp(0.3, 1.5)));
         }
     }
+}
+
+/// A boat's root transform, and its ship kit's transform under it when its kind is drawn from one: the kit's waterline
+/// at the root, a sinking kit's motion on top (its own sinking, not the block-out's list, takes it down).
+#[allow(clippy::too_many_arguments)]
+fn kit_pose(
+    b: &Boat,
+    spec: &cb_core::ships::BoatSpec,
+    plan: &Plan,
+    look: &cb_core::water_look::WaterLook,
+    seconds: f32,
+    list_deg: f32,
+    kits: &cb_core::world::small_buildings::Kits,
+) -> (Transform, Option<Transform>) {
+    let Some(kit) = kits.ship(&b.kind).map(|k| &kits.kits[k]) else {
+        return (pose(b, spec, plan, look, seconds, list_deg), None);
+    };
+    let sinking = b.pieces.as_ref().and_then(|s| s.sinking.as_ref());
+    let root = match sinking {
+        Some(_) => Transform::from_xyz(b.pos.x, b.surface_m, b.pos.y).with_rotation(Quat::from_rotation_y(b.heading_rad)),
+        None => pose(b, spec, plan, look, seconds, list_deg),
+    };
+    let lift = Mat4::from_translation(Vec3::Y * -kit.waterline_m.unwrap_or(0.0));
+    let m = sinking.map_or(Mat4::IDENTITY, |s| Mat4::from(s.transform(kit)));
+    (root, Some(Transform::from_matrix(lift * m)))
 }
 
 /// A boat's transform: its waterline on the surface with the swell's ride, or listing down when sunk.
@@ -991,6 +1099,7 @@ mod tests {
             warehouses: vec![],
             office: f(Vec2::new(80.0, 0.0)),
             terminal: Vec2::new(90.0, 0.0),
+            port: false,
         }
     }
 

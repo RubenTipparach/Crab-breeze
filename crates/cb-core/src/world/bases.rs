@@ -472,7 +472,7 @@ fn runway_fits(shape: &Shape, cities: &[City], clear: &KeepClear, r: &Runway, gr
 
 /// True when no highway's centre line comes within `road_m` of `site`, and no drainage course within
 /// `river_m`. A highway is checked along its path, the site at its edge points and corners.
-fn keeps_clear(site: &Rect, clear: &KeepClear) -> bool {
+pub(crate) fn keeps_clear(site: &Rect, clear: &KeepClear) -> bool {
     let (lo, hi) = (site.min, site.max);
     let edge = [
         lo,
