@@ -49,6 +49,9 @@ const FURNITURE_M: f32 = 100.0;
 const SITE_FURNITURE_M: f32 = DRESS_M;
 /// The modelled furniture is drawn within this of a pilot on foot (survey S5).
 const REAL_FURNITURE_M: f32 = 60.0;
+/// A ship's only with the pilot aboard, on foot inside its footprint (owner, 2026-10-29: "boat furniture can be blocks
+/// from far away, unless I'm walking into the boat"): its blocks otherwise.
+const SHIP_REAL_FURNITURE_M: f32 = 0.0;
 /// Most furniture meshes built in one frame.
 const FURNISH_PER_FRAME: usize = 3;
 /// The LOD switches (the kit's `within_m`), each blending over a tenth of its distance.
@@ -1528,14 +1531,16 @@ fn furnish(
         .map(|l| {
             let lot = &lots.lots[l as usize];
             let d = lot.rect.distance(here);
-            let reach = if lots.kits.kits[lot.kit as usize].kind.is_site() {
-                SITE_FURNITURE_M
+            let kind = lots.kits.kits[lot.kit as usize].kind;
+            let reach = if kind.is_site() { SITE_FURNITURE_M } else { FURNITURE_M };
+            let real_reach = if kind == cb_core::world::small_buildings::kit::Kind::Ship {
+                SHIP_REAL_FURNITURE_M
             } else {
-                FURNITURE_M
+                REAL_FURNITURE_M
             };
             let want = if d > reach {
                 None
-            } else if on_foot && d <= REAL_FURNITURE_M {
+            } else if on_foot && d <= real_reach {
                 Some(Furnished {
                     real: true,
                     lit: !live.structures.houses.states.contains_key(&l),
