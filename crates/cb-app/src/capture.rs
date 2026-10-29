@@ -1488,6 +1488,19 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // Straight down on each site from 1,100 m, its whole footprint in frame, to lay beside its page's plan.
+    View {
+        name: "airport-plan",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "seaport-plan",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // A dune suburb from 900 m, where the ground is drawn at step 2: its streets lie on that ground
     // (lot-access task 2.3; seed 42's street that floated highest, 2.7 m, measured 2026-10-28).
     View {
@@ -2084,6 +2097,18 @@ fn run_weather_script(
                 cb_core::world::sites::SiteKind::Airport,
                 [-1500.0, 1300.0, 1700.0],
                 [0.0, 0.0, -100.0],
+            ),
+            "airport-plan" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [0.0, 1100.0, -99.0],
+                [0.0, 0.0, -100.0],
+            ),
+            "seaport-plan" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Seaport,
+                [0.0, 1100.0, 151.0],
+                [0.0, 0.0, 150.0],
             ),
             "seaport-overview" => site_view(
                 &plan,

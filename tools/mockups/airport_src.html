@@ -687,6 +687,7 @@ function view(name) {
   const set = (eye, look) => { camera.position.copy(eye); controls.target.copy(look); controls.update(); };
   ({
     overview: () => set(V(-1500, 1300, 1700), V(0, 0, -100)),
+    plan: () => set(V(0, 1100, -99), V(0, 0, -100)),
     final: () => { labelReach = 0; set(V(-1650, 34, 0), V(400, 0, 0)); },
     threshold: () => { labelReach = 300; set(V(-1080, 14, 0), V(-400, 0, 0)); },
     terminals: () => set(V(150, 90, 120), V(380, 8, 400)),

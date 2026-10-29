@@ -4984,6 +4984,7 @@ function view(name) {
   const set = (eye, look) => { camera.position.copy(eye); controls.target.copy(look); controls.update(); };
   ({
     overview: () => set(V(-1500, 1250, 2000), V(0, 0, 150)),
+    plan: () => set(V(0, 1100, 151), V(0, 0, 150)),
     entrance: () => { labelReach = 2500; set(V(425, 26, 1500), V(425, 6, 300)); },
     container: () => set(V(-480, 80, 360), V(-660, 20, 100)),
     cargo: () => set(V(-170, 50, 400), V(-320, 10, 150)),
