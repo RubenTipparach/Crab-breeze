@@ -25,6 +25,6 @@ were before this session.
   mech into `data/mechs/<id>/boarding.ron`.
 - The shoulders gain an axle housing (`contract_arm`'s `axle` in `tools/blender/build_mechs.py`): a horizontal cylinder
   in the frame material from inside the torso out to the shoulder joint, on the Foreman, the Ironhorse and the six
-  walkers. Nothing else in a model changes. It is built only with `CB_SHOULDER_AXLES=1` until the owner approves; the
-  Mechs page shows it, patched into the page's model files by `tools/mockups/patch_mech_axles.py` so the page changes by
-  the axles alone.
+  walkers. Nothing else in a model changes. It was built only with `CB_SHOULDER_AXLES=1` until the owner approved, the
+  Mechs page showing it through a patch of the page's model files; approved (2026-10-29), it is built on every mech and the
+  page reads it from the glbs, so the patch is gone.

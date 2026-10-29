@@ -63,6 +63,9 @@ pub struct MechPose {
     pub left: LegPose,
     /// Right leg.
     pub right: LegPose,
+    /// The kneel's arm offset (openspec change `mech-arm-clearance`): each arm bone's extra turn
+    /// in its own rest axes, on top of what it inherits, by contract name. Identity standing.
+    pub arms: [(&'static str, Quat); 4],
 }
 
 impl MechPose {
@@ -81,6 +84,31 @@ impl MechPose {
             ("foot_R", self.right.foot),
         ]
     }
+}
+
+/// The kneel's arm offset at sit amount `s` (0 standing, 1 sat), as the Mechs page's `sitPose`
+/// adds it (tools/mockups/mech_pose.js `KNEEL_ARMS`): each shoulder turns `arm_forward_deg` about
+/// its own side axis then `arm_out_deg` outward about its own forward axis (the right shoulder the
+/// mirror way), and each forearm bends `elbow_deg` about its side axis, all scaled by `s`. Each is
+/// a turn in the bone's own rest axes, the way the page adds Euler angles to the node's rest.
+pub fn kneel_arm_offsets(sit: &SitPose, s: f32) -> [(&'static str, Quat); 4] {
+    if s <= 0.0 || (sit.arm_out_deg == 0.0 && sit.arm_forward_deg == 0.0 && sit.elbow_deg == 0.0) {
+        return [
+            ("shoulder_L", Quat::IDENTITY),
+            ("shoulder_R", Quat::IDENTITY),
+            ("forearm_L", Quat::IDENTITY),
+            ("forearm_R", Quat::IDENTITY),
+        ];
+    }
+    let fwd = Quat::from_rotation_x(sit.arm_forward_deg.to_radians() * s);
+    let out = sit.arm_out_deg.to_radians() * s;
+    let elbow = Quat::from_rotation_x(sit.elbow_deg.to_radians() * s);
+    [
+        ("shoulder_L", fwd * Quat::from_rotation_z(out)),
+        ("shoulder_R", fwd * Quat::from_rotation_z(-out)),
+        ("forearm_L", elbow),
+        ("forearm_R", elbow),
+    ]
 }
 
 /// A segment's angle in the leg's plane (y, z): rotating about +x by `d` adds `d` to it.
@@ -220,6 +248,7 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
         torso: twist * Quat::from_rotation_x(pitch),
         left: solve(&rest.legs[0], phase, lost[0]),
         right: solve(&rest.legs[1], phase + 0.5, lost[1]),
+        arms: kneel_arm_offsets(sit, s),
     }
 }
 
@@ -303,6 +332,51 @@ mod tests {
             (hock_joint.y - r.ankle.y).abs() < 1e-3 && hock_joint.z < r.ankle.z,
             "the hock lies flat behind the foot: {hock_joint}"
         );
+    }
+
+    #[test]
+    fn a_sat_foreman_bends_its_elbows_by_its_kneel_offset_and_a_standing_one_is_unchanged() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/mechs/foreman/boarding.ron");
+        let tl: crate::boarding::BoardingTimeline = crate::data::load_ron(&path).unwrap_or_else(|e| panic!("{e}"));
+        assert!(tl.sit.elbow_deg < 0.0, "the Foreman's kneel folds its elbows: {}", tl.sit.elbow_deg);
+        let s = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let arm = |p: &MechPose, name: &str| p.arms.iter().find(|(n, _)| *n == name).map(|(_, q)| *q).unwrap();
+        let sat = pose(&s, &GaitConfig::default(), &rig(), &tl.sit, 1.0);
+        for side in ["forearm_L", "forearm_R"] {
+            let (axis, angle) = arm(&sat, side).to_axis_angle();
+            let signed = angle * axis.x.signum();
+            assert!(
+                (signed - tl.sit.elbow_deg.to_radians()).abs() < 1e-4 && axis.x.abs() > 0.999,
+                "{side} bends {signed} rad about {axis}, want {} about x",
+                tl.sit.elbow_deg.to_radians()
+            );
+        }
+        let half = pose(&s, &GaitConfig::default(), &rig(), &tl.sit, 0.5);
+        let (_, a) = arm(&half, "forearm_L").to_axis_angle();
+        assert!(
+            (a - 0.5 * tl.sit.elbow_deg.to_radians().abs()).abs() < 1e-4,
+            "half sat, half the bend: {a}"
+        );
+        let standing = pose(&s, &GaitConfig::default(), &rig(), &tl.sit, 0.0);
+        assert!(
+            standing.arms.iter().all(|(_, q)| *q == Quat::IDENTITY),
+            "standing, the arms are at rest: {:?}",
+            standing.arms
+        );
+        let plain = pose(&s, &GaitConfig::default(), &rig(), &SitPose::default(), 0.0);
+        assert_eq!(standing, plain, "standing, the offset changes nothing");
+    }
+
+    #[test]
+    fn the_right_shoulder_swings_out_the_mirror_way() {
+        let sit = SitPose {
+            arm_out_deg: 30.0,
+            ..SitPose::default()
+        };
+        let o = kneel_arm_offsets(&sit, 1.0);
+        let down = Vec3::NEG_Y;
+        let (l, r) = (o[0].1 * down, o[1].1 * down);
+        assert!(l.x > 0.3 && r.x < -0.3, "the left hand swings left (+x), the right right: {l} {r}");
     }
 
     #[test]

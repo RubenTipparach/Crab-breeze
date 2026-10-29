@@ -36,9 +36,6 @@ from mech_kit import Kit, Node, leg_height  # noqa: E402
 from mathutils import Vector  # noqa: E402
 
 PI = math.pi
-# Crab Breeze: the shoulder axles (contract_arm) wait for the owner's approval on the Mechs page; the page is built with
-# CB_SHOULDER_AXLES=1, the game's assets without, until it is approved.
-AXLES = os.environ.get("CB_SHOULDER_AXLES") == "1"
 OUT = os.path.join(K.ROOT, "assets", "models")
 MANIFEST = os.path.join(OUT, "mechs.json")
 
@@ -51,8 +48,9 @@ def contract_arm(k, chest, S, x, y, z, rx, elb_y, elb_rx, axle=0.0):
     """sh -> (upper_arm) -> elb, as the contract wants: the upper arm is a joint at the shoulder.
     Crab Breeze: `axle`, a radius, adds the shoulder's axle housing on the chest, from well inside the torso out to the
     joint, so the arm turns on something instead of floating off the torso's side (owner, 2026-10-29: "mechs arms arent
-    attached"). The arm itself is unchanged."""
-    if axle and AXLES:
+    attached"). The arm itself is unchanged. Built on every mech since the owner approved them on the Mechs page
+    (owner, 2026-10-29: "Shoulder axels on mechs too?")."""
+    if axle:
         inner = x * 0.55
         k.cyl(axle, axle, abs(x - inner), k.M["frame"], chest, (x + inner) / 2, y, z, 0, 0, PI / 2, 18)
     sh = k.J(f"shoulder_{S}", chest, x, y, z, rx)

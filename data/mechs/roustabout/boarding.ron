@@ -4,7 +4,7 @@
 // open with these stages. The steam and mist are the glb's and the interior's own `VENT_*` empties (openspec change
 // boarding-vents). Edit the generator or the mech, not this file.
 (
-    sit: (duration_s: 3.0, pelvis_height_m: 9.27, hock_angle_deg: 19.3, torso_bow_deg: 22.9),
+    sit: (duration_s: 3.0, pelvis_height_m: 9.27, hock_angle_deg: 19.3, torso_bow_deg: 22.9, arm_out_deg: 34.4, arm_forward_deg: -14.3, elbow_deg: 0.0),
     stages: [
         (name: "the legs' rams work", start_s: 0.00, duration_s: 3.00,
             vents: [
