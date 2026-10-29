@@ -106,6 +106,26 @@ Per base, block-out geometry:
 About 25 000 triangles a base, in 6 draws (concrete, asphalt, white paint, yellow paint, lamps, aircraft). Nothing per
 frame. Not measured: the cloud session has no GPU.
 
+## 6. Every building breaks
+
+Owner, 2026-10-29: "use our breakable framework, all buildings are destructible". Every airport building (both
+terminals and the pier, the jet bridges, cargo, the hangars, the heliport and T-hangars, the tower, the car park, the
+radar, the fire station, the fuel tanks, the de-icing booms, the mech base's hangars and tower) is made of pieces, and the
+small-buildings kit's support rule decides what stands after a hit (`SmallBuildings.supportLinks` and `standing`, the
+rule `cb_core::small_buildings::damage` mirrors): a piece stands while it reaches the ground through the pieces under it,
+or through at most `MAX_SIDE` (3) pieces beside it. A piece lost from under others drops them.
+
+- **Pieces.** A block splits into pieces of at most 10 x 6 x 10 m; a tank, a tunnel section, a glazed cab or a tenth of a
+  hangar's arch (cut in eight segments along its length) is a piece of its own. Terminal 1 is 741 pieces, Terminal 2 and
+  its pier 1342, a maintenance hangar 106, the tower 37.
+- **Built to the rule.** Every piece touches what holds it (the kit links only bounds within 4 cm): the tower's beacon
+  sits on its mast, the car park's decks stand on a 20 m column grid. The mockup reports any piece the rule would not hold
+  as built; there are none.
+- **In the game** each building becomes a breakable kit set (the small buildings' path: `kit.rs` pieces, `damage.rs`),
+  with its colliders from the same pieces, so AP2 is answered: solid and breakable from the start.
+- **Cost.** One instanced draw per material per building while whole; about 4 500 pieces for the whole airport, their
+  support links computed once at load (pairwise per building, the largest 1342 pieces, under 1 M pair tests).
+
 ## Mockup
 
 `docs/mockups/airport.html` (`python3 tools/mockups/gen_airport.py`): the base today against the proposed airfield,
@@ -119,5 +139,5 @@ In the survey, section AP (`docs/design/survey.html`). Built on the recommendati
 | Id | Question | Provisional |
 |---|---|---|
 | AP1 | The airport (2.3 x 1.35 km) cannot be every base: which bases become what? | One airport by the largest city, four military airfields |
-| AP2 | Colliders for the new buildings | Later, with the hangar doors |
+| AP2 | Colliders for the new buildings | Answered (owner, 2026-10-29: "all buildings are destructible"): solid and breakable from the start, section 6 |
 | AP3 | Parked aircraft and jet bridges shootable | Later, with the civil standing rules |
