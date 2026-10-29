@@ -220,9 +220,9 @@ function put(name, draw, x = 0, z = 0, turn = 0, y = DECK, info = {}) {
   const B = new SmallBuildings.Builder(); draw(B);
   const id = E.building(Object.assign({ name, base: y }, info)); E.add(B, { x, y, z, turn, bld: id }); return id;
 }
-// A ship is a hollow hull: once holed below 4 m over its keel it goes down at once, whole, slowly for its size, and
+// A ship is a hollow hull: once holed at or under its waterline (a piece reaching below 1.5 m over the water) it goes down at once, whole, slowly for its size, and
 // settles into the seabed (owner, 2026-10-29: "I expect them to sink right away", "slow sinking (they are big)").
-const SINKS = { test: (P, r) => r.lo[1] < 4, frac: 0.98 };
+const SINKS = { test: (P) => P.lo[1] < 1.5, frac: 0.9999 };   // any hull piece reaching below 1.5 m over the water
 
 // ---------------------------------------------------------------- the ground and the water
 // A breakwater: a rubble mound from the seabed (50 m wide) to a 12 m crest 6 m over the water, with a concrete crown wall
@@ -284,7 +284,7 @@ function model(g, id, c, heading, y = 0, info = {}) {
     const root = new T.Group(); root.position.set(c[0], y, c[1]); root.rotation.y = Math.atan2(heading[0], heading[1]);
     root.add(gltf.scene); holder.add(root);
     const surface = m => { const n = (m.material && m.material.name) || ""; return n === "GLASS" ? "glassDark" : /METAL|YELLOW|BLACK/.test(n) ? "metal" : "paint"; };
-    const Bm = E.fromObject(holder, 6, { surface }); holder.remove(root);
+    const Bm = E.fromObject(holder, 6, { surface, interior: id === "crane" ? null : { hull: /HULL|TRAWLER|TANKER|GREY|BOTTOM|DECK/ } }); holder.remove(root);
     const lo = E.boundsOf(Bm).lo[1];
     const bid = E.building(Object.assign({ name: id, base: lo, anchorBuilt: true }, info));
     E.add(Bm, { bld: bid });
@@ -299,18 +299,18 @@ function luffing(g, c, out) { put("Luffing crane", B => S.luffingCrane(B), c[0],
 const ship = (g, id, c, heading, y = 0) => model(g, id, c, heading, y, { name: id, collapse: SINKS, sink: true });
 // A tug: the kit's block-out stand-in (no model yet), 28 x 9 m.
 function tug(g, c, heading, labels, name) {
-  put("Tug", B => S.tug(B), c[0], c[1], heading[0] > 0 ? 1 : heading[0] < 0 ? 3 : heading[1] < 0 ? 2 : 0, 0, { base: -3.5, collapse: { test: (P, r) => r.lo[1] < 2, frac: 0.98 }, sink: true });
+  put("Tug", B => S.tug(B), c[0], c[1], heading[0] > 0 ? 1 : heading[0] < 0 ? 3 : heading[1] < 0 ? 2 : 0, 0, { base: -3.5, collapse: SINKS, sink: true });
   if (name) labels.push([name, c, 10, "standin"]);
 }
 
 // ---------------------------------------------------------------- buildings
 // A shed, a warehouse or an office from its footprint: clad halls get roll doors to the front (+z, or +x when it runs
 // along z), offices are block or brick with windows round.
-const USES = { "Fish market": "fish", "Shipyard shop": "shop", "Coast guard boathouse": "boats" };   // else a store
+const USES = { "Fish market": "fish", "Shipyard shop": "shop", "Coast guard boathouse": "boats", "Harbour office": "jobs", "Customs house": "customs", "Pilot station": "pilot" };   // else a store, or an office
 function shed(g, name, x0, z0, x1, z1, h, m, labels, label) {
   const along = z1 - z0 > x1 - x0, w = along ? z1 - z0 : x1 - x0, d = along ? x1 - x0 : z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
   const office = m === M.brick || m === M.white;
-  put(name, B => office ? S.hut(B, E.M, { w, d, h: h + 0.15, wall: m === M.brick ? "brick" : "stucco", tint: 0xffffff, name: label && label.length < 16 ? label.toUpperCase() : null })
+  put(name, B => office ? S.hut(B, E.M, { w, d, h: h + 0.15, wall: m === M.brick ? "brick" : "stucco", tint: 0xffffff, name: label && label.length < 16 ? label.toUpperCase() : null, use: USES[name] })
     : S.cargoShed(B, E.M, { w, d, h, tint: m === M.clad ? 0x9aa4ad : 0x8d8a7c, doorH: Math.min(6, h - 2), use: USES[name] }), cx, cz, along ? 1 : 0);
   if (label) labels.push([label, [cx, cz], h + 6]);
 }
@@ -318,7 +318,7 @@ function gantry(g, x, zLand, zSea, labels, name) {
   put("Container gantry", B => S.gantry(B, { gauge: zSea - zLand }), x, zLand, 0, DECK, MACHINE);
   if (name) labels.push([name, [x, zSea + 20], 74]);
 }
-function straddle(g, c) { put("Straddle carrier", B => S.straddle(B), c[0], c[1]); }
+function straddle(g, c) { put("Straddle carrier", B => S.straddle(B), c[0], c[1], 0, DECK, MACHINE); }
 function stackBlock(g, x0, z0, cols, rows, rnd) { put("Container stack", B => S.stackBlock(B, { cols, rows }, rnd), x0, z0, 0, DECK + 0.05); }
 function lightTower(g, c, lamp, name, labels) {
   put(name, B => S.lightTower(B, { red: lamp === M.lampRed }), c[0], c[1], 0, 6);

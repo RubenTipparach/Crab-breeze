@@ -63,6 +63,11 @@
     const n = Math.max(1, Math.ceil((y1 - y0) / lift - 1e-6));
     for (let i = 0; i < n; i++) B.cyl(mat, 'y', [x, 0, z], r, y0 + (y1 - y0) * i / n, y0 + (y1 - y0) * (i + 1) / n, seg);
   }
+  // A vertical box post cut into lifts of at most `lift` metres (a crane's leg: a hit takes out a length of it).
+  function post(B, mat, x0, z0, x1, z1, y0, y1, lift = 4) {
+    const n = Math.max(1, Math.ceil((y1 - y0) / lift - 1e-6));
+    for (let i = 0; i < n; i++) B.box(mat, x0, y0 + (y1 - y0) * i / n, z0, x1, y0 + (y1 - y0) * (i + 1) / n, z1);
+  }
   // A long box cut into lengths of at most `piece` metres along its longest side (a girder, a parapet, a crown wall).
   function run(B, mat, x0, y0, z0, x1, y1, z1, piece = BAY) {
     const lx = x1 - x0, lz = z1 - z0;
@@ -242,6 +247,36 @@
     }
     for (let x = x0 + 10; x < x1 - 10; x += 40) place(B, x, u, (z0 + z1) / 2, 0, [['metal', -0.1, 0, -0.1, 0.1, 2.4, 0.1, 0x3a3a3a], ['metal', -1.5, 2.4, -0.15, 1.5, 3.4, 0.15, 0x1c1c1c], ['screen', -1.4, 2.5, 0.15, 1.4, 3.3, 0.16, 0xf2c02a]]);
   }
+  // An office building's floors fitted out by its use (owner, 2026-10-29: "jobs and customs are empty", "port control
+  // pilot station too"). Ground floor (door to +z): 'jobs' the jobs terminal (a counter, notice boards, benches),
+  // 'customs' an inspection hall (a counter, steel tables, benches), 'pilot' a crew room (radio desk, lockers, a sofa and
+  // a kitchen), 'office' desks; every upper floor desks, a meeting table and shelves.
+  const board = () => [['paint', -1.2, 0.9, -0.05, 1.2, 2.2, 0.05, 0x8a6a46], ['paint', -1.1, 1.0, 0.05, -0.3, 1.5, 0.06, 0xf2efe8], ['paint', -0.2, 1.1, 0.05, 0.5, 1.9, 0.06, 0xf2efe8], ['paint', 0.6, 1.0, 0.05, 1.1, 1.6, 0.06, 0xe8d070]];
+  const bench = (c) => [['wood', -1.2, 0.42, -0.25, 1.2, 0.48, 0.25, c], ['metal', -1.1, 0, -0.2, -1.0, 0.42, 0.2, 0x3a3a3a], ['metal', 1.0, 0, -0.2, 1.1, 0.42, 0.2, 0x3a3a3a]];
+  const locker = () => [['metal', -0.3, 0, -0.25, 0.3, 1.9, 0.25, 0x5a6a7a], ['metal', -0.28, 0.9, 0.25, -0.22, 1.1, 0.27, 0xb8bcc0]];
+  const steelTable = () => [['stainless', -1, 0.85, -0.5, 1, 0.9, 0.5, 0xe0e4e6], ['metal', -0.95, 0, -0.45, -0.9, 0.85, -0.4, 0x8d9196], ['metal', 0.9, 0, -0.45, 0.95, 0.85, -0.4, 0x8d9196], ['metal', -0.95, 0, 0.4, -0.9, 0.85, 0.45, 0x8d9196], ['metal', 0.9, 0, 0.4, 0.95, 0.85, 0.45, 0x8d9196], ['paint', -0.6, 0.9, -0.3, 0.1, 1.3, 0.2, 0x8a5a36]];
+  function officeFit(B, use, x0, x1, z0, z1, floors) {
+    const w = x1 - x0, g = floors[0];
+    const desks = (y, za, zb) => { for (let x = x0 + 1.6; x < x1 - 1.4; x += 3) for (let z = za; z < zb; z += 2.6) place(B, x, y, z, 0, FURN.desk()); };
+    for (let x = x0 + 1.2; x < x1 - 1; x += 2) place(B, x, g, z0 + 0.25, 0, FURN.shelf());   // shelves along the back
+    if (use === 'jobs' || use === 'customs') {
+      for (let x = x0 + 2; x < x1 - 2; x += 3.1) place(B, x, g, z1 - 4, 0, FURN.counter(use === 'jobs' ? 0x2f5f8f : 0x3a5a3a));
+      for (let x = x0 + 2; x < x1 - 2; x += 3) place(B, x, g, z1 - 1.6, 0, bench(0x8a6a46));
+      if (use === 'jobs') { for (const [x, r] of [[x0 + 0.12, 1], [x1 - 0.12, 3]]) for (let z = z0 + 2; z < z1 - 5; z += 3) place(B, x, g, z, r, board()); }
+      else for (let x = x0 + 2.5; x < x1 - 2; x += 3.5) place(B, x, g, z1 - 6.8, 0, steelTable());
+      desks(g, z0 + 2.5, z1 - 7.5);
+    } else if (use === 'pilot') {
+      place(B, x0 + 2, g, z0 + 1.5, 0, [['trim', -1.5, 0, -0.4, 1.5, 0.95, 0.4, 0x5a5f66], ['metal', -1.3, 0.95, -0.4, 1.3, 1.5, -0.1, 0x2a2a2a], ['glassDark', -1.2, 1.0, -0.1, 1.2, 1.45, -0.09, 0x3aa65a], ['fabric', -0.3, 0, 0.6, 0.3, 0.5, 1.1, 0x2f5f8f]]);
+      for (let z = z0 + 1; z < z1 - 1.5; z += 0.7) place(B, x1 - 0.4, g, z, 3, locker());
+      place(B, (x0 + x1) / 2, g, (z0 + z1) / 2, 0, FURN.sofa(0x6a4a3a)); place(B, (x0 + x1) / 2, g, (z0 + z1) / 2 + 1.6, 0, FURN.table());
+      place(B, x0 + 2.2, g, z1 - 1.2, 2, FURN.kitchen(0xd8d2c0)); place(B, x0 + 5.5, g, z1 - 2, 0, FURN.tv());
+    } else desks(g, z0 + 2.5, z1 - 2);
+    for (const y of floors.slice(1)) {
+      desks(y, z0 + 2.5, z1 - 5);
+      for (let x = x0 + 3; x < x1 - 3; x += Math.max(6, w / 2)) place(B, x, y, z1 - 2.5, 0, FURN.table());
+      for (let x = x0 + 1.2; x < x1 - 1; x += 2) place(B, x, y, z0 + 0.25, 0, FURN.shelf());
+    }
+  }
   // A ferry or bus waiting hall: banks of seats, ticket counters, a cafe's booths.
   function waitingHall(B, x0, x1, z0, z1, y) {
     for (let z = z0 + 4; z < z1 - 4; z += 3.4) for (let x = x0 + 5; x + 3 < x1 - 5; x += 8) place(B, x + 3, y, z, 0, seatBank(0x2f5f8f));
@@ -371,19 +406,34 @@
     face(B, sh, 'x', 5.8, -6, 6, 1, (i, st) => (st === 0 && i === 1 ? 'door' : st % 2 ? 'windows' : 'blank'));
     face(B, sh, 'x', -5.8, -6, 6, -1, (i, st) => (st % 2 ? 'windows' : 'blank'));
     face(B, sh, 'z', -5.8, -5.6, 5.6, -1, 'blank'); face(B, sh, 'z', 5.8, -5.6, 5.6, 1, 'blank');
+    // a floor every storey with a stair flight in its hole, and a room on each: the entrance and its desk, then offices,
+    // the radio and equipment rooms, the crew's rest room (owner, 2026-10-29: "port control pilot station too")
+    const ROOMS = [() => [FURN.desk(), FURN.shelf()], () => [FURN.desk(), FURN.desk()], () => [FURN.shelf(), FURN.desk()], () => [FURN.sofa(0x6a4a3a), FURN.table()]];
+    for (let y = 0.15, f = 0; y < h - 0.01; y += 5, f++) {
+      if (y > 0.2) { B.color(0xbab4aa); tiles(B, 'concrete', -5.6, y - 0.3, -5.6, 2.6, y, 5.6, null, 4); tiles(B, 'concrete', 2.6, y - 0.3, 0, 5.6, y, 5.6, null, 4); }
+      const top = Math.min(h, y + 5) - 0.3;
+      place(B, 4.1, y, -2.8, 0, Array.from({ length: 10 }, (_, k) => ['concrete', -1.4, 0, -2.75 + k * 0.55, 1.4, (k + 1) * (top - y) / 10, -2.2 + k * 0.55, 0xbab4aa]), 'stair');
+      const R = ROOMS[f % ROOMS.length]();
+      place(B, -3, y + 0.012, 2.5, 2, R[0]); place(B, -3, y + 0.012, -3, 0, R[1]);
+      if (f % 4 === 2) for (let x = -5; x <= -1; x += 1) place(B, x, y + 0.012, 5.1, 2, [['metal', -0.45, 0, -0.4, 0.45, 2.1, 0.4, 0x3a3d42], ['glassDark', -0.4, 1.6, 0.4, 0.4, 1.9, 0.405, 0x2aff4a]]);
+    }
     B.color(0xbab4aa); tiles(B, 'concrete', -8, h, -8, 8, h + 0.4, 8, null, 4);
     const cab = { storeys: [[h + 0.4, h + 5.4]], wall: o.today ? 'block' : 'metal', tint: o.today ? 0xcfcac0 : 0x5a5f66, t: 0.2, bay: 4 };
     const g = o.today ? 'windows' : 'glazed';
     face(B, cab, 'x', 6.9, -7, 7, 1, g); face(B, cab, 'x', -6.9, -7, 7, -1, g); face(B, cab, 'z', -6.9, -6.8, 6.8, -1, g); face(B, cab, 'z', 6.9, -6.8, 6.8, 1, g);
     B.color(0x6d6a66); tiles(B, 'roofing', -8.5, h + 5.4, -8.5, 8.5, h + 5.8, 8.5, null, 4);
-    B.color(0xe8e2d0); place(B, 0, h + 0.4, 4, 2, FURN.desk()); place(B, -3, h + 0.4, 4, 2, FURN.desk());
+    // the cab: consoles round the glass, each with screens and a chair, a radar scope in the middle
+    const con = [['trim', -1.2, 0, -0.4, 1.2, 0.95, 0.4, 0x5a5f66], ['counter', -1.25, 0.95, -0.45, 1.25, 1.0, 0.45, 0xd8cdb0], ['metal', -1.0, 1.0, -0.4, 1.0, 1.55, -0.2, 0x2a2a2a],
+      ['glassDark', -0.9, 1.06, -0.2, 0.9, 1.5, -0.19, 0x3a8ac8], ['fabric', -0.3, 0, 0.6, 0.3, 0.5, 1.1, 0x2f5f8f], ['fabric', -0.3, 0.5, 1.02, 0.3, 1.1, 1.1, 0x2f5f8f]];
+    for (const [r, x, z] of [[2, 0, 5.8], [2, -3.5, 5.8], [2, 3.5, 5.8], [0, 0, -5.8], [0, -3.5, -5.8], [1, -5.8, 0], [3, 5.8, 0]]) place(B, x, h + 0.4, z, r, con);
+    place(B, 0, h + 0.4, 0, 0, [['trim', -0.8, 0, -0.8, 0.8, 0.9, 0.8, 0x5a5f66], ['glassDark', -0.6, 0.9, -0.6, 0.6, 0.95, 0.6, 0x2aff4a]]);
   }
   // A de-icing spray boom: a mast and its arm reaching over the pad (the arm to -x).
   function sprayBoom(B) {
     B.color(0xf2c02a); B.box('concrete', -2, -0.2, -2, 2, 0.4, 2);
     column(B, 'metal', 0, 0, 1.4, 0.4, 12, 12, 6);
-    member(B, 'metal', [1, 12.6, 0], [-20, 14, 0], 1.2, 1.2);
-    for (let x = -18; x <= -4; x += 3.5) { B.color(0x2a2d31); B.box('metal', x - 0.15, 12.4, -0.15, x + 0.15, 12.8, 0.15); }
+    tubes(B, 'metal', [1, 12.6, 0], [-20, 14, 0], 0.6, 3, 8);   // the arm in 3 m lengths
+    for (let x = -18; x <= -4; x += 3.5) { const y = 12.6 + (1 - x) / 21 * 1.4; B.color(0x2a2d31); B.box('metal', x - 0.15, y - 1.0, -0.15, x + 0.15, y - 0.2, 0.15); }   // the nozzles, hung from the arm
   }
   // The surveillance radar's mast (its turning antenna is the page's own spinner).
   function radarMast(B) {
@@ -442,9 +492,13 @@
       const lifts = Math.max(1, Math.ceil(h / 6));
       for (let k = 0; k < lifts; k++) { B.color(o.tint || 0xdcdcd2); plate(B, 'metal', [c[0], 0.3 + h * (k + 0.5) / lifts, c[2]], [tng, [0, 1, 0], out], [wch, h / lifts, 0.3]); }
       const top = 0.3 + h, rise = r * 0.12;
-      const p = [Math.cos(m) * r * 0.5, top + rise * 0.5, Math.sin(m) * r * 0.5];
-      const dn = norm([Math.cos(m) * r, -rise, Math.sin(m) * r]), up = norm(cross(tng, dn));
-      B.color(o.roofTint || 0xc8c8be); plate(B, 'metal', p, [dn, up[1] < 0 ? mul(up, -1) : up, tng], [Math.hypot(r, rise), 0.25, r * 2 * Math.PI / seg * 0.5 + 0.3]);
+      // the roof: one closed wedge a stave, rim to crown, so the segments meet with no gaps
+      const ra = [Math.cos(a) * (r + 0.2), top, Math.sin(a) * (r + 0.2)], rb = [Math.cos(b) * (r + 0.2), top, Math.sin(b) * (r + 0.2)], apex = [0, top + rise, 0];
+      const lift = (q, d) => [q[0], q[1] + d, q[2]];
+      B.color(o.roofTint || 0xc8c8be);
+      B.group(() => { const n = norm(cross(sub(rb, ra), sub(apex, ra))); const nu = n[1] < 0 ? mul(n, -1) : n;
+        B.poly('metal', [ra, rb, apex], nu); B.poly('metal', [lift(ra, -0.2), lift(rb, -0.2), lift(apex, -0.2)], mul(nu, -1));
+        B.poly('metal', [ra, rb, lift(rb, -0.2), lift(ra, -0.2)], [Math.cos(m), 0, Math.sin(m)]); });
     }
   }
   // A mech hangar of the game's mech base (cb_core::world::bases): three block walls and a slab roof, open to the front.
@@ -462,7 +516,8 @@
   function hut(B, M, o) {
     const h = o.h || 4.15;   // over 6 m it is two storeys
     hall(B, { x0: -o.w / 2, x1: o.w / 2, z0: -o.d / 2, z1: o.d / 2, storeys: h > 6 ? [[0.15, (h + 0.15) / 2], [(h + 0.15) / 2, h]] : [[0.15, h]], wall: o.wall || 'block', tint: o.tint || 0xe0dccf, col: 8,
-      front: (i, st, n) => (i === Math.floor(n / 2) ? 'door' : 'windows'), back: 'windows', left: 'windows', right: 'windows' });
+      front: (i, st, n) => (i === Math.floor(n / 2) ? 'door' : 'windows'), back: 'windows', left: 'windows', right: 'windows',
+      furnish: (B) => officeFit(B, o.use || 'office', -o.w / 2 + 0.3, o.w / 2 - 0.3, -o.d / 2 + 0.3, o.d / 2 - 0.3, h > 6 ? [0.162, (h + 0.15) / 2 + 0.012] : [0.162]) });
     if (o.name) signBand(B, M, o.name, 0, (o.h || 4.15) - 0.6, o.d / 2 + 0.02, Math.min(o.w - 2, 10));
   }
 
@@ -509,21 +564,22 @@
   function gantry(B, o) {
     const g = o.gauge || 30, out = o.out || 55, back = o.back || 25, H = 40;
     B.color(0xf06a12);
-    for (const z of [0, g]) for (const s of [-9, 9]) { run(B, 'paint', s - 1, 0, z - 1, s + 1, H, z + 1, 10); B.box('paint', s - 2, 0, z - 2.5, s + 2, 1.5, z + 2.5); }
-    for (const z of [0, g]) run(B, 'paint', -10, H, z - 1.5, 10, H + 3, z + 1.5, 10);
-    for (const s of [-9, 9]) run(B, 'paint', s - 1, 10, 0, s + 1, 12, g, 10);
-    for (const s of [-4, 4]) member(B, 'paint', [s, H + 4.5, -back], [s, H + 4.5, g + out], 2.2, 3);
+    // every member in lengths of 4 or 5 m, so a hit takes out a length of steel and what hangs beyond it falls
+    for (const z of [0, g]) for (const s of [-9, 9]) { post(B, 'paint', s - 1, z - 1, s + 1, z + 1, 1.5, H, 4); B.box('paint', s - 2, 0, z - 2.5, s + 2, 1.5, z + 2.5); }
+    for (const z of [0, g]) run(B, 'paint', -10, H, z - 1.5, 10, H + 3, z + 1.5, 4);
+    for (const s of [-9, 9]) run(B, 'paint', s - 1, 10, 1, s + 1, 12, g - 1, 4);
+    for (const s of [-4, 4]) run(B, 'paint', s - 1.1, H + 3, -back, s + 1.1, H + 6, g + out, 5);
     B.color(0xe8e8e2); B.box('ribbed', -6, H + 6, -back + 1, 6, H + 13, -back + 17);
     B.color(0xf06a12);
-    for (const s of [-4, 4]) { member(B, 'paint', [s, H + 6, 0], [0, H + 30, g / 2], 1.2, 1.2); member(B, 'paint', [s, H + 6, g], [0, H + 30, g / 2], 1.2, 1.2); }
-    B.color(0x6b7178); for (const s of [-4, 4]) member(B, 'metal', [0, H + 30, g / 2], [s, H + 6, g + out - 5], 0.5, 0.5);
+    for (const s of [-4, 4]) { tubes(B, 'paint', [s, H + 5.8, 0], [0, H + 30, g / 2], 0.6, 3, 8); tubes(B, 'paint', [s, H + 5.8, g], [0, H + 30, g / 2], 0.6, 3, 8); }
+    B.color(0x6b7178); for (const s of [-4, 4]) tubes(B, 'metal', [0, H + 30, g / 2], [s, H + 5.8, g + out - 5], 0.2, 3, 6);
     B.color(0xe8e8e2); B.box('ribbed', -3, H - 2, g + 18, 3, H + 4.5, g + 24); B.color(0xffffff); B.box('glass', -2.6, H - 1.5, g + 24, 2.6, H + 1.5, g + 24.05);
   }
   // A straddle carrier: four legs and a frame over one row of boxes, its cab on top. Rigid.
   function straddle(B) {
     B.color(0xf2c02a);
-    for (const sx of [-1.9, 1.9]) for (const sz of [-4.5, 4.5]) { B.box('paint', sx - 0.3, 0, sz - 0.3, sx + 0.3, 13, sz + 0.3); B.color(0x1c1c1c); B.cyl('rubber', 'x', [sx, 0.6, sz], 0.6, sx - 0.35, sx + 0.35, 10); B.color(0xf2c02a); }
-    run(B, 'paint', -2.2, 13, -5, -1.4, 14.2, 5, 10); run(B, 'paint', 1.4, 13, -5, 2.2, 14.2, 5, 10);
+    for (const sx of [-1.9, 1.9]) for (const sz of [-4.5, 4.5]) { post(B, 'paint', sx - 0.3, sz - 0.3, sx + 0.3, sz + 0.3, 0, 13, 3); B.color(0x1c1c1c); B.cyl('rubber', 'x', [sx, 0.6, sz], 0.6, sx - 0.35, sx + 0.35, 10); B.color(0xf2c02a); }
+    run(B, 'paint', -2.2, 13, -5, -1.4, 14.2, 5, 3); run(B, 'paint', 1.4, 13, -5, 2.2, 14.2, 5, 3);
     B.box('paint', -1.4, 13, -5, 1.4, 14.2, -4); B.box('paint', -1.4, 13, 4, 1.4, 14.2, 5);
     B.color(0xe8e8e2); B.box('paint', -1.2, 14.2, -4.5, 1.2, 16.4, -2); B.color(0xffffff); B.box('glass', -1.1, 15.0, -2.0, 1.1, 16.2, -1.95);
   }
@@ -540,8 +596,8 @@
   function goliath(B, o) {
     const s = o.span / 2, H = o.h || 52;
     B.color(0xf2c02a);
-    for (const x of [-s, s]) { for (const z of [-8, 8]) run(B, 'paint', x - 1, 0, z - 1, x + 1, H, z + 1, 10); run(B, 'paint', x - 1.5, H, -10, x + 1.5, H + 3, 10, 10); B.box('paint', x - 2, 0, -10, x + 2, 1.5, 10); }
-    run(B, 'paint', -s - 4, H + 3, -4, s + 4, H + 8, 4, 15);
+    for (const x of [-s, s]) { for (const z of [-8, 8]) post(B, 'paint', x - 1, z - 1, x + 1, z + 1, 1.5, H, 4); run(B, 'paint', x - 1.5, H, -10, x + 1.5, H + 3, 10, 4); run(B, 'paint', x - 2, 0, -10, x + 2, 1.5, 10, 4); }
+    run(B, 'paint', -s - 4, H + 3, -4, s + 4, H + 8, 4, 5);
     B.color(0xe8e8e2); B.box('ribbed', -6, H + 8, -4, 6, H + 13, 4);
   }
   // A light tower on a breakwater head: white tower in lifts, a coloured band, the lantern and its gallery.
@@ -596,13 +652,13 @@
   // A tug of the 1980s: a block-out stand-in (no model yet), 28 x 9 m, bow to +z; a page builds it as a rigid machine.
   function tug(B) {
     B.color(0x2a2d31); run(B, 'metal', -4.5, -3.5, -14, 4.5, 2.2, 14, 7);
-    B.color(0xb8160f); run(B, 'paint', -4.6, 2.2, -14, 4.6, 2.6, 14, 7);
+    B.color(0x7a0c08); run(B, 'paint', -4.6, 2.2, -14, 4.6, 2.6, 14, 7);
     B.color(0x1c1c1c); for (let z = -12; z <= 12; z += 4) for (const s of [-1, 1]) B.box('rubber', s * 4.5 - 0.3, 0.6, z - 0.8, s * 4.5 + 0.3, 2.2, z + 0.8);
     B.color(0xe8e8e2); B.box('trim', -3.5, 2.6, -2, 3.5, 7.5, 6); B.color(0xffffff); B.box('glassDark', -3.55, 6, -1.9, 3.55, 7, 5.9);
-    B.color(0xf06a12); B.cyl('paint', 'y', [0, 0, -4], 0.9, 2.6, 9.6, 12);
+    B.color(0xc04a08); B.cyl('paint', 'y', [0, 0, -4], 0.9, 2.6, 9.6, 12);
   }
 
-  root.SiteBuildings = { BAY, TILE, BAYS, plate, member, column, run, face, hall, signBand, seats,
+  root.SiteBuildings = { BAY, TILE, BAYS, plate, member, column, post, run, face, hall, signBand, seats,
     terminal, concourse, jetBridge, fitOut, waitingHall, archHangar, tower, baseTower, sprayBoom, radarMast, fireStation, cargoShed, tHangars, carPark, tank, mechHangar, hut,
     carAt, tube, tubes, luffingCrane, gantry, straddle, stackBlock, goliath, lightTower, buoy, pileDeck, quayEdge, pontoon, tug, LINERS };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SiteBuildings;

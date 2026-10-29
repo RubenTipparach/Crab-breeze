@@ -209,36 +209,89 @@
       }
       return out;
     }
+    // o.interior (a ship): the model is a hollow shell, so the cut gets an inside (owner, 2026-10-29: "boats still mising
+    // interiors/backface"): every face is doubled inward in dark steel, and the hull (its o.interior.hull materials) is
+    // filled with decks every 2.8 m and bulkheads every 12 m along its length, found by vertical rays through the hull on
+    // a 1.5 m grid. They are cut into the same cells, so a shot shows compartments, not an empty can.
     function fromObject(obj, cell = 6, o = {}) {
       const B = new K.Builder();
       obj.updateMatrixWorld(true);
       const inv = new THREE.Matrix4().copy(obj.matrixWorld).invert();
       const cells = new Map(), v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+      // A polygon clipped to every cell it crosses, so a cell's piece is exactly that cell of the model (no long slivers).
+      const put = (key, col, poly0, n) => {
+        const lo = [0, 1, 2].map((a) => Math.floor(Math.min(...poly0.map((q) => q[a])) / cell));
+        const hi = [0, 1, 2].map((a) => Math.floor((Math.max(...poly0.map((q) => q[a])) - 1e-6) / cell));
+        for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let kk = lo[2]; kk <= hi[2]; kk++) {
+          let poly = poly0;
+          const cmin = [i * cell, j * cell, kk * cell];
+          for (let a = 0; a < 3 && poly.length >= 3; a++) { poly = clipPoly(poly, a, cmin[a], 1); if (poly.length >= 3) poly = clipPoly(poly, a, cmin[a] + cell, -1); }
+          if (poly.length < 3) continue;
+          const ck = i + ',' + j + ',' + kk;
+          if (!cells.has(ck)) cells.set(ck, []);
+          cells.get(ck).push({ key, col, pts: poly, n });
+        }
+      };
+      const I_ = o.interior, hullTris = [];
+      const inner = I_ ? (I_.inner || '#4a4844') : null, ins = I_ ? (I_.surface || 'metal') : null;
       obj.traverse((m) => {
         if (!m.isMesh || !m.visible) return;
         const g = m.geometry, P = g.attributes.position, I = g.index, mm = new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld);
         const col = (m.material && m.material.color) ? '#' + m.material.color.getHexString() : '#888888';
         const key = o.surface ? o.surface(m) : 'paint';
+        const isHull = I_ && I_.hull && I_.hull.test((m.material && m.material.name) || '');
         const n = I ? I.count : P.count;
         for (let t = 0; t + 2 < n; t += 3) {
           for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(P, I ? I.getX(t + k) : t + k).applyMatrix4(mm);
           const tri = v.map((q) => [q.x, q.y, q.z]);
-          const nrm = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0]));
-          const lo = [0, 1, 2].map((a) => Math.floor(Math.min(tri[0][a], tri[1][a], tri[2][a]) / cell));
-          const hi = [0, 1, 2].map((a) => Math.floor((Math.max(tri[0][a], tri[1][a], tri[2][a]) - 1e-6) / cell));
-          // A triangle is clipped to every cell it crosses, so a cell's piece is exactly that cell of the model (no long
-          // slivers reaching out of it when it falls).
-          for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let kk = lo[2]; kk <= hi[2]; kk++) {
-            let poly = tri;
-            const cmin = [i * cell, j * cell, kk * cell];
-            for (let a = 0; a < 3 && poly.length >= 3; a++) { poly = clipPoly(poly, a, cmin[a], 1); if (poly.length >= 3) poly = clipPoly(poly, a, cmin[a] + cell, -1); }
-            if (poly.length < 3) continue;
-            const ck = i + ',' + j + ',' + kk;
-            if (!cells.has(ck)) cells.set(ck, []);
-            cells.get(ck).push({ key, col, pts: poly, n: [nrm.x, nrm.y, nrm.z] });
+          const c = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0]));
+          const nrm = [c.x, c.y, c.z];
+          put(key, col, tri, nrm);
+          if (I_ && key !== 'glassDark') {   // the inside of the plate, 3 cm in
+            const l = Math.hypot(...nrm) || 1, d = nrm.map((x) => -x / l * 0.03);
+            put(ins, inner, tri.map((q) => [q[0] + d[0], q[1] + d[1], q[2] + d[2]]), nrm.map((x) => -x));
           }
+          if (isHull) hullTris.push(tri);
         }
       });
+      if (I_ && hullTris.length) {
+        const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+        for (const t of hullTris) for (const q of t) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], q[a]); hi[a] = Math.max(hi[a], q[a]); }
+        const alongX = hi[0] - lo[0] > hi[2] - lo[2], step = 1.5, deckCol = I_.deck || '#6e5e4c', wallCol = I_.wall || '#7a7670';
+        // the hull's span (bottom, top) under a point, from the hull faces a vertical line crosses
+        const span = (x, z) => {
+          let b = 1e9, t = -1e9;
+          for (const [A, Bq, C] of hullTris) {
+            const d = (Bq[0] - A[0]) * (C[2] - A[2]) - (C[0] - A[0]) * (Bq[2] - A[2]);
+            if (Math.abs(d) < 1e-9) continue;
+            const u = ((x - A[0]) * (C[2] - A[2]) - (C[0] - A[0]) * (z - A[2])) / d, w = ((Bq[0] - A[0]) * (z - A[2]) - (x - A[0]) * (Bq[2] - A[2])) / d;
+            if (u < -1e-6 || w < -1e-6 || u + w > 1 + 1e-6) continue;
+            const y = A[1] + u * (Bq[1] - A[1]) + w * (C[1] - A[1]);
+            b = Math.min(b, y); t = Math.max(t, y);
+          }
+          return t - b > 1 ? [b, t] : null;
+        };
+        const S = new Map();
+        for (let x = lo[0]; x < hi[0]; x += step) for (let z = lo[2]; z < hi[2]; z += step) S.set(x + ',' + z, span(x + step / 2, z + step / 2));
+        for (const [k, sp] of S) {
+          if (!sp) continue;
+          const [x, z] = k.split(',').map(Number);
+          // decks: tiles every 2.8 m up from the bottom, both sides
+          for (let y = sp[0] + 1.2; y < sp[1] - 1.0; y += 2.8) {
+            const q = [[x, y, z], [x + step, y, z], [x + step, y, z + step], [x, y, z + step]];
+            put(ins, deckCol, q, [0, 1, 0]); put(ins, inner, q.map((p) => [p[0], p[1] - 0.05, p[2]]), [0, -1, 0]);
+          }
+          // bulkheads every 12 m along the hull, across it
+          const a0 = alongX ? x : z, fromStart = a0 - (alongX ? lo[0] : lo[2]);
+          if (Math.floor(fromStart / 12) !== Math.floor((fromStart + step) / 12)) {
+            const at = (alongX ? lo[0] : lo[2]) + Math.floor((fromStart + step) / 12) * 12;
+            const q = alongX ? [[at, sp[0] + 0.1, z], [at, sp[0] + 0.1, z + step], [at, sp[1] - 0.1, z + step], [at, sp[1] - 0.1, z]]
+              : [[x, sp[0] + 0.1, at], [x + step, sp[0] + 0.1, at], [x + step, sp[1] - 0.1, at], [x, sp[1] - 0.1, at]];
+            const nn = alongX ? [1, 0, 0] : [0, 0, 1];
+            put(ins, wallCol, q, nn); put(ins, wallCol, q, nn.map((c) => -c));
+          }
+        }
+      }
       // each cell's tint is the model's own colour factor, as its material draws it
       for (const tris of cells.values()) B.group(() => { for (const t of tris) { B.color(new THREE.Color(t.col).getHex()); B.poly(t.key, t.pts, t.n); } });
       return B;

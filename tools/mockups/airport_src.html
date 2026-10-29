@@ -472,7 +472,7 @@ function buildProposed(g, labels) {
   labels.push(["Cargo terminal", [810, 370], 17]);
   // De-icing pad: a ring to stop on and two spray booms
   slab(g, rect(935, 200, 1015, 280), -0.5, TOP.apron, M.apron); ring(g, [975, 240], 30, 0.6, PAINT, M.orange);
-  for (const s of [-1, 1]) put("Spray boom", B => S.sprayBoom(B), 975 + s * 34, 240, s < 0 ? 2 : 0);   // each arm over the pad
+  for (const s of [-1, 1]) put("Spray boom", B => S.sprayBoom(B), 975 + s * 34, 240, s < 0 ? 2 : 0, 0, { maxSide: 40 });   // each arm over the pad
   taxi(g, [975, TAXI_Z], [975, 200], 30); labels.push(["De-icing pad", [975, 240], 16]);
   // Fuel farm: four tanks in a bund
   outlineRect(g, rect(960, 330, 1090, 440), 1.2, 0.8, M.wall);
