@@ -91,6 +91,8 @@ pub struct GameData {
     pub ground_marks: ground_marks::GroundMarksConfig,
     /// `data/fx/battle_fx.ron`.
     pub battle_fx: battle_fx::BattleFxConfig,
+    /// The melee moves and gun recoil, `data/combat/melee_moves.ron` (close-combat 2.4, 2.5).
+    pub melee_moves: mech::MeleeMoves,
     /// `data/world/sun_flare.ron`.
     pub sun: sun_flare::SunLook,
     /// `data/world/units.ron`.
@@ -220,6 +222,7 @@ impl GameData {
             grass,
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
             battle_fx: data::load_ron(&root.join("fx/battle_fx.ron"))?,
+            melee_moves: data::load_ron(&root.join("combat/melee_moves.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units,
             air_traffic: data::load_ron(&root.join("world/air_traffic.ron"))?,
