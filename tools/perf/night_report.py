@@ -2,7 +2,7 @@
 the frames of city-stand's look round from the cockpit (its beat 4), their p50, p95 and p99, the share over 16.7 ms,
 and the GPU's own time from the run's `perf:` lines in the same beat's time. A measurement instrument.
 
-    python tools/perf/night_report.py [output/perf/night]
+    python tools/perf/night_report.py [dir] [look beat]   (city-stand's look is beat 4, suburb-stand's 6)
 """
 
 import csv
@@ -30,10 +30,11 @@ def gpu_ms(log: Path):
 
 def main():
     d = Path(sys.argv[1] if len(sys.argv) > 1 else "output/perf/night")
+    look = sys.argv[2] if len(sys.argv) > 2 else LOOK_BEAT
     rows = []
     for f in sorted(d.glob("*.csv")):
         with f.open() as fh:
-            ms = [float(r["frame_ms"]) for r in csv.DictReader(fh) if r["beat"] == LOOK_BEAT]
+            ms = [float(r["frame_ms"]) for r in csv.DictReader(fh) if r["beat"] == look]
         if not ms:
             continue
         log = f.with_suffix(".log")

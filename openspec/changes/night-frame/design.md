@@ -43,13 +43,15 @@
 
 **The owner's own run** (bin/plain17.exe, free roam continued from a save the scripted runs had written, then the
 clock to 00:00): 83 pipelines compiled after `GAME_READY`, 35 of them in its first second (the 2.1 s first frame; the
-warm-up misses them, day or night) and 16 in the 30 s after the clock went to midnight (night-only variants: the warm-up
-runs in daylight).
+warm-up misses them, day or night) and 16 in the 30 s after the clock went to midnight. Those 16 are not night
+variants: 14 particle pipelines (hanabi init, update and render), the rocket plume and a forward decal, compiled at the
+first shots after the switch. They are the effects warm-up's misses (`fx::warm_up_streams`), day or night.
 
 ## 4. Next
 
-- Warm the night's pipelines too: the warm-up renders its copies once by day and once by night (moon shadows, lit
-  windows, lamp lights), and the 35 first-frame pipelines are found and added.
+- Warm the pipelines the warm-up misses: the 35 of the first frame and the effects' (every recipe's particle
+  pipelines, the plume, the decals), so the first second and the first shots do not stall. Not a night cost, but in
+  the owner's night run.
 - Measure where the owner was: the run they continued was most likely a suburb (`suburb-house`), which is already the
   slower scene; the same noon and midnight variants there, three rounds, with the sitting's drift checked by a noon
   run first and last.

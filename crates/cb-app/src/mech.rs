@@ -202,13 +202,18 @@ const UNSEEN_LAYER: usize = 30;
 /// torso, buat arms, legs and stuff shouldnt be hidden from cockpit view").
 const HULL_BONES: [&str; 3] = ["torso_twist", "torso", "cockpit"];
 
-/// Whether a mesh is hull: the nearest contract bone above it is one of `HULL_BONES`. `bone_of` names an entity's
-/// contract bone, if it is one; `parent` steps up the hierarchy.
-fn is_hull(mesh: Entity, bone_of: impl Fn(Entity) -> Option<&'static str>, parent: impl Fn(Entity) -> Option<Entity>) -> bool {
+/// A joint whose name starts so carries a weapon (a cannon over a shoulder, built on the cockpit's own bone): what hangs
+/// under it is never hull (`tools/blender/build_mechs.py`, the Sapper's `GUN_cannon_R`).
+const WEAPON_JOINT: &str = "GUN_";
+
+/// Whether a mesh is hull: the nearest contract bone above it is one of `HULL_BONES`, with no weapon joint
+/// (`WEAPON_JOINT`) between. `bone_of` names an entity's contract bone or weapon joint, if it is one; `parent` steps up
+/// the hierarchy.
+fn is_hull<'a>(mesh: Entity, bone_of: impl Fn(Entity) -> Option<&'a str>, parent: impl Fn(Entity) -> Option<Entity>) -> bool {
     let mut at = parent(mesh);
     while let Some(e) = at {
         if let Some(b) = bone_of(e) {
-            return HULL_BONES.contains(&b);
+            return !b.starts_with(WEAPON_JOINT) && HULL_BONES.contains(&b);
         }
         at = parent(e);
     }
@@ -2032,7 +2037,7 @@ pub(crate) fn cockpit_layer(
     data: Res<Data>,
     mech: Query<(Entity, &MechSim, Option<&Interior>, Option<&MechRig>), With<Piloted>>,
     children: Query<&Children>,
-    parents: Query<&ChildOf>,
+    (parents, names): (Query<&ChildOf>, Query<&Name>),
     meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, (With<Mesh3d>, Without<OwnLayers>)>,
 ) {
     use bevy::camera::visibility::RenderLayers;
@@ -2045,6 +2050,11 @@ pub(crate) fn cockpit_layer(
     let cabin = RenderLayers::layer(crate::cockpit_space::cabin_layer());
     let unseen = RenderLayers::layer(UNSEEN_LAYER);
     let bone_of = |e: Entity| {
+        if let Ok(n) = names.get(e)
+            && n.as_str().starts_with(WEAPON_JOINT)
+        {
+            return Some(n.as_str());
+        }
         let rig = rig?;
         (0..BONES.len()).find(|&i| rig.bone_entity(i) == e).map(|i| BONES[i].name)
     };
@@ -2281,5 +2291,17 @@ mod tests {
         assert!(!is_hull(e(11), bone_of, parent), "the shoulder gun");
         assert!(!is_hull(e(12), bone_of, parent), "the hips");
         assert!(!is_hull(e(13), bone_of, parent), "a part on the root");
+        // A cannon over the shoulder built on the cockpit's bone, under its own weapon joint 30: mesh 14.
+        let bone_of = |x: Entity| {
+            if x == e(30) {
+                Some("GUN_cannon_R")
+            } else {
+                bones.iter().find(|(i, _)| e(*i) == x).map(|(_, n)| *n)
+            }
+        };
+        let up = [(1, 0), (2, 1), (3, 2), (4, 3), (30, 4), (14, 30), (20, 4), (10, 20)];
+        let parent = |x: Entity| up.iter().find(|(c, _)| e(*c) == x).map(|(_, p)| e(*p));
+        assert!(!is_hull(e(14), bone_of, parent), "the shoulder cannon on the cockpit's bone");
+        assert!(is_hull(e(10), bone_of, parent), "the plating beside it still");
     }
 }

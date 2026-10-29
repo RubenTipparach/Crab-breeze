@@ -1,0 +1,23 @@
+// The suburb held still, for switching parts off one at a time (openspec change `night-frame`; owner, 2026-10-29:
+// "Night time was really slow"): free roam from the capital, board, fly at 150 m to the nearest houses more than 300 m
+// off, land, and look round from the cockpit for 40 s (beat 6). Nothing is shot, so every run sees the same scene.
+//
+//   CB_UNCAPPED=1 CB_HOUR=0 ./target/release/crab-breeze --playtest suburb-stand > output/perf/suburb-stand.log 2>&1
+(
+    name: "suburb-stand",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                WalkToMech(6.0),
+                Board,
+                Wait(2.0),
+                JetToNearest("house", 150.0),
+                Wait(10.0),
+                LookAround(40.0),
+            ],
+        ),
+    ],
+)
