@@ -20,7 +20,7 @@ The rules:
 
 ## 2. Strikes
 
-`Strike { arm, t_s }` runs three phases: wind-up 0.35 s, hit 0.15 s, recovery 0.4 s.
+`Strike { arm, t_s }` runs three phases: wind-up 0.45 s, hit 0.1 s, recovery 0.4 s (the lab's jab, which the game plays: section 3a).
 - During the hit, the arm sweeps a capsule from its shoulder to `reach_m` (9 m) ahead of the chest, at
   the torso's twist and pitch.
 - Anything the capsule meets takes one hit:
@@ -125,6 +125,16 @@ The bones' axes, read off all eight rigs: every contract bone's x axis lies alon
 negative turn about x swings a bone's far end forward and up (the shoulder reaches the arm out ahead,
 the forearm lifts the gun), a positive turn about y turns toward the mech's left, and a shoulder lifts
 its arm out to the side with a negative z turn on the right and a positive one on the left.
+
+**In the game (tasks 2.4, 2.5):**
+- `tools/mockups/export_melee_moves.mjs` writes the lab's moves to `data/combat/melee_moves.ron`, and
+  `cb_core::mech::melee_moves` plays them as the page does.
+- Z and V throw the jab. The strike clock (`melee.windup_s` 0.45, `hit_s` 0.1, `recover_s` 0.4) lands and ends
+  with the shipped jab, and a test holds the two together.
+- Every shot from an arm's gun plays `recoil_L` or `recoil_R` on that arm, over the aimed pose.
+- The other moves are in the data but not on keys yet (open question G20).
+- The lab's leg kick in the knockdown and the stomp kick's leg turns are not drawn. The game solves each leg bone
+  on its own, so a turn on one thigh would part it from its shin.
 
 **Found while designing:** the upper arm's mesh hangs on the `shoulder_*` bone, and `upper_arm_*` carries
 no mesh (measured on the Foreman, the Sapper and the Mule). `cb_core::mech::arm_rotations` turns

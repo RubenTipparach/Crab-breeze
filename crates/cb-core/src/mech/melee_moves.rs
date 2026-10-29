@@ -209,6 +209,22 @@ mod tests {
     }
 
     #[test]
+    fn the_strike_clock_lands_and_ends_when_the_shipped_jab_does() {
+        let m = shipped();
+        let cfg = crate::mech::MeleeConfig::default();
+        for id in ["jab_L", "jab_R"] {
+            let jab = m.get(id).unwrap();
+            assert!(
+                (jab.hit_s - cfg.windup_s).abs() < 1e-4,
+                "{id} lands at {} not {}",
+                jab.hit_s,
+                cfg.windup_s
+            );
+            assert!((jab.end_s() - cfg.strike_s()).abs() < 1e-4, "{id} ends at {}", jab.end_s());
+        }
+    }
+
+    #[test]
     fn a_key_naming_a_bone_outside_the_contract_is_refused() {
         let mut m = shipped();
         let jab = m.moves.get_mut("jab_R").unwrap();
