@@ -166,10 +166,10 @@ Earlier design (replaced):
 | --- | --- | --- | --- |
 | G17 | What the triggers do in close combat | Arm strikes on the mouse buttons, guns hold | decided (survey G17) |
 | G18 | Melee range | 80 m (owner, 2026-10-25: "range should be 80m instead"; was 30 m) | decided |
-| G20 | Which moves the game plays, and on which keys | The jab on Z and V as now; the others once the owner has shaped them in the Melee lab | provisional |
-| G21 | Does every gun shot kick the arm | Yes: each shot plays the recoil move on its arm, layered over the gait and any strike | provisional (owner, 2026-10-29: "shooting guns should cause mech arm to recoil") |
+| G20 | Which moves the game plays, and on which keys | The jab on Z and V as now; the others once the owner has shaped them in the Melee lab | decided (owner, 2026-10-29: "all looks good, implement", then "approve of that fight") |
+| G21 | Does every gun shot kick the arm | Yes: each shot plays the recoil move on its arm, layered over the gait and any strike | decided (owner, 2026-10-29: "shooting guns should cause mech arm to recoil", "approve of that fight") |
 | S1 | Blows to break a stance | Light 2, mid 3, heavy 4, per mech in data | decided (owner, 2026-10-29: "2,3,4 light mech, mid, heavy") |
 | S2 | Do gun hits wear the stance | No | decided (owner: "guns do not") |
 | S3 | Can the player's mech be knocked down | Yes, by the same rule, seen from the seat | decided (owner: "correct") |
-| S4 | Which class each mech is | Light: Picket, Ironhorse; mid: Harrow, Roustabout, Driller; heavy: Foreman, Sapper, Mule | provisional |
+| S4 | Which class each mech is | Light: Picket, Ironhorse; mid: Harrow, Roustabout, Driller; heavy: Foreman, Sapper, Mule | decided (owner, 2026-10-29: "all looks good, implement", then "approve of that fight") |
 | G19 | What a strike does | Same damage rules as a shot (300 mm, 60), breaks cells and trees, and knocks an enemy mech down for about 3 s | decided (survey G19) |

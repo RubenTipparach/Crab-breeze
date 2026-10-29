@@ -72,7 +72,7 @@ The order:
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| A1 | How fast the arms slew | Shoulder 1.6 rad/s (92 deg/s), elbow 2.4 rad/s, faster than the torso's 70 deg/s so the guns lead it | provisional |
-| A2 | How far the arms reach without the torso | Shoulder yaw -0.45 to 0.6 rad (about 26 deg out, 34 deg in) | provisional |
-| A3 | Do AI mechs aim their arms too | Yes, at their own aim point: the same solve | provisional |
-| A4 | Are the limits and slews per mech | Yes, in `arm_aim:` in `data/mechs/<id>.ron`, defaulting to the table above | provisional |
+| A1 | How fast the arms slew | Shoulder 1.6 rad/s (92 deg/s), elbow 2.4 rad/s, faster than the torso's 70 deg/s so the guns lead it | decided (owner, 2026-10-29: "all looks good, implement", then "approve of that fight") |
+| A2 | How far the arms reach without the torso | Shoulder yaw -0.45 to 0.6 rad (about 26 deg out, 34 deg in) | decided (owner, 2026-10-29: "all looks good, implement", then "approve of that fight") |
+| A3 | Do AI mechs aim their arms too | Yes, at their own aim point: the same solve | decided (owner, 2026-10-29: "all looks good, implement", then "approve of that fight") |
+| A4 | Are the limits and slews per mech | Yes, in `arm_aim:` in `data/mechs/<id>.ron`, defaulting to the table above | decided (owner, 2026-10-29: "all looks good, implement", then "approve of that fight") |
