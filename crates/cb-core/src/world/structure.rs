@@ -147,6 +147,9 @@ pub struct StructureConfig {
     pub house_collapse_chunk_m: f32,
     /// A house's piece whose volume is under this turns to dust rather than a chunk, cubic metres.
     pub house_dust_m3: f32,
+    /// A damaged building's windows stay lit at night until this share of its elements has fallen
+    /// (owner, 2026-10-29: "damaged building should stay lit until the player destroys about 30% of the building").
+    pub lights_out_share: f32,
 }
 
 impl Default for StructureConfig {
@@ -178,6 +181,7 @@ impl Default for StructureConfig {
             house_chunk_m: 1.5,
             house_collapse_chunk_m: 2.2,
             house_dust_m3: 0.0,
+            lights_out_share: 0.3,
         }
     }
 }
@@ -199,6 +203,7 @@ impl crate::data::Validate for StructureConfig {
         }
         within("structure.rubble_fines", self.rubble_fines, 0.0, 1.0)?;
         within("structure.house_dust_m3", self.house_dust_m3, 0.0, 10.0)?;
+        within("structure.lights_out_share", self.lights_out_share, 0.0, 1.0)?;
         for (name, v) in [
             ("structure.column_hp_mj", self.column_hp_mj),
             ("structure.slab_hp_mj", self.slab_hp_mj),
@@ -630,6 +635,13 @@ impl Frame {
         self.elements.iter().filter(|e| e.alive).count()
     }
 
+    /// Whether the building's windows still light at night: until `lights_out_share` of its elements have fallen
+    /// (`StructureConfig::lights_out_share`). A frame with no elements is lit.
+    pub fn lit(&self, lights_out_share: f32) -> bool {
+        let n = self.elements.len();
+        n == 0 || ((n - self.standing()) as f32) < lights_out_share * n as f32
+    }
+
     /// One pass: connectivity, islands (removed and returned), load line, load pass, stress. In a
     /// design pass nothing is removed and capacities are not checked.
     fn solve(&mut self, cfg: &StructureConfig, design: bool) -> (Vec<u32>, Vec<u32>) {
@@ -777,6 +789,27 @@ fn held_share(els: &[Element], id: usize, cfg: &StructureConfig) -> f32 {
 
 #[cfg(test)]
 mod tests {
+
+    /// A hit building keeps its windows lit until 30% of it has fallen (owner, 2026-10-29).
+    #[test]
+    fn a_building_goes_dark_once_a_share_of_it_has_fallen() {
+        let mut f = block();
+        let n = f.elements.len();
+        assert!(f.lit(0.3), "whole");
+        let fifth = n / 5;
+        for e in &mut f.elements[..fifth] {
+            e.alive = false;
+        }
+        assert!(f.lit(0.3), "a fifth gone: still lit");
+        for e in &mut f.elements[..(n * 3).div_ceil(10)] {
+            e.alive = false;
+        }
+        assert!(!f.lit(0.3), "three tenths gone: dark");
+        assert!(f.lit(1.0), "a share of 1 keeps it lit while anything stands");
+        f.elements.clear();
+        assert!(f.lit(0.3), "no elements");
+    }
+
     use super::*;
 
     /// A 6 x 6 bay, 12-storey block of 6 m cells and 3.5 m storeys.

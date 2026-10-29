@@ -86,6 +86,7 @@ pub fn begin_run(world: &mut World, mode: &str, mech: &str) -> Result<(), String
         free_roam: mode.starts_with("free"),
         restore: mode.ends_with("continue"),
         mech: mech.to_string(),
+        write: true,
     });
     Ok(())
 }

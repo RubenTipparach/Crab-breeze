@@ -14,7 +14,12 @@
   - colour from white (1.0, 0.95, 0.85) at the nozzle through yellow (1.0, 0.75, 0.3) to orange (1.0, 0.35, 0.08), emissive 12 to 2 times;
   - a jet's plume adds shock diamonds, `0.5 + 0.5 cos(2 pi x / 0.18)` along its first 40 %;
   - the far end fades out.
-- Each rocket's plume is 4 m long and 0.8 m across. A jet's is 3 to 7 m, from its throttle, and 1.2 m across. Per-instance length and thrust come through the transform's scale and a per-instance colour, so all plumes share one material and batch.
+- Each rocket's plume is 4.5 m long and 0.45 m across, its core at `plume_glow` (0.35) of the look's brightness,
+  its motor light 50 000 lm and its launch light 2.5e6 lm out to 30 m (owner, 2026-10-29: "missile.jmpact was way
+  too bright. The radius should be like 1/2 that and brightness toned way down..same with missile.plume": half the
+  width, about a third of the glow, a quarter of the light). The blasts a missile makes (`explosion_*`) went the same
+  way: fireballs and shock rings half the radius, their light 1e8 lm out to 150 m (it was 4e8 lm to 300 m).
+- (Before 2026-10-29: 4 m long and 0.8 m across.) A jet's is 3 to 7 m, from its throttle, and 1.2 m across. Per-instance length and thrust come through the transform's scale and a per-instance colour, so all plumes share one material and batch.
 
 ## 3. The trail
 

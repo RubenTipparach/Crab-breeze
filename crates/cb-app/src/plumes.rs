@@ -121,11 +121,18 @@ pub fn flame_mesh(rings: usize, sides: usize) -> Mesh {
         .with_inserted_indices(Indices::U32(idx))
 }
 
-fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<PlumeMaterial>>) {
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<PlumeMaterial>>,
+    data: Res<crate::sim::Data>,
+) {
     let rgb = |r: f32, g: f32, b: f32, w: f32| Vec4::new(r, g, b, w);
+    // The rocket's overall brightness scaled by `fx.plume_glow` (data); its colours and noise stay.
+    let glow = data.0.fx.plume_glow;
     let rocket = materials.add(PlumeMaterial {
         look: PlumeUniform {
-            core: rgb(1.0, 0.95, 0.85, 14.0),
+            core: rgb(1.0, 0.95, 0.85, 14.0 * glow),
             mid: rgb(1.0, 0.72, 0.3, 3.0),
             edge: rgb(1.0, 0.32, 0.07, 9.0),
             shock: rgb(0.0, 0.0, 0.4, 0.0),

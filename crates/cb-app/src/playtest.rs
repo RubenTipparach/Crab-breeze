@@ -734,7 +734,7 @@ fn play(
             done = !s.menu.is_open() && in_beat > 0.5;
         }
         Beat::Board => {
-            act = board(p, s.access.0.as_ref());
+            act = board(p, s.access.0.as_ref(), &s.data.0.pilot);
             if let Some(a) = s.access.0.as_ref() {
                 dist = Some(p.distance_to_stair(a) + if p.mode == PilotMode::OnFoot { 100.0 } else { 0.0 });
             }

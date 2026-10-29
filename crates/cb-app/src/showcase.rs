@@ -132,12 +132,12 @@ pub fn walk_to(pilot: &PilotState, target: Vec3, pitch_rad: f32) -> Actions {
 }
 
 /// The boarding beat every take shares: walk to the stair, press Use once, look up as the mech
-/// kneels and opens, and be carried into the seat.
-pub(crate) fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>) -> Actions {
+/// kneels and opens, and be carried into the seat. Use is pressed when the game would take it (`can_board`, within
+/// `board_reach_m` of the rope's foot), the same rule a player meets.
+pub(crate) fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>, cfg: &cb_core::pilot::PilotConfig) -> Actions {
     let Some(a) = access else { return Actions::default() };
     match p.mode {
-        // Inside the 2 m reach of the rope's foot (`board_reach_m`), with room to spare.
-        PilotMode::OnFoot if p.waiting.is_none() && p.distance_to_stair(a) < 1.5 => Actions {
+        PilotMode::OnFoot if p.waiting.is_none() && p.can_board(a, cfg) => Actions {
             use_pressed: true,
             ..default()
         },
@@ -311,7 +311,7 @@ fn play(
         }
         // Walk to the stair, Use once, look up as the mech sits and opens, climb in.
         2 => {
-            act = board(p, access.0.as_ref());
+            act = board(p, access.0.as_ref(), &data.0.pilot);
             next = p.mode == PilotMode::Seated;
         }
         // The trail take. Its beats end on what the mech has done, not on the clock: the showcase
@@ -584,7 +584,7 @@ fn play_fight(
             next = t > 3.5;
         }
         2 => {
-            act = board(p, access.0.as_ref());
+            act = board(p, access.0.as_ref(), &data.0.pilot);
             next = p.mode == PilotMode::Seated;
         }
         // Stand and walk out toward them.
@@ -875,7 +875,7 @@ fn play_defence(
             next = t > 3.5;
         }
         2 => {
-            act = board(p, access.0.as_ref());
+            act = board(p, access.0.as_ref(), &data.0.pilot);
             next = p.mode == PilotMode::Seated;
         }
         3 => {

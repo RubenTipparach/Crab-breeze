@@ -7,7 +7,7 @@
 import bevy_pbr::render::forward_io::{Vertex, VertexOutput, decompress_vertex};
 import bevy_pbr::render::mesh_functions;
 import bevy_pbr::render::view_transformations::position_world_to_clip;
-import super::building_slot::{fallen, GONE};
+import super::building_slot::{dark, fallen, GONE};
 
 @vertex
 fn vertex(vertex_in: Vertex) -> VertexOutput {
@@ -33,10 +33,10 @@ fn vertex(vertex_in: Vertex) -> VertexOutput {
     if fallen(vertex.color) {
         out.position = GONE;
     }
-    // The alpha (the slot) goes back to 1, or to 2 for a vertex of a damaged building's frame (its
-    // slots are its own, intact buildings carry 0): the glass shader turns a damaged building's
+    // The alpha (the slot) goes back to 1, or to 2 for a vertex of a building whose windows have gone
+    // out (a quarter-wrecked frame keeps them: `structure.lights_out_share`): the glass shader turns its
     // windows out by it (day-night-cycle) and puts it back to 1.
-    out.color = vec4<f32>(vertex.color.rgb, select(1.0, 2.0, round(vertex.color.a) > 0.5));
+    out.color = vec4<f32>(vertex.color.rgb, select(1.0, 2.0, dark(vertex.color)));
 }
 
 @if(VERTEX_OUTPUT_INSTANCE_INDEX)

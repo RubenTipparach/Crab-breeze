@@ -15,13 +15,15 @@
     tracer_glow: 12.0,
     // A rocket lays a smoke puff every metre (openspec change `rocket-plumes`: a dense trail, not a dotted line).
     trail_spacing_m: 1.0,
-    // Exhaust plumes: a rocket's flame, and a mech's jet's while it fires (length, width), metres.
+    // Exhaust plumes: a rocket's flame, and a mech's jet's while it fires (length, width), metres. The rocket's is half
+    // as wide as it was and glows 0.35 as bright, with its motor light a quarter (owner, 2026-10-29: "missile.jmpact was way too bright. The radius should be like 1/2 that and brightness toned way down..same with missile.plume").
     plume_length_m: 4.5,
-    plume_width_m: 0.9,
+    plume_width_m: 0.45,
+    plume_glow: 0.35,
     jet_plume_m: (6.0, 1.6),
     // Jets fired within this of the ground blow a ring of dust.
     jet_wash_m: 15.0,
-    motor_lumens: 200000.0,
+    motor_lumens: 50000.0,
     max_particles: 5000,
     // 8, not 24: each point light is clustered on the CPU every frame; 24 cost about 1 ms of a
     // combat frame (median 10.2 ms with 24, 9.1 ms with 8, 2026-10-24).
@@ -102,7 +104,7 @@
             Burst(kind: Smoke, count: 12, speed_m_s: 6.0, spread: 0.5, size_m: 2.0, life_s: 2.5, offset_m: 3.0, along_dir: true),
         ],
         "muzzle_rocket": [
-            Light(lumens: 1.0e7, range_m: 60.0, life_s: 0.2, colour: (1.0, 0.8, 0.55)),
+            Light(lumens: 2.5e6, range_m: 30.0, life_s: 0.2, colour: (1.0, 0.8, 0.55)),
             Burst(kind: Flame, count: 12, speed_m_s: 18.0, spread: 0.5, size_m: 1.2, life_s: 0.2, offset_m: -1.0, along_dir: true),
             Burst(kind: Smoke, count: 14, speed_m_s: 6.0, spread: 0.9, size_m: 2.2, life_s: 4.0, offset_m: -2.0, along_dir: true),
         ],
@@ -132,11 +134,11 @@
             Burst(kind: Spray, count: 15, speed_m_s: 8.0, spread: 0.3, size_m: 0.8, life_s: 1.2),
             Ripple(radius_m: 4.0),
         ],
-        // Explosions, at 1 MJ.
+        // Explosions, at 1 MJ. Half the radius they had and a quarter of the light (owner, 2026-10-29: "missile.jmpact was way too bright. The radius should be like 1/2 that and brightness toned way down..same with missile.plume").
         "explosion_ground": [
-            Light(lumens: 4.0e8, range_m: 300.0, life_s: 0.6, colour: (1.0, 0.7, 0.4), lift_m: 3.0),
-            Fireball(radius_m: 4.5, grow_s: 0.15, life_s: 0.9),
-            Shock(radius_m: 22.0, life_s: 0.35),
+            Light(lumens: 1.0e8, range_m: 150.0, life_s: 0.6, colour: (1.0, 0.7, 0.4), lift_m: 3.0),
+            Fireball(radius_m: 2.25, grow_s: 0.15, life_s: 0.9),
+            Shock(radius_m: 11.0, life_s: 0.35),
             Burst(kind: Dirt, count: 160, speed_m_s: 20.0, spread: 0.6, size_m: 0.5, life_s: 3.0),
             Burst(kind: Dust, count: 24, speed_m_s: 6.0, spread: 0.9, size_m: 4.0, life_s: 4.0),
             Burst(kind: Debris, count: 24, speed_m_s: 25.0, spread: 0.9, size_m: 0.6, life_s: 2.5),
@@ -146,17 +148,17 @@
             Burst(kind: Smoke, count: 30, speed_m_s: 3.0, spread: 0.35, size_m: 5.0, life_s: 20.0),
         ],
         "explosion_water": [
-            Light(lumens: 4.0e8, range_m: 300.0, life_s: 0.6, colour: (1.0, 0.7, 0.4), lift_m: 3.0),
-            Fireball(radius_m: 3.0, grow_s: 0.12, life_s: 0.5),
+            Light(lumens: 1.0e8, range_m: 150.0, life_s: 0.6, colour: (1.0, 0.7, 0.4), lift_m: 3.0),
+            Fireball(radius_m: 1.5, grow_s: 0.12, life_s: 0.5),
             Burst(kind: Spray, count: 220, speed_m_s: 22.0, spread: 0.35, size_m: 1.6, life_s: 2.5),
             Burst(kind: Steam, count: 40, speed_m_s: 4.0, spread: 0.8, size_m: 4.0, life_s: 4.0),
             Burst(kind: Spark, count: 40, speed_m_s: 20.0, spread: 0.9, size_m: 0.25, life_s: 1.0),
             Ripple(radius_m: 13.0),
         ],
         "explosion_air": [
-            Light(lumens: 4.0e8, range_m: 300.0, life_s: 0.6, colour: (1.0, 0.7, 0.4)),
-            Fireball(radius_m: 5.0, grow_s: 0.15, life_s: 1.0),
-            Shock(radius_m: 22.0, life_s: 0.35),
+            Light(lumens: 1.0e8, range_m: 150.0, life_s: 0.6, colour: (1.0, 0.7, 0.4)),
+            Fireball(radius_m: 2.5, grow_s: 0.15, life_s: 1.0),
+            Shock(radius_m: 11.0, life_s: 0.35),
             Burst(kind: Debris, count: 24, speed_m_s: 25.0, spread: 1.0, size_m: 0.6, life_s: 2.5),
             Burst(kind: Spark, count: 80, speed_m_s: 26.0, spread: 1.0, size_m: 0.25, life_s: 1.2),
             Burst(kind: Fire, count: 50, speed_m_s: 9.0, spread: 1.0, size_m: 2.2, life_s: 0.7),

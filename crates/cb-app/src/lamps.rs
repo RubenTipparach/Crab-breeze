@@ -298,7 +298,9 @@ fn light_lamps(
     {
         m.lamp = want;
     }
-    let near = if on > 0.0 {
+    // `CB_NO_LAMPS=1` gives no lamp a real light (an instrument, to measure the night: openspec change
+    // `night-frame`); the heads still glow.
+    let near = if on > 0.0 && !crate::cli::switched_off("CB_NO_LAMPS") {
         nearest(&lamps, eye.translation, cfg.real_m, cfg.real_lamps as usize)
     } else {
         Vec::new()

@@ -217,6 +217,8 @@ pub struct FxConfig {
     pub plume_length_m: f32,
     /// See `plume_length_m`.
     pub plume_width_m: f32,
+    /// How bright a rocket's plume glows, a share of its look's own (1: as drawn in `plumes.rs`).
+    pub plume_glow: f32,
     /// A mech's jet plume's length and width while it fires, metres.
     pub jet_plume_m: [f32; 2],
     /// Jets fired this close above the ground blow dust (`jet_wash`), metres.
@@ -555,6 +557,7 @@ impl Default for FxConfig {
             motor_lumens: 2.0e5,
             plume_length_m: 4.5,
             plume_width_m: 0.9,
+            plume_glow: 1.0,
             jet_plume_m: [6.0, 1.6],
             jet_wash_m: 15.0,
             max_particles: 5000,
@@ -576,6 +579,7 @@ impl Validate for FxConfig {
         positive("tracer_s", self.tracer_s)?;
         positive("plume_length_m", self.plume_length_m)?;
         positive("plume_width_m", self.plume_width_m)?;
+        within("plume_glow", self.plume_glow, 0.0, 10.0)?;
         positive("jet_plume_m[0]", self.jet_plume_m[0])?;
         positive("jet_plume_m[1]", self.jet_plume_m[1])?;
         positive("jet_wash_m", self.jet_wash_m)?;

@@ -933,7 +933,7 @@ fn redraw_buildings(
         let site = Site::of(&plan.0, id, c.n, c.origin, c.size);
         let base = states.base(id, f.elements.len(), &mut buffers);
         shared.follow(&states, &mut arrays, &mut glasses);
-        states.write(id, &standing_words(f));
+        states.write(id, &standing_words(f, live.structures.cfg.lights_out_share));
         let tone = looks.tone_tints[id as usize % looks.tone_tints.len()];
         let fb = match framed.0.entry(id) {
             std::collections::hash_map::Entry::Occupied(o) => o.into_mut(),
@@ -1174,7 +1174,13 @@ fn light_windows(
     mut arrays: ResMut<Assets<ArrayMaterial>>,
 ) {
     let w = &data.0.day_night.windows;
-    let want = Vec4::new(w.lit_share(light.0.hour), w.cd_m2, data.0.world.storey_height_m, w.column_m);
+    // `CB_NO_WINDOW_LIGHTS=1` lights no window (an instrument, to measure the night: openspec change `night-frame`).
+    let share = if crate::cli::switched_off("CB_NO_WINDOW_LIGHTS") {
+        0.0
+    } else {
+        w.lit_share(light.0.hour)
+    };
+    let want = Vec4::new(share, w.cd_m2, data.0.world.storey_height_m, w.column_m);
     if let Some(handle) = shared.glass.as_ref()
         && glasses.get(handle).is_some_and(|m| m.extension.windows != want)
         && let Some(mut m) = glasses.get_mut(handle)

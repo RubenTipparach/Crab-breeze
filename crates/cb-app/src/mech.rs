@@ -1024,17 +1024,31 @@ fn publish_access(
     roots: Query<(&MechSim, &MechRig, &MechSpec), With<Piloted>>,
     globals: Query<&GlobalTransform>,
     data: Res<Data>,
+    (plan, live, interiors): (Res<Plan>, Res<Live>, Res<crate::walk_in::InteriorColliders>),
     mut out: ResMut<MechAccessNow>,
 ) {
+    // Where the pilot can stand: the same scene they walk in (`pilot::step_pilot`).
+    let scene = Scene {
+        plan: &plan,
+        dug: &live.dug,
+        trees: Some(&live.forest),
+        structures: Some(&live.structures),
+        platforms: &live.platforms,
+        interiors: Some(&interiors.0),
+    };
     out.0 = roots.iter().next().and_then(|(sim, rig, spec)| {
         let at = |n: &str| globals.get(rig.sockets[n]).ok().map(|g| g.translation());
         let hatch = at("HATCH_entry")?;
+        // The boarding rope's foot, under the crane's tip (`rope`), moved out of anything solid to where a pilot can
+        // stand: Use reaches only 2 m from it (owner, 2026-10-29), and a mech parked facing a wall dropped its rope
+        // against the wall, 1.98 m from the nearest place to stand.
+        let foot = rope_foot(sim.curr.pos, hatch, data.0.boarding.crane_reach_m);
+        let free = scene.push_out_at(Vec2::new(foot.x, foot.z), data.0.pilot.body_radius_m, foot.y);
         Some(MechAccess {
-            // The boarding rope's foot, under the crane's tip (`rope`). The kneel stops as far as the
-            // legs can go, so the hatch stays high and the pilot is winched up (owner, 2026-10-24:
-            // "there should be a rope dangling down for me the player to climb up", "extend a crane
-            // out then lower the rope").
-            ladder_base: rope_foot(sim.curr.pos, hatch, data.0.boarding.crane_reach_m),
+            // The kneel stops as far as the legs can go, so the hatch stays high and the pilot is winched up (owner,
+            // 2026-10-24: "there should be a rope dangling down for me the player to climb up", "extend a crane out
+            // then lower the rope").
+            ladder_base: Vec3::new(free.x, foot.y, free.y),
             hatch_entry: hatch,
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,

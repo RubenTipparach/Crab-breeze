@@ -316,6 +316,13 @@ fn main() -> AppExit {
         eprintln!("data failed to load, stopping: {e}");
         return AppExit::error();
     }
+    // A scripted run plays a player's mode but never writes over the player's save (save-game: "Scripted runs neither
+    // save nor restore"; a script may still continue one).
+    if (scripted || args.playtest.is_some())
+        && let Some(mut saving) = app.world_mut().get_resource_mut::<save_game::Saving>()
+    {
+        saving.write = false;
+    }
     app.add_plugins(save_game::SaveGamePlugin);
     // Shaders compiled behind the loading screen, not mid-game (city-frame section 5).
     app.add_plugins(shader_warmup::ShaderWarmupPlugin);
