@@ -9,8 +9,9 @@ function sparring() { return mel.spar ? foe : null; }
 function strike(move) {
   const sp = sparring(); if (!sp) return;
   // a blow staggers the partner until its stance breaks; then it falls (mech_stance.js)
-  const r = stanceHit(sp.stance, move.stance || 1, stanceCfg);
-  if (r === "stagger") { sp.hitT = 0; sp.hitSide = move.side || (Math.random() < 0.5 ? 1 : -1); }
+  const side = move.side || (Math.random() < 0.5 ? 1 : -1);
+  const r = stanceHit(sp.stance, move.stance || 1, stanceCfg, side);
+  if (r === "stagger") { sp.hitT = 0; sp.hitSide = side; }
   stanceFlash(r);
 }
 function fire(b, m) {

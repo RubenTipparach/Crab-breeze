@@ -32,37 +32,52 @@ The rules:
 
 ## 2b. Stance and knockdown (survey G19; owner, 2026-10-29)
 
-Owner, 2026-10-29: "when hit enough, the stance of enemy mech should break, (usually 3 times) and they fall over".
-This replaces "a strike that lands knocks it down". Designed on the Mech Arms Lab page
-(https://claude.ai/artifact/2tnWFtFr33Q6vyAiCe6f4n), whose sparring partner has the stance bar; the rules are
-`tools/mockups/mech_stance.js`.
+The owner, 2026-10-29:
+- "when hit enough, the stance of enemy mech should break, (usually 3 times) and they fall over";
+- then on the classes: "lets adjust 2,3,4 light mech, mid, heavy", "guns do not", and the player's mech too,
+  "correct";
+- then on the fall: "make the fall animation more dynamic", "move the mech back a bit, as if they have some
+  horizontal velocity".
 
-- **`Stance { damage, since_hit_s, knockdown: Option<Knockdown> }`** on every mech with a rig. The numbers are
-  in `melee.stance_*` in data:
-  - `break_at`: 3 blows;
-  - `recover_delay_s`: 3;
-  - `recover_per_s`: 0.5.
-- **Each strike that lands on a mech adds its move's `stance`:**
-  - 1 for a jab, hook, uppercut or kick;
-  - 1.5 for the overhead smash and the shoulder charge.
-- **Below `break_at`, a blow staggers it:** the hit pose, as now. It keeps walking and firing.
-- **The blow that reaches `break_at` breaks its stance:** `Knockdown { t_s }`. It falls 0.6 s, lies 1.4 s and
-  gets up 1.2 s: 3.2 s in all, from `melee.knockdown_*_s`.
+This replaces "a strike that lands knocks it down". Designed on the Mech Arms Lab page
+(https://claude.ai/artifact/2tnWFtFr33Q6vyAiCe6f4n); the rules and the pose are `tools/mockups/mech_stance.js`, and
+the game's are `cb_core::mech::stance`.
+
+- **`Stance` on every mech with a rig:** its stance damage, the time since the last blow, and a `Knockdown`
+  while it is down. The numbers are in `melee.stance_*` and `melee.knockdown_*` in data.
+- **`stance_break_at` by class:**
+  - light 2 blows: Picket, Ironhorse;
+  - mid 3: Harrow, Roustabout, Driller;
+  - heavy 4: Foreman, Sapper, Mule.
+
+  The classes follow the builds, and mass where it differs (the Ironhorse is the lightest, the Foreman the
+  heaviest). They are written into `data/mechs/<id>.ron` by `tools/mechs/gen_mech_data.py`.
+- **What a blow adds:** each strike that lands on a mech adds its move's `stance`: 1 for the jab, hook, uppercut
+  and kick, and 1.5 for the overhead smash and the shoulder charge. The game's one strike today is the jab, which
+  adds 1.
+- **Gun hits never wear the stance.**
+- **Below `stance_break_at`,** a blow staggers the mech (the hit pose). It keeps walking and firing.
+- **The blow that reaches it breaks the stance:**
+  - the mech is driven back along the blow at `knockdown_speed_m_s` (8). The speed falls by
+    `knockdown_drag_per_s` (1.4) while it falls, then by `knockdown_skid_m_s2` (9) along the ground;
+  - this moves the simulation's position, so it slides about 4 m;
+  - the fall takes 1.0 s:
+    - for the first 0.35 s it stumbles a step: knees buckling, the torso whipped back and recoiling, the head
+      snapping, the arms flung up and out;
+    - then it goes over backwards about its heels, tipping to 1.45 rad with the angle growing as the square of
+      time, rolling 0.22 rad toward the side it was struck from, and kicking one leg up;
+  - it lands with two bounces, the arms slamming down after the body, a skid and a burst of dust;
+  - it lies 1.6 s;
+  - it gets up in 1.3 s: it rolls level, rises onto its knees through the boarding kneel (`sit`), and stands
+    where it slid to.
 - **While knocked down:**
-  - it does not walk, turn or fire (its controls are zeroed, its guns' triggers held);
-  - its AI's clock keeps running, so it picks up where it left off.
-- **No stun lock:** blows add nothing while it is falling, down or getting up. It stands with its stance whole
-  (damage 0).
-- **Untouched for `recover_delay_s`,** the damage drains at `recover_per_s`, so the blows must come close
-  together.
-- **The pose:**
-  - the whole body tips back about the heel line, about 2.5 m behind the hips, to 1.45 rad, accelerating
-    (angle as the square of time);
-  - it bounces once as it lands;
-  - it comes back up through the boarding kneel (`sitPose`), blended over the gait pose like the sit, so one pose
-    code path serves both.
+  - it does not walk, turn or fire (its controls are zeroed, its triggers held);
+  - its AI's clock keeps running.
+- **No stun lock:** blows add nothing while it is down. It stands with its stance whole.
+- **Mending:** untouched for `stance_recover_delay_s` (3), the damage drains at `stance_recover_per_s` (0.5).
+- **The player's mech** falls by the same rule. The pilot stays in the seat; the cabin goes over with them and
+  the screens show the sky. The view's position rides the cabin, and only the pilot turns the view, as everywhere.
 - **Vehicles and crabs** take the hit only: they have no rig to fall with.
-- **Gun hits do not wear the stance** (provisional, S2).
 
 ## 3. The arm pose
 
@@ -143,7 +158,8 @@ Earlier design (replaced):
 | G18 | Melee range | 80 m (owner, 2026-10-25: "range should be 80m instead"; was 30 m) | decided |
 | G20 | Which moves the game plays, and on which keys | The jab on Z and V as now; the others once the owner has shaped them in the Melee lab | provisional |
 | G21 | Does every gun shot kick the arm | Yes: each shot plays the recoil move on its arm, layered over the gait and any strike | provisional (owner, 2026-10-29: "shooting guns should cause mech arm to recoil") |
-| S1 | Blows to break a stance | 3, per mech in data | provisional (owner: "usually 3 times") |
-| S2 | Do gun hits wear the stance | No, melee only | provisional |
-| S3 | Can the player's mech be knocked down | Yes, by the same rule, seen from the seat | provisional |
+| S1 | Blows to break a stance | Light 2, mid 3, heavy 4, per mech in data | decided (owner, 2026-10-29: "2,3,4 light mech, mid, heavy") |
+| S2 | Do gun hits wear the stance | No | decided (owner: "guns do not") |
+| S3 | Can the player's mech be knocked down | Yes, by the same rule, seen from the seat | decided (owner: "correct") |
+| S4 | Which class each mech is | Light: Picket, Ironhorse; mid: Harrow, Roustabout, Driller; heavy: Foreman, Sapper, Mule | provisional |
 | G19 | What a strike does | Same damage rules as a shot (300 mm, 60), breaks cells and trees, and knocks an enemy mech down for about 3 s | decided (survey G19) |

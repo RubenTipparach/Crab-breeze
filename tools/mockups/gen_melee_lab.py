@@ -15,6 +15,11 @@ import gen_mech_designs as designs
 
 ROOT = designs.ROOT
 SITE = os.path.join(ROOT, "output", "melee_site")
+# Each mech's weight class for its stance (owner, 2026-10-29: "2,3,4 light mech, mid, heavy"); the same table is
+# melee.stance_break_at in data/mechs/<id>.ron. Light: the Gundam-built Picket and the lightest by mass, the Ironhorse;
+# heavy: the Foreman (heaviest by mass), the bolt-on armoured Sapper and the Mule on the heaviest slabs.
+MECH_CLASS = dict(picket="light", ironhorse="light", harrow="mid", roustabout="mid", driller="mid",
+                  foreman="heavy", sapper="heavy", mule="heavy")
 
 PAGE = r"""<title>Mech Arms Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -133,9 +138,9 @@ __MECH_BUTTONS__
   <div class="bar" role="group" aria-label="Stance">
     <span class="lbl">Stance</span>
     <label style="font:500 12px var(--mono);color:var(--muted);display:flex;gap:6px;align-items:center">Blows to break
-      <select id="st-break"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+      <select id="st-break"><option value="2">2: light</option><option value="3" selected>3: mid</option><option value="4">4: heavy</option></select></label>
     <button id="st-reset">Stand it up</button>
-    <span class="hint" style="margin:0">Smash and charge count 1.5 blows. Untouched for 3 s, the stance mends.</span>
+    <span class="hint" style="margin:0">Picking a mech sets its class. Smash and charge count 1.5 blows; guns never count. Untouched for 3 s, the stance mends.</span>
   </div>
 __LAB_HTML__
   <div class="stage">
@@ -235,13 +240,13 @@ function setMech(id) {
     for (const m of [me, foe]) if (m) scene.remove(m.root);
     me = makeMech(g, id, 3); foe = makeMech(g, id, 11);
     me.root.updateMatrixWorld(true); me.eyeRest = (me.nodes.EYE_pilot || me.nodes.cockpit || me.root).getWorldPosition(new T.Vector3());
-    layout(); setView(view); ld.hidden = true; window.LAB_READY = true;
+    classBreak(id); layout(); setView(view); ld.hidden = true; window.LAB_READY = true;
   }).catch(e => { ld.textContent = "Could not load: " + e; });
 }
 function layout() {
   if (!foe) return;
   foe.root.visible = mel.spar;
-  foe.yaw0 = Math.PI; foe.root.rotation.y = Math.PI; foe.home = new T.Vector3(0, 0, SPAR_M); foe.root.position.copy(foe.home);
+  foe.yaw0 = Math.PI; foe.root.rotation.y = Math.PI; if (!foe.home) foe.home = new T.Vector3(0, 0, SPAR_M); foe.root.position.copy(foe.home);
   me.home = new T.Vector3();
 }
 function eye() { const p = new T.Vector3(); const e = me && (me.nodes.EYE_pilot || me.nodes.cockpit); if (e) e.getWorldPosition(p); return p; }
@@ -277,15 +282,19 @@ function animate(b, dt, isMe) {
   if (b.walk) { P.w = b.wWalk; walkGeneric(P, b.t, b); }
   if (b.hitT < 0.9) { P.w = 1; hitGeneric(P, b.hitT, b); }
   stanceStep(b.stance, dt, stanceCfg);
-  P.w = 1; const tilt = stancePose(P, b, b.stance, stanceCfg);
+  P.w = 1; const kd = stancePose(P, b, b.stance, stanceCfg);
+  if (b.stance.landed) dustAt(b);
+  // standing again where it slid to
+  if (b.stance.phase === "up" && b.stance.back_m) { b.home.add(new T.Vector3(0, 0, -b.stance.back_m).applyAxisAngle(new T.Vector3(0, 1, 0), b.yaw0)); b.stance.back_m = 0; }
   const mv = isMe && mel.id && MELEE_MOVES[mel.id];
   if (mv) { P.w = 1; meleePose(P, b, mv, mel.t); }
   if (isMe) torsoFollow(b, P, dt);
   applyPose(b, P);
-  // tipped back about the heel line (stance broken): the turn about local x, with the heels kept where they stand
-  b.root.quaternion.setFromEuler(new T.Euler(0, b.yaw0, 0)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), tilt));
+  // knocked down: rolled onto its side and tipped back about the heel line, slid back along its facing
+  const rq = new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 0, 1), kd.roll).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), kd.tilt));
+  b.root.quaternion.setFromEuler(new T.Euler(0, b.yaw0, 0)).multiply(rq);
   const heel = new T.Vector3(0, 0, stanceCfg.heel_m);
-  b.root.position.copy(b.home || b.root.position).add(heel.clone().sub(heel.clone().applyAxisAngle(new T.Vector3(1, 0, 0), tilt)).applyAxisAngle(new T.Vector3(0, 1, 0), b.yaw0));
+  b.root.position.copy(b.home || b.root.position).add(heel.clone().sub(heel.clone().applyQuaternion(rq)).add(new T.Vector3(0, 0, -kd.back_m)).applyAxisAngle(new T.Vector3(0, 1, 0), b.yaw0));
   b.root.updateMatrixWorld(true);
   if (!isMe) return;
   // an arm that is striking lets go of its aim and takes it back after (a gun's recoil keeps it)
@@ -338,7 +347,28 @@ function drawAim(b, err) {
 
 __LAB_JS__
 // ---------- the partner's stance ----------
+// dust where a fallen mech hits the ground: soft sprites that swell and fade over 2 s
+const dustTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const q = c.getContext("2d");
+  const g = q.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(200,185,165,0.9)"); g.addColorStop(1, "rgba(200,185,165,0)");
+  q.fillStyle = g; q.fillRect(0, 0, 64, 64); return new T.CanvasTexture(c); })();
+const dust = [];
+function dustAt(b) {
+  const at = (b.nodes.torso || b.root).getWorldPosition(new T.Vector3());
+  for (let i = 0; i < 26; i++) {
+    const m = new T.Sprite(new T.SpriteMaterial({ map: dustTex, transparent: true, depthWrite: false, opacity: 0.8 }));
+    const a = Math.random() * Math.PI * 2, r = Math.random() * 9;
+    m.position.set(at.x + Math.cos(a) * r, 0.8 + Math.random() * 2, at.z + Math.sin(a) * r);
+    m.scale.setScalar(4 + Math.random() * 4); scene.add(m);
+    dust.push({ m, t: 0, v: new T.Vector3(Math.cos(a) * (3 + Math.random() * 6), 1 + Math.random() * 3, Math.sin(a) * (3 + Math.random() * 6)) });
+  }
+}
+function stepDust(dt) {
+  for (const d of dust) { d.t += dt; d.m.position.addScaledVector(d.v, dt); d.v.multiplyScalar(Math.exp(-dt * 1.5)); d.m.scale.multiplyScalar(1 + dt * 0.8); d.m.material.opacity = 0.8 * Math.max(0, 1 - d.t / 2.2); }
+  while (dust.length && dust[0].t > 2.2) { const d = dust.shift(); scene.remove(d.m); d.m.material.dispose(); }
+}
 const stanceCfg = Object.assign({}, STANCE_DEFAULTS);
+// each mech's class (light 2 blows, mid 3, heavy 4), as in data/mechs/<id>.ron melee.stance_break_at
+const MECH_CLASS = __MECH_CLASS__;
 const stFill = document.getElementById("st-fill"), stS = document.getElementById("st-s");
 let stMsg = "", stMsgT = 0;
 function stanceFlash(r) { if (r === "broken") { stMsg = "Stance broken"; stMsgT = 1.0; } else if (r === "ignored") { stMsg = "Already down"; stMsgT = 0.8; } }
@@ -354,7 +384,9 @@ function drawStance(dt) {
 }
 document.getElementById("st-break").addEventListener("change", e => { stanceCfg.break_at = +e.target.value;
   document.querySelector(".st-bar").style.setProperty("--n", e.target.value); });
-document.getElementById("st-reset").addEventListener("click", () => { if (foe) foe.stance = stanceState(); });
+document.getElementById("st-reset").addEventListener("click", () => { if (foe) { foe.stance = stanceState(); foe.home = null; layout(); } });
+function classBreak(id) { const c = MECH_CLASS[id] || "mid"; stanceCfg.break_at = STANCE_BREAK_BY_CLASS[c];
+  const sel = document.getElementById("st-break"); sel.value = String(stanceCfg.break_at); document.querySelector(".st-bar").style.setProperty("--n", sel.value); }
 // ---------- the aim widget ----------
 const aimIn = { r: document.getElementById("aim-r"), b: document.getElementById("aim-b"), h: document.getElementById("aim-h") };
 const aimOut = { r: document.getElementById("aim-ro"), b: document.getElementById("aim-bo"), h: document.getElementById("aim-ho") };
@@ -396,7 +428,7 @@ function loop(ms) {
     stepMelee(dt);
     animate(me, dt, true);
     if (foe.root.visible) animate(foe, dt, false);
-    drawStance(dt);
+    drawStance(dt); stepDust(dt);
     if (view === "eye") { const e = eye(), dl = e.clone().sub(camera.position); camera.position.add(dl); controls.target.add(dl); }
   }
   controls.update();
@@ -416,7 +448,7 @@ def main():
     html = (PAGE.replace("__DOC__", rd("arm_aim_doc.html") + rd("stance_doc.html")).replace("__LAB_CSS__", rd("melee_lab.css")).replace("__LAB_HTML__", rd("melee_lab.html"))
             .replace("__LAB_JS__", rd("melee_lab.js")).replace("__MECH_POSE__", rd("mech_pose.js"))
             .replace("__MECH_MELEE__", rd("mech_melee.js")).replace("__ARM_AIM__", rd("arm_aim.js")).replace("__MECH_STANCE__", rd("mech_stance.js")).replace("__GLTF_JSON__", rd("gltf_json_loader.js"))
-            .replace("__ORDER__", json.dumps(designs.ORDER))
+            .replace("__ORDER__", json.dumps(designs.ORDER)).replace("__MECH_CLASS__", json.dumps(MECH_CLASS))
             .replace("__MECH_BUTTONS__", "\n".join(f'    <button data-mech="{k}">{meta[k]["name"]}</button>' for k in designs.ORDER)))
     shutil.rmtree(SITE, ignore_errors=True)
     os.makedirs(SITE)
