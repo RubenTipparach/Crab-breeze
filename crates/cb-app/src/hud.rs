@@ -1402,7 +1402,11 @@ pub(crate) fn pin(cam: &Camera, at: &GlobalTransform, world: Vec3, edge_px: f32)
     }
     // Off screen: from the middle toward it, as seen across the view (behind, the same side it lies on).
     let across = Vec2::new(dir.dot(*at.right()), -dir.dot(*at.up()));
-    let across = if across.length_squared() < 1e-6 { Vec2::Y } else { across.normalize() };
+    let across = if across.length_squared() < 1e-6 {
+        Vec2::Y
+    } else {
+        across.normalize()
+    };
     let half = size * 0.5 - Vec2::splat(edge_px);
     let reach = (half.x / across.x.abs().max(1e-6)).min(half.y / across.y.abs().max(1e-6));
     Some((size * 0.5 + across * reach, false))
@@ -1433,7 +1437,10 @@ fn mission_site(
         cb_core::missions::MissionKind::Defence => {
             let city = defence?.state.city(&data.0.defence)?;
             let c = plan.cities.get(city as usize)?;
-            Some((Vec3::new(c.centre.x, c.ground_m + 60.0, c.centre.y), format!("DEFEND CITY {}", city + 1)))
+            Some((
+                Vec3::new(c.centre.x, c.ground_m + 60.0, c.centre.y),
+                format!("DEFEND CITY {}", city + 1),
+            ))
         }
     }
 }
@@ -1488,6 +1495,7 @@ fn draw_job(
         return;
     };
     if let Ok(mut l) = line.single_mut() {
+        let km = Vec2::new(eye.x, eye.z).distance(j.site) / 1000.0;
         let bearing = bearing_deg(Vec2::new(j.site.x - eye.x, j.site.y - eye.z));
         let left = enemies.iter().filter(|(s, e)| e.0 == j.id && !s.dead).count();
         let m = (j.clock_s / 60.0).floor();

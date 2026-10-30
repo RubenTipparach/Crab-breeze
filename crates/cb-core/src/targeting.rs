@@ -273,14 +273,7 @@ pub struct Recent<'a> {
 /// 2. with every one in that cone picked lately, the rest by priority, then distance from `eye`;
 /// 3. with those exhausted too, the enemy nearest the aim again, wherever it is, picked lately or not (the caller starts
 ///    its memory over when the result is in `recent`). The one selected now when it is the only enemy.
-pub fn cycle(
-    selected: Option<u32>,
-    targets: &[Target],
-    eye: Vec3,
-    aim: Vec3,
-    cfg: &TargetingConfig,
-    recent: Recent<'_>,
-) -> Option<u32> {
+pub fn cycle(selected: Option<u32>, targets: &[Target], eye: Vec3, aim: Vec3, cfg: &TargetingConfig, recent: Recent<'_>) -> Option<u32> {
     let enemies = || targets.iter().filter(|t| !t.neutral && Some(t.id) != selected);
     let fresh: Vec<Target> = enemies().filter(|t| !recent.ids.contains(&t.id)).copied().collect();
     let off = |t: &Target| off_aim_deg(eye, aim, t.torso);
@@ -399,14 +392,22 @@ mod tests {
         let alone = [civ(9, 0.0, -600.0)];
         let (eye, aim) = (Vec3::ZERO, Vec3::NEG_Z);
         assert_eq!(select(None, None, eye, aim, &alone, &cfg), None, "the crosshair held on it");
-        assert_eq!(select(None, Some(none()), eye, aim, &alone, &cfg), None, "Q with the crosshair on it");
+        assert_eq!(
+            select(None, Some(none()), eye, aim, &alone, &cfg),
+            None,
+            "Q with the crosshair on it"
+        );
         assert_eq!(
             select(Some(9), None, eye, aim, &alone, &cfg),
             None,
             "a stale selection of it is dropped"
         );
         let mixed = [civ(9, 0.0, -300.0), t(2, 60.0, -400.0)];
-        assert_eq!(select(Some(9), Some(none()), eye, aim, &mixed, &cfg), Some(2), "Q goes to the enemy");
+        assert_eq!(
+            select(Some(9), Some(none()), eye, aim, &mixed, &cfg),
+            Some(2),
+            "Q goes to the enemy"
+        );
         let mut held = None;
         let mut lock = Lock::default();
         for _ in 0..300 {
@@ -425,7 +426,10 @@ mod tests {
 
     /// Q with nothing remembered and nothing mattering more than anything else.
     fn none() -> Recent<'static> {
-        Recent { ids: &[], priority: &|_| 0 }
+        Recent {
+            ids: &[],
+            priority: &|_| 0,
+        }
     }
 
     /// Q's order (owner, 2026-10-29): nearest the crosshair first, skipping what it picked in the last 15 s; with the
@@ -440,7 +444,10 @@ mod tests {
         let mut sel = None;
         let mut order = Vec::new();
         for _ in 0..5 {
-            let recent = Recent { ids: &picked, priority: &|id| u8::from(id == 4) };
+            let recent = Recent {
+                ids: &picked,
+                priority: &|id| u8::from(id == 4),
+            };
             let p = cycle(sel, &ts, eye, aim, &cfg, recent).unwrap();
             if picked.contains(&p) {
                 picked.clear();
@@ -449,9 +456,16 @@ mod tests {
             order.push(p);
             sel = Some(p);
         }
-        assert_eq!(order, vec![2, 1, 4, 3, 2], "the cone by the crosshair, then priority, then distance, then over");
+        assert_eq!(
+            order,
+            vec![2, 1, 4, 3, 2],
+            "the cone by the crosshair, then priority, then distance, then over"
+        );
         // A target picked lately is passed over while another in the cone is fresh.
-        let recent = Recent { ids: &[2], priority: &|_| 0 };
+        let recent = Recent {
+            ids: &[2],
+            priority: &|_| 0,
+        };
         assert_eq!(cycle(None, &ts, eye, aim, &cfg, recent), Some(1));
     }
 
