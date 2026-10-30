@@ -234,10 +234,9 @@ class ObsSession:
             clear_stale_crash_markers()
             # A normal window, not --minimize-to-tray: a tray-only OBS cannot be
             # closed cleanly, and an unclean exit brings the Safe Mode prompt.
-            # --multi: an OBS that exited uncleanly can linger in the process
-            # list holding its single-instance lock, and a new one then stops at
-            # "OBS is already running". No running OBS was found above.
-            subprocess.Popen([str(exe), "--disable-shutdown-check", "--multi"], cwd=str(exe.parent))
+            # Never --multi (owner, 2026-10-28: "only 1 obs instance allowed"):
+            # no running OBS was found above, so this is the only one.
+            subprocess.Popen([str(exe), "--disable-shutdown-check"], cwd=str(exe.parent))
             self.started_obs = True
         for _ in range(180):
             try:

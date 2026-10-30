@@ -172,12 +172,24 @@ const BURN_TO_SMOKE: (f32, f32) = (0.4, 0.72);
 /// puff density even more, 10x original", "but make them more transparent too").
 const FIRE_ALPHA: f32 = 0.4;
 const SMOKE_ALPHA: f32 = 0.32;
-const DUST_ALPHA: f32 = 0.3;
+const DUST_ALPHA: f32 = 0.08;
+
+/// How far one puff's heat strays from the cloud's.
+const HEAT_NOISE: f32 = 0.18;
+
+/// After the explosion everything keeps cooling, a unit of heat in this many seconds, so no puff (the ring's
+/// undersides, the hottest crevices) is still burning as the smoke hangs.
+const COOL_S: f32 = 4.0;
 
 /// Each puff spans this much of its part's radius (the ball's, the ring's tube, the column's, the skirt's tube): a
-/// smoke-sheet cell is mostly its soft edge, so with few puffs they had to overlap a whole part; with ten times as many
-/// they can be smaller.
-const PUFF_SPAN: f32 = 0.9;
+/// sheet cell is mostly its soft edge, so a puff must be several times its part's radius across to close the gaps
+/// between its neighbours (owner, 2026-10-30: "There's still lots of gaps 4x puff sizes").
+const PUFF_SPAN: f32 = 3.6;
+/// The column's and the dust skirt's puffs span less of theirs: at the ball's span a column puff was wider than the
+/// cloud and the skirt's 2.4 km, a brown wall over everything (side-by-side scene 18; owner, 2026-10-30: "Too much
+/// dust now lol").
+const COLUMN_SPAN: f32 = 1.6;
+const SKIRT_SPAN: f32 = 0.7;
 /// Every puff bursts out of the blast point to its place in the cloud in 0.2-0.5 s, each at its own pace (owner,
 /// 2026-10-30: "They originate from one location!", "grow to their max size withing .2-.5 seconds").
 const BURST_S: (f32, f32) = (0.2, 0.5);
@@ -256,7 +268,9 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
     let mut put = |i: u32, pos: Vec3, normal: Vec3, size: f32, heat_offset: f32, dust: bool| {
         let normal = normal.normalize_or(Vec3::Y);
         let under = (-normal.y).clamp(0.0, 1.0);
-        let h = heat_now + heat_offset + (rand(i + 7) - 0.5) * 0.7 - under * 0.3;
+        // a little noise and a little hotter underneath, so the ball cools as one: at the puffs' size a puff left
+        // hot behind the rest reads as a new blast (owner, 2026-10-30: "What are these two explosion puffs doing")
+        let h = heat_now + heat_offset + (rand(i + 7) - 0.5) * HEAT_NOISE - under * 0.08 + (t_s - n.cloud_s).max(0.0) / COOL_S;
         let lit = normal.dot(to_sun) * 0.5 + 0.5;
         // each puff goes at its own point over the last fifth of the hang
         let keep = ((rand(i + 11) * 0.2 + 0.8 - hang) / 0.05).clamp(0.0, 1.0);
@@ -314,8 +328,8 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         let wide = (40.0 + (22.0 - 40.0) * f) * p.stem.x * 1.3 * s;
         let a = rand(i + 1) * tau;
         let off = Vec3::new(a.cos(), 0.0, a.sin()) * wide * 0.6 * rand(i + 2).sqrt();
-        let dust = rand(i + 8) < 0.15 + 0.5 * (1.0 - f);
-        put(i, at + Vec3::Y * f * top + off, off, wide * 2.0 * PUFF_SPAN, 0.12, dust);
+        let dust = rand(i + 8) < 0.35 * (1.0 - f) * (1.0 - f);
+        put(i, at + Vec3::Y * f * top + off, off, wide * 2.0 * COLUMN_SPAN, 0.12, dust);
     }
     // the dust skirt round the foot
     for j in 0..SKIRT {
@@ -323,7 +337,7 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         let (a, b) = (rand(i) * tau, rand(i + 1) * std::f32::consts::PI);
         let round = Vec3::new(a.cos(), 0.0, a.sin());
         let pos = at + (round * (90.0 + 50.0 * b.cos()) * p.skirt.x + Vec3::Y * (8.0 + 50.0 * b.sin() * p.skirt.y)) * s;
-        put(i, pos, round + Vec3::Y * 0.3, 50.0 * 2.0 * p.skirt.x * s * PUFF_SPAN, 0.35, true);
+        put(i, pos, round + Vec3::Y * 0.3, 50.0 * 2.0 * p.skirt.x * s * SKIRT_SPAN, 0.35, true);
     }
     out
 }
@@ -436,6 +450,26 @@ mod tests {
     }
 
     #[test]
+    fn the_ball_cools_as_one_with_no_puff_left_burning_in_the_smoke() {
+        use crate::soft_sprites::Look;
+        let n = spec();
+        for k in 1..60 {
+            let t = n.cloud_s * k as f32 / 60.0;
+            let mut fire: Vec<f32> = cloud(&n, Vec3::ZERO, t, Vec3::Y)
+                .iter()
+                .take(BALL as usize)
+                .map(|p| if let Look::Burning(f) = p.look { f } else { 0.0 })
+                .collect();
+            fire.sort_by(f32::total_cmp);
+            let (median, hottest) = (fire[fire.len() / 2], fire[fire.len() - 1]);
+            assert!(
+                hottest - median < 0.6,
+                "at {t:.1} s a puff burns at {hottest} in a ball at {median}"
+            );
+        }
+    }
+
+    #[test]
     fn its_fire_cools_into_smoke_and_its_foot_is_dust() {
         use crate::soft_sprites::Look;
         let n = spec();
@@ -444,6 +478,8 @@ mod tests {
         let late = cloud(&n, Vec3::ZERO, n.cloud_s, Vec3::Y);
         assert!(burning(&first) * 2 > BALL as usize, "the fireball burns: {}", burning(&first));
         assert!(burning(&late) * 10 < late.len(), "smoke by the end: {}", burning(&late));
+        let hanging = cloud(&n, Vec3::ZERO, n.cloud_s + 5.0, Vec3::Y);
+        assert_eq!(burning(&hanging), 0, "nothing still burning as the smoke hangs");
         let dust = late.iter().filter(|p| p.look == Look::Dust).count();
         assert!(
             dust >= SKIRT as usize && dust < late.len() / 2,
