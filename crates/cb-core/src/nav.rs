@@ -27,19 +27,25 @@ pub struct NavConfig {
     pub marker_height_m: f32,
     /// Land is coloured from `land_low_rgb` at sea level to `land_high_rgb` at `land_high_m` and above.
     pub land_low_rgb: [u8; 3],
+    /// Land at `land_high_m` over the sea and above.
     pub land_high_rgb: [u8; 3],
+    /// The height over the sea at which land takes `land_high_rgb`, metres.
     pub land_high_m: f32,
     /// Water from `water_shallow_rgb` at the shore to `water_deep_rgb` at `water_deep_m` deep.
     pub water_shallow_rgb: [u8; 3],
+    /// Water `water_deep_m` deep and deeper.
     pub water_deep_rgb: [u8; 3],
+    /// The depth at which water takes `water_deep_rgb`, metres.
     pub water_deep_m: f32,
     /// The highways' colour and width, pixels.
     pub highway_rgb: [u8; 3],
+    /// The highways' width on the image, pixels.
     pub highway_px: f32,
     /// The cities' streets.
     pub street_rgb: [u8; 3],
     /// The air bases' outline, and the airport's and the seaport's.
     pub base_rgb: [u8; 3],
+    /// The airport's and the seaport's outline.
     pub site_rgb: [u8; 3],
 }
 

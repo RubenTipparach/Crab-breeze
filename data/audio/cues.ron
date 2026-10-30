@@ -74,6 +74,8 @@
         // for those too"): the console's click, a quiet high tick under the pointer and the click itself on a press
         "ui_hover": (files: ["audio/sfx/mfd_click.ogg"], volume_db: -16.0, space: Ui, pitch: (1.6, 1.6)),
         "ui_click": (files: ["audio/sfx/mfd_click.ogg"], volume_db: -6.0, space: Ui, pitch: (0.9, 0.9)),
+        // A waypoint reached (waypoint-nav): a bright click, unplaced like the menu's, heard seated and on foot.
+        "nav_reached": (files: ["audio/sfx/mfd_click.ogg"], volume_db: -4.0, space: Ui, pitch: (1.5, 1.5)),
     },
     // The effects the game already announces (cb-core fx::RECIPES), and the sound each makes: the
     // effect and its sound come from one message, so they cannot disagree.

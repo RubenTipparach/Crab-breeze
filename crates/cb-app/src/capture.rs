@@ -374,9 +374,14 @@ fn run_script(
         Local<(u32, u32)>,
     ),
     time: Res<Time<Real>>,
-    game_time: Res<Time<Virtual>>,
-    mut exit: MessageWriter<AppExit>,
-    mut exit_frames: Local<u32>,
+    mut game_time: ResMut<Time<Virtual>>,
+    (mut exit, mut exit_frames): (MessageWriter<AppExit>, Local<u32>),
+    // `CB_STILLS_MAP`: the menu, the mouse and the route (waypoint-nav).
+    (mut menu, mut cursor, mut route): (
+        ResMut<crate::menu::Menu>,
+        Single<&mut bevy::window::CursorOptions>,
+        ResMut<crate::nav::NavRoute>,
+    ),
 ) {
     // The building variant keeps the game's clock, so its beats keep pace with the fall however
     // slow the frames (a software renderer's frames are longer than the clock's 0.25 s cap).
@@ -451,6 +456,60 @@ fn run_script(
             shoot_image(&mut commands, &script, "sun.png");
             script.beat += 1;
             script.beat_started_s = now;
+        }
+        return;
+    }
+    // The map variant (`CB_STILLS_MAP=1`, openspec change `waypoint-nav`): after 60 s, so the map is painted and the
+    // ground streamed in, a route to the seaport and on to the airport, the MAP page open over it (`map.png`), then the
+    // menu shut and the view turned toward the first waypoint, its marker over the world (`marker.png`). Window shots:
+    // the menu and the marker are UI, which the offscreen image does not hold.
+    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_MAP") {
+        let shots = [
+            (script.dir.join("map.png"), "map.png"),
+            (script.dir.join("marker.png"), "marker.png"),
+        ];
+        match script.beat {
+            1 if in_beat > 60.0 => {
+                route.0.clear();
+                for kind in [cb_core::world::sites::SiteKind::Seaport, cb_core::world::sites::SiteKind::Airport] {
+                    if let Some(site) = plan.0.sites.iter().find(|s| s.template.kind == kind) {
+                        route.0.add(site.footprint().centre(), data.0.nav.max_waypoints);
+                    }
+                }
+                crate::menu::open(&mut menu, crate::menu::Menu::Map, &mut game_time, &mut cursor);
+                script.beat = 2;
+                script.beat_started_s = now;
+            }
+            2 if in_beat > 15.0 => {
+                shoot(&mut commands, &script.dir, shots[0].1);
+                script.beat = 3;
+                script.beat_started_s = now;
+            }
+            3 if in_beat > 2.0 && (shots[0].0.exists() || in_beat > 600.0) => {
+                crate::menu::open(&mut menu, crate::menu::Menu::Closed, &mut game_time, &mut cursor);
+                script.beat = 4;
+                script.beat_started_s = now;
+            }
+            4 => {
+                // Held every frame until the shot: the view on the first waypoint's bearing, level.
+                if let Some(wp) = route.0.active() {
+                    let mut st = pilot.curr.clone();
+                    let d = wp - plan.0.start.pilot_xz;
+                    st.yaw_rad = (-d.x).atan2(-d.y);
+                    st.pitch_rad = 0.0;
+                    pilot.prev = st.clone();
+                    pilot.curr = st;
+                }
+                if in_beat > 20.0 {
+                    shoot(&mut commands, &script.dir, shots[1].1);
+                    script.beat = 5;
+                    script.beat_started_s = now;
+                }
+            }
+            5 if in_beat > 2.0 && (shots[1].0.exists() || in_beat > 600.0) => {
+                exit.write(AppExit::Success);
+            }
+            _ => {}
         }
         return;
     }
