@@ -299,7 +299,12 @@ fn draw_page(
     map: Res<MapImage>,
     view: Res<MapView>,
     route: Res<NavRoute>,
-    (plan, data, near): (Res<Plan>, Res<Data>, Res<crate::air_drop::Where>),
+    (plan, data, sim, mech): (
+        Res<Plan>,
+        Res<Data>,
+        Res<crate::pilot::PilotSim>,
+        Query<&crate::mech::MechSim, With<crate::mech::Piloted>>,
+    ),
     camera: Single<&GlobalTransform, With<crate::pilot::PilotCamera>>,
     (career, free, fortress, defence): (
         Option<Res<crate::career::CareerRun>>,
@@ -331,7 +336,7 @@ fn draw_page(
         let at = (uv - lo) * view.zoom * MAP_PX;
         (at.x >= 0.0 && at.y >= 0.0 && at.x <= MAP_PX && at.y <= MAP_PX).then_some(at)
     };
-    let pilot = near.pilot;
+    let pilot = crate::air_drop::pilot_xz(&sim, mech.iter().next());
     let goal = crate::hud::objective(
         career.as_deref(),
         free.as_deref(),
@@ -420,14 +425,18 @@ fn draw_page(
 fn step_route(
     menu: Res<Menu>,
     data: Res<Data>,
-    near: Res<crate::air_drop::Where>,
+    (sim, mech): (
+        Res<crate::pilot::PilotSim>,
+        Query<&crate::mech::MechSim, With<crate::mech::Piloted>>,
+    ),
     mut route: ResMut<NavRoute>,
     mut sounds: MessageWriter<crate::audio::Sound>,
 ) {
     if menu.is_open() {
         return;
     }
-    if matches!(route.0.step(near.pilot, data.0.nav.reach_m), Step::Reached | Step::Arrived) {
+    let pilot = crate::air_drop::pilot_xz(&sim, mech.iter().next());
+    if matches!(route.0.step(pilot, data.0.nav.reach_m), Step::Reached | Step::Arrived) {
         sounds.write(crate::audio::Sound::speaker("nav_reached"));
     }
 }
