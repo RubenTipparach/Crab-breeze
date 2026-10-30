@@ -225,14 +225,17 @@ fn fog(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let start = post.lens_fx.w;
     let end = select(view_dist, post.fog_mist.z, sky);
     let len = end - start;
+    // At night the sky is dimmed, its stars and moon with it but still standing out (`night_sky_dim`).
+    // (Unset, before the first frame's numbers, it is 0: then the sky is left as it is.) The fog over the land is
+    // the sky's colour, so it is dimmed by the same amount: dimming the sky alone left far land fogged brighter
+    // than the sky behind it at dusk, a pale wall where the city stood.
+    let dim = select(1.0, post.fog_night.z, post.fog_night.z > 0.0);
     if (len > 0.0) {
         let t = exp(-fog_depth(eye + direction * start, direction, len));
-        color = mix(post_fog_colour(direction, end), color, t);
+        color = mix(post_fog_colour(direction, end) * select(dim, 1.0, sky), color, t);
     }
-    // At night the sky is dimmed, its stars and moon with it but still standing out (`night_sky_dim`).
-    // (Unset, before the first frame's numbers, it is 0: then the sky is left as it is.)
-    if (sky && post.fog_night.z > 0.0) {
-        color *= post.fog_night.z;
+    if (sky) {
+        color *= dim;
     }
     return vec4<f32>(color, 1.0);
 }
