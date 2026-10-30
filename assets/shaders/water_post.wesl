@@ -181,7 +181,9 @@ fn night_sky(dir: vec3<f32>) -> vec3<f32> {
                 let tint = mix(vec3<f32>(0.75, 0.82, 1.0), vec3<f32>(1.0, 0.9, 0.78), h2);
                 // The fine layer's stars faint (a quarter to two thirds), the coarse layer's bright.
                 let mag = select(0.45 + 0.55 * h2 * h2, 0.25 + 0.4 * h2, layer == 0);
-                let size = select(0.16, 0.12, layer == 0);
+                // Radius as a share of a cell: about a pixel for the fine stars, three for the bright ones at
+                // 1080p (were half that, specks that barely read; owner, 2026-10-30: "have stars out").
+                let size = select(0.32, 0.24, layer == 0);
                 out += tint * mag * (1.0 - smoothstep(0.02, size, d)) * twinkle * post.fog_night.x;
             }
         }
