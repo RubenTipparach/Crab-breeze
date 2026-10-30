@@ -25,6 +25,7 @@ pub mod lamps;
 pub mod lanes;
 pub mod layout;
 pub mod lod;
+pub mod map;
 pub mod mist;
 pub mod platform;
 pub mod roads;

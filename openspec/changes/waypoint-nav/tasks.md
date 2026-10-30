@@ -1,13 +1,13 @@
 # Tasks: waypoint-nav
 
 ## 1. Mockup
-- [ ] 1.1 The MAP page and the in-world marker as a three.js page on the real seed 42 island (`cb-tools mapdata`),
+- [x] 1.1 The MAP page and the in-world marker as a three.js page on the real seed 42 island (`cb-tools mapdata`),
       published and checked into `docs/artifacts/waypoint-nav/`
 
 ## 2. Core
-- [ ] 2.1 `cb_core::world::map::paint`: the island to an RGBA image, tested headless
-- [ ] 2.2 `cb_core::nav::Route`: add, remove near, clear, active, step with reach; tested
-- [ ] 2.3 `data/hud/nav.ron`, validated on load
+- [x] 2.1 `cb_core::world::map::paint`: the island to an RGBA image, tested headless
+- [x] 2.2 `cb_core::nav::Route`: add, remove near, clear, active, step with reach; tested
+- [x] 2.3 `data/hud/nav.ron`, validated on load
 
 ## 3. Game
 - [ ] 3.1 The MAP page in the pause menu: the image, zoom and pan, labels, pilot and mission marks

@@ -1,0 +1,31 @@
+// Waypoint navigation (openspec change `waypoint-nav`; owner, 2026-10-30: "we need to add a waypoint nav system in the
+// pause menu. Add a map and let me plop waypoints down to navigate to"). The MAP page's route and the map image's
+// colours, after the mockup the owner approved ("I'll accept it", 2026-10-30). Read by `cb_core::nav::NavConfig`.
+(
+    // A route of up to 9 waypoints (survey WN1, recommendation accepted while blank).
+    max_waypoints: 9,
+    // A waypoint is reached within 150 m, about six mech lengths, without stopping (survey WN2, as WN1).
+    reach_m: 150.0,
+    // The map from the whole island (1x) to 8x, round the pointer.
+    zoom: (1.0, 8.0),
+    // A right click within 12 px of a waypoint removes it.
+    pick_px: 12.0,
+    // A left click held longer than 0.2 s pans the map; a quick one puts down a waypoint.
+    hold_pan_s: 0.2,
+    // One 1024 px image, 40 m a pixel over the island, drawn once when the world loads (4 MB of texture).
+    image_px: 1024,
+    // The marker over a waypoint stands 30 m over its ground.
+    marker_height_m: 30.0,
+    // The image's colours, sRGB: land by height, water by depth, then the roads, the streets and the sites.
+    land_low_rgb: (28, 58, 34),
+    land_high_rgb: (98, 98, 80),
+    land_high_m: 900.0,
+    water_shallow_rgb: (20, 78, 108),
+    water_deep_rgb: (10, 38, 58),
+    water_deep_m: 120.0,
+    highway_rgb: (214, 214, 190),
+    highway_px: 2.0,
+    street_rgb: (150, 156, 142),
+    base_rgb: (200, 210, 180),
+    site_rgb: (255, 199, 77),
+)
