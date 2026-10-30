@@ -76,6 +76,10 @@ struct Part {
     spin_rad: f32,
     cell: f32,
     kind: ParticleKind,
+    /// Over the cap, the age it began fading out at (`CAP_FADE_S`); never, otherwise.
+    fade_from_s: f32,
+    /// Its own colour (linear, HDR), in place of its kind's; its kind's curve still fades it in and out.
+    tint: Option<Vec3>,
 }
 
 /// The live soft particles, oldest first.
@@ -89,6 +93,16 @@ impl SoftSprites {
     fn rand(&mut self) -> f32 {
         self.rng = self.rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
         ((self.rng >> 40) as f32) / (1u64 << 24) as f32
+    }
+
+    /// Starts `count` particles of `spec` at `at`, thrown along `dir`, at `scale`, as `emit` does, each its own colour
+    /// `tint` (linear, HDR) with its kind's fade in and out: a nuclear cloud's puffs, coloured by its heat (`nuke`).
+    pub fn emit_tinted(&mut self, spec: SoftSpec, count: u32, at: Vec3, dir: Vec3, scale: f32, tint: Vec3) {
+        let from = self.parts.len();
+        self.emit(spec, count, at, dir, scale);
+        for p in &mut self.parts[from..] {
+            p.tint = Some(tint);
+        }
     }
 
     /// Starts `count` particles of `spec` at `at`, thrown along `dir`, at `scale`, as a hanabi burst of
@@ -115,6 +129,8 @@ impl SoftSprites {
                 spin_rad: spin,
                 cell,
                 kind: spec.kind,
+                fade_from_s: f32::INFINITY,
+                tint: None,
             });
         }
     }
@@ -155,6 +171,12 @@ impl SoftEmitter {
 struct SoftLook {
     /// x soft depth against the world (m), y fade-in distance from the eye (m).
     fade: Vec4,
+    /// The air between the eye and a sprite, as the clouds take it (`CloudUniform::air`): the ground fog's layer (x
+    /// density at sea level per m, y scale height m, z sea level m) and the aerial haze (x density, y scale height). A
+    /// far sprite thins away into the haze the fog pass lays over what is behind it (owner, 2026-10-30: "if it's really
+    /// far away fog should Apply").
+    fog: Vec4,
+    haze: Vec4,
 }
 
 /// The one soft sprite material: the smoke and dust sheets.
@@ -242,7 +264,8 @@ impl Plugin for SoftSpritesPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<SoftMaterial>::default())
             .init_resource::<SoftSprites>()
-            .add_game_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose));
+            .add_game_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose))
+            .add_game_systems(Update, refresh_air);
     }
 }
 
@@ -266,6 +289,7 @@ pub fn make_draw(
     let material = materials.add(SoftMaterial {
         look: SoftLook {
             fade: Vec4::new(soft_m.max(0.01), NEAR_FADE_M, 0.0, 0.0),
+            ..default()
         },
         smoke,
         dust,
@@ -318,9 +342,44 @@ fn step(time: Res<Time>, data: Res<Data>, mut sprites: ResMut<SoftSprites>) {
         p.age_s += dt;
     }
     sprites.parts.retain(|p| p.age_s < p.life_s);
-    if sprites.parts.len() > cap {
-        let over = sprites.parts.len() - cap;
-        sprites.parts.drain(..over);
+    // Over the cap, the oldest fade out over `CAP_FADE_S` rather than vanish (owner, 2026-10-30: "smoke despawn should
+    // have it out. It looks like it's popping out"): their life is cut to end that soon, and the colour's own fade
+    // takes them out.
+    let fading = sprites.parts.iter().filter(|p| p.fade_from_s.is_finite()).count();
+    let over = sprites.parts.len().saturating_sub(cap + fading);
+    for p in sprites.parts.iter_mut().filter(|p| !p.fade_from_s.is_finite()).take(over) {
+        p.fade_from_s = p.age_s;
+        p.life_s = p.life_s.min(p.age_s + CAP_FADE_S);
+    }
+}
+
+/// How long a sprite over the cap takes to fade out, seconds.
+const CAP_FADE_S: f32 = 1.5;
+
+/// How much of a sprite is left as it fades out over the cap: 1, then down to 0 over `CAP_FADE_S`.
+fn cap_fade(p: &Part) -> f32 {
+    (1.0 - (p.age_s - p.fade_from_s) / CAP_FADE_S).clamp(0.0, 1.0)
+}
+
+/// The air into the material each frame, from the source the fog pass and the clouds read (`AirFog`).
+fn refresh_air(
+    data: Res<Data>,
+    plan: Res<crate::world::Plan>,
+    fog_on: Option<Res<crate::water_render::GroundFogOn>>,
+    fog_now: Res<crate::ground_fog::FogNow>,
+    draw: Option<Res<SoftDraw>>,
+    mut materials: ResMut<Assets<SoftMaterial>>,
+) {
+    let Some(draw) = draw else { return };
+    let air = crate::water_render::AirFog::now(&data.0.world.fog, fog_now.strength, plan.waters.sea_level_m, 0.0);
+    let (fog, haze) = crate::clouds_render::CloudUniform::air(&air, fog_on.is_some_and(|f| f.0));
+    // Only when it changed: a material written every frame is re-uploaded every frame.
+    let stale = materials
+        .get(&draw.material)
+        .is_some_and(|m| m.look.fog != fog || m.look.haze != haze);
+    if stale && let Some(mut m) = materials.get_mut(&draw.material) {
+        m.look.fog = fog;
+        m.look.haze = haze;
     }
 }
 
@@ -367,7 +426,10 @@ fn sorted_quads(parts: &[Part], eye: Vec3, forward: Vec3) -> Vec<Quad> {
             Quad {
                 centre: p.pos,
                 shape: Vec4::new(size, p.spin_rad, p.cell, sheet),
-                colour: colour_at(p.kind, p.age_s / p.life_s),
+                colour: {
+                    let c = colour_at(p.kind, p.age_s / p.life_s);
+                    p.tint.map_or(c, |t| t.extend(c.w)) * Vec4::new(1.0, 1.0, 1.0, cap_fade(p))
+                },
             }
         })
         .filter(|q| q.colour.w > 0.002)
@@ -431,7 +493,20 @@ mod tests {
             spin_rad: 0.0,
             cell: 0.0,
             kind: ParticleKind::Smoke,
+            fade_from_s: f32::INFINITY,
+            tint: None,
         }
+    }
+
+    #[test]
+    fn over_the_cap_the_oldest_fade_out_rather_than_vanish() {
+        let mut p = part(Vec3::ZERO);
+        assert_eq!(cap_fade(&p), 1.0, "not over the cap: whole");
+        p.fade_from_s = p.age_s;
+        p.age_s += CAP_FADE_S * 0.5;
+        assert!((cap_fade(&p) - 0.5).abs() < 1e-5, "half way through its fade: half there");
+        p.age_s += CAP_FADE_S;
+        assert_eq!(cap_fade(&p), 0.0, "gone once faded");
     }
 
     #[test]

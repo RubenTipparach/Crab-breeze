@@ -26,7 +26,9 @@ not commands for this repository.
     title) and give the owner the link. The full OBS take stays local.
 - **On the owner's Mac** (added 2026-10-24): the script uses OBS's ScreenCaptureKit window
   capture (`screen_capture`, type 1) and matches `--window-title "Crab Breeze"`; there is no Game
-  Capture on macOS, so `--capture game` falls back to it. Keep the display awake
+  Capture on macOS, so `--capture game` falls back to it. Window capture has no sound there, so the
+  script adds the desktop's sound (`sck_audio_capture`, type 0) for the take and removes it after:
+  nothing else should be playing sound during a take. Keep the display awake
   (`caffeinate -d -u`): a sleeping display renders the game black. Drive for Desktop is under
   `~/Library/CloudStorage/GoogleDrive-*/My Drive/`.
 - A cloud session cannot run OBS: it has no display or GPU. Recording is done by a session on

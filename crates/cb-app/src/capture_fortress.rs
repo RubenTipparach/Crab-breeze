@@ -214,14 +214,50 @@ fn run(
                 stand_looking(&mut pilot, feet, mid);
                 shoot(&mut commands, &script.dir, "fortress-falling.png");
             }
+            let nuke = data.0.fortress.cfg.crash.nuke;
             if f.crashed && script.crashed_at.is_none() {
-                // the wreck from the field side, 400 m off
+                // the wreck from the field side, 400 m off; a nuclear one from 1.5 km, the cloud's whole height in view
                 script.crashed_at = Some(now);
-                let off = Vec3::new(1.0, 0.0, 0.6).normalize() * 400.0;
+                let off = Vec3::new(1.0, 0.0, 0.6).normalize() * if nuke.is_some() { 1500.0 } else { 400.0 };
                 let near = Vec3::new(mid.x + off.x, ground(mid.x + off.x, mid.z + off.z), mid.z + off.z);
-                stand_looking(&mut pilot, near, mid);
+                let look = if nuke.is_some() { mid + Vec3::Y * 350.0 } else { mid };
+                stand_looking(&mut pilot, near, look);
             }
             let down_s = script.crashed_at.map_or(0.0, |c| now - c);
+            // The nuclear crash (crab-airship section 11): the fireball swelling and the mushroom rising, then the crater
+            // from its rim.
+            if let Some(n) = nuke {
+                for (s, name) in [
+                    (1.0, "fortress-nuke-01s.png"),
+                    (3.0, "fortress-nuke-03s.png"),
+                    (6.0, "fortress-nuke-06s.png"),
+                    (12.0, "fortress-nuke-12s.png"),
+                    (25.0, "fortress-nuke-25s.png"),
+                    (45.0, "fortress-nuke-45s.png"),
+                ] {
+                    if down_s > s && script.once(name) {
+                        shoot(&mut commands, &script.dir, name);
+                    }
+                }
+                if down_s > 47.0 && script.once("rim") {
+                    let off = Vec3::new(1.0, 0.0, 0.6).normalize() * (n.crater_radius_m + 60.0);
+                    let rim = Vec3::new(mid.x + off.x, ground(mid.x + off.x, mid.z + off.z) + 20.0, mid.z + off.z);
+                    let floor = Vec3::new(mid.x, ground(mid.x, mid.z), mid.z);
+                    stand_looking(&mut pilot, rim, floor);
+                }
+                if down_s > 50.0 && script.once("crater shot") {
+                    shoot(&mut commands, &script.dir, "fortress-crater.png");
+                }
+                next = down_s > 52.0 || t > 300.0;
+                if next {
+                    println!("STILLS fortress done: nuclear crash, outcome {:?}", run.outcome);
+                }
+                if next {
+                    script.beat += 1;
+                    script.beat_started_s = now;
+                }
+                return;
+            }
             if down_s > 4.0 && script.once("crashed shot") {
                 shoot(&mut commands, &script.dir, "fortress-crashed.png");
             }

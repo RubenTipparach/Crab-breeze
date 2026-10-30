@@ -45,6 +45,7 @@ logging.getLogger("obsws_python").setLevel(logging.CRITICAL)
 
 SCENE = "obs-record (temporary)"
 SOURCE = "obs-record window (temporary)"
+AUDIO = "obs-record sound (temporary)"
 
 
 def obs_dir() -> Path:
@@ -67,7 +68,13 @@ def obs_running() -> bool:
                               "/FI", "STATUS ne UNKNOWN"],
                              capture_output=True, text=True).stdout
         return "obs64.exe" in out
-    return subprocess.run(["pgrep", "-x", "obs"], capture_output=True).returncode == 0
+    return subprocess.run(["pgrep", "-x", OBS_PROCESS], capture_output=True).returncode == 0
+
+
+# The OBS process's name outside Windows: `OBS` on macOS (the app bundle's binary), `obs` on Linux. Matching `obs` on
+# the Mac never found the OBS this script started, so it was never closed and every run started another (ten were
+# left running, 2026-10-30).
+OBS_PROCESS = "OBS" if sys.platform == "darwin" else "obs"
 
 
 def clear_stale_crash_markers():
@@ -89,7 +96,7 @@ def close_obs():
     cleanly; force it only as a last resort, then clear what that leaves."""
     polite, force = ((["taskkill", "/IM", "obs64.exe"], ["taskkill", "/F", "/IM", "obs64.exe"])
                      if sys.platform == "win32" else
-                     (["pkill", "-x", "obs"], ["pkill", "-9", "-x", "obs"]))
+                     (["pkill", "-x", OBS_PROCESS], ["pkill", "-9", "-x", OBS_PROCESS]))
     subprocess.run(polite, capture_output=True)
     for _ in range(40):
         if not obs_running():
@@ -434,6 +441,13 @@ def main():
                 c.create_input(SCENE, SOURCE, "screen_capture", {"type": 1, "show_cursor": False}, True)
                 window = find_window(c, a.window_exe, a.window_title, 120)
                 c.set_input_settings(SOURCE, {"type": 1, "window": window, "show_cursor": False}, True)
+                # Window capture carries no sound on macOS: the desktop's sound through ScreenCaptureKit's audio
+                # capture (type 0, desktop), so the take has the game's audio (a take with a silent track, 2026-10-30).
+                try:
+                    c.remove_input(AUDIO)
+                except Exception:
+                    pass
+                c.create_input(SCENE, AUDIO, "sck_audio_capture", {"type": 0}, True)
             else:
                 c.create_input(SCENE, SOURCE, "window_capture", {"method": 2, "cursor": False}, True)
                 window = find_window(c, a.window_exe, a.window_title, 120)
@@ -515,6 +529,11 @@ def main():
             c.set_current_program_scene(orig_scene)
             if created:
                 c.remove_scene(SCENE)
+            if sys.platform == "darwin":
+                try:
+                    c.remove_input(AUDIO)
+                except Exception:
+                    pass
             c.set_video_settings(orig_video.fps_numerator, orig_video.fps_denominator,
                                  orig_video.base_width, orig_video.base_height,
                                  orig_video.output_width, orig_video.output_height)

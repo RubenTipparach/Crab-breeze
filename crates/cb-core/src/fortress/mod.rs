@@ -232,6 +232,27 @@ pub struct GuardSpec {
     pub crabs: BTreeMap<String, RaiderSpec>,
 }
 
+/// The crash goes nuclear (owner, 2026-10-30: "Crab carrier when it impacts the ground goes nuclear in a big mushroom
+/// cloud and leave a giant Crater"; crab-airship section 11).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct NukeSpec {
+    /// The crater: its bowl's radius...
+    pub crater_radius_m: f32,
+    /// ...its depth at the middle...
+    pub crater_depth_m: f32,
+    /// ...and its rim's height.
+    pub rim_m: f32,
+    /// Every building and house within this of the impact comes down.
+    pub flatten_radius_m: f32,
+    /// The fireball's radius as it swells, the flash's size (`nuke_flash`).
+    pub fireball_radius_m: f32,
+    /// The mushroom cloud's cap climbs to this height over the ground (Mining Mike's cloud scaled to it, `nuke`)...
+    pub cap_height_m: f32,
+    /// ...over this long, the cloud gone at its end.
+    pub cloud_s: f32,
+}
+
 /// The crash (design section 6).
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -244,6 +265,9 @@ pub struct CrashSpec {
     pub break_margin_m: f32,
     /// Its footprint on the ground: half its width (x) and half its length (z), an ellipse in its own frame.
     pub half_size_m: Vec2,
+    /// It goes nuclear when it hits (`None`: an ordinary crash).
+    #[serde(default)]
+    pub nuke: Option<NukeSpec>,
 }
 
 /// `data/missions/fortress.ron`: every number the fortress uses (design sections 1 to 6 and 9).
@@ -267,6 +291,17 @@ pub struct FortressConfig {
     pub lift_max_share: f32,
     /// A hull thruster carries at most this share of W.
     pub hull_max_share: f32,
+    /// Lit, a side's hull thrusters hold its half (running past their rating) until it has lost this many of them
+    /// (owner, 2026-10-30: "in order for the crab to fall, 2 out of three internal thrusters must be taken out").
+    #[serde(default = "two_kills")]
+    pub hull_kills_to_fall: u32,
+    /// On its circle it weaves in and out by this much (owner, 2026-10-30: "have crab carrier move around a bit too so
+    /// it's not so easy to shoot down"), metres either side of `circle_radius_m`...
+    #[serde(default)]
+    pub weave_m: f32,
+    /// ...this many times a turn.
+    #[serde(default)]
+    pub weave_per_turn: f32,
     /// Sink drag, per metre (a = ... - k v |v|).
     pub sink_drag_per_m: f32,
     /// List, degrees per weight of imbalance between the sides.
@@ -314,6 +349,10 @@ impl FortressConfig {
     }
 }
 
+fn two_kills() -> u32 {
+    2
+}
+
 impl Validate for FortressConfig {
     fn validate(&self) -> Result<(), String> {
         if self.name.trim().is_empty() {
@@ -354,6 +393,21 @@ impl Validate for FortressConfig {
             positive(&format!("guard.crabs.{name}.armour_scale"), c.armour_scale)?;
         }
         within("hull_max_share", self.hull_max_share, 1e-3, 0.5)?;
+        within("weave_m", self.weave_m, 0.0, self.circle_radius_m * 0.8)?;
+        within("weave_per_turn", self.weave_per_turn, 0.0, 20.0)?;
+        if let Some(n) = &self.crash.nuke {
+            for (k, v) in [
+                ("crash.nuke.crater_radius_m", n.crater_radius_m),
+                ("crash.nuke.crater_depth_m", n.crater_depth_m),
+                ("crash.nuke.flatten_radius_m", n.flatten_radius_m),
+                ("crash.nuke.fireball_radius_m", n.fireball_radius_m),
+                ("crash.nuke.cap_height_m", n.cap_height_m),
+                ("crash.nuke.cloud_s", n.cloud_s),
+            ] {
+                positive(k, v)?;
+            }
+            within("crash.nuke.rim_m", n.rim_m, 0.0, n.crater_depth_m)?;
+        }
         finite("launch.first_s", self.launch.first_s)?;
         for (name, k) in &self.kinds {
             let f = |x: &str| format!("kinds.{name}.{x}");
@@ -570,6 +624,11 @@ pub struct Fortress {
     pub ground_m: f32,
     /// Where it is on its circle, radians.
     pub angle_rad: f32,
+    /// How far out from the centre it is: 0 where it appears, over the city's centre, growing at its speed until
+    /// it reaches its circle (`circle_radius_m`), then held there (section 10).
+    pub radius_m: f32,
+    /// It has reached its circle and flies round it (weaving, `weave_m`).
+    pub circling: bool,
     /// Its drift speed now.
     pub speed_m_s: f32,
     /// The hull's middle.
@@ -602,7 +661,8 @@ pub struct Fortress {
 }
 
 impl Fortress {
-    /// A fortress on its circle round `centre`, `cfg.altitude_m` over `ground_m`, every part whole.
+    /// A fortress over `centre`, `cfg.altitude_m` over `ground_m`, every part whole, about to fly out onto its circle
+    /// round that centre (section 10: it appears over the city's centre).
     pub fn new(d: &FortressData, centre: Vec2, ground_m: f32, seed: u64) -> Self {
         let parts = (0..d.shape.parts.len())
             .map(|i| {
@@ -621,6 +681,8 @@ impl Fortress {
             centre,
             ground_m,
             angle_rad: 0.0,
+            radius_m: 0.0,
+            circling: false,
             speed_m_s: d.cfg.speed_m_s,
             pos: Vec3::ZERO,
             yaw_rad: 0.0,
@@ -643,10 +705,17 @@ impl Fortress {
 
     fn place(&mut self, cfg: &FortressConfig, y: f32) {
         let (s, c) = self.angle_rad.sin_cos();
-        let xz = self.centre + Vec2::new(c, s) * cfg.circle_radius_m;
+        let xz = self.centre + Vec2::new(c, s) * self.radius_m;
         self.pos = Vec3::new(xz.x, y, xz.y);
-        // nose along the circle, the way it flies (angle increasing: +x -> +z)
-        self.yaw_rad = (-s).atan2(c);
+        // nose the way it flies: out along the radius, then round (angle increasing: +x -> +z), in and out as it weaves
+        self.yaw_rad = if self.circling {
+            let k = cfg.weave_per_turn;
+            let dr = cfg.weave_m * k * (k * self.angle_rad).cos();
+            let along = Vec2::new(c, s) * dr + Vec2::new(-s, c) * self.radius_m;
+            along.x.atan2(along.y)
+        } else {
+            c.atan2(s)
+        };
     }
 
     /// Its rotation: yaw, then the list about its own forward axis (port down for a positive list).
@@ -664,8 +733,9 @@ impl Fortress {
         if self.crashed {
             return Vec3::ZERO;
         }
-        let (s, c) = self.angle_rad.sin_cos();
-        Vec3::new(-s, 0.0, c) * self.speed_m_s + Vec3::Y * self.v_m_s
+        // out along the radius until on the circle, then along it: the way its nose points (`place`)
+        let along = Vec3::new(self.yaw_rad.sin(), 0.0, self.yaw_rad.cos());
+        along * self.speed_m_s + Vec3::Y * self.v_m_s
     }
 
     /// The hull doors' opening, 0 shut to 1 open.
@@ -681,6 +751,28 @@ impl Fortress {
     /// Its lift now, by the rule it flies by.
     pub fn lift(&self, d: &FortressData) -> Lift {
         lift(d, &self.parts, self.hull_lit(&d.cfg))
+    }
+
+    /// The part a pilot shoots next to bring it down (section 10): the side with fewer live lift thrusters (port on a
+    /// tie), its lift thrusters in the shape's order until the hull thrusters light (three down), then that side's
+    /// hull thrusters (`hull_kills_to_fall` of them). `None` once it is falling or down.
+    pub fn next_to_bring_down(&self, d: &FortressData) -> Option<usize> {
+        if self.falling || self.crashed {
+            return None;
+        }
+        let live = |kind: &str, side: i8| {
+            (0..d.shape.parts.len())
+                .filter(move |&i| d.shape.parts[i].kind == kind && d.shape.parts[i].side == side && self.parts[i].alive)
+                .collect::<Vec<_>>()
+        };
+        let (port, stbd) = (live("lift", 1), live("lift", -1));
+        let side = if stbd.len() < port.len() { -1 } else { 1 };
+        let lifts = if side == 1 { port } else { stbd };
+        let hull = live("hull", side);
+        if self.hull_lit(&d.cfg) && !hull.is_empty() {
+            return hull.first().copied();
+        }
+        lifts.first().copied().or_else(|| hull.first().copied())
     }
 
     /// The bridge stands (losing it doubles every aim error).
@@ -745,7 +837,13 @@ impl Fortress {
         let want_speed = cfg.speed_m_s * drives / all;
         let rate = cfg.speed_m_s / cfg.drive_stop_s * dt_s;
         self.speed_m_s += (want_speed - self.speed_m_s).clamp(-rate, rate);
-        self.angle_rad += self.speed_m_s / cfg.circle_radius_m * dt_s;
+        if self.circling {
+            self.angle_rad += self.speed_m_s / cfg.circle_radius_m * dt_s;
+            self.radius_m = cfg.circle_radius_m + cfg.weave_m * (cfg.weave_per_turn * self.angle_rad).sin();
+        } else {
+            self.radius_m = (self.radius_m + self.speed_m_s * dt_s).min(cfg.circle_radius_m);
+            self.circling = self.radius_m >= cfg.circle_radius_m;
+        }
         let y = self.pos.y + self.v_m_s * dt_s;
         self.place(cfg, y);
         let floor = ground(self.pos.x, self.pos.z) + cfg.crash.clearance_m;
@@ -887,10 +985,88 @@ pub(crate) mod tests {
         0.0
     }
 
+    /// A fortress already out on its circle (the tests of how it flies, holds and falls start there).
     pub fn fortress() -> (FortressData, Fortress) {
-        let d = data();
-        let f = Fortress::new(&d, Vec2::ZERO, 0.0, 42);
+        let mut d = data();
+        d.cfg.weave_m = 0.0;
+        let mut f = Fortress::new(&d, Vec2::ZERO, 0.0, 42);
+        f.radius_m = d.cfg.circle_radius_m;
+        f.circling = true;
+        let y = f.pos.y;
+        f.place(&d.cfg, y);
         (d, f)
+    }
+
+    #[test]
+    fn it_falls_only_once_two_of_a_sides_three_hull_thrusters_are_gone() {
+        let (d, mut f) = fortress();
+        // every outer thruster on the side gone: one hull thruster lost, it still holds
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4"]);
+        run(&d, &mut f, 10.0);
+        kill(&d, &mut f, &["HL1"]);
+        run(&d, &mut f, 5.0);
+        assert!(!f.falling, "one hull thruster down: it holds");
+        kill(&d, &mut f, &["HL2"]);
+        run(&d, &mut f, 1.0);
+        assert!(f.falling, "two of three down: it falls");
+    }
+
+    #[test]
+    fn it_weaves_in_and_out_on_its_circle() {
+        let d = data();
+        assert!(d.cfg.weave_m > 0.0 && d.cfg.weave_per_turn > 0.0, "the data weaves it");
+        let mut f = Fortress::new(&d, Vec2::ZERO, 0.0, 42);
+        let (mut lo, mut hi) = (f32::MAX, 0.0f32);
+        run(&d, &mut f, d.cfg.circle_radius_m / d.cfg.speed_m_s + 1.0);
+        for _ in 0..400 {
+            run(&d, &mut f, 1.0);
+            let r = Vec2::new(f.pos.x, f.pos.z).length();
+            (lo, hi) = (lo.min(r), hi.max(r));
+        }
+        let (r, w) = (d.cfg.circle_radius_m, d.cfg.weave_m);
+        assert!(
+            lo < r - w * 0.9 && hi > r + w * 0.9 && lo > r - w - 1.0 && hi < r + w + 1.0,
+            "{lo}..{hi}"
+        );
+    }
+
+    #[test]
+    fn shooting_what_next_to_bring_down_names_brings_it_down_in_five_kills() {
+        let (d, mut f) = fortress();
+        let mut killed = Vec::new();
+        while let Some(i) = f.next_to_bring_down(&d) {
+            assert!(killed.len() < 8, "it should be falling by now: {killed:?}");
+            f.parts[i].alive = false;
+            f.parts[i].hp = 0.0;
+            killed.push(d.shape.parts[i].id.clone());
+            // the doors open and the hull thrusters light before the next is chosen
+            run(&d, &mut f, 6.0);
+        }
+        assert!(f.falling, "falling after {killed:?}");
+        assert_eq!(killed, ["L1", "L2", "L3", "HL1", "HL2"]);
+    }
+
+    #[test]
+    fn it_appears_over_the_city_centre_and_flies_out_onto_its_circle() {
+        let mut d = data();
+        d.cfg.weave_m = 0.0; // the weave is `it_weaves_in_and_out_on_its_circle`'s
+        let centre = Vec2::new(1200.0, -3400.0);
+        let mut f = Fortress::new(&d, centre, 35.0, 42);
+        assert!(Vec2::new(f.pos.x, f.pos.z).distance(centre) < 1e-3, "over the centre: {:?}", f.pos);
+        assert!((f.pos.y - (35.0 + d.cfg.altitude_m)).abs() < 1e-3);
+        // straight out at its speed, nose first, then round
+        let out_s = d.cfg.circle_radius_m / d.cfg.speed_m_s;
+        run(&d, &mut f, out_s * 0.5);
+        let half = Vec2::new(f.pos.x, f.pos.z).distance(centre);
+        assert!((half - d.cfg.circle_radius_m * 0.5).abs() < 1.0, "half way out: {half}");
+        assert!(f.angle_rad.abs() < 1e-6, "no turning on the way out");
+        let v = f.velocity();
+        let out = (Vec2::new(f.pos.x, f.pos.z) - centre).normalize();
+        assert!(Vec2::new(v.x, v.z).normalize().dot(out) > 0.999, "flying straight out: {v:?}");
+        run(&d, &mut f, out_s * 0.5 + 30.0);
+        let r = Vec2::new(f.pos.x, f.pos.z).distance(centre);
+        assert!((r - d.cfg.circle_radius_m).abs() < 0.01, "on its circle: {r}");
+        assert!(f.angle_rad > 0.5, "circling: {}", f.angle_rad);
     }
 
     pub fn kill(d: &FortressData, f: &mut Fortress, ids: &[&str]) {

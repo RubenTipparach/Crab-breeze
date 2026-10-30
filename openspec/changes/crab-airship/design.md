@@ -298,6 +298,69 @@ Cost of this build: the model 60 000 triangles at most, about 40 draws (one per 
 are their own nodes); the turrets' and lift's step under 0.1 ms; the hit capsules 51 parts plus 7 hull, tested by
 each shot's metre steps as a mech's parts are. Measured on the owner's machine with the mission running.
 
+## 10. Where it appears, and the scripted pilot that brings it down (owner, 2026-10-30)
+
+The owner: "build a playtest bot to defeat the crab fortress. requirement: crab fortress always spawns above nearest
+city center".
+
+- **Over the city's centre.** When the mission starts it appears directly over the centre of the city nearest the
+  pilot (or the mech they sit in), `altitude_m` over that city's ground, then flies straight out at its speed onto
+  its circle (`circle_radius_m`, 380 m: about 25 s) and circles from there. Before, it appeared on the circle,
+  380 m off the centre. `Fortress::radius_m` is how far out it is; nothing else about its flight changes.
+- **What the Foreman can reach.** Its torso aims from -20 to +25 deg (`pitch_limits_deg`). A lift thruster's nozzle
+  hangs about 530 m over the city's ground, so a shot at it from the ground needs about 1.2 km of standoff
+  (530 / tan 23 deg); the autocannon's rounds fly 6.6 km (1 100 m/s for 6 s), so that is in reach, and the nozzle
+  is weak from any side (40 mm, double damage: 34 rounds each). A hull thruster is hurt only from within 30 deg of
+  vertical (section 2b); no gun of a mech standing or flying can point that steeply. Missiles can: a locked
+  missile turns 70 deg/s onto its target and climbs into the port from below. So the falling side's hull
+  thrusters are **boxed and lockable while they are lit** (as the lift thrusters always are), and nowhere else
+  (provisional, H7).
+- **Two of three hull thrusters** (owner, 2026-10-30: "in order for the crab to fall, 2 out of three internal
+  thrusters must be taken out"): lit, a side's hull thrusters hold its half, running past their rating, until it has
+  lost `hull_kills_to_fall` (2) of them, whatever is left of its lift thrusters. The lift readout is the same rule.
+- **It weaves** (owner, 2026-10-30: "have crab carrier move around a bit too so it's not so easy to shoot down"): on
+  its circle its radius swings `weave_m` (120 m) either side, `weave_per_turn` (3) times a turn: 260-500 m out, its
+  nose along the path.
+- **The scripted pilot's order** (`Fortress::next_to_bring_down`, pure, in `cb-core`): the side with fewer live
+  lift thrusters (port on a tie), its lift thrusters in the shape's order until the hull thrusters light (three
+  down), then that side's hull thrusters. Three lift kills and two hull kills bring it down. As it falls the pilot
+  gets 700 m clear and watches it crash and explode (8 s on the wreck); the script ends with a minute more.
+- **Up close, on tapped jets** (owner, 2026-10-30, choice B: "you can tap jets so it recharges as you fly up"): for
+  a lift thruster the pilot skates to within 600 m, then hovers 150 m off it, outboard (so the line clears the hull),
+  the nozzle 12 deg up: the jets burn until it rises and coast at least 2 s so they cool (`playtest::tap_jets`;
+  a 56 m/s2 jet holds a height indefinitely at about 30 % duty). It fires only when the first thing on the line from
+  the selected gun's own barrel (`MechRig::muzzle`, the guns' rule) to the nozzle is the thruster (owner: "the bot
+  isnt raycasting from gun barrel to target"). A single missile fires only at a full lock; a multi-lock pod (the
+  Harrow's racks) holds the key 3.5 s, then lets the salvo go. The take is flown in the Harrow (owner: "the harrow
+  you can see through the top of the mech, might be more fun").
+- **The beat** `BringDownFortress(cap_s)` (playtest-pipeline): stand off the target thruster so its nozzle is at
+  most 22 deg up, skating there when out of band and stopping in it; aim the view at the nozzle (the capsule's
+  lower end, 13 m further along its axis, so the round enters the weak cap) led by `weapons::lead`; hold the
+  autocannon; at a hull thruster, close to 120 m off it along the ground (nearly under it, so the missile climbs in
+  within 30 deg of vertical; from 500 m out they came in about 45 deg off and did nothing), cycle targets until that
+  thruster is selected and fire missiles at the lock. Done when the fortress crashes; failed if the pilot's mech goes down or `cap_s` passes. The script is
+  `data/playtests/fortress-down.ron`. After the crash, `ClearHostiles(cap_s)` fights every hostile left (its
+  fighters, its deck guard, any vehicle) nearest first, as `FightJob` does, until none is left (owner, 2026-10-30:
+  "take out all hostiles too").
+
+## 11. It goes nuclear (owner, 2026-10-30)
+
+"Crab carrier when it impacts the ground goes nuclear in a big mushroom cloud and leave a giant Crater".
+`crash.nuke` in `fortress.ron`:
+
+- **The crater**: 520 m across (`crater_radius_m` 260), 60 m deep at its middle, a 15 m rim, scorched out to 470 m.
+  It is dug through the city and its roads (`Deformation::dig_crater`; a shell's crater still leaves the city's
+  ground alone), the same bowl-and-rim shape every crater has (`Deformation::carve`, one implementation).
+- **Flattened**: every building and house within 450 m of the impact comes down, on top of the hull's own footprint.
+- **The flash**: a light of about 1.4 x 10^10 lm out to 3 km for 4 s, a fireball 90 m across, a dust ring thrown
+  along the ground (`nuke_flash`). No drawn shock shell: the first take showed it as a flat pale 450 m bubble
+  (owner, 2026-10-30: "That violated our realism style").
+- **The mushroom cloud** (`fortress::mushroom_cloud`): for 70 s, five times a second, a puff of smoke and fire up the
+  stem (`nuke_stem`) and two rolling out of the cap (`nuke_cap`); the cap climbs to 900 m over 25 s (smoothstep) and
+  spreads to about 290 m across. Placed by a fixed sequence, so the same crash builds the same cloud.
+- **Cost**: about 350 bursts over 70 s, each 4-10 particles at most (sprites 35-50 m across), within the particle cap;
+  one crater remesh of about 64 ground tiles at once (a hitch, measured on the next run, not guessed).
+
 ## Open questions
 
 | Id | Question | Recommendation | State |
@@ -307,4 +370,5 @@ each shot's metre steps as a mech's parts are. Measured on the owner's machine w
 | H3 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey H3; the hull thrusters and the plates are the owner's, 2026-10-25) |
 | H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | decided (owner, 2026-10-26, survey H4: recommendation accepted, "Approve all"): every roster mech reaches the deck on its jets with 8.5 s of burn left; landing hands the mech's velocity over to the deck (section 5) |
 | H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | decided (owner, 2026-10-26, survey H5: recommendation accepted, "Approve all"); section 6 |
+| H7 | How a lit hull thruster is reached | box and lock it while lit, so missiles climb into its port (no mech gun points within 30 deg of vertical) | provisional (2026-10-30, section 10) |
 | H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | decided (owner, 2026-10-26, survey H6: recommendation accepted, "Approve all"); section 9, the deck guard. The cap of 6 on deck and 8 below are section 4's, kept |

@@ -30,11 +30,16 @@ pub struct Lift {
 pub fn lift(d: &FortressData, parts: &[PartState], lit: bool) -> Lift {
     let mut outer = [0u32; 2];
     let mut hull = [0u32; 2];
+    let mut hull_lost = [0u32; 2];
     for (r, p) in d.shape.parts.iter().zip(parts) {
-        if !p.alive || r.side == 0 {
+        if r.side == 0 {
             continue;
         }
         let s = usize::from(r.side < 0);
+        if !p.alive {
+            hull_lost[s] += u32::from(r.kind == "hull");
+            continue;
+        }
         match r.kind.as_str() {
             "lift" => outer[s] += 1,
             "hull" => hull[s] += 1,
@@ -47,7 +52,11 @@ pub fn lift(d: &FortressData, parts: &[PartState], lit: bool) -> Lift {
     let mut throttle_hull = [0.0f32; 2];
     let mut holds = true;
     for s in 0..2 {
-        let cap = outer[s] as f32 * tmax + if lit { hull[s] as f32 * hmax } else { 0.0 };
+        let mut cap = outer[s] as f32 * tmax + if lit { hull[s] as f32 * hmax } else { 0.0 };
+        // Lit, the hull thrusters run past their rating to hold the side until `hull_kills_to_fall` of them are lost.
+        if lit && hull[s] > 0 && hull_lost[s] < d.cfg.hull_kills_to_fall {
+            cap = cap.max(0.5);
+        }
         share[s] = cap.min(0.5);
         let throttle = if cap > 0.0 { (0.5 / cap).min(1.0) } else { 0.0 };
         throttle_outer[s] = if outer[s] > 0 { throttle } else { 0.0 };

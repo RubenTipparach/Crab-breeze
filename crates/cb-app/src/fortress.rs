@@ -114,6 +114,8 @@ pub struct FortressRun {
     guards: u32,
     /// The mechs standing on it the step before (by `MechId`), for the velocity handover (`Platform::ride`).
     aboard: std::collections::BTreeSet<u32>,
+    /// It went nuclear when it hit: the wreck is gone (crab-airship section 11).
+    vaporised: bool,
 }
 
 impl FortressRun {
@@ -307,6 +309,7 @@ fn switch(
             targets: Vec::new(),
             legs: Vec::new(),
             aboard: Default::default(),
+            vaporised: false,
             guards,
             city: city.id,
             city_damage: city_damage(&plan, &live.structures, city.id),
@@ -480,14 +483,17 @@ fn pose(run: Res<FortressRun>, data: Res<Data>, mut transforms: Query<&mut Trans
 }
 
 /// The parts that bring it down (`always_target`: the lift thrusters and the bridge) are targets, boxed and lockable like
-/// a mech (`targeting`); a gun only while it warns, fires or burns at the pilot and `fire_box_s` after. Every part is
-/// still hit by what strikes it (its capsule).
+/// a mech (`targeting`); a gun only while it warns, fires or burns at the pilot and `fire_box_s` after; a hull thruster
+/// while it is lit. Every part is still hit by what strikes it (its capsule).
 fn hostiles(run: Res<FortressRun>, data: Res<Data>, mut out: ResMut<Hostiles>) {
     let vel = run.f.velocity();
     let d = &data.0.fortress;
     let shown = |id: u32| {
         let i = (id - FORTRESS_TARGET_BASE) as usize;
-        d.kind(i).always_target || run.fire.get(i).is_some_and(|(_, since)| *since < d.cfg.fire_box_s)
+        d.kind(i).always_target
+            || run.fire.get(i).is_some_and(|(_, since)| *since < d.cfg.fire_box_s)
+            // a lit hull thruster, so a locked missile can climb into its port (crab-airship section 10, H7)
+            || (d.shape.parts[i].kind == "hull" && run.f.hull_lit(&d.cfg))
     };
     for (id, at) in run.targets.iter().filter(|(id, _)| shown(*id)) {
         out.0.push(Hostile {
@@ -520,7 +526,7 @@ fn step(
     mut units: ResMut<Units>,
     mut shots: ResMut<Shots>,
     mut fx: MessageWriter<Fx>,
-    mut explosions: MessageWriter<Explosion>,
+    (mut explosions, mut nukes): (MessageWriter<Explosion>, MessageWriter<crate::nuke::Nuke>),
 ) {
     let d = &data.0.fortress;
     let dt = time.delta_secs();
@@ -532,7 +538,12 @@ fn step(
             Event::DoorsOpening => say("MISSION fortress: a side can no longer hold; the hull doors open"),
             Event::HullLit => say("MISSION fortress: the hull thrusters light"),
             Event::Falling => say("MISSION fortress: it cannot hold its weight; it is falling"),
-            Event::Crashed => crash(run, d, &plan, &mut live, &mut fx, &mut explosions),
+            Event::Crashed => {
+                crash(run, d, &plan, &mut live, &mut fx, &mut explosions, &mut nukes);
+                if run.vaporised {
+                    commands.entity(run.root).insert(Visibility::Hidden);
+                }
+            }
         }
     }
     // Its platforms, posed this step; what stood on them moves with them, and a mech landing on them or leaving
@@ -822,6 +833,7 @@ fn crash(
     live: &mut Live,
     fx: &mut MessageWriter<Fx>,
     explosions: &mut MessageWriter<Explosion>,
+    nukes: &mut MessageWriter<crate::nuke::Nuke>,
 ) {
     let at = run.f.pos;
     let mut n = 0;
@@ -845,6 +857,11 @@ fn crash(
         fx.write(Fx::new("explosion_ground", p).scaled(d.cfg.crash.blast_mj.cbrt() * 0.6));
     }
     fx.write(Fx::new("explosion_ground", ground).scaled(d.cfg.crash.blast_mj.cbrt()));
+    // Nuclear (crab-airship section 11, `nuke`): the blast at the impact, and the wreck gone in it.
+    if d.cfg.crash.nuke.is_some() {
+        nukes.write(crate::nuke::Nuke { at: ground });
+        run.vaporised = true;
+    }
     run.outcome.get_or_insert(true);
     // Its wreck is the city's damage too (survey H5): the city's own number, measured as the defence measures it.
     run.city_damage = city_damage(plan, &live.structures, run.city);

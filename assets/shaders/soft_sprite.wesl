@@ -13,9 +13,21 @@ import bevy_pbr::prepass::utils::prepass_depth;
 @if(DISTANCE_FOG)
 import bevy_pbr::render::{mesh_view_bindings::fog, pbr_functions::apply_fog};
 
+import super::water_common::layer_depth;
+
 // Matches `SoftLook` in `soft_sprites.rs`.
 struct SoftLook {
     fade: vec4<f32>, // x soft depth against the world m, y fade-in distance from the eye m
+    fog: vec4<f32>,  // the ground fog's layer: x density at sea level per m, y scale height m, z sea level m
+    haze: vec4<f32>, // the aerial haze: x density at sea level per m, y scale height m
+}
+
+// The share of a sprite's light that crosses the air to the eye, as the clouds take it (`air_between` in `cloud.wesl`,
+// without its mist thickening): a far sprite thins away into the haze the fog pass lays over what is behind it.
+fn air_between(eye: vec3<f32>, dir: vec3<f32>, dist: f32) -> f32 {
+    let layer = layer_depth(look.fog.x, look.fog.y, look.fog.z, eye.y, dir.y, dist);
+    let haze = layer_depth(look.haze.x, look.haze.y, look.fog.z, eye.y, dir.y, dist);
+    return exp(-(max(layer, 0.0) + max(haze, 0.0)));
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> look: SoftLook;
@@ -89,8 +101,9 @@ fn fragment(in: SoftFragment) -> @location(0) vec4<f32> {
     let tex = select(a, b, in.sheet > 0.5);
     var out = tex * in.colour;
     let eye = view.world_position;
-    let near = smoothstep(0.0, look.fade.y, distance(in.world, eye));
-    out.a *= soft_edge(in.position) * near;
+    let dist = distance(in.world, eye);
+    let near = smoothstep(0.0, look.fade.y, dist);
+    out.a *= soft_edge(in.position) * near * air_between(eye, (in.world - eye) / max(dist, 1e-3), dist);
     if out.a < 0.003 {
         discard;
     }

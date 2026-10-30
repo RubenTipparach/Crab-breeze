@@ -98,3 +98,61 @@ The fortress SHALL carry a deck guard of 2 Shrikes and 4 Mites standing on its t
 #### Scenario: A guard walks to the edge
 - **WHEN** a deck guard walks out over the edge of the deck
 - **THEN** it stops at the edge as at a wall
+
+### Requirement: The fortress appears over the nearest city's centre
+
+When its mission starts, the fortress SHALL appear directly over the centre of the city nearest the pilot, at its
+altitude over that city's ground, and SHALL fly out from there onto its circle round that centre.
+
+#### Scenario: Starting the mission
+- **WHEN** the fortress mission starts with the pilot nearest city 2
+- **THEN** the fortress's first position is over city 2's centre, `altitude_m` over its ground
+- **AND** it flies straight out to `circle_radius_m` and circles from there
+
+### Requirement: Lit hull thrusters are targets
+
+A hull thruster SHALL be boxed and lockable while it is lit, so a locked missile can climb into its port.
+
+#### Scenario: Doors open
+- **WHEN** three lift thrusters on one side are destroyed and the hull thrusters light
+- **THEN** every live hull thruster shows a box and can be selected and locked
+
+### Requirement: A scripted pilot brings the fortress down
+
+The playtest beat `BringDownFortress` SHALL fight the fortress as a player can, through the same input actions,
+until it crashes: the lift thrusters of its weaker side by their nozzles, then that side's hull thrusters with
+locked missiles.
+
+#### Scenario: The fortress-down playtest
+- **WHEN** `--playtest fortress-down` runs in the Foreman
+- **THEN** the fortress crashes and the run reports the win
+- **AND** the pilot then takes out every hostile left, and the run reports none remain
+
+### Requirement: Two of a side's three hull thrusters must go
+
+Once its hull thrusters are lit, the fortress SHALL NOT fall until a side has lost at least two of its three hull
+thrusters, however many of its lift thrusters are gone.
+
+#### Scenario: One hull thruster down
+- **WHEN** all four lift thrusters on a side and one of its hull thrusters are destroyed
+- **THEN** it holds, and losing a second hull thruster on that side brings it down
+
+### Requirement: The fortress weaves on its circle
+
+On its circle the fortress SHALL weave in and out by `weave_m`, `weave_per_turn` times a turn.
+
+#### Scenario: A turn of its circle
+- **WHEN** it has flown round its circle
+- **THEN** its distance from the city's centre has ranged from `circle_radius_m - weave_m` to `circle_radius_m + weave_m`
+
+### Requirement: Its crash goes nuclear
+
+When the fortress hits the ground it SHALL dig a crater `crater_radius_m` in radius and `crater_depth_m` deep through
+the city, bring down every building and house within `flatten_radius_m`, and raise a mushroom cloud whose cap climbs
+to `cap_height_m`.
+
+#### Scenario: The crash
+- **WHEN** the fortress crashes over a city
+- **THEN** the ground at the impact is `crater_depth_m` lower, nothing stands within `flatten_radius_m`, and a mushroom
+  cloud rises over it
+
