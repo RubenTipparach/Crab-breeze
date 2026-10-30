@@ -1,6 +1,6 @@
 """Build docs/mockups/island-sites.html: the island as the game generates it (seed 42), with the sites the owner asked for
-on 2026-10-30 (openspec/changes/island-sites-layout): two civil airports placed first, two seaports, three military
-bases (two of today's five taken away), each runway's approach cones, the ship lane between the ports, and the offshore
+on 2026-10-30 (openspec/changes/island-sites-layout): two civil airports placed first, two seaports, four military
+bases (base 4 of today's five taken away), each runway's approach cones, the ship lane between the ports, and the offshore
 limit (openspec/changes/offshore-limit: 15 km off the coast or 1 km inside the world's edge, whichever comes first).
 
     python3 tools/mockups/gen_island_sites.py
@@ -29,7 +29,7 @@ PROPOSED = [
     {"id": "airport_2", "kind": "airport", "label": "Civil airport 2 (proposed)", "centre": [7600, 8000], "size": [2620, 1520], "turn": 0},
     {"id": "seaport_2", "kind": "seaport", "label": "Seaport 2 (proposed)", "centre": [12250, -500], "size": [930, 2010], "turn": 1},
 ]
-KEEP_BASES = [0, 1, 3]   # the three farthest apart once the civil sites are down; 2 is 3.4 km from airport 1
+KEEP_BASES = [0, 1, 2, 3]   # base 4 goes, crowded between 1 and 3 (owner, 2026-10-30: "lets add military base 2 back in")
 
 
 def run(*args):

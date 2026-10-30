@@ -12,7 +12,7 @@ New order, each step keeping clear of everything before it:
 3. **Seaports**, `sites.seaports` of them (2). `place_seaport` runs once per port; a later port must sit on a shore
    whose outward normal is at least `port_coast_apart_deg` (90 degrees) from every earlier port's, so they are on
    different coasts.
-4. **Military bases**, `bases.count` of them (3), placed by `place_bases` with every civil site in its keep-clear.
+4. **Military bases**, `bases.count` of them (4), placed by `place_bases` with every civil site in its keep-clear.
 5. Plateaus (unchanged).
 
 If a site does not fit, the generator logs which one and why (`Rejections`, as the airport does now) and the world
@@ -43,4 +43,4 @@ with its parked aircraft), but sites stream with their tiles, so the frame cost 
 | # | Question | Provisional answer |
 | --- | --- | --- |
 | L1 | Do both civil airports use the one airport template, or should the second be a smaller regional field? | One template for both; a regional variant later if the owner wants it |
-| L2 | Which three bases survive: the three farthest apart, or one near each port? | The three farthest apart that fit after the civil sites |
+| L2 | Which base goes? | Base 4, crowded between bases 1 and 3; base 2 stays beside civil airport 1 (owner, 2026-10-30), its runway 2.85 km south of and parallel to the airport's, so their approach cones do not cross |

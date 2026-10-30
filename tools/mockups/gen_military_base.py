@@ -1,4 +1,4 @@
-"""Build docs/mockups/military-base.html: one of the island's three military airfields at true size, with the fighter,
+"""Build docs/mockups/military-base.html: one of the island's four military airfields at true size, with the fighter,
 the military cargo plane and both helicopters the game will fly (openspec/changes/military-base), for the owner to
 approve before any game code is written (owner, 2026-10-30: "Work on military base mockup. Vehicles: helicopter, cargo
 plane, fighter jets. Facility: dealers choice, but we need same fidelity as civilian airport").

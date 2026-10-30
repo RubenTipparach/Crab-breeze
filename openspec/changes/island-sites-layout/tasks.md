@@ -7,7 +7,7 @@
 ## 2. Placement (`cb_core::world`)
 - [ ] 2.1 `sites.airports`, `sites.seaports`, `airport_spacing_m`, `port_coast_apart_deg` in `SitesConfig` and data
 - [ ] 2.2 `generate` order: airports, seaports, bases; `plan.sites` holds every site
-- [ ] 2.3 `bases.count` 3; tests read the count from the config
+- [ ] 2.3 `bases.count` 4; tests read the count from the config
 - [ ] 2.4 Approach cones: kept clear by sites and capped in cities
 - [ ] 2.5 Golden-seed test: seven sites, no overlap, cones clear
 

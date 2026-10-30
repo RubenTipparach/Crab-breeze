@@ -2,7 +2,7 @@
 
 Published at https://claude.ai/artifact/WGnzu8uTuBXW2o2z28RDdY (openspec change `military-base`).
 
-One of the island's three military bases at the civil airport's detail and true size, beside a 1.8 m pilot and the
+One of the island's four military bases at the civil airport's detail and true size, beside a 1.8 m pilot and the
 Foreman: the 2.4 km runway and its parallel taxiway, eight hardened shelters (two on the alert apron), a cargo apron
 and hangar, the helicopter line, the mech hangars, the tower, the fire station, the fuel farm, munitions bunkers
 behind earth berms, HQ, barracks and mess, a radar dome, a surveillance radar and two missile sites inside the fence.

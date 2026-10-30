@@ -19,7 +19,7 @@ scenery. Military units appear in mid-air during defence waves.
 - **Civil routes** between the two civil airports and off-map (arrivals and departures over the sea).
 - **Helicopters at the civil airports**: pads, vertical take-off and landing, routes to city helipads and orbits.
 - **Ground support vehicles**: tugs, fuel trucks and baggage trains following the taxi network.
-- **Military traffic at the three bases**: fighter patrol circuits, cargo runs between bases, helicopter patrols, all
+- **Military traffic at the four bases**: fighter patrol circuits, cargo runs between bases, helicopter patrols, all
   from and to their runways and pads.
 - **Scramble**: a base attacked, or robbed of an aircraft, turns hostile and launches two fighters and a gunship
   against the player from its alert apron.

@@ -4,7 +4,7 @@ Published at https://claude.ai/artifact/DvqkTx4UJqzLXRwenkzUUf (openspec changes
 `offshore-limit`).
 
 The island as the game generates it (seed 42) with the sites the owner asked for on 2026-10-30: two civil airports
-placed first, two seaports on different coasts, three military bases where there were five, every runway's approach
+placed first, two seaports on different coasts, four military bases where there were five (base 2 added back by the owner), every runway's approach
 cones, a provisional ship lane between the ports, and the offshore limit (15 km off the coast or 1 km inside the world's
 edge, whichever comes first) with the warning band before it. A table gives, along eight headings, where the coast is,
 where the limit falls and which rule sets it. Today's sites can be shown beside the proposal.

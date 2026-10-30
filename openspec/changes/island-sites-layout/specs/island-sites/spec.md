@@ -1,12 +1,12 @@
 ## ADDED Requirements
 
-### Requirement: The island has two civil airports, two seaports and three military bases
+### Requirement: The island has two civil airports, two seaports and four military bases
 World generation SHALL place `sites.airports` civil airports (2), then `sites.seaports` seaports (2), then
-`bases.count` military bases (3), each keeping clear of every city, highway and site placed before it.
+`bases.count` military bases (4), each keeping clear of every city, highway and site placed before it.
 
 #### Scenario: The shipped seed fits every site
 - **WHEN** the shipped world is generated
-- **THEN** it holds two airports, two seaports and three bases, and no two footprints overlap
+- **THEN** it holds two airports, two seaports and four bases, and no two footprints overlap
 
 #### Scenario: Ports are on different coasts
 - **WHEN** the seaports are placed
