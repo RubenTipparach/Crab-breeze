@@ -99,7 +99,8 @@ BeamNG-style part trees, and our own `structural-destruction`):
    pecies are shot"): a detached zone is its own mesh as a rigid body (`debris-physics`), never a box, trailing smoke
    and now and then fire as it falls. The break itself tears big chunks out of the real model, as the boats break
    (owner, 2026-10-30: "need bigger debris chucks like the boats had"): the skin, frames, floor and seats within about
-   4.5 m of the hit and 3 m either side of the torn joint are clipped into cells of about 2.2 m (the boats' engine's
+   3.2 m of the hit and 2 m either side of the torn joint (halved from 4.5 and 3 m, owner 2026-10-30: "maybe half
+   the amount of debris") are clipped into cells of about 2.2 m (the boats' engine's
    method, `docs/mockups/building_engine.js` `fromObject`), each cell a chunk thrown out tumbling, and what is left of
    each cut triangle stays on the aircraft as a ragged hole. Small fragments, a flash of fire and a cloud of smoke fill
    it in. Near you the fragments are rigid bodies that bounce and settle; far away, a dust puff.
