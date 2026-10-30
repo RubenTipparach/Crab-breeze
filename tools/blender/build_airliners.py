@@ -509,6 +509,20 @@ def deck_eye(p):
     return z + 0.5, y
 
 
+def boarding_marks(p, rest):
+    """Where a pilot who steals it sits and gets in (openspec change fly-stolen-aircraft), glTF metres: the captain's eye
+    (left seat, `deck_eye`) and the forward left door's foot on the ground, three metres behind the eye, just out from
+    the skin at the cabin floor's height."""
+    z_eye, y_eye = deck_eye(p)
+    z_door = z_eye + 3.0
+    floor = p.k["cabin"]["floor"]
+    x_door = -(p.side(z_door, floor + 1.0) + 0.6)
+    return {
+        "EYE_pilot": [-0.45, round(y_eye, 3), round(z_eye, 3)],
+        "DOOR_fwd_l": [round(x_door, 3), round(-rest, 3), round(z_door, 3)],
+    }
+
+
 def nose_surface_z(p, x, y):
     """Where the nose's skin is at height y and across x, marching back from the tip."""
     z = p.z0
@@ -1433,6 +1447,7 @@ def build(kind, shots=None):
                            "strobe": {"period_s": 1.2, "on_s": 0.05, "gap_s": 0.15, "flashes": 2},
                            "landing": {"below_agl_m": 600}},
         "cabin_view": cabin_view(p),
+        "marks": boarding_marks(p, rest),
         "livery_seat": [round(v, 3) for v in lin(p.k["livery"]["seat"])],
         "cabin_lights": cabin_lights(p),
         "materials": [A.MATS[k].name for k in ORDER],

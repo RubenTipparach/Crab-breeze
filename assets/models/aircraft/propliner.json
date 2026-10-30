@@ -217,6 +217,18 @@
       "within_m": null
     }
   ],
+  "marks": {
+    "DOOR_fwd_l": [
+      -1.668,
+      -2.569,
+      -4.15
+    ],
+    "EYE_pilot": [
+      -0.45,
+      0.9,
+      -7.15
+    ]
+  },
   "materials": [
     "propliner_crown",
     "propliner_line",
