@@ -7,6 +7,7 @@ gives every mesh those slots and `CSG` records every boolean step for the manife
 """
 import hashlib
 import math
+import os
 
 import bpy  # noqa: I001 (bpy before bmesh, as the pip module needs)
 import bmesh
@@ -111,7 +112,7 @@ def empty(name, at, parent):
 CSG = []
 
 
-def boolean(target, others, op, label):
+def _boolean_step(target, others, op, label):
     """One Exact boolean step, applied at once: `others` are the cutters (DIFFERENCE) or pieces (UNION), removed after.
     Materials transfer, so a cutter's faces keep the cutter's material (glass windows, dark intakes)."""
     coll = bpy.data.collections.new(f"{target.name}.{label}")
@@ -265,5 +266,200 @@ def export(path, objs):
                               export_extras=False, export_image_format="JPEG", export_jpeg_quality=88, export_cameras=False,
                               export_lights=False, export_animations=False, export_skins=False, export_morph=False)
     return hashlib.sha256(open(path, "rb").read()).hexdigest()
+
+
+
+
+# ------------------------------------------------- shared by the aircraft generators (moved from build_airliners.py)
+
+def volume(o):
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    v = abs(bm.calc_volume(signed=True))
+    bm.free()
+    return v
+
+
+
+def boolean(target, others, op, label, hollowing=False):
+    """The kit's boolean step, refusing one that leaves nothing (an Exact boolean on bad input fails silently)."""
+    before = len(target.data.polygons)
+    vol0 = volume(target)
+    _boolean_step(target, others, op, label)
+    if before and op != "INTERSECT" and not hollowing and volume(target) < vol0 * 0.5:
+        raise SystemExit(f"{target.name}: the {label} {op.lower()} lost half the solid ({vol0:.2f} to {volume(target):.2f} m3)")
+    if os.environ.get("CB_DEBUG_BOOL"):
+        print("BOOL", target.name, label, op, before, "->", len(target.data.polygons))
+
+
+
+def box_into(bm, c, half, axes=None):
+    """A box into `bm`: centre `c` (glTF), half sizes along `axes` (three glTF vectors, the world's by default)."""
+    ax = axes or ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+    ax = [Vector(a) for a in ax]
+    c = Vector(c)
+    vs = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            for sz in (-1, 1):
+                p = c + ax[0] * (sx * half[0]) + ax[1] * (sy * half[1]) + ax[2] * (sz * half[2])
+                vs.append(bm.verts.new(g2b(*p)))
+    for f in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
+        bm.faces.new([vs[i] for i in f])
+
+
+
+def cyl_into(bm, a, b, r, n):
+    """A capped cylinder from glTF `a` to `b`."""
+    a, b = Vector(a), Vector(b)
+    d = (b - a).normalized()
+    u = d.orthogonal().normalized()
+    v = d.cross(u)
+    rings = []
+    for p in (a, b):
+        rings.append([bm.verts.new(g2b(*(p + (u * math.cos(math.tau * i / n) + v * math.sin(math.tau * i / n)) * r)))
+                      for i in range(n)])
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((rings[0][i], rings[0][j], rings[1][j], rings[1][i]))
+    bm.faces.new(list(reversed(rings[0])))
+    bm.faces.new(rings[1])
+
+
+
+def mesh(name, bm, mat, parent, at=None):
+    """An object from `bm` with every face `mat` (a slot name), under `parent`; with `at` (the parent pivot's glTF
+    position) its vertices are moved into the pivot's frame."""
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if at is not None:
+        bmesh.ops.translate(bm, verts=bm.verts, vec=-g2b(*at))
+    return obj(name, bm, mat, parent)
+
+
+
+def copy_obj(o, name):
+    c = o.copy()
+    c.data = o.data.copy()
+    c.name = name
+    for coll in o.users_collection:
+        coll.objects.link(c)
+    return c
+
+
+
+def box_obj(name, lo, hi, mat, parent):
+    """An axis-aligned glTF box from corner `lo` to `hi`."""
+    bm = bmesh.new()
+    c = [(a + b) * 0.5 for a, b in zip(lo, hi)]
+    box_into(bm, c, [(b - a) * 0.5 for a, b in zip(lo, hi)])
+    return mesh(name, bm, mat, parent)
+
+
+
+def prism_obj(name, pts, mat, parent):
+    return obj(name, hull(pts), mat, parent)
+
+
+
+def move_to_pivot(o, at):
+    """Move a finished object's vertices into the frame of a pivot at glTF `at` (its parent)."""
+    o.data.transform(Matrix.Translation(-g2b(*at)))
+
+
+
+def meshes_under(node):
+    return [o for o in [node] + list(node.children_recursive) if o.type == "MESH"]
+
+
+
+def tris(objs):
+    n = 0
+    for o in objs:
+        o.data.calc_loop_triangles()
+        n += len(o.data.loop_triangles)
+    return n
+
+
+
+def lod_of(o):
+    return int(o.name.rsplit(".L", 1)[1][0]) if ".L" in o.name else None
+
+
+
+def world_verts(o):
+    return [o.matrix_world @ v.co for v in o.data.vertices]
+
+
+
+def to_gltf(v):
+    return (v.x, v.z, -v.y)
+
+
+
+def capsules_of(points, n_max=3):
+    """Capsules round a cloud of glTF points: along its long axis, split across its second axis while that is much
+    wider than the third (a wing gets two or three, a fuselage one). Each (a, b, radius)."""
+    import numpy as np
+
+    pts = np.array(points)
+    c = pts.mean(axis=0)
+    u, s, vt = np.linalg.svd(pts - c, full_matrices=False)
+    ax = vt
+    proj = (pts - c) @ ax.T
+    ext = proj.max(axis=0) - proj.min(axis=0)
+    k = 1
+    if ext[1] > 2.5 * max(ext[2], 0.2):
+        k = int(min(n_max, max(2, round(ext[1] / max(ext[2] * 2.0, 0.5)))))
+    out = []
+    lo1, hi1 = proj[:, 1].min(), proj[:, 1].max()
+    for i in range(k):
+        a1, b1 = lo1 + (hi1 - lo1) * i / k, lo1 + (hi1 - lo1) * (i + 1) / k
+        sel = proj[(proj[:, 1] >= a1 - 1e-6) & (proj[:, 1] <= b1 + 1e-6)]
+        if len(sel) < 2:
+            continue
+        mid1 = (a1 + b1) * 0.5
+        d = np.sqrt((sel[:, 1] - mid1) ** 2 + (sel[:, 2] - np.median(sel[:, 2])) ** 2)
+        r = float(np.percentile(d, 90))
+        lo0, hi0 = sel[:, 0].min() + r, sel[:, 0].max() - r
+        if lo0 > hi0:
+            lo0 = hi0 = (lo0 + hi0) * 0.5
+        mid2 = float(np.median(sel[:, 2]))
+        a = c + ax[0] * lo0 + ax[1] * mid1 + ax[2] * mid2
+        b = c + ax[0] * hi0 + ax[1] * mid1 + ax[2] * mid2
+        out.append(dict(a=[round(float(v), 3) for v in a], b=[round(float(v), 3) for v in b], radius_m=round(r, 3)))
+    return out
+
+
+
+class Model:
+    """Collects one kind's nodes, zones, rig and lamps while it is built."""
+
+    def __init__(self, p):
+        self.p = p
+        self.root = empty(p.kind, (0, 0, 0), None)
+        self.zones = {}
+        self.parents = {}
+        self.rig = []
+        self.lamps = []
+        self.seats = 0
+        self.interior = []
+
+    def zone(self, name, parent=None):
+        if name not in self.zones:
+            node = empty(f"ZONE_{name}", (0, 0, 0), self.zones[parent] if parent else self.root)
+            self.zones[name] = node
+            self.parents[name] = parent
+        return self.zones[name]
+
+    def pivot(self, name, at, zone, axis, **travel):
+        node = empty(f"RIG_{name}", at, self.zones[zone])
+        self.rig.append(dict(node=f"RIG_{name}", zone=zone, at=[round(v, 4) for v in at],
+                             axis=[round(v, 5) for v in Vector(axis).normalized()], **travel))
+        return node
+
+    def lamp(self, name, at, zone, colour, pattern):
+        empty(f"LAMP_{name}", at, self.zones[zone])
+        self.lamps.append(dict(node=f"LAMP_{name}", zone=zone, at=[round(v, 4) for v in at], colour=colour,
+                               pattern=pattern))
 
 

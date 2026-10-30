@@ -43,6 +43,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mech_kit as K  # noqa: E402
 import aircraft_kit as A  # noqa: E402
 from aircraft_kit import CSG, clean, empty, g2b, hull, lathe, lin, loft, skin_x  # noqa: E402
+from aircraft_kit import (Model, box_into, box_obj, boolean, capsules_of, copy_obj, cyl_into, lod_of, mesh,  # noqa: E402
+                          meshes_under, move_to_pivot, prism_obj, to_gltf, tris, volume, world_verts)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "assets", "models", "aircraft")
@@ -211,94 +213,8 @@ def _cabin_mat(name, key, rgb):
 
 # ----------------------------------------------------------------------------------------------------- small geometry
 
-def volume(o):
-    bm = bmesh.new()
-    bm.from_mesh(o.data)
-    v = abs(bm.calc_volume(signed=True))
-    bm.free()
-    return v
-
-
-def boolean(target, others, op, label, hollowing=False):
-    """The kit's boolean step, refusing one that leaves nothing (an Exact boolean on bad input fails silently)."""
-    before = len(target.data.polygons)
-    vol0 = volume(target)
-    A.boolean(target, others, op, label)
-    if before and op != "INTERSECT" and not hollowing and volume(target) < vol0 * 0.5:
-        raise SystemExit(f"{target.name}: the {label} {op.lower()} lost half the solid ({vol0:.2f} to {volume(target):.2f} m3)")
-    if os.environ.get("CB_DEBUG_BOOL"):
-        print("BOOL", target.name, label, op, before, "->", len(target.data.polygons))
-
-
-def box_into(bm, c, half, axes=None):
-    """A box into `bm`: centre `c` (glTF), half sizes along `axes` (three glTF vectors, the world's by default)."""
-    ax = axes or ((1, 0, 0), (0, 1, 0), (0, 0, 1))
-    ax = [Vector(a) for a in ax]
-    c = Vector(c)
-    vs = []
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            for sz in (-1, 1):
-                p = c + ax[0] * (sx * half[0]) + ax[1] * (sy * half[1]) + ax[2] * (sz * half[2])
-                vs.append(bm.verts.new(g2b(*p)))
-    for f in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
-        bm.faces.new([vs[i] for i in f])
-
-
-def cyl_into(bm, a, b, r, n):
-    """A capped cylinder from glTF `a` to `b`."""
-    a, b = Vector(a), Vector(b)
-    d = (b - a).normalized()
-    u = d.orthogonal().normalized()
-    v = d.cross(u)
-    rings = []
-    for p in (a, b):
-        rings.append([bm.verts.new(g2b(*(p + (u * math.cos(math.tau * i / n) + v * math.sin(math.tau * i / n)) * r)))
-                      for i in range(n)])
-    for i in range(n):
-        j = (i + 1) % n
-        bm.faces.new((rings[0][i], rings[0][j], rings[1][j], rings[1][i]))
-    bm.faces.new(list(reversed(rings[0])))
-    bm.faces.new(rings[1])
-
-
-def mesh(name, bm, mat, parent, at=None):
-    """An object from `bm` with every face `mat` (a slot name), under `parent`; with `at` (the parent pivot's glTF
-    position) its vertices are moved into the pivot's frame."""
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    if at is not None:
-        bmesh.ops.translate(bm, verts=bm.verts, vec=-g2b(*at))
-    return A.obj(name, bm, mat, parent)
-
-
-def copy_obj(o, name):
-    c = o.copy()
-    c.data = o.data.copy()
-    c.name = name
-    for coll in o.users_collection:
-        coll.objects.link(c)
-    return c
-
-
 def slot(key):
     return ORDER.index(key)
-
-
-def box_obj(name, lo, hi, mat, parent):
-    """An axis-aligned glTF box from corner `lo` to `hi`."""
-    bm = bmesh.new()
-    c = [(a + b) * 0.5 for a, b in zip(lo, hi)]
-    box_into(bm, c, [(b - a) * 0.5 for a, b in zip(lo, hi)])
-    return mesh(name, bm, mat, parent)
-
-
-def prism_obj(name, pts, mat, parent):
-    return A.obj(name, hull(pts), mat, parent)
-
-
-def move_to_pivot(o, at):
-    """Move a finished object's vertices into the frame of a pivot at glTF `at` (its parent)."""
-    o.data.transform(Matrix.Translation(-g2b(*at)))
 
 
 # ------------------------------------------------------------------------------------------------------- the airframe
@@ -458,38 +374,6 @@ def hinge_of(p, x_a, x_b, share, side):
 
 
 # ----------------------------------------------------------------------------------------------------- the model
-
-class Model:
-    """Collects one kind's nodes, zones, rig and lamps while it is built."""
-
-    def __init__(self, p):
-        self.p = p
-        self.root = empty(p.kind, (0, 0, 0), None)
-        self.zones = {}
-        self.parents = {}
-        self.rig = []
-        self.lamps = []
-        self.seats = 0
-        self.interior = []
-
-    def zone(self, name, parent=None):
-        if name not in self.zones:
-            node = empty(f"ZONE_{name}", (0, 0, 0), self.zones[parent] if parent else self.root)
-            self.zones[name] = node
-            self.parents[name] = parent
-        return self.zones[name]
-
-    def pivot(self, name, at, zone, axis, **travel):
-        node = empty(f"RIG_{name}", at, self.zones[zone])
-        self.rig.append(dict(node=f"RIG_{name}", zone=zone, at=[round(v, 4) for v in at],
-                             axis=[round(v, 5) for v in Vector(axis).normalized()], **travel))
-        return node
-
-    def lamp(self, name, at, zone, colour, pattern):
-        empty(f"LAMP_{name}", at, self.zones[zone])
-        self.lamps.append(dict(node=f"LAMP_{name}", zone=zone, at=[round(v, 4) for v in at], colour=colour,
-                               pattern=pattern))
-
 
 def split_by_z(m, src, lod, name_of, ranges, cap="torn"):
     """Cut `src` (a finished, clean object) into the fuselage zones: one copy intersected with a box per z range.
@@ -1396,64 +1280,6 @@ def build_interior(m, p, fz):
 
 
 # ----------------------------------------------------------------------------------------------- measure and export
-
-def meshes_under(node):
-    return [o for o in [node] + list(node.children_recursive) if o.type == "MESH"]
-
-
-def tris(objs):
-    n = 0
-    for o in objs:
-        o.data.calc_loop_triangles()
-        n += len(o.data.loop_triangles)
-    return n
-
-
-def lod_of(o):
-    return int(o.name.rsplit(".L", 1)[1][0]) if ".L" in o.name else None
-
-
-def world_verts(o):
-    return [o.matrix_world @ v.co for v in o.data.vertices]
-
-
-def to_gltf(v):
-    return (v.x, v.z, -v.y)
-
-
-def capsules_of(points, n_max=3):
-    """Capsules round a cloud of glTF points: along its long axis, split across its second axis while that is much
-    wider than the third (a wing gets two or three, a fuselage one). Each (a, b, radius)."""
-    import numpy as np
-
-    pts = np.array(points)
-    c = pts.mean(axis=0)
-    u, s, vt = np.linalg.svd(pts - c, full_matrices=False)
-    ax = vt
-    proj = (pts - c) @ ax.T
-    ext = proj.max(axis=0) - proj.min(axis=0)
-    k = 1
-    if ext[1] > 2.5 * max(ext[2], 0.2):
-        k = int(min(n_max, max(2, round(ext[1] / max(ext[2] * 2.0, 0.5)))))
-    out = []
-    lo1, hi1 = proj[:, 1].min(), proj[:, 1].max()
-    for i in range(k):
-        a1, b1 = lo1 + (hi1 - lo1) * i / k, lo1 + (hi1 - lo1) * (i + 1) / k
-        sel = proj[(proj[:, 1] >= a1 - 1e-6) & (proj[:, 1] <= b1 + 1e-6)]
-        if len(sel) < 2:
-            continue
-        mid1 = (a1 + b1) * 0.5
-        d = np.sqrt((sel[:, 1] - mid1) ** 2 + (sel[:, 2] - np.median(sel[:, 2])) ** 2)
-        r = float(np.percentile(d, 90))
-        lo0, hi0 = sel[:, 0].min() + r, sel[:, 0].max() - r
-        if lo0 > hi0:
-            lo0 = hi0 = (lo0 + hi0) * 0.5
-        mid2 = float(np.median(sel[:, 2]))
-        a = c + ax[0] * lo0 + ax[1] * mid1 + ax[2] * mid2
-        b = c + ax[0] * hi0 + ax[1] * mid1 + ax[2] * mid2
-        out.append(dict(a=[round(float(v), 3) for v in a], b=[round(float(v), 3) for v in b], radius_m=round(r, 3)))
-    return out
-
 
 def zone_manifest(m, p):
     out = []

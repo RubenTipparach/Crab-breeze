@@ -29,9 +29,9 @@ of 2048 px or less, lamps as `LAMP_*` empties with patterns as the airport's. Ma
 | Kind | Length x span x height | Notes | Budget LOD0 / LOD1 / LOD2 |
 | --- | --- | --- | --- |
 | `fighter` | 19.4 x 13.0 x 5.6 m | Twin engines with afterburner nozzles, twin canted fins, bubble canopy, tricycle gear, wing and belly pylons | 18,000 / 5,000 / 1,500 |
-| `military_cargo` | 29.8 x 40.4 x 11.7 m | High wing, four 4-blade turboprops, T-less tail, rear ramp hinged, side doors, gear in sponsons | 22,000 / 6,000 / 2,000 |
-| `military_helicopter` | 17.0 x 16.4 (rotor) x 4.4 m | Four-blade main rotor, tail rotor, stub wings with pods, crew doors | 15,000 / 4,000 / 1,200 |
-| `civil_helicopter` | 13.0 x 11.0 (rotor) x 3.6 m | Four-blade rotor, skids, cabin of six, two engines | 10,000 / 3,000 / 900 |
+| `military_cargo` | 29.8 x 40.4 x 11.7 m | High wing, four 4-blade turboprops, T-less tail, rear ramp hinged, side doors, gear in sponsons | 22,000 / 6,000 / 2,500 |
+| `military_helicopter` | 17.6 x 16.4 (rotor) x 4.4 m | Four-blade main rotor, tail rotor, stub wings with pods, crew doors | 15,000 / 4,000 / 1,200 |
+| `civil_helicopter` | 13.0 x 11.0 (rotor) x 3.4 m | Four-blade rotor, skids, cabin of six, two engines | 10,000 / 3,000 / 900 |
 
 Each gets damage zones (wings, tail, engines, rotor, cockpit), a rig (gear, canopy, ramp, rotors, flaps and
 control surfaces), lamps (nav, beacon, strobe, formation strips for the fighter), an interior seen through the
