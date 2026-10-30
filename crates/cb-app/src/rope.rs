@@ -46,9 +46,18 @@ enum Piece {
 
 /// How far the arm is out (0..1) and how much rope is paid out.
 #[derive(Resource, Default)]
-struct Crane {
+pub(crate) struct Crane {
     boom: f32,
     rope_m: f32,
+    /// The rope hangs all the way down: Use boards only then (`MechAccess::rope_down`).
+    down: bool,
+}
+
+impl Crane {
+    /// True when the rope hangs all the way down.
+    pub(crate) fn rope_down(&self) -> bool {
+        self.down
+    }
 }
 
 /// Draws the boarding crane.
@@ -182,6 +191,7 @@ fn hang(
         let step = ROPE_M_S * dt;
         crane.rope_m = (crane.rope_m + (rope_target - crane.rope_m).clamp(-step, step)).min(full_rope);
     }
+    crane.down = a.hatch_open && crane.boom > 0.999 && crane.rope_m >= full_rope - 0.05;
 
     let shown = crane.boom > 0.01;
     let tip = root + out * reach * crane.boom;

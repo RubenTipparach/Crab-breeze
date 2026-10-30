@@ -33,8 +33,13 @@ pub struct PilotConfig {
     pub swim_speed_m_s: f32,
     /// How fast a swimmer under the surface rises to it.
     pub swim_rise_m_s: f32,
-    /// Use reaches the mech from this far from `LADDER_base`, the rope's foot (horizontal, metres).
+    /// Use reaches the mech from this far from `LADDER_base`, the rope's foot (horizontal, metres), once the rope is
+    /// down (`MechAccess::rope_down`).
     pub board_reach_m: f32,
+    /// The pilot's own stopped mech kneels and opens when they come this near the rope's foot (horizontal, metres;
+    /// owner, 2026-10-29: "mech should still open up and kneel using the old distance trigger value, press E to board
+    /// is simply when the rope comes down").
+    pub kneel_reach_m: f32,
     /// Speed of the eyes along the boarding path (climbing the stair).
     pub climb_speed_m_s: f32,
     /// Seated, the view stays within this of the mech's nose unless free look is held
@@ -124,6 +129,7 @@ impl Default for PilotConfig {
             swim_speed_m_s: 2.5,
             swim_rise_m_s: 1.5,
             board_reach_m: 2.0,
+            kneel_reach_m: 25.0,
             climb_speed_m_s: 7.0,
             seated_look_limit_deg: 90.0,
             exit_hold_s: 1.0,
@@ -155,6 +161,7 @@ impl Validate for PilotConfig {
         positive("swim_speed_m_s", self.swim_speed_m_s)?;
         positive("swim_rise_m_s", self.swim_rise_m_s)?;
         positive("board_reach_m", self.board_reach_m)?;
+        positive("kneel_reach_m", self.kneel_reach_m)?;
         positive("climb_speed_m_s", self.climb_speed_m_s)?;
         within("seated_look_limit_deg", self.seated_look_limit_deg, 1.0, 179.0)?;
         positive("exit_hold_s", self.exit_hold_s)?;
@@ -295,6 +302,8 @@ pub struct MechAccess {
     pub destroyed: bool,
     /// True when the mech sits with its hatch open and stair down.
     pub hatch_open: bool,
+    /// True when the boarding rope hangs all the way down: Use boards only then.
+    pub rope_down: bool,
 }
 
 /// What the pilot is waiting for the hatch to do.
@@ -477,7 +486,7 @@ impl PilotState {
 
     /// True when Use would reach the mech now.
     pub fn can_board(&self, access: &MechAccess, cfg: &PilotConfig) -> bool {
-        self.mode == PilotMode::OnFoot && access.stopped && self.distance_to_stair(access) <= cfg.board_reach_m
+        self.mode == PilotMode::OnFoot && access.stopped && access.rope_down && self.distance_to_stair(access) <= cfg.board_reach_m
     }
 
     /// From where the pilot stands to the rope's foot (`ladder_base`), straight up the rope to the
@@ -1185,6 +1194,7 @@ mod tests {
             speed_m_s: 0.0,
             destroyed: false,
             hatch_open: true,
+            rope_down: true,
         }
     }
 
@@ -1355,21 +1365,18 @@ mod tests {
     }
 
     #[test]
-    fn use_at_a_closed_mech_asks_it_to_open_and_boards_once_it_has() {
+    fn use_does_nothing_until_the_rope_is_down_then_boards() {
         let cfg = PilotConfig::default();
-        let closed = MechAccess {
-            hatch_open: false,
+        let lowering = MechAccess {
+            rope_down: false,
             ..access()
         };
         let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 5.5), 0.0);
-        let e = p.step(&press_use(), &cfg, &FlatGround::default(), Some(&closed), DT);
-        assert_eq!(e, Some(PilotEvent::HatchWanted));
-        for _ in 0..60 {
-            p.step(&Actions::default(), &cfg, &FlatGround::default(), Some(&closed), DT);
-        }
-        assert_eq!(p.mode, PilotMode::OnFoot, "waits while the hatch opens");
-        let e = p.step(&Actions::default(), &cfg, &FlatGround::default(), Some(&access()), DT);
-        assert_eq!(e, Some(PilotEvent::BoardingStarted), "one press is enough");
+        assert!(!p.can_board(&lowering, &cfg), "no Use while the rope comes down");
+        let e = p.step(&press_use(), &cfg, &FlatGround::default(), Some(&lowering), DT);
+        assert_eq!((e, p.waiting), (None, None));
+        let e = p.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
+        assert_eq!(e, Some(PilotEvent::BoardingStarted), "the rope is down: Use boards");
     }
 
     #[test]
@@ -1377,6 +1384,7 @@ mod tests {
         let cfg = PilotConfig::default();
         let closed = MechAccess {
             hatch_open: false,
+            rope_down: false,
             ..access()
         };
         let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 5.5), 0.0);
@@ -1492,6 +1500,7 @@ mod tests {
             stopped: false,
             speed_m_s: 6.0,
             hatch_open: false,
+            rope_down: false,
             ..access()
         };
         let e = p.step(&Actions::default(), &cfg, &FlatGround::default(), Some(&wreck), DT);

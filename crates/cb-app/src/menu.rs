@@ -490,6 +490,7 @@ fn label(s: &str, size: f32, colour: Color) -> (Text, TextFont, TextColor) {
 fn button_frame<'a>(parent: &'a mut ChildSpawnerCommands, text: &str, what: impl Component, width: f32) -> EntityCommands<'a> {
     let mut b = parent.spawn((
         what,
+        crate::ui_feedback::UiButton::default(),
         Node {
             width: px(width),
             padding: UiRect::axes(px(16.0), px(10.0)),

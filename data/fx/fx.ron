@@ -37,7 +37,7 @@
         decay_s: 0.7,
         // The mech's own body (openspec change cockpit-shake; owner, 2026-10-28: "thruster shakes, impact shakes,
         // skate shakes", "I want to the player to feel the weight of this mech when it hits things", "When mech gets
-        // shot and punches stuff"). Seated only; footsteps never move the view. Provisional, for the owner to tune.
+        // shot and punches stuff"). Seated only. Provisional, for the owner to tune.
         // A landing from 3 m/s down kicks 0.06 a m/s over it and dips the eye 0.12 m/s per m/s of its speed; a ram
         // (speed lost in one step beyond 2 m/s) 0.08 a m/s over it.
         land_from_m_s: 3.0,
@@ -59,6 +59,10 @@
         melee_kick: 0.45,
         melee_jolt_m_s: 0.6,
         ignite_kick: 0.15,
+        // A footstep kicks half a 10 m/s landing (owner, 2026-10-29: "can you add some shakes from footsteps back in?",
+        // "similar to the landing shake, but like 50% that strength"): 0.21 of trauma and about a 4 cm dip.
+        step_as_landing_m_s: 10.0,
+        step_share: 0.5,
         // The jets' and skates' rumble: up to 0.25 degrees at 23 Hz, swelling and fading over 0.3 s; the jets 0.7 of
         // it, the skates 0.5 at 30 m/s on dirt and half that on paving.
         rumble_deg: 0.25,
@@ -215,6 +219,9 @@
             // A vapor trail streaming off the wheels (owner, 2026-10-25: "skate needs some sort of vapor trail"):
             // the jets' trail puff, smaller and shorter-lived, one a step per wheel.
             Burst(kind: Trail, count: 1, speed_m_s: 0.8, spread: 0.3, size_m: 1.8, life_s: 3.5, offset_m: 1.0, along_dir: true),
+            // A puff of the rockets' smoke, half a launch's (owner, 2026-10-29: "skate also needs particle fx for smoke,
+            // juist a smaller puff than rockets").
+            Burst(kind: Smoke, count: 1, speed_m_s: 2.0, spread: 0.6, size_m: 1.1, life_s: 2.0, offset_m: 0.5, along_dir: true),
         ],
         // The same on paving: grit and dust (sparks drew orange smears at the wheels; owner,
         // 2026-10-25).
@@ -225,6 +232,9 @@
             // A vapor trail streaming off the wheels (owner, 2026-10-25: "skate needs some sort of vapor trail"):
             // the jets' trail puff, smaller and shorter-lived, one a step per wheel.
             Burst(kind: Trail, count: 1, speed_m_s: 0.8, spread: 0.3, size_m: 1.8, life_s: 3.5, offset_m: 1.0, along_dir: true),
+            // A puff of the rockets' smoke, half a launch's (owner, 2026-10-29: "skate also needs particle fx for smoke,
+            // juist a smaller puff than rockets").
+            Burst(kind: Smoke, count: 1, speed_m_s: 2.0, spread: 0.6, size_m: 1.1, life_s: 2.0, offset_m: 0.5, along_dir: true),
         ],
         // A rooster tail on water; density grows with speed.
         "skate_spray": [

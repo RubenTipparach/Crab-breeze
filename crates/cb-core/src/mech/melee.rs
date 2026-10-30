@@ -1,5 +1,5 @@
-//! Close combat (openspec change `close-combat`): the mode, which switches on when the target comes
-//! within melee range and which the pilot toggles, and the arms' strikes (a wind-up, a hit, a
+//! Close combat (openspec change `close-combat`): the arms' strikes, thrown at any time from the seat (owner,
+//! 2026-10-29: "remove melee toggle, always allo z/v to punch") (a wind-up, a hit, a
 //! recovery, each arm on its own clock). Where a strike lands is resolved by the weapons' hit rules;
 //! this module only says when it lands and how the arm is posed. Pure.
 
@@ -126,55 +126,6 @@ impl MeleeConfig {
     }
 }
 
-/// The close-combat mode.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CloseCombat {
-    /// In close combat: the fire controls strike and the guns hold.
-    pub on: bool,
-    /// Switched on by the pilot, so it stays on with no one in range.
-    by_hand: bool,
-    /// Switched off by the pilot while the target was in range: it stays off until the target
-    /// leaves range.
-    held_off: bool,
-    /// A targeted hostile has been in range while it was on: when that target goes down or moves
-    /// away, it goes off, however it was switched on.
-    engaged: bool,
-}
-
-impl CloseCombat {
-    /// One step: `near_m` is the distance from the eye to the targeted hostile, `None` with no
-    /// target (an enemy that is near but not targeted never switches it on: owner, 2026-10-24,
-    /// "only hostiles targeted and gets close does this auto melee"); `toggled` is the pilot's
-    /// toggle this step.
-    pub fn step(&mut self, near_m: Option<f32>, toggled: bool, cfg: &MeleeConfig) {
-        let in_range = near_m.is_some_and(|d| d.is_finite() && d <= cfg.range_m);
-        if toggled {
-            *self = if self.on {
-                Self {
-                    held_off: in_range,
-                    ..Self::default()
-                }
-            } else {
-                Self {
-                    on: true,
-                    by_hand: true,
-                    held_off: false,
-                    engaged: in_range,
-                }
-            };
-        } else if self.held_off {
-            self.held_off = in_range;
-        } else if in_range {
-            self.on = true;
-            self.engaged = true;
-        } else if self.engaged || !self.by_hand {
-            // The target went down or moved away (owner, 2026-10-24: "melee is off if hostile is
-            // down, or moves away").
-            *self = Self::default();
-        }
-    }
-}
-
 /// The arms' strikes: seconds into each arm's strike, [left, right], or `None` at rest.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Strikes {
@@ -211,67 +162,6 @@ mod tests {
     use super::*;
 
     const DT: f32 = 1.0 / 60.0;
-
-    #[test]
-    fn close_combat_comes_on_when_the_target_walks_into_reach_and_off_when_it_leaves() {
-        let cfg = MeleeConfig::default();
-        let mut c = CloseCombat::default();
-        c.step(Some(cfg.range_m + 50.0), false, &cfg);
-        assert!(!c.on);
-        c.step(Some(25.0), false, &cfg);
-        assert!(c.on);
-        c.step(Some(cfg.range_m + 30.0), false, &cfg);
-        assert!(!c.on);
-    }
-
-    #[test]
-    fn toggling_it_off_holds_it_off_until_the_target_leaves_range() {
-        let cfg = MeleeConfig::default();
-        let mut c = CloseCombat::default();
-        c.step(Some(20.0), false, &cfg);
-        c.step(Some(20.0), true, &cfg);
-        assert!(!c.on);
-        c.step(Some(15.0), false, &cfg);
-        assert!(!c.on, "held off while the target stays near");
-        c.step(Some(cfg.range_m + 20.0), false, &cfg);
-        c.step(Some(20.0), false, &cfg);
-        assert!(c.on, "back on when it comes into range again");
-    }
-
-    #[test]
-    fn toggling_it_on_with_no_one_near_keeps_it_on_until_toggled_again() {
-        let cfg = MeleeConfig::default();
-        let mut c = CloseCombat::default();
-        c.step(None, true, &cfg);
-        assert!(c.on);
-        c.step(Some(500.0), false, &cfg);
-        assert!(c.on);
-        c.step(None, true, &cfg);
-        assert!(!c.on);
-    }
-
-    #[test]
-    fn it_goes_off_when_the_target_goes_down_even_if_switched_on_by_hand() {
-        let cfg = MeleeConfig::default();
-        let mut c = CloseCombat::default();
-        c.step(None, true, &cfg);
-        c.step(Some(20.0), false, &cfg);
-        assert!(c.on);
-        // Down: no longer a target.
-        c.step(None, false, &cfg);
-        assert!(!c.on);
-    }
-
-    #[test]
-    fn an_untargeted_enemy_close_by_does_not_switch_it_on() {
-        let cfg = MeleeConfig::default();
-        let mut c = CloseCombat::default();
-        // The caller passes only the targeted hostile's range: with none targeted, `None`.
-        for _ in 0..10 {
-            c.step(None, false, &cfg);
-        }
-        assert!(!c.on);
-    }
 
     #[test]
     fn a_strike_lands_once_after_its_wind_up_and_ends_at_rest() {

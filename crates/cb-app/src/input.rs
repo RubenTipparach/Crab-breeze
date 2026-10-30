@@ -30,8 +30,6 @@ pub struct InputAccum {
     pub skate_toggle: bool,
     /// The next target was asked for.
     pub target_next: bool,
-    /// Close combat was toggled.
-    pub close_combat: bool,
     /// Weapon station steps asked for (+ on, - back).
     pub weapon_cycle: i32,
     /// Prompt selection steps asked for (+ down, - up; survey W40).
@@ -74,7 +72,6 @@ pub(crate) struct Keys {
     skate: Vec<KeyCode>,
     sink: Vec<KeyCode>,
     target_next: Vec<KeyCode>,
-    close_combat: Vec<KeyCode>,
     /// Punch keys, [left arm, right arm].
     strike: [Vec<KeyCode>; 2],
     /// Keys that step the weapon on, and whether the mouse wheel steps it.
@@ -152,7 +149,6 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         skate: r("skate", &b.skate)?,
         sink: r("sink", &b.sink)?,
         target_next: r("target_next", &b.target_next)?,
-        close_combat: r("close_combat", &b.close_combat)?,
         strike: [r("strike_left", &b.strike_left)?, r("strike_right", &b.strike_right)?],
         weapon_cycle: (
             r(
@@ -327,10 +323,6 @@ fn sample_devices(
     }
     acc.skate_toggle |= any_just(&input, &keys.skate);
     acc.target_next |= any_just(&input, &keys.target_next);
-    // Tab with Alt held is switching windows, not close combat (Alt+Tab turned it on by hand, with no
-    // one near, and held the guns).
-    let alt = input.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
-    acc.close_combat |= !alt && any_just(&input, &keys.close_combat);
     // While Scope is held the wheel steps its magnification instead (railgun-scope).
     let scoped = any(&input, &keys.scope.0) || mouse.any_pressed(keys.scope.1.iter().copied());
     if scoped && keys.scope_zoom.1 && scroll.delta.y != 0.0 {
@@ -416,7 +408,6 @@ pub(crate) fn take_step_actions(
         full_stop: held.full_stop || acc.full_stop,
         weapon_cycle: (held.weapon_cycle + acc.weapon_cycle).signum(),
         option_cycle: (held.option_cycle + acc.option_cycle).signum(),
-        close_combat: held.close_combat || acc.close_combat,
         ..held
     }
     .sanitised();
@@ -430,7 +421,6 @@ pub(crate) fn take_step_actions(
     acc.full_stop = false;
     acc.weapon_cycle = 0;
     acc.option_cycle = 0;
-    acc.close_combat = false;
 }
 
 #[cfg(test)]

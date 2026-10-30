@@ -55,8 +55,6 @@ pub struct MechSim {
     pub guns: Guns,
     /// The weapon station the pilot's primary trigger fires (weapon-select).
     pub selected: usize,
-    /// Close combat on or off (close-combat).
-    pub close: cb_core::mech::CloseCombat,
     /// The arms' strikes at the step before, for drawing between steps.
     pub strikes_prev: cb_core::mech::Strikes,
     /// The arms' strikes at the latest step.
@@ -576,7 +574,6 @@ fn spawn_mech_entity(
                 cuts: Vec::new(),
                 guns: Guns::default(),
                 selected: cb_core::weapons::first_station(&cfg.weapons),
-                close: Default::default(),
                 strikes_prev: Default::default(),
                 strikes: Default::default(),
                 stance_prev: Default::default(),
@@ -1140,6 +1137,7 @@ fn publish_access(
     globals: Query<&GlobalTransform>,
     data: Res<Data>,
     (plan, live, interiors): (Res<Plan>, Res<Live>, Res<crate::walk_in::InteriorColliders>),
+    crane: Option<Res<crate::rope::Crane>>,
     mut out: ResMut<MechAccessNow>,
 ) {
     // Where the pilot can stand: the same scene they walk in (`pilot::step_pilot`).
@@ -1173,6 +1171,8 @@ fn publish_access(
             speed_m_s: sim.curr.vel.length(),
             destroyed: sim.dead,
             hatch_open: sim.hatch.is_open(&data.0.boarding),
+            // The drawn rope's own state; with no crane drawn (headless), the rope is down when the hatch is open.
+            rope_down: sim.hatch.is_open(&data.0.boarding) && crane.as_ref().is_none_or(|c| c.rope_down()),
         })
     });
 }
@@ -1283,7 +1283,7 @@ pub fn step_mech(
             let near = access
                 .0
                 .as_ref()
-                .is_some_and(|a| pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(a) < data.0.pilot.board_reach_m);
+                .is_some_and(|a| pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(a) < data.0.pilot.kneel_reach_m);
             if near && sim.curr.is_stopped(&cfg.locomotion) {
                 sim.hatch.target = HatchTarget::Open;
             }
@@ -1333,20 +1333,14 @@ pub fn step_mech(
                     let lost = |i: usize| sim.damage.is_lost(&cfg.parts, cfg.weapons[i].arm);
                     sim.selected = cb_core::weapons::next_station(&cfg.weapons, sim.selected, actions.weapon_cycle, |i| !lost(i));
                 }
-                // Close combat comes on when the targeted hostile is within melee range and Tab
-                // toggles it (close-combat); only a targeted hostile counts.
-                let near = targeting.selected.map(|_| targeting.range_m);
-                sim.close.step(near, actions.close_combat, &cfg.melee);
-                // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds). In
-                // close combat the guns keep firing and the punch keys strike with the arms (owner,
-                // 2026-10-25: "Guns keep firing in close combat, and punches move to other keys").
+                // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds). The punch keys strike
+                // with the arms at any time, the guns firing on (owner, 2026-10-29: "remove melee toggle, always allo
+                // z/v to punch").
                 if actions.free_look {
                     fire = [false; 4];
                 } else {
                     fire = [actions.fire[0], actions.fire[1], actions.fire_missile, actions.fire_back];
-                    if sim.close.on {
-                        strike = actions.strike;
-                    }
+                    strike = actions.strike;
                 }
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
@@ -1567,9 +1561,6 @@ pub fn step_mech(
         }
         let Some(rig) = rig else { continue };
         let damage = sim.damage.clone();
-        if !(piloted && seated) {
-            sim.close = Default::default();
-        }
         // Strikes: each arm on its own clock; one landing this step sweeps from its shoulder out to
         // its reach, toward the aim point (close-combat). A lost arm cannot strike.
         sim.strikes_prev = sim.strikes;
