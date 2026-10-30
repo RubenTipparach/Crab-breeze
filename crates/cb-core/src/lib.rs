@@ -144,7 +144,12 @@ impl GameData {
         world.small_kits = std::sync::Arc::new(kits);
         // The aircraft the airport parks at its stands are the civil traffic's kinds.
         let air_path = root.join("world/air_traffic.ron");
-        let air_traffic: air_traffic::AirTrafficConfig = data::load_ron(&air_path)?;
+        let mut air_traffic: air_traffic::AirTrafficConfig = data::load_ron(&air_path)?;
+        // Each modelled kind's manifest beside its glb: its rest, its damage zones, its rig and lamps (airliner-models).
+        air_traffic.load_models(&root.join("../assets")).map_err(|reason| data::DataError {
+            path: air_path.clone(),
+            reason,
+        })?;
         for t in [&world.site_templates.airport, &world.site_templates.seaport].into_iter().flatten() {
             if let Some(a) = t.parked.iter().find(|a| !air_traffic.kinds.contains_key(&a.kind)) {
                 return Err(data::DataError {

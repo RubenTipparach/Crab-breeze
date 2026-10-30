@@ -68,14 +68,101 @@ fn fly(a: &mut Aircraft, c: &AirTrafficConfig, bases: &[AirBase], zones: &[Zone]
 }
 
 #[test]
-fn the_shipped_kinds_are_the_four_the_owner_asked_for_at_true_size() {
+fn the_shipped_kinds_are_the_ones_the_owner_asked_for_at_true_size() {
     let c = cfg();
     let roles: Vec<Role> = c.kinds.values().map(|k| k.role).collect();
     for r in [Role::Airliner, Role::Freighter, Role::LightPlane, Role::Helicopter] {
         assert!(roles.contains(&r), "{r:?}");
     }
-    // The owner's "about 40 m" airliner.
-    assert!((c.kinds["airliner"].length_m - 40.0).abs() < 5.0);
+    // The three airliners the owner approved (airliner-models), at their real aircraft's size within 2 %: the DC-3,
+    // the Boeing 720 and the L-1011.
+    for (kind, length, span) in [("propliner", 19.66, 28.96), ("airliner", 41.25, 39.87), ("widebody", 54.17, 47.35)] {
+        let k = &c.kinds[kind];
+        assert_eq!(k.role, Role::Airliner, "{kind} flies routes");
+        assert!((k.length_m / length - 1.0).abs() < 0.02, "{kind} length");
+        assert!((k.span_m / span - 1.0).abs() < 0.02, "{kind} span");
+    }
+}
+
+/// The shipped kinds with their models' manifests read, as the game loads them.
+fn loaded() -> AirTrafficConfig {
+    let mut c = cfg();
+    c.load_models(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets"))
+        .unwrap();
+    c
+}
+
+fn flying_airliner(c: &AirTrafficConfig, kind: &str) -> Aircraft {
+    let spec = &c.kinds[kind];
+    Aircraft::new(
+        7,
+        kind,
+        spec,
+        Vec3::new(0.0, 900.0, 0.0),
+        0.0,
+        spec.cruise_m_s,
+        Phase::Enroute,
+        Flight::Orbit {
+            city: 0,
+            centre: Vec2::ZERO,
+            radius_m: 1000.0,
+            dir: 1.0,
+        },
+    )
+}
+
+#[test]
+fn a_shot_engine_breaks_away_and_the_airliner_flies_on_slower() {
+    let c = loaded();
+    let spec = &c.kinds["airliner"];
+    let mut a = flying_airliner(&c, "airliner");
+    let zones = spec.zones();
+    let e1 = zones.iter().position(|z| z.name == "engine_1").unwrap();
+    let mut out = super::HitOutcome::default();
+    for _ in 0..100 {
+        out = a.hit_part(spec, e1, 50.0, 10.0);
+        if !out.broke.is_empty() {
+            break;
+        }
+    }
+    assert_eq!(out.broke, vec![e1], "only the engine comes away");
+    assert!(!out.downed && !a.downed(), "one engine of four does not bring it down");
+    assert!((a.thrust_lost(spec) - 0.25).abs() < 1e-6);
+    assert!(spec.with_thrust_lost(0.25).cruise_m_s < spec.cruise_m_s);
+    // its capsules leave the lost engine out
+    assert!(super::shape::capsules(&a, spec).iter().all(|k| k.part != e1));
+}
+
+#[test]
+fn a_shot_through_a_wing_root_brings_the_wing_and_its_engines_away_and_the_airliner_down() {
+    let c = loaded();
+    let spec = &c.kinds["widebody"];
+    let mut a = flying_airliner(&c, "widebody");
+    let zones = spec.zones();
+    let root = zones.iter().position(|z| z.name == "wing_inner_r").unwrap();
+    // a shot that does not beat the armour does nothing
+    assert!(a.hit_part(spec, root, spec.armour_mm - 0.5, 1e6).broke.is_empty());
+    let out = a.hit_part(spec, root, 50.0, 1e6);
+    let names: Vec<&str> = out.broke.iter().map(|&i| zones[i].name.as_str()).collect();
+    assert!(
+        names.contains(&"wing_inner_r") && names.contains(&"wing_outer_r") && names.contains(&"engine_3"),
+        "{names:?}"
+    );
+    assert!(out.downed && a.downed());
+    // nothing more breaks once it is down
+    assert!(a.hit_part(spec, 0, 50.0, 1e6).broke.is_empty());
+}
+
+#[test]
+fn the_propliner_stands_tail_down_on_its_models_rest() {
+    let c = loaded();
+    let spec = &c.kinds["propliner"];
+    assert!((super::rest_pitch_rad(spec).to_degrees() - 13.7).abs() < 1.0);
+    assert!((super::rest_m(spec) - 2.57).abs() < 0.05, "the model's rest, not one from its size");
+    // every zone has hit capsules, the aircraft's own whole hp spread over them by share
+    let a = flying_airliner(&c, "propliner");
+    assert_eq!(a.zone_hp.len(), spec.zones().len());
+    assert!(super::shape::capsules(&a, spec).len() >= spec.zones().len());
 }
 
 #[test]
@@ -456,7 +543,7 @@ fn traffic_appears_only_where_the_pilot_cannot_see_it_appear() {
         assert!(hidden(&w, a.pos, &c.near), "{} appeared in sight at {:?}", a.kind, a.pos);
     }
     let kinds: std::collections::BTreeSet<&str> = seen.iter().map(|a| a.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 4, "every kind flies: {kinds:?}");
+    assert_eq!(kinds.len(), c.kinds.len(), "every kind flies: {kinds:?}");
 }
 
 #[test]

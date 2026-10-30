@@ -1,31 +1,94 @@
 // Civil air traffic (openspec/changes/civil-air-traffic, design sections 1-5). Sizes are the 1980s
-// aircraft each block-out stands in for, measured, not guessed: an airliner a little longer than a
-// 737-300 (33.4 m) and shorter than a 757-200 (47.3 m), the owner's "about 40 m"; a heavy freighter
+// aircraft each kind is, measured, not guessed: the three airliners as modelled (below); a heavy freighter
 // between a C-141 (51 m) and a C-5 (75.5 m); a four-seat light plane (a 172 is 8.3 m long, 11 m span);
 // a light turbine helicopter (a 206 is 11.8 m over its 10.2 m rotor). Speeds are the island's: the
 // routes are 4-30 km, so cruise is slow and low, well under an airliner's real 230 m/s at 10 km.
 // First estimates, retuned from play.
 (
     kinds: {
+        // The three airliners (openspec/changes/airliner-models; owner, 2026-10-29: "approve all ... implement
+        // airplanes!"), modelled by tools/blender/build_airliners.py from the NASA three-views in
+        // docs/reference/airliner-blueprints/: each glb's manifest beside it gives its rest on its gear, its damage
+        // zones (each a share of `hp`, broken away at zero) and its rig and lamps. Sizes are the models' measured ones
+        // (the build checks them within 2 % of the real aircraft; heights are standing on the gear). LOD0, with the
+        // cabin, within 250 m; LOD1 to 1.5 km; LOD2 beyond.
         "airliner": (
+            // after the Boeing 720: an early four-jet narrowbody, 138 seats
             role: Airliner,
-            length_m: 40.0,
-            span_m: 35.0,
-            height_m: 12.0,
-            fuselage_m: 4.0,
+            length_m: 41.45,
+            span_m: 40.05,
+            height_m: 12.47,
+            fuselage_m: 3.76,
             cruise_m_s: 120.0,
             approach_m_s: 70.0,
             climb_m_s: 12.0,
             descent_m_s: 9.0,
             turn_deg_s: 3.0,
             cruise_agl_m: 1100.0,
-            max_near: 3,
-            hp: 160.0,
+            max_near: 2,
+            hp: 260.0,
             armour_mm: 4.0,
-            crash_mj: 40.0,
+            crash_mj: 45.0,
             // the recorded airliner as it is (survey W49)
             engine: Some((sound: Turbofan, pitch: 1.0)),
+            model: Some((
+                scene: "models/aircraft/airliner.glb",
+                lod_m: (250.0, 1500.0),
+                gear_below_m: 250.0,
+            )),
             tint: (0.86, 0.86, 0.84),
+        ),
+        "propliner": (
+            // after the Douglas DC-3: a twin radial propliner on the short hops, a taildragger, 21 seats
+            role: Airliner,
+            length_m: 19.85,
+            span_m: 29.15,
+            height_m: 5.53,
+            fuselage_m: 2.35,
+            cruise_m_s: 75.0,
+            approach_m_s: 38.0,
+            climb_m_s: 5.0,
+            descent_m_s: 4.5,
+            turn_deg_s: 4.0,
+            cruise_agl_m: 700.0,
+            max_near: 2,
+            hp: 120.0,
+            armour_mm: 2.0,
+            crash_mj: 12.0,
+            // the recorded prop plane slowed toward two big radials
+            engine: Some((sound: Propeller, pitch: 0.6)),
+            model: Some((
+                scene: "models/aircraft/propliner.glb",
+                lod_m: (250.0, 1500.0),
+                gear_below_m: 200.0,
+            )),
+            tint: (0.93, 0.93, 0.9),
+        ),
+        "widebody": (
+            // after the Lockheed L-1011 TriStar: a three-engine wide-body on the longest routes, 306 seats
+            role: Airliner,
+            length_m: 54.35,
+            span_m: 47.5,
+            height_m: 16.18,
+            fuselage_m: 5.97,
+            cruise_m_s: 125.0,
+            approach_m_s: 75.0,
+            climb_m_s: 11.0,
+            descent_m_s: 9.0,
+            turn_deg_s: 2.5,
+            cruise_agl_m: 1200.0,
+            max_near: 1,
+            hp: 420.0,
+            armour_mm: 5.0,
+            crash_mj: 80.0,
+            // three bigger engines: the airliner's turbofans played a little slower
+            engine: Some((sound: Turbofan, pitch: 0.9)),
+            model: Some((
+                scene: "models/aircraft/widebody.glb",
+                lod_m: (250.0, 1500.0),
+                gear_below_m: 250.0,
+            )),
+            tint: (0.95, 0.95, 0.94),
         ),
         "freighter": (
             role: Freighter,

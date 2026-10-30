@@ -120,9 +120,17 @@ pub struct AircraftModel {
     /// The sling's hook, where a slung mech's top hangs (the model's `SLING_hook` node), metres in its frame.
     #[serde(default)]
     pub sling_hook_m: [f32; 3],
+    /// Its manifest and damage zones, read beside the glb at load (`AirTrafficConfig::load_models`).
+    #[serde(skip)]
+    pub loaded: Option<std::sync::Arc<super::model::LoadedModel>>,
 }
 
 impl AircraftModel {
+    /// Its damage zones (none: it takes hits as a whole).
+    pub fn zones(&self) -> &[super::model::DamageZone] {
+        self.loaded.as_ref().map_or(&[], |l| l.zones.as_slice())
+    }
+
     /// How far above a slung mech's feet the aircraft's origin flies, metres: the mech hangs by its top from the
     /// hook, so its feet are its own height below the hook.
     pub fn hang_m(&self, mech_height_m: f32) -> f32 {
@@ -235,6 +243,36 @@ pub struct AirTrafficConfig {
     pub avoid: AvoidConfig,
     /// A downed aircraft's fall.
     pub fall: FallConfig,
+}
+
+impl AircraftSpec {
+    /// Its damage zones (none: it takes hits as a whole).
+    pub fn zones(&self) -> &[super::model::DamageZone] {
+        self.model.as_ref().map_or(&[], |m| m.zones())
+    }
+
+    /// The same kind with `lost` of its engines' thrust gone (0 to 1): slower, climbing less.
+    pub fn with_thrust_lost(&self, lost: f32) -> Self {
+        let keep = 1.0 - lost.clamp(0.0, 1.0);
+        let mut s = self.clone();
+        // a jet flies on, slower, on what engines it has left; it can still hold the approach speed
+        s.cruise_m_s = (self.cruise_m_s * (0.55 + 0.45 * keep)).max(self.approach_m_s);
+        s.climb_m_s = self.climb_m_s * keep.max(0.15);
+        s
+    }
+}
+
+impl AirTrafficConfig {
+    /// Reads every modelled kind's manifest and damage zones from beside its glb under `assets`.
+    pub fn load_models(&mut self, assets: &std::path::Path) -> Result<(), String> {
+        for (name, k) in &mut self.kinds {
+            if let Some(m) = &mut k.model {
+                let loaded = super::model::LoadedModel::load(assets, &m.scene).map_err(|e| format!("kinds.{name}.model: {e}"))?;
+                m.loaded = Some(std::sync::Arc::new(loaded));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Validate for AirTrafficConfig {

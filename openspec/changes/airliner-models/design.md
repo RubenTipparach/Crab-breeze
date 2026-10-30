@@ -138,10 +138,23 @@ are the shared plating set (already resident for the mechs and the freighter) pl
 Frame time is not measured here (cloud session, no GPU; CLAUDE.md section 7): it is to be measured on the 3070 with
 three aircraft parked at the airport and one flying past the cockpit at LOD0.
 
+## 7. Built in the game (2026-10-30)
+
+The owner asked for it after the page ("implement airplanes!"). `cb_core::air_traffic::model` reads each model's
+manifest at load (`AirTrafficConfig::load_models`): its rest on its gear (the propliner's 2.57 m and 13.7 degrees nose
+up, so `rest_m` is the model's own, not one from its size), its damage zones with their parents, shares and capsules,
+its rig and its lamps. `Aircraft::hit_part` takes a shot on the zone its capsule belongs to through the one armour rule;
+a zone at zero breaks away with everything hanging from it; an engine lost leaves the aircraft flying on the others
+(`AircraftSpec::with_thrust_lost`: cruise down to 55 % with none left, climb with it), and any other zone, or every
+engine, downs it. `cb-app::airliners` binds a model by its node names, moves the rig from the flight, flashes the lamps,
+lets a broken zone fall as its own mesh to the ground with its fit-out despawned and four 2 m debris chunks at the
+joint and two at the hit, and on a crash strews every zone. The airport's parked airliners are the 720 now (41.5 m by
+40 m against the stand-in's 40 by 35; the stands are 60 m and 80 m apart).
+
 ## Open questions
 
 | # | Question | Provisional answer |
 | --- | --- | --- |
-| A1 | Do the propliner and the wide-body join the air traffic as new kinds, and does the airliner take the 720's size (41.3 m x 39.9 m, four jets) in place of the approved 40 x 35 m twin-jet stand-in? | Yes to both: the propliner on the short hops between the small bases, the wide-body on the longest route |
+| A1 | Do the propliner and the wide-body join the air traffic as new kinds, and does the airliner take the 720's size (41.3 m x 39.9 m, four jets) in place of the approved 40 x 35 m twin-jet stand-in? | Yes to both (built 2026-10-30): all three fly the routes between any two bases; giving the propliner the short hops and the wide-body the longest is left for play |
 | A2 | Seats: the 1980s rule of thumb above (21, 138, 306), or fewer, roomier rows? | As above |
 | A3 | Liveries: three fictional island airlines, or one airline in three sizes? | Three, each its own colour |

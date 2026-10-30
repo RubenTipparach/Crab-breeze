@@ -9,12 +9,15 @@
 
 pub mod config;
 pub mod flight;
+pub mod model;
 pub mod shape;
 #[cfg(test)]
 mod tests;
 
 pub use config::{AirTrafficConfig, AircraftModel, AircraftSpec, Engine, EngineSound, Role};
-pub use flight::{Air, Aircraft, Flight, FlightStep, Phase, Strip, Zone, departure_strip, in_zone, landing_strip, rest_m};
+pub use flight::{
+    Air, Aircraft, Flight, FlightStep, HitOutcome, Phase, Strip, Zone, departure_strip, in_zone, landing_strip, rest_m, rest_pitch_rad,
+};
 
 use crate::rng::SimRng;
 use crate::world::{AirBase, City};

@@ -4,6 +4,7 @@
 //! climb rate, stepped at the fixed step; pure and deterministic.
 
 use super::config::{AirTrafficConfig, AircraftSpec, Role, RouteConfig};
+use super::model::ZoneKind;
 use crate::units::{forward, heading_of, turn_toward, wrap};
 use crate::world::AirBase;
 use glam::{Vec2, Vec3};
@@ -275,8 +276,12 @@ pub struct Aircraft {
     pub bank_rad: f32,
     /// Speed along the heading.
     pub speed_m_s: f32,
-    /// Structure points left.
+    /// Structure points left (a kind with no damage zones).
     pub hp: f32,
+    /// A modelled airliner's damage zones' structure points left, in its zones' order (airliner-models).
+    pub zone_hp: Vec<f32>,
+    /// Which of its zones have broken away.
+    pub broken: Vec<bool>,
     /// Where it is in its flight.
     pub phase: Phase,
     /// Its flight.
@@ -332,6 +337,15 @@ pub struct Air<'a> {
     pub cfg: &'a AirTrafficConfig,
 }
 
+/// What a hit on one part did.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct HitOutcome {
+    /// It brought the aircraft down.
+    pub downed: bool,
+    /// The damage zones it broke away (the hit zone and every zone hanging from it), in the zones' order.
+    pub broke: Vec<usize>,
+}
+
 /// What happened to an aircraft this step.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FlightStep {
@@ -347,9 +361,21 @@ pub struct FlightStep {
     pub done: bool,
 }
 
-/// How high the fuselage's centre line sits over the ground on its wheels or skids.
+/// How high the fuselage's centre line sits over the ground on its wheels or skids: its model's own, measured by its
+/// build, when it has one that says (the airliners), else from its size.
 pub fn rest_m(spec: &AircraftSpec) -> f32 {
+    if let Some(r) = spec.model.as_ref().and_then(|m| m.loaded.as_ref()).and_then(|l| l.manifest.rest_m) {
+        return r;
+    }
     spec.fuselage_m * 0.5 + (spec.height_m - spec.fuselage_m) * 0.15
+}
+
+/// Nose up standing on its gear, radians (a taildragger; zero for the rest).
+pub fn rest_pitch_rad(spec: &AircraftSpec) -> f32 {
+    spec.model
+        .as_ref()
+        .and_then(|m| m.loaded.as_ref())
+        .map_or(0.0, |l| l.manifest.rest_pitch_deg.to_radians())
 }
 
 impl Aircraft {
@@ -374,6 +400,8 @@ impl Aircraft {
             bank_rad: 0.0,
             speed_m_s,
             hp: spec.hp,
+            zone_hp: spec.zones().iter().map(|z| z.share * spec.hp).collect(),
+            broken: vec![false; spec.zones().len()],
             phase,
             flight,
             route_floor: (f32::NEG_INFINITY, 0.0),
@@ -433,8 +461,68 @@ impl Aircraft {
         false
     }
 
+    /// Takes a hit on part `part` (a damage zone's index; a kind with no zones takes it as a whole) through the one
+    /// armour rule. A zone at zero breaks away with every zone hanging from it (design section 5); losing any zone but
+    /// an engine, or every engine, brings it down.
+    pub fn hit_part(&mut self, spec: &AircraftSpec, part: usize, penetration_mm: f32, damage: f32) -> HitOutcome {
+        let zones = spec.zones();
+        if zones.is_empty() || part >= zones.len() || self.zone_hp.len() != zones.len() {
+            return HitOutcome {
+                downed: self.hit(penetration_mm, damage, spec.armour_mm),
+                broke: Vec::new(),
+            };
+        }
+        let mut out = HitOutcome::default();
+        if self.downed() || self.broken[part] {
+            return out;
+        }
+        if !crate::units::armour_hit(&mut self.zone_hp[part], penetration_mm, damage, spec.armour_mm) {
+            return out;
+        }
+        for z in super::model::falls_with(zones, part) {
+            if !self.broken[z] {
+                self.broken[z] = true;
+                out.broke.push(z);
+            }
+        }
+        let engines = zones.iter().filter(|z| z.kind == ZoneKind::Engine).count();
+        let all_engines = engines > 0 && self.engines_lost(spec) >= engines;
+        if out.broke.iter().any(|&z| zones[z].kind.downs()) || all_engines {
+            self.phase = Phase::Falling;
+            out.downed = true;
+        }
+        out
+    }
+
+    /// How many of its engines it has lost.
+    pub fn engines_lost(&self, spec: &AircraftSpec) -> usize {
+        spec.zones()
+            .iter()
+            .zip(&self.broken)
+            .filter(|(z, b)| **b && z.kind == ZoneKind::Engine)
+            .count()
+    }
+
+    /// The share of its engines' thrust it has lost (0 to 1).
+    pub fn thrust_lost(&self, spec: &AircraftSpec) -> f32 {
+        let engines = spec.zones().iter().filter(|z| z.kind == ZoneKind::Engine).count();
+        if engines == 0 {
+            return 0.0;
+        }
+        self.engines_lost(spec) as f32 / engines as f32
+    }
+
     /// One fixed step of `dt_s`.
     pub fn step(&mut self, spec: &AircraftSpec, air: &Air, dt_s: f32) -> FlightStep {
+        // an engine shot away: it flies on, slower, climbing less, on the ones it has left
+        let lost = self.thrust_lost(spec);
+        let slowed;
+        let spec = if lost > 0.0 {
+            slowed = spec.with_thrust_lost(lost);
+            &slowed
+        } else {
+            spec
+        };
         let mut out = FlightStep::default();
         if !(dt_s > 0.0 && dt_s.is_finite()) {
             return out;
