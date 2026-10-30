@@ -13,7 +13,7 @@
 - [x] 3.1 Atmosphere, fixed-wing forces and moments, gear contact
 - [x] 3.2 Rotorcraft: rotor, torque, tail rotor, ground effect, translational lift
 - [x] 3.3 Damage zones feed surfaces and engines
-- [x] 3.4 Assists: stall protection, auto-trim, hover hold (the settings to turn them off are still open)
+- [x] 3.4 Assists: stall protection, auto-trim, hover hold (each a setting on the Options page)
 - [x] 3.5 `data/aircraft/*.ron`; trim, stall, hover and golden-seed tests
 
 ## 4. App

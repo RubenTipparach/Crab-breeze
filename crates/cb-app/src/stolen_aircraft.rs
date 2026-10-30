@@ -14,7 +14,7 @@ use crate::traffic::CarAccessNow;
 use crate::world::Plan;
 use bevy::prelude::*;
 use cb_core::air_traffic::{AircraftSpec, rest_m};
-use cb_core::flight_model::{Assists, Body, Controls, Damage, Readout, step_plane, step_rotor};
+use cb_core::flight_model::{Body, Controls, Damage, Readout, step_plane, step_rotor};
 use cb_core::input::Actions;
 use cb_core::pilot::{CarAccess, PilotEvent, PilotMode, Vehicle};
 
@@ -192,6 +192,7 @@ pub fn fly(
     data: Res<Data>,
     plan: Res<Plan>,
     time: Res<Time<Fixed>>,
+    settings: Res<crate::settings::Settings>,
 ) {
     let Some(mut air) = air else { return };
     let aircraft = access.0.is_some_and(|c| c.vehicle == Vehicle::Aircraft);
@@ -244,7 +245,7 @@ pub fn fly(
     f.prev = (f.body.pos, heading);
     let before = f.body.vel;
     let was_down = f.body.on_ground;
-    let assists = Assists::default();
+    let assists = settings.0.flight_assists();
     f.readout = if let Some(p) = data.0.flight.planes.get(&f.kind) {
         step_plane(p, &mut f.body, c, assists, dmg, &ground, dt)
     } else if let Some(r) = data.0.flight.rotors.get(&f.kind) {
