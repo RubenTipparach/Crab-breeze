@@ -78,8 +78,6 @@ struct Part {
     kind: ParticleKind,
     /// Over the cap, the age it began fading out at (`CAP_FADE_S`); never, otherwise.
     fade_from_s: f32,
-    /// Its own colour (linear, HDR), in place of its kind's; its kind's curve still fades it in and out.
-    tint: Option<Vec3>,
 }
 
 /// The live soft particles, oldest first.
@@ -87,6 +85,25 @@ struct Part {
 pub struct SoftSprites {
     parts: Vec<Part>,
     rng: u64,
+    /// Sprites placed for this frame only by a system that moves them itself (a nuclear cloud, `nuke`), drawn and
+    /// sorted with the rest, then cleared.
+    placed: Vec<Placed>,
+}
+
+/// A sprite placed for one frame: where, its full size (m), its colour (linear HDR, alpha in w), its sheet cell and
+/// its spin (radians). Smoke sheet.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Placed {
+    /// Its centre, world.
+    pub at: Vec3,
+    /// Its full size, metres.
+    pub size_m: f32,
+    /// Its colour, linear HDR, alpha in w.
+    pub colour: Vec4,
+    /// Its cell of the smoke sheet, 0..16.
+    pub cell: f32,
+    /// Its spin, radians.
+    pub spin_rad: f32,
 }
 
 impl SoftSprites {
@@ -95,14 +112,9 @@ impl SoftSprites {
         ((self.rng >> 40) as f32) / (1u64 << 24) as f32
     }
 
-    /// Starts `count` particles of `spec` at `at`, thrown along `dir`, at `scale`, as `emit` does, each its own colour
-    /// `tint` (linear, HDR) with its kind's fade in and out: a nuclear cloud's puffs, coloured by its heat (`nuke`).
-    pub fn emit_tinted(&mut self, spec: SoftSpec, count: u32, at: Vec3, dir: Vec3, scale: f32, tint: Vec3) {
-        let from = self.parts.len();
-        self.emit(spec, count, at, dir, scale);
-        for p in &mut self.parts[from..] {
-            p.tint = Some(tint);
-        }
+    /// Places a sprite for this frame only (it is drawn once, with the rest, then gone).
+    pub fn place(&mut self, p: Placed) {
+        self.placed.push(p);
     }
 
     /// Starts `count` particles of `spec` at `at`, thrown along `dir`, at `scale`, as a hanabi burst of
@@ -130,7 +142,6 @@ impl SoftSprites {
                 cell,
                 kind: spec.kind,
                 fade_from_s: f32::INFINITY,
-                tint: None,
             });
         }
     }
@@ -353,6 +364,11 @@ fn step(time: Res<Time>, data: Res<Data>, mut sprites: ResMut<SoftSprites>) {
     }
 }
 
+/// A sprite's size now as a share of its starting size: its kind's steady growth.
+fn size_share(p: &Part) -> f32 {
+    1.0 + motion(p.kind).2 * p.age_s
+}
+
 /// How long a sprite over the cap takes to fade out, seconds.
 const CAP_FADE_S: f32 = 1.5;
 
@@ -407,33 +423,39 @@ struct Quad {
 
 /// The quads of `parts` that show, deepest along `forward` from `eye` first: a billboard lies in a plane
 /// parallel to the screen, so this is the exact back-to-front order where sprites do not cut each other.
-fn sorted_quads(parts: &[Part], eye: Vec3, forward: Vec3) -> Vec<Quad> {
+fn sorted_quads(parts: &[Part], placed: &[Placed], eye: Vec3, forward: Vec3) -> Vec<Quad> {
     let forward = forward.normalize_or(Vec3::NEG_Z);
-    let mut keyed: Vec<(f32, usize)> = parts
+    let mut keyed: Vec<(f32, Quad)> = parts
         .iter()
-        .enumerate()
-        .map(|(i, p)| ((p.pos - eye).dot(forward), i))
-        .filter(|(d, i)| *d > -parts[*i].size0_m * 4.0)
-        .collect();
-    keyed.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
-    keyed
-        .into_iter()
-        .map(|(_, i)| {
-            let p = &parts[i];
-            let (_, _, grow, _) = motion(p.kind);
-            let size = (p.size0_m * (1.0 + grow * p.age_s)).max(0.01);
+        .filter(|p| (p.pos - eye).dot(forward) > -p.size0_m * 4.0)
+        .map(|p| {
+            let size = (p.size0_m * size_share(p)).max(0.01);
             let sheet = if p.kind == ParticleKind::Dust { 1.0 } else { 0.0 };
-            Quad {
-                centre: p.pos,
-                shape: Vec4::new(size, p.spin_rad, p.cell, sheet),
-                colour: {
-                    let c = colour_at(p.kind, p.age_s / p.life_s);
-                    p.tint.map_or(c, |t| t.extend(c.w)) * Vec4::new(1.0, 1.0, 1.0, cap_fade(p))
+            let colour = colour_at(p.kind, p.age_s / p.life_s) * Vec4::new(1.0, 1.0, 1.0, cap_fade(p));
+            (
+                (p.pos - eye).dot(forward),
+                Quad {
+                    centre: p.pos,
+                    shape: Vec4::new(size, p.spin_rad, p.cell, sheet),
+                    colour,
                 },
-            }
+            )
         })
-        .filter(|q| q.colour.w > 0.002)
-        .collect()
+        .chain(placed.iter().filter(|p| (p.at - eye).dot(forward) > -p.size_m * 2.0).map(|p| {
+            (
+                (p.at - eye).dot(forward),
+                Quad {
+                    centre: p.at,
+                    shape: Vec4::new(p.size_m.max(0.01), p.spin_rad, p.cell, 0.0),
+                    colour: p.colour,
+                },
+            )
+        }))
+        .filter(|(_, q)| q.colour.w > 0.002)
+        .collect();
+    // deepest first; equal depths keep their order (a stable sort)
+    keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
+    keyed.into_iter().map(|(_, q)| q).collect()
 }
 
 fn sprite_mesh(quads: &[Quad]) -> Mesh {
@@ -465,14 +487,15 @@ fn sprite_mesh(quads: &[Quad]) -> Mesh {
 
 /// Sorts and uploads every live sprite for this frame's view.
 fn draw(
-    sprites: Res<SoftSprites>,
+    mut sprites: ResMut<SoftSprites>,
     draw: Option<Res<SoftDraw>>,
     camera: Single<&GlobalTransform, With<PilotCamera>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let Some(draw) = draw else { return };
     let _s = crate::perf_hud::section("soft sprites: sort and mesh");
-    let quads = sorted_quads(&sprites.parts, camera.translation(), camera.forward().as_vec3());
+    let quads = sorted_quads(&sprites.parts, &sprites.placed, camera.translation(), camera.forward().as_vec3());
+    sprites.placed.clear();
     if let Some(mut mesh) = meshes.get_mut(&draw.mesh) {
         *mesh = sprite_mesh(&quads);
     }
@@ -494,7 +517,6 @@ mod tests {
             cell: 0.0,
             kind: ParticleKind::Smoke,
             fade_from_s: f32::INFINITY,
-            tint: None,
         }
     }
 
@@ -513,11 +535,11 @@ mod tests {
     fn overlapping_smoke_is_drawn_farthest_first_whichever_was_spawned_first() {
         let near = part(Vec3::new(0.0, 0.0, -10.0));
         let far = part(Vec3::new(0.5, 0.0, -30.0));
-        let quads = sorted_quads(&[near, far], Vec3::ZERO, Vec3::NEG_Z);
+        let quads = sorted_quads(&[near, far], &[], Vec3::ZERO, Vec3::NEG_Z);
         assert_eq!(quads.len(), 2);
         assert_eq!(quads[0].centre, far.pos);
         assert_eq!(quads[1].centre, near.pos);
-        let turned = sorted_quads(&[far, near], Vec3::ZERO, Vec3::NEG_Z);
+        let turned = sorted_quads(&[far, near], &[], Vec3::ZERO, Vec3::NEG_Z);
         assert_eq!(turned[0].centre, far.pos);
     }
 

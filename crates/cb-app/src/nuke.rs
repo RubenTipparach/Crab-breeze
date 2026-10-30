@@ -2,17 +2,17 @@
 //! Crater", "I want big fireball expansion and turn into a mushroom cloud", "Followed by a big ass Crater"). One
 //! implementation, set off by a `Nuke` message: the Stratostacean's crash sends one, and so does the nuke test scene
 //! (`capture_nuke`). It digs the crater through the city, brings down what stands within the flatten radius, lights
-//! the flash, and raises the mushroom cloud of smoke-sheet particles (owner, 2026-10-30: "that nuke should be made of
-//! particles"), shaped, timed and coloured after Mining Mike's (godot-sandbox `scenes/nuke_mushroom.tscn` and
-//! `resources/shaders/nuke_cloud.gdshader` at a5c3ec5a; owner: "I just sent you the geometry stuff to give you a guide
-//! on how to set up the explosion + color + shape"): puffs filling his cap, the ring under it, the stem and the dust
-//! skirt as his `explode` animation poses them, each coloured by his heat palette (white-hot through yellow, orange
-//! and red to lit smoke, undersides hottest), thinning out as he dissolves it; his timeline stretched so the fireball
-//! swells in a second and the smoke rises over the cloud's life. Its numbers are `crash.nuke` in
-//! `data/missions/fortress.ron`.
+//! the flash, and raises the mushroom cloud, of smoke-sheet particles (owner, 2026-10-30: "that nuke should be made of
+//! particles"), shaped, timed and coloured after Mining Mike's mesh nuke (godot-sandbox `scenes/nuke_mushroom.tscn` and
+//! `resources/shaders/nuke_cloud.gdshader` at a5c3ec5a), which the test scene stands beside it (`nuke_mesh`). As the
+//! owner put it ("First the flash. It needs to be a big lensflare", "All fire ball has to appear at once. Then the
+//! fireball grows and cools into a big round puff. That puff rises leaving a big thick column under it"): the flash is
+//! the lens flare turned on the blast (`sun_flare::FlareFlash`); the cloud is a fixed set of puffs the nuke places
+//! itself every frame (`cloud`), so the ball appears whole at once, swells, cools and rises as one, and the column
+//! fills in under it. Its numbers are `crash.nuke` in `data/missions/fortress.ron`.
 
 use crate::fx::Fx;
-use crate::sim::{Data, SimSet};
+use crate::sim::{Data, PresentSet, SimSet};
 use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
@@ -34,7 +34,7 @@ pub struct NukeCloud {
 
 /// What Mining Mike's scene is authored at: its head stands `AUTHORED_HEAD_M` up at the end, so a cloud whose cap
 /// climbs to `cap_height_m` is scaled by `cap_height_m / AUTHORED_HEAD_M`.
-const AUTHORED_HEAD_M: f32 = 275.0;
+pub const AUTHORED_HEAD_M: f32 = 275.0;
 
 /// The pose and drive of the cloud at Mining Mike's timeline time `u` (0..5 s, his `explode` animation's keys).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -83,20 +83,16 @@ pub fn pose(u: f32) -> Pose {
     }
 }
 
-/// Real seconds after the blast to Mining Mike's timeline: his first 0.6 s (the fireball swelling) in the first second,
-/// the rest stretched over the cloud's life, so it rises slowly (owner, 2026-10-30: "a big fireball expands rapidly,
-/// then cools into a smoke ball that then rises slowly").
+/// Real seconds after the blast to Mining Mike's timeline: his `explode` animation over the explosion's length,
+/// `cloud_s` (owner, 2026-10-30: "The explosion part is also way too slow", "Review timing of mesh explosion with this
+/// And sync them up!!!").
 pub fn timeline(t_s: f32, cloud_s: f32) -> f32 {
-    if t_s < 1.0 {
-        0.6 * t_s
-    } else {
-        0.6 + 4.4 * ((t_s - 1.0) / (cloud_s - 1.0).max(1.0)).min(1.0)
-    }
+    (5.0 * t_s / cloud_s.max(0.1)).clamp(0.0, 5.0)
 }
 
-/// The cloud's heat at `t_s` real seconds: white-hot at once, through yellow and orange, red by 3 s, smoke by 14 s.
-pub fn heat(t_s: f32) -> f32 {
-    keyed(&[(0.0, 0.0), (0.5, 0.15), (3.0, 0.45), (8.0, 0.75), (14.0, 1.0)], t_s)
+/// The cloud's heat at timeline time `u`: Mining Mike's keys, white-hot at once, smoke by 3.6 of his 5 s.
+pub fn heat(u: f32) -> f32 {
+    keyed(&[(0.0, 0.0), (0.4, 0.2), (2.0, 0.6), (3.6, 1.0)], u)
 }
 
 /// Nuclear blasts.
@@ -106,7 +102,8 @@ impl Plugin for NukePlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<Nuke>()
             .add_game_systems(FixedUpdate, detonate.in_set(SimSet::World))
-            .add_game_systems(Update, animate_clouds);
+            .init_resource::<crate::sun_flare::FlareFlash>()
+            .add_game_systems(Update, animate_clouds.before(PresentSet::Pose));
     }
 }
 
@@ -161,16 +158,30 @@ fn detonate(
     }
 }
 
-/// The cloud puffs once every this long, seconds.
-const TICK_S: f32 = 0.2;
+/// The flash lasts this long, seconds...
+const FLASH_S: f32 = 0.8;
 
-/// Each puff lives this long, seconds (owner, 2026-10-30: "the life time of the puffs are too short!": at 2.5 s the cloud
-/// was all fresh puffs and flickered)...
-const PUFF_LIFE_S: f32 = 7.0;
+/// ...its lens flare this many times the sun's at first, falling to nothing.
+const FLASH_GLOW: f32 = 12.0;
 
-/// ...starting at this share of its size: smoke grows 90 % of its starting size a second (`particles::motion`), so over
-/// a 7 s life a puff averages about its size.
-const PUFF_START: f32 = 0.3;
+/// A puff this hot or hotter is fire, more opaque; cooler, smoke (where the palette has turned to smoke, `heat_colour`).
+const SMOKE_FROM_HEAT: f32 = 0.6;
+
+/// Each puff spans this much of its part's radius (the ball's, the ring's tube, the column's, the skirt's tube): a
+/// smoke-sheet cell is mostly its soft edge, so puffs a part's radius across drew scattered clumps (side-by-side scene
+/// 13); at 1.3 they overlap into the part's whole shape.
+const PUFF_SPAN: f32 = 1.3;
+/// Every puff bursts out of the blast point to its place in the cloud in 0.2-0.5 s, each at its own pace (owner,
+/// 2026-10-30: "They originate from one location!", "grow to their max size withing .2-.5 seconds").
+const BURST_S: (f32, f32) = (0.2, 0.5);
+/// A puff's size as it leaves the blast point, as a share of its full size.
+const BURST_SEED: f32 = 0.12;
+
+/// The puffs of each part of the cloud.
+const BALL: u32 = 90;
+const RING: u32 = 24;
+const COLUMN: u32 = 50;
+const SKIRT: u32 = 24;
 
 /// The heat palette (Mining Mike's `nuke_cloud.gdshader`): white-hot, yellow, orange, red, then smoke lit from `lit`
 /// (0 shade, 1 sunlit); the fire pushed `FIRE_GLOW` times into HDR, so it blooms. Linear RGB.
@@ -195,160 +206,114 @@ pub fn heat_colour(h: f32, lit: f32) -> Vec3 {
     (fire * glow).lerp(smoke, ss(0.45, 0.78, h))
 }
 
-/// One puff of the cloud: where, how big (m), its colour.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Puff {
-    /// Where, world.
-    pub at: Vec3,
-    /// Its size, metres.
-    pub size_m: f32,
-    /// Its colour, linear HDR.
-    pub colour: Vec3,
-    /// Part of the flash: a short life (`FLASH_S`), not a puff's.
-    pub flash: bool,
-}
-
-/// The flash lasts this long, seconds (owner, 2026-10-30: "Make sure theres a big flash at the beginning")...
-const FLASH_S: f32 = 0.6;
-
-/// ...this many times brighter than a lit white surface at first, falling to nothing.
-const FLASH_GLOW: f32 = 40.0;
-
-/// One tick's puffs of the cloud `t_s` after a blast at `at`, pure and placed by a fixed sequence (the tick's number):
-/// Mining Mike's parts as his animation poses them (his units, scaled so the head reaches `cap_height_m`), filled with
-/// puffs: the cap (an ellipsoid 90 across and 55 high over the head), the ring rolling under it (a torus 77.5 round,
-/// 37.5 thick), the stem (a cone 40 wide at the foot, 22 at the top, 240 tall) and the dust skirt (a torus 90 round, 50
-/// thick, on the ground). Each takes the heat now plus his per-part offset and a little noise, its undersides hotter;
-/// fewer and fewer as he dissolves it.
-pub fn puffs(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<Puff> {
-    let k = (t_s / TICK_S).floor() as u32;
+/// The cloud `t_s` after a blast at `at`: every puff placed for this frame, pure, the same puffs every frame (each its
+/// own fixed place in its part, cell and spin), so the cloud moves as one. Mining Mike's parts as his animation poses
+/// them (his units, scaled so the head reaches `cap_height_m`):
+/// - the ball: his cap made round, a ball of `BALL` puffs 90 of his units in radius times the head's scale round the
+///   head, there whole from the first frame, swelling and climbing with the head;
+/// - the ring rolling under it (a torus 77.5 round and 37.5 thick under the head);
+/// - the column: a thick cone (his stem, 1.3 times as wide) from the ground up to the ball's foot, filling in as the
+///   ball climbs off it;
+/// - the dust skirt round the foot (a torus 90 round, 50 thick, on the ground).
+///
+/// Each puff takes the heat now plus his per-part offset and its own noise, its undersides hotter, lit from the sun;
+/// each fades out at its own point as he dissolves the cloud.
+pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_sprites::Placed> {
+    use crate::soft_sprites::Placed;
     let rand = |i: u32| ((i.wrapping_mul(2_654_435_761).rotate_left(13) ^ 0x9e37_79b9) >> 8 & 0xffff) as f32 / 65_535.0;
-    let p = pose(timeline(t_s, n.cloud_s));
+    let tau = std::f32::consts::TAU;
+    let u = timeline(t_s, n.cloud_s);
+    let p = pose(u);
     let s = n.cap_height_m / AUTHORED_HEAD_M;
-    let heat_now = heat(t_s);
-    let left = 1.0 - p.dissolve;
+    let heat_now = heat(u);
     let mut out = Vec::new();
-    let mut put = |i: u32, local: Vec3, centre: Vec3, size: f32, heat_offset: f32| {
-        let normal = (local - centre).normalize_or(Vec3::Y);
+    let mut put = |i: u32, pos: Vec3, normal: Vec3, size: f32, heat_offset: f32| {
+        let normal = normal.normalize_or(Vec3::Y);
         let under = (-normal.y).clamp(0.0, 1.0);
         let h = heat_now + heat_offset + (rand(i + 7) - 0.5) * 0.7 - under * 0.3;
         let lit = normal.dot(to_sun) * 0.5 + 0.5;
-        out.push(Puff {
-            at: at + local * s,
-            size_m: size * s * (0.75 + 0.5 * rand(i + 9)),
-            colour: heat_colour(h, lit),
-            flash: false,
+        // as he dissolves it, each puff goes at its own point
+        let keep = ((rand(i + 11) - p.dissolve) / 0.2 + 0.5).clamp(0.0, 1.0);
+        // out of the blast point, fast then easing into place
+        let k = 1.0 - (1.0 - (t_s / (BURST_S.0 + (BURST_S.1 - BURST_S.0) * rand(i + 9))).clamp(0.0, 1.0)).powi(3);
+        let pos = at + (pos - at) * k;
+        let size = size * (BURST_SEED + (1.0 - BURST_SEED) * k);
+        let opacity = if h < SMOKE_FROM_HEAT { 0.95 } else { 0.8 };
+        out.push(Placed {
+            at: pos,
+            size_m: size * (0.8 + 0.4 * rand(i + 6)),
+            colour: heat_colour(h, lit).extend(opacity * keep),
+            cell: (rand(i + 5) * 16.0).floor().min(15.0),
+            spin_rad: rand(i + 3) * tau + t_s * 0.3 * (rand(i + 4) - 0.5),
         });
     };
-    let count = |full: f32| (full * left).round() as u32;
-    let tau = std::f32::consts::TAU;
-    // the flash: a blinding white burst far wider than the fireball, gone in `FLASH_S`
-    let mut flashes = Vec::new();
-    if t_s < FLASH_S {
-        let k_flash = 1.0 - t_s / FLASH_S;
-        for j in 0..12u32 {
-            let i = k * 61 + j * 7 + 1;
-            let a = rand(i) * tau;
-            let off = Vec3::new(a.cos(), rand(i + 1) * 0.8, a.sin()) * 60.0 * rand(i + 2);
-            flashes.push(Puff {
-                at: at + (Vec3::Y * 40.0 + off) * s,
-                size_m: 260.0 * s * (0.8 + 0.4 * rand(i + 3)),
-                colour: Vec3::new(1.0, 0.97, 0.9) * FLASH_GLOW * k_flash * k_flash,
-                flash: true,
-            });
-        }
-    }
-    // the cap: an ellipsoid over the head, its surface and just inside
-    let head = Vec3::new(0.0, p.head_y, 0.0);
-    let cap_c = head + Vec3::Y * 10.0 * p.head_scale;
-    for j in 0..count(16.0) {
-        let i = k * 97 + j * 11;
+    // the ball, round, every puff out of the blast point at once
+    let head = at + Vec3::Y * p.head_y * s;
+    let centre = head + Vec3::Y * 10.0 * p.head_scale * s;
+    let r = 90.0 * p.head_scale * s;
+    for j in 0..BALL {
+        let i = j * 13 + 1;
         let (a, z) = (rand(i) * tau, rand(i + 1) * 2.0 - 1.0);
-        let r = (1.0 - z * z).sqrt() * (0.7 + 0.3 * rand(i + 2));
-        let local = cap_c + Vec3::new(a.cos() * r * 90.0, z * 55.0, a.sin() * r * 90.0) * p.head_scale;
-        put(i, local, cap_c, 55.0 * p.head_scale, 0.0);
+        let dir = Vec3::new((1.0 - z * z).sqrt() * a.cos(), z, (1.0 - z * z).sqrt() * a.sin());
+        let reach = 0.45 + 0.55 * rand(i + 2).sqrt();
+        put(i, centre + dir * reach * r, dir, r * PUFF_SPAN, 0.0);
     }
-    // the ring rolling under the cap
-    for j in 0..count(10.0) {
-        let i = k * 89 + j * 13 + 3;
+    // the ring rolling under it
+    for j in 0..RING {
+        let i = j * 17 + 3;
         let (a, b) = (rand(i) * tau, rand(i + 1) * tau);
-        let ring = head + Vec3::new(0.0, -25.0, 0.0) * p.head_scale;
-        let round = 77.5 + 37.5 * b.cos();
-        let local = ring + Vec3::new(a.cos() * round, 37.5 * b.sin(), a.sin() * round) * p.head_scale;
-        put(
-            i,
-            local,
-            ring + Vec3::new(a.cos() * 77.5, 0.0, a.sin() * 77.5) * p.head_scale,
-            38.0 * p.head_scale,
-            0.05,
-        );
+        let ring_c = head - Vec3::Y * 25.0 * p.head_scale * s;
+        let round = Vec3::new(a.cos(), 0.0, a.sin());
+        let tube = round * 37.5 * b.cos() + Vec3::Y * 37.5 * b.sin();
+        let pos = ring_c + (round * 77.5 + tube) * p.head_scale * s;
+        put(i, pos, tube, 37.5 * 2.0 * p.head_scale * s * PUFF_SPAN, 0.05);
     }
-    // the stem: a cone up to the head
-    for j in 0..count(8.0) {
-        let i = k * 83 + j * 17 + 5;
-        let f = rand(i);
+    // the column, from the ground up to the ball's foot
+    let top = (centre.y - at.y - r * 0.7).max(0.0);
+    for j in 0..COLUMN {
+        let i = j * 19 + 5;
+        let f = (j as f32 + rand(i)) / COLUMN as f32;
+        let wide = (40.0 + (22.0 - 40.0) * f) * p.stem.x * 1.3 * s;
         let a = rand(i + 1) * tau;
-        let r = (40.0 + (22.0 - 40.0) * f) * rand(i + 2).sqrt();
-        let local = Vec3::new(a.cos() * r * p.stem.x, 240.0 * f * p.stem.y, a.sin() * r * p.stem.x);
-        put(i, local, Vec3::new(0.0, local.y, 0.0), 30.0 * p.stem.x, 0.12);
+        let off = Vec3::new(a.cos(), 0.0, a.sin()) * wide * 0.6 * rand(i + 2).sqrt();
+        put(i, at + Vec3::Y * f * top + off, off, wide * 2.0 * PUFF_SPAN, 0.12);
     }
     // the dust skirt round the foot
-    for j in 0..count(6.0) {
-        let i = k * 79 + j * 19 + 6;
+    for j in 0..SKIRT {
+        let i = j * 23 + 6;
         let (a, b) = (rand(i) * tau, rand(i + 1) * std::f32::consts::PI);
-        let round = 90.0 + 50.0 * b.cos();
-        let local = Vec3::new(
-            a.cos() * round * p.skirt.x,
-            8.0 + 50.0 * b.sin() * p.skirt.y,
-            a.sin() * round * p.skirt.x,
-        );
-        put(
-            i,
-            local,
-            Vec3::new(a.cos() * 90.0 * p.skirt.x, 8.0, a.sin() * 90.0 * p.skirt.x),
-            45.0 * p.skirt.x,
-            0.35,
-        );
+        let round = Vec3::new(a.cos(), 0.0, a.sin());
+        let pos = at + (round * (90.0 + 50.0 * b.cos()) * p.skirt.x + Vec3::Y * (8.0 + 50.0 * b.sin() * p.skirt.y)) * s;
+        put(i, pos, round + Vec3::Y * 0.3, 50.0 * 2.0 * p.skirt.x * s * PUFF_SPAN, 0.35);
     }
-    out.extend(flashes);
     out
 }
 
-/// Plays each cloud: this tick's puffs into the soft sprites (sorted and fogged with every other smoke), as smoke-sheet
-/// puffs that live `PUFF_LIFE_S`, refreshed every tick; gone at the end.
+/// Plays each cloud: its puffs placed for this frame among the soft sprites (sorted and fogged with every other smoke),
+/// the lens flare turned on it for the flash; gone at the end.
 fn animate_clouds(
     mut commands: Commands,
     mut clouds: Query<(Entity, &mut NukeCloud)>,
     mut sprites: ResMut<crate::soft_sprites::SoftSprites>,
+    mut flash: ResMut<crate::sun_flare::FlareFlash>,
     data: Res<Data>,
     time: Res<Time>,
 ) {
+    flash.0 = None;
     let Some(n) = data.0.fortress.cfg.crash.nuke else { return };
     let to_sun = cb_core::world::sun_shade::to_sun();
-    let spec = crate::soft_sprites::SoftSpec {
-        kind: cb_core::fx::ParticleKind::Smoke,
-        speed_m_s: 0.02,
-        spread: 1.0,
-        size_m: 1.0,
-        life_s: PUFF_LIFE_S,
-    };
     for (e, mut c) in &mut clouds {
-        let was = c.t_s;
         c.t_s += time.delta_secs();
         if c.t_s > n.cloud_s {
             commands.entity(e).despawn();
             continue;
         }
-        if (c.t_s / TICK_S).floor() == (was / TICK_S).floor() {
-            continue;
+        if c.t_s < FLASH_S {
+            let k = 1.0 - c.t_s / FLASH_S;
+            flash.0 = Some((c.at + Vec3::Y * n.fireball_radius_m * 0.5, FLASH_GLOW * k * k));
         }
-        for p in puffs(&n, c.at, c.t_s, to_sun) {
-            if p.flash {
-                let flash = crate::soft_sprites::SoftSpec { life_s: FLASH_S, ..spec };
-                sprites.emit_tinted(flash, 1, p.at, Vec3::Y, p.size_m / 2.0, p.colour);
-            } else {
-                sprites.emit_tinted(spec, 1, p.at, Vec3::Y, p.size_m * PUFF_START, p.colour);
-            }
+        for p in cloud(&n, c.at, c.t_s, to_sun) {
+            sprites.place(p);
         }
     }
 }
@@ -358,23 +323,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_fireball_swells_within_a_second_then_rises_slowly() {
-        let early = pose(timeline(1.0, 75.0));
+    fn the_cloud_plays_mining_mikes_timeline_over_the_explosion() {
+        assert_eq!(timeline(0.0, 6.0), 0.0);
         assert!(
-            (early.head_scale - 0.6).abs() < 0.05 && early.head_y > 90.0,
-            "swollen in a second: {early:?}"
+            (timeline(3.0, 6.0) - 2.5).abs() < 1e-5,
+            "half way through his 5 s at half the explosion"
         );
-        let mid = pose(timeline(30.0, 75.0));
-        let late = pose(timeline(74.0, 75.0));
-        assert!(
-            mid.head_y > early.head_y && late.head_y > mid.head_y,
-            "rising: {} {} {}",
-            early.head_y,
-            mid.head_y,
-            late.head_y
-        );
-        let rate = (late.head_y - mid.head_y) / 44.0 * 1100.0 / AUTHORED_HEAD_M;
-        assert!(rate < 15.0, "slowly: {rate} m/s");
+        assert_eq!(timeline(9.0, 6.0), 5.0, "held at his end");
+        let swollen = pose(timeline(0.5, 6.0));
+        assert!(swollen.head_scale > 0.55, "the fireball swells in half a second: {swollen:?}");
     }
 
     fn spec() -> NukeSpec {
@@ -385,51 +342,67 @@ mod tests {
             flatten_radius_m: 700.0,
             fireball_radius_m: 250.0,
             cap_height_m: 1100.0,
-            cloud_s: 75.0,
+            cloud_s: 6.0,
         }
     }
 
     #[test]
-    fn the_puffs_make_a_mushroom_white_hot_then_smoke() {
+    fn the_fireball_is_whole_at_once_then_a_round_smoke_ball_rises_on_a_thick_column() {
         let n = spec();
-        let early = puffs(&n, Vec3::ZERO, 0.5, Vec3::Y);
-        let flash = puffs(&n, Vec3::ZERO, 0.0, Vec3::Y);
-        assert!(flash.iter().any(|p| p.flash && p.colour.x > 30.0), "a blinding flash at the start");
-        assert!(puffs(&n, Vec3::ZERO, 1.0, Vec3::Y).iter().all(|p| !p.flash), "gone within a second");
-        let early: Vec<_> = early.into_iter().filter(|p| !p.flash).collect();
-        let hot = early.iter().filter(|p| p.colour.x > 1.0).count();
-        assert!(
-            hot * 10 >= early.len() * 7,
-            "most of it white-hot at first, blooming: {hot} of {}",
-            early.len()
+        let first = cloud(&n, Vec3::ZERO, 0.0, Vec3::Y);
+        assert_eq!(
+            first.len() as u32,
+            BALL + RING + COLUMN + SKIRT,
+            "every puff there from the first frame"
         );
-        let late = puffs(&n, Vec3::ZERO, 30.0, Vec3::Y);
-        assert!(late.iter().all(|p| p.colour.max_element() < 1.0), "smoke later");
-        // a cap well over the ground, wider than the stem under it
+        let hot = first.iter().filter(|p| p.colour.x > 1.0).count();
+        assert!(hot * 10 >= first.len() * 6, "white-hot at once: {hot} of {}", first.len());
+        let late = cloud(&n, Vec3::ZERO, n.cloud_s * 0.8, Vec3::Y);
+        // undersides and crevices stay hot longest, as in his shader: most of it, not all, is smoke by now
+        let smoke = late.iter().filter(|p| p.colour.x < 1.0).count();
+        assert!(smoke * 10 >= late.len() * 8, "cooled into smoke: {smoke} of {}", late.len());
         let top = late.iter().map(|p| p.at.y).fold(0.0f32, f32::max);
-        assert!(top > 700.0, "the cap is up: {top}");
-        let cap_w = late
+        let low = first.iter().map(|p| p.at.y).fold(0.0f32, f32::max);
+        assert!(top > low * 2.0 && top > 700.0, "the ball has risen: {low} then {top}");
+        let column = late.iter().filter(|p| p.at.y > 100.0 && p.at.y < top * 0.5).count();
+        assert!(column >= 15, "a thick column under it: {column} puffs");
+        let ball_w = late
             .iter()
-            .filter(|p| p.at.y > top - 250.0)
+            .filter(|p| p.at.y > top - 300.0)
             .map(|p| p.at.xz().length())
             .fold(0.0f32, f32::max);
-        let stem_w = late
+        let col_w = late
             .iter()
             .filter(|p| p.at.y > 150.0 && p.at.y < 400.0)
             .map(|p| p.at.xz().length())
             .fold(0.0f32, f32::max);
-        assert!(cap_w > stem_w * 1.8, "a mushroom: the cap {cap_w} m out, the stem {stem_w} m");
+        assert!(ball_w > col_w * 1.5, "a mushroom: the ball {ball_w} m out, the column {col_w} m");
+        let end = cloud(&n, Vec3::ZERO, n.cloud_s * 0.999, Vec3::Y);
         assert!(
-            puffs(&n, Vec3::ZERO, 74.9, Vec3::Y).len() < late.len() / 4,
-            "thinning out as it dissolves"
+            end.iter().filter(|p| p.colour.w > 0.1).count() < end.len() / 4,
+            "dissolving at the end"
         );
+    }
+
+    #[test]
+    fn every_puff_bursts_out_of_the_blast_point_into_place_within_half_a_second() {
+        let n = spec();
+        let at = Vec3::new(100.0, 20.0, -50.0);
+        let first = cloud(&n, at, 0.0, Vec3::Y);
+        assert!(first.iter().all(|p| p.at.distance(at) < 1e-3), "all from the one point");
+        let early = cloud(&n, at, 0.1, Vec3::Y);
+        let placed = cloud(&n, at, BURST_S.1, Vec3::Y);
+        let reach = |ps: &[crate::soft_sprites::Placed]| ps.iter().map(|p| p.at.distance(at)).sum::<f32>() / ps.len() as f32;
+        assert!(reach(&early) > 0.0 && reach(&early) < reach(&placed), "flying outward");
+        let size = |ps: &[crate::soft_sprites::Placed]| ps.iter().map(|p| p.size_m).sum::<f32>();
+        assert!(size(&first) < size(&placed) * 0.2, "small as they leave it, full size in place");
     }
 
     #[test]
     fn it_burns_white_then_cools_into_smoke_then_dissolves_at_the_end() {
         assert_eq!(heat(0.0), 0.0, "white-hot at once");
-        assert!(heat(3.0) < 0.5 && heat(14.0) >= 1.0, "smoke by 14 s");
-        assert_eq!(pose(timeline(30.0, 75.0)).dissolve, 0.0, "whole while it rises");
-        assert!(pose(timeline(75.0, 75.0)).dissolve > 0.99, "gone at the end");
+        assert!(heat(1.0) < 0.5 && heat(3.6) >= 1.0, "smoke by 3.6 of his 5 s");
+        assert_eq!(pose(3.0).dissolve, 0.0, "whole while it rises");
+        assert!(pose(5.0).dissolve > 0.99, "gone at the end");
     }
 }

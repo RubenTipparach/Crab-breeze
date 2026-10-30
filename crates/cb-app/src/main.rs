@@ -54,6 +54,7 @@ mod missions;
 mod music;
 mod nav;
 mod nuke;
+mod nuke_mesh;
 mod one_sided;
 mod particles;
 mod paving;
@@ -249,7 +250,12 @@ fn main() -> AppExit {
         interact::InteractPlugin,
     ))
     // Free roam's mail and its missions (free-roam-missions); the Stratostacean (crab-airship).
-    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin, nuke::NukePlugin))
+    .add_plugins((
+        missions::MissionsPlugin,
+        fortress::FortressPlugin,
+        nuke::NukePlugin,
+        nuke_mesh::NukeMeshPlugin,
+    ))
     // The time of day: the world's clock, the sun and the moon (day-night-cycle).
     .add_plugins((day_night::DayNightPlugin, lamps::LampsPlugin))
     // How thick the ground fog is now: the clock's hour and the mission's preset (ground-fog, survey F1).

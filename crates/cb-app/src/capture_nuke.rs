@@ -29,6 +29,7 @@ struct Scene {
     ready_at: Option<f32>,
     boom_at: Option<f32>,
     target: Vec3,
+    watcher: Vec3,
     done: Vec<&'static str>,
 }
 
@@ -40,6 +41,7 @@ impl Plugin for NukeStillsPlugin {
             ready_at: None,
             boom_at: None,
             target: Vec3::ZERO,
+            watcher: Vec3::ZERO,
             done: Vec::new(),
         })
         .add_game_systems(Update, run);
@@ -68,6 +70,7 @@ fn run(
     time: Res<Time<Real>>,
     mut pilot: ResMut<PilotSim>,
     mut nukes: MessageWriter<Nuke>,
+    mut meshes: MessageWriter<crate::nuke_mesh::MeshNuke>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let now = time.elapsed_secs();
@@ -85,7 +88,10 @@ fn run(
         };
         scene.target = Vec3::new(c.x, ground(c.x, c.y), c.y);
         let feet = Vec3::new(spot.x, ground(spot.x, spot.y), spot.y);
-        stand_looking(&mut pilot, feet, scene.target + Vec3::Y * 500.0);
+        scene.watcher = feet;
+        // between the particle nuke and the mesh one beside it (`MeshNuke`, 1.3 km across)
+        let across = Vec3::new(-(scene.target.z - feet.z), 0.0, scene.target.x - feet.x).normalize_or(Vec3::X);
+        stand_looking(&mut pilot, feet, scene.target + across * 650.0 + Vec3::Y * 500.0);
         println!(
             "NUKE spot for seed {}: (blast: ({:.1}, {:.1}), watcher: ({:.1}, {:.1}))",
             plan.seed, c.x, c.y, spot.x, spot.y
@@ -98,6 +104,15 @@ fn run(
     // It goes off 4 s after the pilot is placed.
     if now - ready_at > 8.0 && scene.boom_at.is_none() && scene.target != Vec3::ZERO {
         nukes.write(Nuke { at: scene.target });
+        // Mining Mike's mesh nuke beside it, its reference (owner: "Place mesh nuke side by side of this nuke"), 1.3 km
+        // to the side across the view, on the same timeline.
+        let across = Vec3::new(-(scene.target.z - scene.watcher.z), 0.0, scene.target.x - scene.watcher.x).normalize_or(Vec3::X);
+        let side = scene.target + across * 1300.0;
+        meshes.write(crate::nuke_mesh::MeshNuke(Vec3::new(
+            side.x,
+            plan.terrain.height_at(side.x, side.z),
+            side.z,
+        )));
         scene.boom_at = Some(now);
     }
     let Some(boom) = scene.boom_at else { return };
