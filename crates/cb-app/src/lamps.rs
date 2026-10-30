@@ -5,8 +5,8 @@
 //! that light nothing); and the nearest lamps that light, up to `real_lamps` within `real_m` of the eye, made real
 //! spot lights without shadows. Those are a fixed pool of light entities moved from lamp to lamp, never spawned per
 //! frame; each one's light fades in when it is given a lamp and fades with distance, so a lamp never pops on. Lamps
-//! and dots come on at dusk from the hour (`day_night::Light`); a light standing on a ship or a crane goes out once
-//! that is damaged. Its own module: drawing and lighting the lamps is one capability.
+//! and dots come on at dusk from the hour (`day_night::Light`); a light standing on a ship or a crane goes out once half
+//! of that is down (`Houses::lit`). Its own module: drawing and lighting the lamps is one capability.
 
 use crate::day_night::Light;
 use crate::sim::{Data, PresentSet};
@@ -368,11 +368,11 @@ pub fn nearest(lamps: &Lamps, eye: Vec3, reach_m: impl Fn(LampKind) -> f32, n: u
     found
 }
 
-/// Hides the glow dots of a lot once it is damaged (its lights are out, as a damaged building's rooms are).
+/// Hides the glow dots of a lot once half of it is down (`Houses::lit`: its lights are out, as its rooms are).
 fn dark_lots(live: Option<Res<crate::world::Live>>, mut dots: Query<(&LotLights, &mut Visibility)>) {
     let Some(live) = live else { return };
     for (lot, mut visibility) in &mut dots {
-        let want = if live.structures.houses.states.contains_key(&lot.0) {
+        let want = if !live.structures.houses.lit(lot.0, live.structures.cfg.lights_out_share) {
             Visibility::Hidden
         } else {
             Visibility::Inherited
@@ -429,8 +429,10 @@ fn light_lamps(
         }
     }
     let damaged = |l: &Lamp| {
-        l.lot
-            .is_some_and(|lot| live.as_ref().is_some_and(|live| live.structures.houses.states.contains_key(&lot)))
+        l.lot.is_some_and(|lot| {
+            live.as_ref()
+                .is_some_and(|live| !live.structures.houses.lit(lot, live.structures.cfg.lights_out_share))
+        })
     };
     // `CB_NO_LAMPS=1` gives no lamp a real light (an instrument, to measure the night: openspec change
     // `night-frame`); the heads still glow.

@@ -74,6 +74,52 @@ pub struct DayNightConfig {
     pub windows: WindowLights,
     /// The lit rooms behind the windows and the glass at night (`crate::night_light`).
     pub rooms: crate::night_light::RoomLights,
+    /// The pilot's own faint light on foot at night.
+    pub self_light: SelfLight,
+}
+
+/// The pilot's own light on foot (owner, 2026-10-29: "the player needs a light, so like when I walk in to a an area, I
+/// can still see a little bit. just a dim blue subtle self light like in dark souls"): a dim blue point light just
+/// above their head, no shadows, that comes up as the day goes, so a dark room or a moonless street keeps its floor
+/// and walls a few metres round them. Off seated or driving: the cockpit and the car have their own.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct SelfLight {
+    /// Its light at full night, lumens (at night's exposure, `night_ev100`).
+    pub lumens: f32,
+    /// Its colour, sRGB 0..1.
+    pub colour: [f32; 3],
+    /// How far it reaches, metres.
+    pub range_m: f32,
+    /// How far above the eye it hangs, metres.
+    pub above_eye_m: f32,
+}
+
+impl Default for SelfLight {
+    fn default() -> Self {
+        Self {
+            lumens: 40.0,
+            colour: [0.55, 0.7, 1.0],
+            range_m: 8.0,
+            above_eye_m: 0.3,
+        }
+    }
+}
+
+impl SelfLight {
+    /// Its light now, lumens: full at night, none by day, fading through dusk with `Lighting::day`.
+    pub fn lumens_at(&self, light: &Lighting) -> f32 {
+        self.lumens * (1.0 - light.day).clamp(0.0, 1.0)
+    }
+
+    fn check(&self) -> Result<(), String> {
+        within("self_light.lumens", self.lumens, 0.0, 10_000.0)?;
+        for c in self.colour {
+            within("self_light.colour", c, 0.0, 1.0)?;
+        }
+        within("self_light.range_m", self.range_m, 0.1, 100.0)?;
+        within("self_light.above_eye_m", self.above_eye_m, -2.0, 2.0)
+    }
 }
 
 /// The buildings' windows at night (owner, 2026-10-28: "buildings also need some sort of cell
@@ -168,6 +214,7 @@ impl Default for DayNightConfig {
             lamps: crate::world::lamps::LampConfig::default(),
             windows: WindowLights::default(),
             rooms: crate::night_light::RoomLights::default(),
+            self_light: SelfLight::default(),
         }
     }
 }
@@ -193,6 +240,7 @@ impl Validate for DayNightConfig {
         self.lamps.validate()?;
         self.windows.check()?;
         self.rooms.check()?;
+        self.self_light.check()?;
         ordered("stars_deg", self.stars_deg)
     }
 }
@@ -398,6 +446,21 @@ pub fn lighting(cfg: &DayNightConfig, clock: &WorldClock, day_ev100: f32) -> Lig
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pilot's own light is full at midnight and out at noon (owner, 2026-10-29: "a dim blue subtle self light").
+    #[test]
+    fn the_pilots_own_light_is_on_at_night_and_out_by_day() {
+        let cfg = DayNightConfig::default();
+        let at = |h: f64| {
+            let clock = WorldClock {
+                hours: 24.0 + h,
+                ..WorldClock::start(&cfg)
+            };
+            cfg.self_light.lumens_at(&lighting(&cfg, &clock, 13.4))
+        };
+        assert!((at(0.0) - cfg.self_light.lumens).abs() < 1e-3, "midnight: full");
+        assert_eq!(at(12.0), 0.0, "noon: out");
+    }
 
     fn close(a: f32, b: f32, tol: f32) -> bool {
         (a - b).abs() <= tol

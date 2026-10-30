@@ -3,7 +3,8 @@
 //! and the moon (two directional lights; the one that is up casts the shadows) and sets the
 //! exposure, the flat ambient and the sky's light. Everything that wants "the light on the world"
 //! (the water, the clouds, the fog) takes the brighter body through `key_light`, so they never
-//! disagree with what lights the ground. Its own module because no other capability owns the hour.
+//! disagree with what lights the ground. It also carries the pilot's own faint light on foot at night
+//! (`cb_core::day_night::SelfLight`), which follows the hour. Its own module because no other capability owns the hour.
 //!
 //! `CB_HOUR=<h>` holds the clock at hour `h` of the second day (stills and benchmarks).
 
@@ -25,6 +26,10 @@ pub struct Light(pub Lighting);
 /// The moon's light.
 #[derive(Component)]
 pub struct Moon;
+
+/// The pilot's own faint light on foot at night (`SelfLight`).
+#[derive(Component)]
+struct SelfGlow;
 
 /// A body in the sky that lights the world (the sun or the moon): how much of its direct light
 /// reaches the ground now, 0..1. Bevy dims a directional light below the horizon itself on its own
@@ -70,9 +75,10 @@ impl Plugin for DayNightPlugin {
         let light = Light(lighting(&data.day_night, &clock.0, data.world.view.exposure_ev100));
         app.insert_resource(clock)
             .insert_resource(light)
-            .add_world_spawn((restart_clock, spawn_moon))
+            .add_world_spawn((restart_clock, spawn_moon, spawn_self_light))
             .add_game_systems(FixedUpdate, tick.in_set(SimSet::Input))
-            .add_game_systems(Update, light_the_world.in_set(PresentSet::Pose));
+            .add_game_systems(Update, light_the_world.in_set(PresentSet::Pose))
+            .add_game_systems(Update, carry_self_light.after(PresentSet::Camera));
     }
 }
 
@@ -113,6 +119,56 @@ fn spawn_moon(mut commands: Commands, data: Res<Data>) {
         }
         .build(),
     ));
+}
+
+/// The pilot's own light, dark until `carry_self_light` places it.
+fn spawn_self_light(mut commands: Commands, data: Res<Data>) {
+    let s = &data.0.day_night.self_light;
+    let [r, g, b] = s.colour;
+    commands.spawn((
+        Name::new("pilot's own light"),
+        SelfGlow,
+        PointLight {
+            intensity: 0.0,
+            color: Color::srgb(r, g, b),
+            range: s.range_m,
+            shadow_maps_enabled: false,
+            ..default()
+        },
+        Transform::default(),
+        Visibility::Hidden,
+    ));
+}
+
+/// Hangs the pilot's own light over their head on foot, as bright as the hour gives; hidden seated, boarding or driving.
+fn carry_self_light(
+    data: Res<Data>,
+    light: Res<Light>,
+    pilot: Res<crate::pilot::PilotSim>,
+    eye: Query<&Transform, (With<crate::pilot::PilotCamera>, Without<SelfGlow>)>,
+    mut glow: Query<(&mut PointLight, &mut Transform, &mut Visibility), With<SelfGlow>>,
+) {
+    let s = &data.0.day_night.self_light;
+    let lumens = s.lumens_at(&light.0);
+    let on_foot = pilot.curr.mode == cb_core::pilot::PilotMode::OnFoot;
+    let Ok(eye) = eye.single() else { return };
+    for (mut point, mut transform, mut visibility) in &mut glow {
+        let want = if on_foot && lumens > 0.0 {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        if *visibility != want {
+            *visibility = want;
+        }
+        if want == Visibility::Hidden {
+            continue;
+        }
+        transform.translation = eye.translation + Vec3::Y * s.above_eye_m;
+        if point.intensity != lumens {
+            point.intensity = lumens;
+        }
+    }
 }
 
 /// Runs the clock one fixed step.

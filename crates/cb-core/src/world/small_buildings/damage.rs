@@ -436,6 +436,14 @@ impl Houses {
         self.states.get(&lot).map(|s| s.alive.as_slice())
     }
 
+    /// Whether `lot`'s lights are on at night: a whole one's are, a damaged one's until `lights_out_share` of its
+    /// pieces have fallen (`structure::lit_while_standing`, the towers' rule).
+    pub fn lit(&self, lot: u32, lights_out_share: f32) -> bool {
+        self.states.get(&lot).is_none_or(|s| {
+            crate::world::structure::lit_while_standing(s.alive.len(), s.alive.iter().filter(|a| **a).count(), lights_out_share)
+        })
+    }
+
     /// Its state's version (0 while whole).
     pub fn version(&self, lot: u32) -> u32 {
         self.states.get(&lot).map_or(0, |s| s.version)
