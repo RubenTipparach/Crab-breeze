@@ -98,7 +98,7 @@ pub fn set_material_tinted(
     colour: Option<[f32; 3]>,
 ) -> Handle<StandardMaterial> {
     let root = crate::cli::repo_root().join("assets");
-    let mut map = |file: &str, srgb: bool| load_tiling(&root, &format!("{folder}/{file}"), srgb);
+    let map = |file: &str, srgb: bool| load_tiling(&root, &format!("{folder}/{file}"), srgb);
     let albedo = map("albedo.jpg", true);
     let base_color = match (colour, albedo.as_ref().and_then(mean_linear)) {
         (Some(c), Some(mean)) => {
@@ -131,7 +131,7 @@ fn mean_linear(img: &Image) -> Option<[f32; 3]> {
     }
     let lin = |c: u8| (f32::from(c) / 255.0).powf(2.2);
     let mut sum = [0.0f64; 3];
-    for p in data[..n * 4].chunks_exact(4) {
+    for p in data[..n * 4].as_chunks::<4>().0 {
         for (s, &c) in sum.iter_mut().zip(p) {
             *s += f64::from(lin(c));
         }
