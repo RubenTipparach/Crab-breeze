@@ -516,11 +516,28 @@
     // (survey W45, owner 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base"): tried in front of the
     // apron, behind the hangars, then down either side, longest first, flattened to the base's ground.
     bases: (
+        // Four (owner, 2026-10-30: "3 military bases", then "lets add military base 2 back in"; survey J5 had five).
+        count: 4,
         runway_m: (2000.0, 1500.0),
         runway_width_m: 45.0,
         runway_gap_m: 60.0,
         runway_step_m: 100.0,
         runway_max_cut_m: 45.0,
         runway_city_clear_m: 300.0,
+    ),
+    // The civil sites (openspec change island-sites-layout; owner, 2026-10-30: "We need to add 2 civilian airports",
+    // "Place civilians airports first", "Add ship ports. I want at least 2"); the rest is the code default.
+    sites: (
+        airports: 2,
+        seaports: 2,
+    ),
+    // The offshore limit (openspec change offshore-limit; owner, 2026-10-30: "Offshore limit: 15 km", and "15 km, edge
+    // clamps"): 15 km past the coast or 1 km inside the world's edge, whichever comes first.
+    bounds: (
+        limit_offshore_m: 15000.0,
+        edge_margin_m: 1000.0,
+        warn_m: 2000.0,
+        grace_s: 1.0,
+        respawn_after_s: 3.0,
     ),
 )

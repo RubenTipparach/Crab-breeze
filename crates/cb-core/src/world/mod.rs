@@ -5,6 +5,7 @@
 //! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`. The world
 //! is an island in the sea (openspec change `island-world`).
 
+pub mod approach;
 pub mod bases;
 pub mod biome;
 pub mod clouds;
@@ -568,7 +569,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     // Highways are routed round the mountains, lakes and other cities (openspec change
     // `curved-roads`).
     let lay = |a: usize, b: usize, from: Vec2, to: Vec2| roads::lay_highway(&shape, &drainage, &cities, (a, b), (from, to), cfg);
-    let highways = layout::connect_cities(&cities, cfg, &lay);
+    let mut highways = layout::connect_cities(&cities, cfg, &lay);
 
     let largest = placed.first().map(|p| p.1).unwrap_or(1.0);
     let mut buildings = Vec::new();
@@ -578,7 +579,9 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         buildings.extend(layout::build_city(&mut rng, city, &highways, first, largest, cfg));
     }
 
-    // Air bases beside the highways, flattened like the cities' squares (air-bases).
+    // The civil airports first, then the seaports, then the military bases in the room they leave (openspec change
+    // `island-sites-layout`; owner, 2026-10-30: "Place civilians airports first"). Every site keeps clear of the
+    // highways and the rivers; the bases keep clear of the civil sites and their runways' approach cones.
     let start_xz = cities.first().map_or(Vec2::ZERO, |c| c.centre);
     let courses: Vec<Vec<Vec2>> = drainage.courses.iter().map(|c| c.points.clone()).collect();
     let clear = bases::KeepClear {
@@ -590,24 +593,11 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
             + cfg.plateau_blend_m,
         courses: &courses,
         river_m: cfg.plateau_flat_margin_m + cfg.plateau_blend_m + cfg.water.river_max_half_width_m + cfg.water.river_city_clearance_m,
+        sites: &[],
+        site_m: cfg.sites.airport_base_clear_m,
+        cones: &[],
     };
-    let bases = bases::place_bases(
-        &shape,
-        &cities,
-        &clear,
-        start_xz,
-        &cfg.bases,
-        sea_level_m + cfg.water.city_freeboard_m,
-    );
-    let plateaus: Vec<(layout::Rect, f32)> = cities
-        .iter()
-        .map(|c| (c.rect(), c.ground_m))
-        .chain(bases.iter().map(|b| (b.rect(), b.ground_m)))
-        // each base's runway and taxiway, flattened to its site's ground (survey W45)
-        .chain(bases.iter().map(|b| (b.runway.rect(), b.ground_m)))
-        .chain(bases.iter().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
-        .collect();
-    // The civil airport and the seaport (airport-layout, seaport-layout): their footprints keep the houses and the
+    // The airport and the seaport (airport-layout, seaport-layout): their footprints keep the houses and the
     // rivers out, and their pads shape the ground with the lots'.
     // A site keeps clear of the lakes. A stream under it runs on in a culvert: its channel is never cut inside a
     // kept-out footprint (`Waters::channels`), so its water lies under the levelled ground (the island's flat land is
@@ -621,23 +611,72 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     };
     let site_clear = sites::Clear {
         cities: &cities,
-        bases: &bases,
+        bases: &[],
         keep: &clear,
         water_near: &site_water,
         min_ground_m: sea_level_m + cfg.water.city_freeboard_m,
         sea_level_m,
+        placed: &[],
+        buildings: &buildings,
     };
-    let (airport, airport_rejections) = cfg
+    let (airports, airport_rejections) = cfg
         .site_templates
         .airport
         .as_ref()
-        .map_or((None, [0; 6]), |t| sites::place_airport_counted(&shape, t, &site_clear, &cfg.sites));
-    let seaport = cfg
-        .site_templates
-        .seaport
-        .as_ref()
-        .and_then(|t| sites::place_seaport(&shape, t, &site_clear, airport.as_ref().map(|a| a.footprint()).as_ref(), &cfg.sites));
-    let mut placed_sites: Vec<sites::PlacedSite> = airport.into_iter().chain(seaport).collect();
+        .map_or((Vec::new(), [0; 6]), |t| sites::place_airports(&shape, t, &site_clear, &cfg.sites));
+    let seaports = cfg.site_templates.seaport.as_ref().map_or(Vec::new(), |t| {
+        sites::place_seaports(
+            &shape,
+            t,
+            &sites::Clear {
+                placed: &airports,
+                ..site_clear
+            },
+            &cfg.sites,
+        )
+    });
+    let mut placed_sites: Vec<sites::PlacedSite> = airports.into_iter().chain(seaports).collect();
+    let site_rects: Vec<layout::Rect> = placed_sites.iter().map(|s| s.footprint()).collect();
+    let site_cones: Vec<approach::Approach> = placed_sites.iter().flat_map(|s| s.approaches(cfg.sites.approach)).collect();
+    let base_clear = bases::KeepClear {
+        sites: &site_rects,
+        cones: &site_cones,
+        ..clear
+    };
+    let bases = bases::place_bases(
+        &shape,
+        &cities,
+        &base_clear,
+        start_xz,
+        &cfg.bases,
+        sea_level_m + cfg.water.city_freeboard_m,
+    );
+    // Every site's access road, from its city's edge to its gate (the footprint's point nearest the city), graded as
+    // a highway and joined to the streets by the lane graph, so cars reach every site (island-sites-layout).
+    for s in &placed_sites {
+        let Some(city) = cities.iter().position(|c| c.id == s.city) else {
+            continue;
+        };
+        let f = s.footprint();
+        let gate = cities[city].centre.clamp(f.min, f.max);
+        let ground_m = s
+            .pads()
+            .iter()
+            .filter(|(r, _)| r.distance(gate) < 1.0)
+            .map(|(_, y)| *y)
+            .fold(s.ground_m, f32::max);
+        if let Some(road) = roads::lay_access(&shape, &drainage, &cities, city, (f, gate, ground_m), cfg) {
+            highways.push(road);
+        }
+    }
+    let plateaus: Vec<(layout::Rect, f32)> = cities
+        .iter()
+        .map(|c| (c.rect(), c.ground_m))
+        .chain(bases.iter().map(|b| (b.rect(), b.ground_m)))
+        // each base's runway and taxiway, flattened to its site's ground (survey W45)
+        .chain(bases.iter().map(|b| (b.runway.rect(), b.ground_m)))
+        .chain(bases.iter().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
+        .collect();
     let keep_out: Vec<layout::Rect> = plateaus
         .iter()
         .map(|p| p.0)

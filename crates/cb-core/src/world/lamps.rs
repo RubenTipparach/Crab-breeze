@@ -386,7 +386,9 @@ pub fn place(plan: &WorldPlan, cfg: &LampConfig) -> Vec<Lamp> {
     }
     // The sites' masts and floodlights, as their pages lay them out.
     for site in &plan.sites {
-        for m in &site.template.lights.masts {
+        // a lamp on a port's ship sails with it (ship-traffic): the boats light their own
+        let on_ship = |lot: Option<u32>| lot.is_some_and(|p| site.template.placements.get(p as usize).is_some_and(|q| q.ship));
+        for m in site.template.lights.masts.iter().filter(|m| !on_ship(m.lot)) {
             let base = site.point_to_world(Vec3::new(m.at.x, m.base_m, m.at.y));
             let aim = site.point_to_world(m.aim);
             let toward = Vec2::new(aim.x - base.x, aim.z - base.z).normalize_or(Vec2::X);
@@ -401,7 +403,7 @@ pub fn place(plan: &WorldPlan, cfg: &LampConfig) -> Vec<Lamp> {
                 cone_rad: m.cone_rad,
                 colour: m.colour,
                 pole: m.pole,
-                lot: m.lot.map(|p| site.lot_of(p)),
+                lot: m.lot.and_then(|p| site.lot_of(p)),
             });
         }
     }
@@ -423,10 +425,11 @@ pub fn place_dots(plan: &WorldPlan, cfg: &LampConfig) -> Vec<GlowDot> {
                 });
             });
         }
-        dots.extend(lights.dots.iter().map(|d| GlowDot {
+        let on_ship = |lot: Option<u32>| lot.is_some_and(|p| site.template.placements.get(p as usize).is_some_and(|q| q.ship));
+        dots.extend(lights.dots.iter().filter(|d| !on_ship(d.lot)).map(|d| GlowDot {
             at: site.point_to_world(d.at),
             colour: d.colour,
-            lot: d.lot.map(|p| site.lot_of(p)),
+            lot: d.lot.and_then(|p| site.lot_of(p)),
         }));
     }
     for base in &plan.bases {

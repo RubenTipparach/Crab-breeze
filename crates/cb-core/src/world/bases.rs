@@ -361,6 +361,13 @@ pub struct KeepClear<'a> {
     pub courses: &'a [Vec<Vec2>],
     /// Least distance from a site's edge to a course.
     pub river_m: f32,
+    /// The civil sites placed before the bases (openspec change `island-sites-layout`: the civil airports go first),
+    /// kept `site_m` from...
+    pub sites: &'a [Rect],
+    /// ...this far, metres.
+    pub site_m: f32,
+    /// ...and the civil runways' approach cones, which nothing of a base may stand under.
+    pub cones: &'a [super::approach::Approach],
 }
 
 /// Places the bases: candidate sites beside every highway, kept when on land, flat enough and clear of
@@ -489,7 +496,15 @@ pub(crate) fn keeps_clear(site: &Rect, clear: &KeepClear) -> bool {
         .iter()
         .all(|h| edge.iter().all(|p| h.project(*p).0 > clear.road_m) && h.path.iter().all(|p| site.distance(*p) > clear.road_m));
     let rivers = clear.courses.iter().flatten().all(|p| site.distance(*p) > clear.river_m);
-    roads && rivers
+    let sites = clear.sites.iter().all(|s| {
+        !Rect {
+            min: s.min - Vec2::splat(clear.site_m),
+            max: s.max + Vec2::splat(clear.site_m),
+        }
+        .overlaps(site)
+    });
+    let cones = clear.cones.iter().all(|c| !c.covers(site, 100.0));
+    roads && rivers && sites && cones
 }
 
 /// The ground a site at `c` is flattened to (the mean of its corners and centre), or `None` when the

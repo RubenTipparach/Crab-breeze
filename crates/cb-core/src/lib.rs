@@ -12,6 +12,7 @@ pub mod audio;
 pub mod bases;
 pub mod battle_fx;
 pub mod boarding;
+pub mod bounds;
 pub mod car;
 pub mod career;
 pub mod civil_standing;

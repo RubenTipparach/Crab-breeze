@@ -787,7 +787,7 @@ fn on_the_shipped_island_a_flight_from_every_base_lands_at_the_next_over_the_rea
     use crate::world::Ground;
     let plan = island_42();
     let c = cfg();
-    assert_eq!(plan.bases.len(), 5, "the five bases (survey J5)");
+    assert_eq!(plan.bases.len(), 4, "the four bases (owner, 2026-10-30)");
     let ground = |x: f32, z: f32| plan.height_at(x, z);
     let island = Island {
         ground: &ground,

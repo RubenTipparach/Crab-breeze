@@ -37,6 +37,26 @@ traffic then reaches every site, and cars pick airports and ports as destination
 Placement is generation-time only: seven placers instead of seven-with-five-bases, under 50 ms more on the shipped
 seed (measured in the test). Two more site templates are drawn (an airport is about 2,000 draw calls at full detail
 with its parked aircraft), but sites stream with their tiles, so the frame cost is that of the nearest site only.
+## 5. As built (2026-10-30)
+
+- **The second airport** takes the flattest fitting ground, not the first: on seed 42 the only ground within the
+  first airport's 45 m rise is 3.6 km from it, inside the 8 km spacing. So a later airport is tried out to
+  `later_airport_reach_m` (16 km) past each city, beside the city farthest from the airports already down, and every
+  candidate whose natural rise is within `later_airport_max_rise_m` (90 m) is kept; the flattest whose cones clear is
+  taken and levelled like any site. A nine-point pass (corners, edges' middles, middle) turns down a candidate off dry
+  land or too steep before the full sampling, and a spot tried round two cities is tried once: placing every site
+  costs nothing measurable on top of generation (`cb-tools sites 42`: 1 m 45 s before, 1 m 40 s after, release).
+- **Seed 42**: airport 1 (-5780, 7686) where it was; airport 2 (1722, -9163) in the north, 59 m of rise levelled;
+  seaport 1 (-11319, 3714) on the west coast where it was; seaport 2 (122, -12518) on the north coast; bases 0, 1, 2
+  where they were; base 3 (405, -11029), moved 1 km to clear the new sites. The approved page drew the second
+  airport and seaport in the east by eye; the generator's rules put them in the north.
+- **Approach cones** are `world::approach`, one implementation the sites and the bases share: an airport turns down a
+  spot whose cones cover a base, another site or a building rising into them, or that stands under an earlier cone;
+  the bases keep out of the civil cones through `KeepClear::cones`.
+- **Access roads**: the gate is the footprint's point nearest the site's city; `roads::lay_access` routes and grades
+  the road as a highway from the city's edge (`lay_highway` and it are one `lay_road`), its second city
+  `roads::SITE_END`, and the lane graph ends it at a gate node of its own, where cars turn round. Every access road
+  is lit like a highway. Cars do not yet pick sites as destinations (`site_trip_share` is left for traffic's own work).
 
 ## Open questions
 

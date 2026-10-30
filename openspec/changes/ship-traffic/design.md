@@ -28,6 +28,16 @@ motion is a pure function of the clock, so they cost nothing on the fixed step.
 
 Up to 17 ships per port moving instead of standing: the same draw calls (one per kind and LOD), transforms updated
 for ships within the 3 km draw range only. Under 0.05 ms CPU a frame for both ports (to be measured on the desktop).
+## 5. As built (2026-10-30)
+
+- Every ship a seaport's page lays (17 a port, both ports) is a timetable slot (`Plan::Port`) of its own kind, the
+  boat drawn by its port kit as before (`Kits::ship`): at its own berth, where the page laid it, for `port_dwell_s`
+  (300-600 s), out through the mouth to the anchorage, waiting there `port_away_s` (120-300 s), and back. Each ship
+  has its own berth, so no two share one. The ships are no longer the port's lots (`PlacedSite::lot_of` skips them),
+  and their lamps on the page are left out: a sailing ship is the boats'.
+- A lane ship moors `dwell_s` (the existing `moor_s`) at each end that is a berth; at the offing it is over the
+  horizon for as long.
+- Not built yet: the gantry cranes' and yard trucks' moves (task 3.2), and a ship's own lights at night.
 
 ## Open questions
 

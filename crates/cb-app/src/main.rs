@@ -11,6 +11,7 @@ mod battle_fx;
 mod bench;
 mod blast;
 mod boats;
+mod bounds;
 mod building_arrays;
 mod building_state;
 mod buildings;
@@ -246,7 +247,7 @@ fn main() -> AppExit {
         interact::InteractPlugin,
     ))
     // Free roam's mail and its missions (free-roam-missions); the Stratostacean (crab-airship).
-    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
+    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin, bounds::BoundsPlugin))
     // The time of day: the world's clock, the sun and the moon (day-night-cycle).
     .add_plugins((day_night::DayNightPlugin, lamps::LampsPlugin))
     // How thick the ground fog is now: the clock's hour and the mission's preset (ground-fog, survey F1).

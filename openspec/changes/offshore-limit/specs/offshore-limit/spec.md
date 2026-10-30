@@ -17,9 +17,9 @@ past `min(coast + limit_offshore_m, world edge - edge_margin_m)` for `grace_s`, 
 - **THEN** the cockpit alarm sounds and the HUD shows the distance left
 
 ### Requirement: A failed pilot respawns in a city
-After an `OutOfBounds` loss the game SHALL put the pilot, seated, in their mech, repaired, at a drop site in the
-nearest city, with look input the player's throughout.
+After an `OutOfBounds` loss the game SHALL put the pilot on foot in the nearest city with a fresh mech dropped beside
+them to board, with look input the player's throughout.
 
 #### Scenario: Back on land
 - **WHEN** the respawn finishes
-- **THEN** the mech stands on dry land inside a city and the pilot is seated in it
+- **THEN** the pilot stands in a city and a fresh mech stands on dry land beside them

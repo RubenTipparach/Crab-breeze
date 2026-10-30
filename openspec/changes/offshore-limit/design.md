@@ -34,10 +34,21 @@ same loss and shows the same screen. The fail happens once: the state goes to `R
 4. `GAME_READY`-style ready check: the world around the spot streams in before the loading screen lifts.
 
 The view starts in the seat facing out of the cockpit (as after boarding), and the mouse is the player's at once.
+## 4. As built (2026-10-30)
+
+- The rule is `cb_core::bounds` (`left_m`, `Watch`, `respawn_city`), its numbers `bounds:` in `data/world/world.ron`.
+- `cb-app::bounds` reads the pilot's place each fixed step after the mech (the mech while seated or boarding, the
+  driven car, else the feet). The warning is a banner over the view in every mode (`RETURN TO COAST n.n KM`) and the
+  alarm, at the cockpit speaker when seated, else at the pilot, every 2 s.
+- The failure stops free roam's running mission (`FreeRoamRun::stop`) and loses a defence run
+  (`Defence::fail(Loss::OutOfBounds)`); the banner reads `OUT OF BOUNDS / MISSION FAILED`.
+- **The respawn is on foot, not seated**: after `respawn_after_s` the pilot stands in the nearest city's square and a
+  fresh mech is dropped beside them by the mech swap's own path (`SwapMech`, the career's drop search), to walk to
+  and board. Putting them straight into the seat would cut past the boarding the law says is walked; O1 below.
 
 ## Open questions
 
 | # | Question | Provisional answer |
 | --- | --- | --- |
-| O1 | Should a pilot in a stolen aircraft respawn in their mech, or at the airport they stole it from? | In their mech, at the nearest city |
+| O1 | Should a pilot in a stolen aircraft respawn in their mech, or at the airport they stole it from? | On foot beside a fresh mech in the nearest city, for every pilot (boarding is walked) |
 | O2 | Does a respawn cost anything in the career (money, repair bill)? | Nothing for now |
