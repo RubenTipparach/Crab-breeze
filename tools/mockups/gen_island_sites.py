@@ -5,10 +5,9 @@ limit (openspec/changes/offshore-limit: 15 km off the coast or 1 km inside the w
 
     python3 tools/mockups/gen_island_sites.py
 
-The map is the game's own (`cb-tools map 42`, the hydrology change's picture) and today's sites are the game's own
-(`cb-tools sites 42`). The proposed second airport and second seaport stand where this script's PROPOSED table puts
-them, by eye on the map: the generator will find their places by its rules, so the page shows the plan, not the
-result. The page itself is tools/mockups/island_sites_src.html.
+The map is the game's own (`cb-tools map 42`, the hydrology change's picture), and so is every site and base on it
+(`cb-tools sites 42`): the page shows where the game places them. The Today view is what the game built before the
+change (the TODAY table). The page itself is tools/mockups/island_sites_src.html.
 """
 import base64
 import io
@@ -24,12 +23,17 @@ SRC = os.path.join(ROOT, "tools", "mockups", "island_sites_src.html")
 OUT = os.path.join(ROOT, "docs", "mockups", "island-sites.html")
 SEED = 42
 WORLD_M = 40960.0
-# Placed by eye on the generated map (see the docstring): centre (x, z) in metres, x east, z south.
-PROPOSED = [
-    {"id": "airport_2", "kind": "airport", "label": "Civil airport 2 (proposed)", "centre": [7600, 8000], "size": [2620, 1520], "turn": 0},
-    {"id": "seaport_2", "kind": "seaport", "label": "Seaport 2 (proposed)", "centre": [12250, -500], "size": [930, 2010], "turn": 1},
-]
-KEEP_BASES = [0, 1, 2, 3]   # base 4 goes, crowded between 1 and 3 (owner, 2026-10-30: "lets add military base 2 back in")
+# What the game built before the change (cb-tools sites 42 on 2026-10-30, before island-sites-layout): one airport, one
+# seaport, five bases. Kept here for the page's Today view; the proposal is now the game's own placement.
+TODAY = {
+    "sites": [{"kind": "airport", "origin": [-5780, 7686], "turn": 0, "size": [2620, 1520]},
+              {"kind": "seaport", "origin": [-11319, 3714], "turn": 3, "size": [930, 2010]}],
+    "bases": [{"id": 0, "centre": [-10477, -5624], "half": [350, 250], "runway": [[-11427, -5957], [-9527, -5957]]},
+              {"id": 1, "centre": [8582, -4939], "half": [350, 250], "runway": [[7582, -5272], [9182, -5272]]},
+              {"id": 2, "centre": [-4515, 10871], "half": [350, 250], "runway": [[-5515, 10539], [-3515, 10539]]},
+              {"id": 3, "centre": [-733, -11797], "half": [350, 250], "runway": [[-1733, -11465], [267, -11465]]},
+              {"id": 4, "centre": [3731, -8367], "half": [350, 250], "runway": [[2731, -8034], [4331, -8034]]}],
+}
 
 
 def run(*args):
@@ -52,11 +56,11 @@ def main():
         m = re.match(r"AirBase (\d+): centre \((-?\d+), (-?\d+)\), half \((\d+), (\d+)\), runway \((-?\d+), (-?\d+)\) to \((-?\d+), (-?\d+)\)", line)
         if m:
             v = [int(g) for g in m.groups()]
-            bases.append({"id": v[0], "centre": v[1:3], "half": v[3:5], "runway": [v[5:7], v[7:9]], "keep": v[0] in KEEP_BASES})
+            bases.append({"id": v[0], "centre": v[1:3], "half": v[3:5], "runway": [v[5:7], v[7:9]]})
         m = re.match(r"city (\d+): centre \((-?\d+), (-?\d+)\)", line)
         if m:
             cities.append([int(m[2]), int(m[3])])
-    data = {"seed": SEED, "world_m": WORLD_M, "sites": sites, "bases": bases, "cities": cities, "proposed": PROPOSED,
+    data = {"seed": SEED, "world_m": WORLD_M, "sites": sites, "bases": bases, "cities": cities, "today": TODAY,
             "limit": {"offshore_m": 15000, "edge_margin_m": 1000, "warn_m": 2000}}
     with open(SRC) as f:
         page = f.read()

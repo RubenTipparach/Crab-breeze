@@ -1,7 +1,7 @@
 <title>Island Sites</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Source of docs/mockups/island-sites.html: python3 tools/mockups/gen_island_sites.py inlines the game's own map of
-     seed 42 and its sites (cb-tools map, cb-tools sites) and the proposed ones. Presents
+     seed 42 and its sites as the game places them (cb-tools map, cb-tools sites). Presents
      openspec/changes/island-sites-layout and offshore-limit for approval before any game code is written. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -67,17 +67,17 @@ td.n { font-family: var(--mono); white-space: nowrap; }
 <header>
   <span class="eyebrow">openspec/changes/island-sites-layout &middot; offshore-limit &middot; mockup for approval</span>
   <h1>The island's sites</h1>
-  <p class="lede">The island as the game generates it today (seed 42), 40.96 km across, with the sites you asked for: two
-    civil airports placed first, two seaports on different coasts, and four military bases where there were five. Each
-    runway carries its approach cones. The red sea is past the offshore limit: 15 km off the coast or 1 km inside the
-    world's edge, whichever comes first; the orange band before it is where the cockpit warns. Nothing here is in the
-    game yet.</p>
+  <p class="lede">The island as the game now generates it (seed 42), 40.96 km across: two civil airports placed first,
+    two seaports on different coasts, and four military bases where there were five, every site where the game itself
+    puts it. Each runway carries its approach cones. The red sea is past the offshore limit: 15 km off the coast or 1 km
+    inside the world's edge, whichever comes first; the orange band before it is where the warning shows. Switch to
+    Today for what the game built before.</p>
 </header>
 
 <div class="wrap">
   <main>
     <div class="bar"><span class="lbl">Show</span>
-      <button data-show="proposed" aria-pressed="true">Proposed</button><button data-show="today">Today</button>
+      <button data-show="proposed" aria-pressed="true">In the game</button><button data-show="today">Today</button>
       <button id="limit" aria-pressed="true">Offshore limit</button><button id="cones" aria-pressed="true">Approach cones</button>
     </div>
     <div class="bar"><span class="lbl">View</span>
@@ -95,13 +95,12 @@ td.n { font-family: var(--mono); white-space: nowrap; }
   </main>
   <aside>
     <div class="card">
-      <span class="pill">Awaiting approval</span>
+      <span class="pill">In the game</span>
       <h2>What changes</h2>
-      <p><b>Civil airports</b>: the one we have, by the western cities, and a second in the eastern desert, placed before
-        anything military so they get the flat ground. <b>Seaports</b>: the one on the west coast and a second on the east
-        coast, a ship lane round the south between them. <b>Bases</b>: 0, 1, 2 and 3 stay (west, east, south, north);
-        4 goes (crowded between 1 and 3). Base 2 stands 3.4 km from airport 1, its runway parallel and 2.85 km south of
-        the airport's, so their approach cones do not cross.</p>
+      <p><b>Civil airports</b>: the one by the western cities, where it was, and a second in the north, on the flattest
+        ground at least 8 km from the first (its 59 m of rise levelled). <b>Seaports</b>: the west coast's, where it was,
+        and a second on the north coast. <b>Bases</b>: 0, 1, 2 and 3 stay; base 4 goes, and base 3 moves 1 km to clear the
+        new sites. Every site has a road from its city.</p>
     </div>
     <div class="card">
       <h2>The offshore limit</h2>
@@ -116,8 +115,9 @@ td.n { font-family: var(--mono); white-space: nowrap; }
     </div>
     <div class="card">
       <h2>Provisional</h2>
-      <p><b>L1</b> Both airports use the one airport template. <b>L2</b> Base 4 goes; the other four stay.
-        The second airport and seaport stand where they fit by eye: the generator places them by its rules.</p>
+      <p><b>L1</b> Both airports use the one airport template. The second airport and seaport stand where the game's
+        rules put them, in the north, not where the first page drew them by eye in the east: the eastern desert rises
+        130 m or more across any 2.6 km field.</p>
     </div>
   </aside>
 </div>
@@ -242,34 +242,33 @@ function rebuild() {
   tags.querySelectorAll(".site").forEach(e => e.remove());
   for (let i = labels.length - 1; i >= 0; i--) if (labels[i].cls.includes("site")) labels.splice(i, 1);
   const proposed = show === "proposed", rows = [];
-  D.sites.forEach((s, i) => {
-    const name = s.kind === "airport" ? "Civil airport 1" : "Seaport 1";
-    footprint(s.origin, s.size, s.turn, s.kind === "airport" ? 40 : 30, MAT[s.kind]);
-    if (s.kind === "airport") runwayAt([s.origin[0] - 1000, s.origin[1]], [s.origin[0] + 1000, s.origin[1]], 45);
-    label(name, s.origin[0], 900, s.origin[1], "site"); rows.push([name, s.origin, "kept"]);
-  });
-  if (proposed) for (const p of D.proposed) {
-    footprint(p.centre, p.size, p.turn, p.kind === "airport" ? 40 : 30, MAT[p.kind]);
-    if (p.kind === "airport") runwayAt([p.centre[0] - 1000, p.centre[1]], [p.centre[0] + 1000, p.centre[1]], 45);
-    label(p.label, p.centre[0], 900, p.centre[1], "site"); rows.push([p.label.replace(" (proposed)", ""), p.centre, "new"]);
+  const set = proposed ? D : D.today;
+  const n = { airport: 0, seaport: 0 };
+  for (const s of set.sites) {
+    const k = ++n[s.kind], name = (s.kind === "airport" ? "Civil airport " : "Seaport ") + k;
+    const centre = [s.origin[0], s.origin[1]];
+    footprint(centre, s.size, s.turn, s.kind === "airport" ? 40 : 30, MAT[s.kind]);
+    if (s.kind === "airport") runwayAt([centre[0] - 1000, centre[1]], [centre[0] + 1000, centre[1]], 45);
+    label(name, centre[0], 900, centre[1], "site"); rows.push([name, centre, proposed && k > 1 ? "new" : "kept"]);
   }
-  for (const b of D.bases) {
-    const gone = proposed && !b.keep;
-    footprint(b.centre, [b.half[0] * 2, b.half[1] * 2], 0, 34, gone ? MAT.gone : MAT.base);
-    if (!gone) runwayAt(b.runway[0], b.runway[1], 45);
-    label(`Military base ${b.id}${gone ? ": removed" : ""}`, b.centre[0], 700, b.centre[1], "site" + (gone ? " today" : ""));
-    rows.push([`Military base ${b.id}`, b.centre, gone ? "removed" : "kept, rebuilt as an airfield"]);
+  for (const b of set.bases) {
+    footprint(b.centre, [b.half[0] * 2, b.half[1] * 2], 0, 34, MAT.base);
+    runwayAt(b.runway[0], b.runway[1], 45);
+    label(`Military base ${b.id}`, b.centre[0], 700, b.centre[1], "site");
+    rows.push([`Military base ${b.id}`, b.centre, proposed ? "airfield" : "today"]);
   }
-  if (proposed && D.proposed.length) {   // the ship lane between the ports, round the south coast
-    const a = D.sites.find(s => s.kind === "seaport"), b = D.proposed.find(p => p.kind === "seaport");
-    if (a && b) { const pts = [];
-      const A = Math.atan2(a.origin[1], a.origin[0]), B = Math.atan2(b.centre[1], b.centre[0]);
-      // west to east the long way round, through the south (angle pi/2), 18.5 km out: inside the limit, past the reefs
-      const sweep = (A - B + 2 * PI) % (2 * PI);
-      for (let k = 0; k <= 40; k++) { const ang = A - sweep * k / 40; pts.push(new T.Vector3(Math.cos(ang) * 18500, 8, Math.sin(ang) * 18500)); }
-      pts.unshift(new T.Vector3(a.origin[0], 8, a.origin[1])); pts.push(new T.Vector3(b.centre[0], 8, b.centre[1]));
-      const line = new T.Line(new T.BufferGeometry().setFromPoints(pts), MAT.lane); line.computeLineDistances(); siteG.add(line);
-      label("Ship lane (provisional)", pts[21].x, 300, pts[21].z, "site standin"); }
+  if (proposed) for (const b of D.today.bases.filter(t => !D.bases.some(k => Math.hypot(k.centre[0] - t.centre[0], k.centre[1] - t.centre[1]) < 3000))) {
+    footprint(b.centre, [b.half[0] * 2, b.half[1] * 2], 0, 34, MAT.gone);
+    label("Base removed", b.centre[0], 700, b.centre[1], "site today");
+  }
+  const ports = set.sites.filter(s => s.kind === "seaport");
+  if (proposed && ports.length > 1) {   // the ship lane between the ports, round the coast the long way, 18.5 km out
+    const a = ports[0].origin, b = ports[1].origin, pts = [new T.Vector3(a[0], 8, a[1])];
+    const A = Math.atan2(a[1], a[0]), B = Math.atan2(b[1], b[0]), sweep = (A - B + 2 * PI) % (2 * PI);
+    for (let k = 0; k <= 40; k++) { const ang = A - sweep * k / 40; pts.push(new T.Vector3(Math.cos(ang) * 18500, 8, Math.sin(ang) * 18500)); }
+    pts.push(new T.Vector3(b[0], 8, b[1]));
+    const line = new T.Line(new T.BufferGeometry().setFromPoints(pts), MAT.lane); line.computeLineDistances(); siteG.add(line);
+    label("Ship lane", pts[21].x, 300, pts[21].z, "site standin");
   }
   document.querySelector("#sites tbody").innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td class="n">${(r[1][0] / 1000).toFixed(1)}, ${(r[1][1] / 1000).toFixed(1)} km</td><td>${r[2]}</td></tr>`).join("");
   document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
