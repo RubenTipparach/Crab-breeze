@@ -70,7 +70,8 @@ impl Plugin for StolenAircraftPlugin {
                     .before(crate::interact::choose)
                     .before(crate::pilot::step_pilot),
             )
-            .add_game_systems(FixedUpdate, fly.in_set(SimSet::Mech).before(crate::air_traffic::step_traffic));
+            .add_game_systems(FixedUpdate, fly.in_set(SimSet::Mech).before(crate::air_traffic::step_traffic))
+            .add_game_systems(Update, show_chute.in_set(crate::sim::PresentSet::Pose));
     }
 }
 
@@ -223,6 +224,12 @@ pub fn fly(
             PilotEvent::OutOfCar(_) | PilotEvent::ThrownFromCar(_) if flown.0.is_some() => {
                 flown.0 = None;
             }
+            // with nobody at the controls it comes down where its momentum takes it, and crashes
+            PilotEvent::BailedOut(id) => {
+                air.0.crash(id);
+                flown.0 = None;
+                info!("air traffic: the pilot bails out of aircraft {id}");
+            }
             _ => {}
         }
     }
@@ -314,5 +321,41 @@ mod tests {
         assert_eq!(controls(half, &wheel(3), true, 0.1).flaps, 1.0, "one step a turn of the wheel");
         assert_eq!(controls(half, &wheel(-1), true, 0.1).flaps, 0.0);
         assert_eq!(controls(down, &wheel(-1), true, 0.1).flaps, 0.0, "never below up");
+    }
+}
+
+/// The parachute over a bailed-out pilot: a canopy above their head while `PilotState::chute` is set, seen looking up
+/// (first person).
+#[derive(Component)]
+struct Chute;
+
+fn show_chute(
+    mut commands: Commands,
+    pilot: Res<PilotSim>,
+    fixed: Res<Time<Fixed>>,
+    mut chute: Query<(Entity, &mut Transform), With<Chute>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let at = pilot.prev.feet.lerp(pilot.curr.feet, fixed.overstep_fraction()) + Vec3::Y * 8.0;
+    match (chute.single_mut(), pilot.curr.chute) {
+        (Ok((_, mut t)), true) => t.translation = at,
+        (Ok((e, _)), false) => commands.entity(e).despawn(),
+        (Err(_), true) => {
+            let cloth = materials.add(StandardMaterial {
+                base_color: Color::srgb(0.85, 0.36, 0.12),
+                perceptual_roughness: 0.9,
+                cull_mode: None,
+                ..default()
+            });
+            commands.spawn((
+                Name::new("parachute"),
+                Chute,
+                Mesh3d(meshes.add(Sphere::new(4.0).mesh().uv(24, 12))),
+                MeshMaterial3d(cloth),
+                Transform::from_translation(at).with_scale(Vec3::new(1.0, 0.4, 1.0)),
+            ));
+        }
+        (Err(_), false) => {}
     }
 }

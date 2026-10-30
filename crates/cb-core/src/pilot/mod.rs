@@ -65,6 +65,9 @@ pub struct PilotConfig {
     pub jump_speed_m_s: f32,
     /// What pulls a jumping pilot back down.
     pub gravity_m_s2: f32,
+    /// Bailed out of a stolen aircraft, the pilot comes down under a parachute no faster than this, m/s
+    /// (`fly-stolen-aircraft`, P2).
+    pub chute_sink_m_s: f32,
     /// Use reaches a car from this far from its driver's door, metres (car-driving).
     pub car_reach_m: f32,
     /// Getting in or out of a car carries the eyes between the door and the seat over this long,
@@ -140,6 +143,7 @@ impl Default for PilotConfig {
             fov_change_s: 0.8,
             jump_speed_m_s: 4.4,
             gravity_m_s2: 9.81,
+            chute_sink_m_s: 5.5,
             car_reach_m: 1.2,
             car_step_s: 0.8,
             car_face_deg: 75.0,
@@ -171,6 +175,7 @@ impl Validate for PilotConfig {
         positive("fov_change_s", self.fov_change_s)?;
         within("jump_speed_m_s", self.jump_speed_m_s, 0.0, 15.0)?;
         positive("gravity_m_s2", self.gravity_m_s2)?;
+        positive("chute_sink_m_s", self.chute_sink_m_s)?;
         positive("car_reach_m", self.car_reach_m)?;
         positive("car_step_s", self.car_step_s)?;
         within("car_face_deg", self.car_face_deg, 1.0, 180.0)?;
@@ -360,6 +365,9 @@ pub struct PilotState {
     /// Getting in or driving: how long the car has been missing, seconds (a step or two while the traffic hands it
     /// over is normal; past `CAR_LOST_S` the pilot is put back on foot).
     pub car_missing_s: f32,
+    /// Under a parachute, after bailing out (`fly-stolen-aircraft`, P2): the fall is held to `chute_sink_m_s` until
+    /// the feet touch the ground.
+    pub chute: bool,
 }
 
 /// What happened this step that other systems react to.
@@ -387,6 +395,8 @@ pub enum PilotEvent {
     OutOfCar(u32),
     /// This car was wrecked with the pilot in it: they are thrown clear.
     ThrownFromCar(u32),
+    /// The pilot jumped out of this aircraft in flight, under a parachute (`fly-stolen-aircraft`, P2).
+    BailedOut(u32),
 }
 
 /// An angle wrapped to -pi..pi.
@@ -457,9 +467,13 @@ impl PilotState {
             self.vel_y_m_s = cfg.jump_speed_m_s;
         }
         self.vel_y_m_s -= cfg.gravity_m_s2 * dt_s;
+        if self.chute {
+            self.vel_y_m_s = self.vel_y_m_s.max(-cfg.chute_sink_m_s);
+        }
         let y = self.feet.y + self.vel_y_m_s * dt_s;
         if y <= floor_m && self.vel_y_m_s <= 0.0 {
             self.vel_y_m_s = 0.0;
+            self.chute = false;
             return floor_m;
         }
         y.max(floor_m)
@@ -471,6 +485,7 @@ impl PilotState {
             feet,
             velocity: Vec2::ZERO,
             vel_y_m_s: 0.0,
+            chute: false,
             yaw_rad,
             pitch_rad: 0.0,
             seated_eye: Vec3::ZERO,
@@ -796,6 +811,16 @@ impl PilotState {
                 self.seated_rel_rad = rel;
                 self.yaw_rad = (c.heading_rad + rel).rem_euclid(std::f32::consts::TAU);
                 self.pitch_rad = pitch;
+                // In a stolen aircraft on the move, Use bails out: the pilot is out beside its door, keeping its
+                // velocity, under a parachute (fly-stolen-aircraft, P2); first person from there on.
+                if a.use_pressed && c.vehicle == Vehicle::Aircraft && c.speed_m_s > cfg.car_stopped_m_s {
+                    self.mode = PilotMode::OnFoot;
+                    self.feet = c.door;
+                    self.velocity = Vec2::ZERO;
+                    self.vel_y_m_s = 0.0;
+                    self.chute = true;
+                    return Some(PilotEvent::BailedOut(c.id));
+                }
                 if a.use_pressed && c.speed_m_s <= cfg.car_stopped_m_s {
                     self.mode = PilotMode::ExitingCar(EyePath {
                         points: vec![c.eye, c.door + up],
@@ -874,6 +899,41 @@ mod car_tests {
             speed_m_s,
             wrecked: false,
         }
+    }
+
+    #[test]
+    fn use_in_a_stolen_aircraft_in_flight_bails_out_under_a_chute_that_holds_the_fall() {
+        let cfg = PilotConfig::default();
+        let mut p = at_door();
+        p.mode = PilotMode::Driving;
+        let plane = CarAccess {
+            vehicle: Vehicle::Aircraft,
+            door: Vec3::new(0.0, 400.0, 0.0),
+            eye: Vec3::new(0.0, 402.0, -3.0),
+            centre: Vec3::new(0.0, 401.0, 0.0),
+            ..sedan(60.0)
+        };
+        let press = Actions {
+            use_pressed: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            p.step_car(&press, &cfg, &FlatGround::default(), Some(&plane), DT),
+            Some(PilotEvent::BailedOut(3))
+        );
+        assert_eq!(p.mode, PilotMode::OnFoot);
+        assert!(p.chute && p.feet.y == 400.0);
+        let mut fastest = 0.0f32;
+        for _ in 0..(120.0 / DT) as usize {
+            p.step(&Actions::default(), &cfg, &FlatGround::default(), None, DT);
+            fastest = fastest.max(-p.vel_y_m_s);
+        }
+        assert!(fastest <= cfg.chute_sink_m_s + 1e-3, "the chute holds the fall: {fastest}");
+        assert!(p.feet.y.abs() < 0.01 && !p.chute, "down, the chute is gone");
+        // a car is left only stopped, never on the move
+        let mut d = at_door();
+        d.mode = PilotMode::Driving;
+        assert_eq!(d.step_car(&press, &cfg, &FlatGround::default(), Some(&sedan(10.0)), DT), None);
     }
 
     /// Standing at the door, facing the car (+x is yaw -90 degrees).

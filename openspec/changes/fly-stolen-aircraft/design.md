@@ -115,7 +115,10 @@ What the code does now, and where it differs from the plan above.
   `vehicle`, at a distance from its length. CLAUDE.md's law, sections 8 and 9 carry the exception.
 - **HUD.** The speed readout under the view shows airspeed, height over the ground, climb, throttle and the stall
   warning while flying, the step's own numbers.
-- **Not built yet:** a stolen fighter's weapons (P1), bailing out (P2), a
+- **Bailing out** (P2): Use while it moves faster than stopped puts the pilot out beside its door under a parachute
+  that holds the fall to `chute_sink_m_s` (5.5 m/s, `data/pilot`), first person; the canopy shows over them, and the
+  aircraft, nobody at the controls, comes down and crashes.
+- **Not built yet:** a stolen fighter's weapons (P1), a
   cockpit view (it is flown from the chase camera only), the scripted pilot's flight beats, and the response to a theft
   at a civil airport (F1 of `airfield-traffic`). A theft at a base scrambles it only if the pilot then fires on its
   aircraft. Cost: one flight step per fixed step for the one aircraft flown; not measured.
