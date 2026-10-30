@@ -18,5 +18,6 @@
 - [x] 3.4 The mission waypoint through the same marker
 
 ## 4. Verify
-- [ ] 4.1 Headless stills: the MAP page with a route, and the marker in the world
+- [x] 4.1 Headless stills: the MAP page with a route, and the marker in the world (`CB_STILLS_MAP=1`,
+      `docs/screenshots/2026-10-30-waypoint-nav/`)
 - [ ] 4.2 Playtest on the owner's machine: plot a route to the seaport and the airport and walk and fly it
