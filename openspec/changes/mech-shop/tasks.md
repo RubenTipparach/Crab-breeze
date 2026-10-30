@@ -34,3 +34,4 @@ Built with `career` and `air-bases`, after `mfd-menus`.
 ## 3. Checks
 - [ ] 3.1 `cargo fmt`, `cargo clippy -D warnings`, `cargo test --workspace`, `cb-tools validate`, `openspec validate --all`, the dash check
 - [ ] 3.2 Playtest on the owner's machine: earn job pay, open SHOP from an MFD, buy a mech in the field, watch it dropped near you, board it
+- [x] Markers always show (owner, 2026-10-29: "when I pick up a mission or request a mech I need a marker, no matter how far it is should always show up on hud"): the job, free roam's running mission (the crab carrier, the defended city) and every delivery marker are placed by direction alone (`hud::pin`), on foot and seated, and held at the screen's edge with an arrow when out of view. Not yet built or tested: the owner was playing

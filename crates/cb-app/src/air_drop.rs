@@ -737,15 +737,19 @@ fn draw_markers(
             _ => ("YOUR", walk_up.to_string(), false),
         };
         let warn = if in_zone { "\nDROP ZONE: MOVE CLEAR" } else { "" };
-        match cam.world_to_viewport(at, u.at + Vec3::Y * 30.0) {
-            Ok(p) => {
-                node.left = px(p.x - 60.0);
-                node.top = px(p.y - 14.0);
-                text.0 = format!("<> {title} {name} {dist:.0} M\n{line}{warn}");
+        // Wherever it is, held at the screen's edge out of view (owner, 2026-10-29: "no matter how far it is should
+        // always show up on hud").
+        match crate::hud::pin(cam, at, u.at + Vec3::Y * 30.0, 40.0) {
+            Some((p, seen)) => {
+                let size = cam.logical_viewport_size().unwrap_or(Vec2::ONE);
+                let arrow = if seen { "<> " } else { crate::hud::edge_arrow(p, size) };
+                node.left = px((p.x - 60.0).clamp(0.0, size.x - 260.0));
+                node.top = px((p.y - 14.0).clamp(0.0, size.y - 70.0));
+                text.0 = format!("{arrow}{title} {name} {dist:.0} M\n{line}{warn}");
                 colour.0 = if in_zone { WARN } else { AMBER };
                 *vis = Visibility::Inherited;
             }
-            Err(_) => *vis = Visibility::Hidden,
+            None => *vis = Visibility::Hidden,
         }
     }
 }

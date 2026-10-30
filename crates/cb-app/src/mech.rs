@@ -294,9 +294,24 @@ fn spawn_mech(
 }
 
 /// Free roam's pause menu picked another mech (openspec change `menu-in-game`, section 3): its data is already in
-/// `Data` (`menu::press`), and `swap_mech` puts it where the piloted mech stands, in this program.
+/// `Data` (`menu::press`), and `swap_mech` brings it in, in this program. `drop`, the career's air drop search, puts it
+/// on good ground near a pilot on foot (owner, 2026-10-29: "I request mech delivery and no mech was sent tomy location
+/// in free roam").
 #[derive(Resource)]
-pub struct SwapMech;
+pub struct SwapMech {
+    /// `data/career/air_drop.ron`, when it loaded.
+    pub drop: Option<cb_core::air_drop::DropConfig>,
+}
+
+/// A mech free roam sent to the pilot, marked on the HUD wherever it is until they board it (owner, 2026-10-29: "when I
+/// pick up a mission or request a mech I need a marker, no matter how far it is should always show up on hud").
+#[derive(Resource, Clone, Debug)]
+pub struct Delivered {
+    /// Where it stands, world metres.
+    pub at: Vec3,
+    /// Its name.
+    pub name: String,
+}
 
 /// The piloted mech swapped in place: the old one's tree is taken down and the picked one spawned through the same
 /// path the world spawn uses (`spawn_mech_entity`), where the old one stood and facing its way, standing as a fresh
@@ -312,9 +327,10 @@ fn swap_mech(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut pilot: ResMut<PilotSim>,
     piloted: Query<(Entity, &MechSim), With<Piloted>>,
+    swap: Res<SwapMech>,
 ) {
     commands.remove_resource::<SwapMech>();
-    let (at, heading) = match piloted.iter().next() {
+    let (mut at, mut heading) = match piloted.iter().next() {
         Some((old, sim)) => {
             commands.entity(old).despawn();
             (sim.curr.pos, sim.curr.heading_rad)
@@ -325,6 +341,31 @@ fn swap_mech(
             (Vec3::new(s.mech_xz.x, y, s.mech_xz.y), s.mech_heading_rad)
         }
     };
+    // A pilot on foot gets it brought to them: the career's drop search round their feet, facing them.
+    let feet = pilot.curr.feet;
+    if pilot.curr.mode == PilotMode::OnFoot
+        && let Some(cfg) = &swap.drop
+    {
+        let ground = cb_core::air_drop::PlanGround {
+            plan: &world.0,
+            bases: &data.0.world.bases,
+        };
+        let keep = cb_core::air_drop::Keep {
+            pilot: Vec2::new(feet.x, feet.z),
+            mechs: &[],
+        };
+        let needs = cb_core::air_drop::Needs::of(&data.0.mech);
+        let rng = SimRng::new(u64::from(feet.x.to_bits()) ^ u64::from(feet.z.to_bits())).fork("free-roam-drop");
+        if let Some(spot) = cb_core::air_drop::drop_site(cfg, &ground, needs, &keep, &rng) {
+            at = spot.at;
+            let to_pilot = Vec2::new(feet.x - at.x, feet.z - at.z);
+            heading = (-to_pilot.x).atan2(-to_pilot.y);
+        }
+    }
+    commands.insert_resource(Delivered {
+        at,
+        name: data.0.mech.name.clone(),
+    });
     let player = spawn_mech_entity(
         &mut commands,
         Arc::new(data.0.mech.clone()),

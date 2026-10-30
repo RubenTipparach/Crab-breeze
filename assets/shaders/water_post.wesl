@@ -37,6 +37,7 @@ struct WaterPost {
     fog_night: vec4<f32>,  // x the stars' brightness on screen now; y the moon's lit face on screen now
     fog_moon: vec4<f32>,   // xyz toward the moon; w its disc's angular radius, radians
     fog_sun_body: vec4<f32>, // xyz toward the sun itself (fog_sun_dir is the key light's)
+    fog_glow: vec4<f32>,   // xy the distance m over which the glow toward the sun comes into the fog's colour; zw unused
     glass: vec4<f32>,      // seated: xyz the interior's origin, world m; w window triangles in `panes` (0 on foot)
     glass_look: vec4<f32>, // x metres of pane to one unit of the drop pattern
     panes: array<vec4<f32>, 96>, // the window triangles' corners, world m, three a triangle
@@ -140,10 +141,11 @@ fn fog_depth(origin: vec3<f32>, dir: vec3<f32>, len: f32) -> f32 {
     return thick * max(layer, 0.0) + max(haze, 0.0) + post.fog_mist.w * min(len, post.fog_map.w);
 }
 
-// The fog's colour seen along `dir` (`fog_colour.wesl`, the one copy the clouds read too), from this pass's uniform.
-fn post_fog_colour(dir: vec3<f32>) -> vec3<f32> {
-    let c = FogColour(post.fog_sky_x, post.fog_sky_y, post.fog_sky_z, post.fog_sky_lut, post.fog_ambient, post.fog_sun, post.fog_sun_dir);
-    return fog_colour(sky_view_lut, scene_sampler, c, dir);
+// The fog's colour seen along `dir` over a sight line `len` metres long (`fog_colour.wesl`, the one copy the clouds read
+// too), from this pass's uniform.
+fn post_fog_colour(dir: vec3<f32>, len: f32) -> vec3<f32> {
+    let c = FogColour(post.fog_sky_x, post.fog_sky_y, post.fog_sky_z, post.fog_sky_lut, post.fog_ambient, post.fog_sun, post.fog_sun_dir, post.fog_sun_body, post.fog_glow);
+    return fog_colour(sky_view_lut, scene_sampler, c, dir, len);
 }
 
 // The night sky on a sky pixel (`cb_core::day_night`): stars, fixed to the sky, on a cube of cells,
@@ -217,7 +219,7 @@ fn fog(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let len = end - start;
     if (len > 0.0) {
         let t = exp(-fog_depth(eye + direction * start, direction, len));
-        color = mix(post_fog_colour(direction), color, t);
+        color = mix(post_fog_colour(direction, end), color, t);
     }
     return vec4<f32>(color, 1.0);
 }

@@ -164,6 +164,14 @@ pub struct FogConfig {
     pub sun_share: f32,
     /// Henyey-Greenstein asymmetry of the scattering (0 even, toward 1 a glow round the sun).
     pub phase_g: f32,
+    /// Over what distance from the eye, in metres, the glow round the sun comes into the fog's
+    /// colour: none on what is nearer than the first, all of it on what is beyond the second
+    /// (smoothstep between). Nearer than that the fog takes the sky's colour across from the sun
+    /// at the horizon, so a low sun's glow (the long air path's forward scattering, hundreds of
+    /// times brighter toward the sun than across it) tints the far land and never paints over a
+    /// house a hundred metres off (owner, 2026-10-30: "dusk and dawn shouldnt be drawing
+    /// atmosphere infront of everything like this").
+    pub sun_glow_m: [f32; 2],
     /// What each preset does (survey F1).
     pub presets: FogPresets,
     /// The hours of the world's clock (`crate::day_night`) over which the morning mist thins to
@@ -197,6 +205,7 @@ impl Default for FogConfig {
             ambient_share: 1.0,
             sun_share: 0.25,
             phase_g: 0.6,
+            sun_glow_m: [1000.0, 8000.0],
             presets: FogPresets::default(),
             burn_off_h: [7.0, 11.0],
             // Combat-heavy: the three-city defence and the air fortress (survey F1).
@@ -239,6 +248,7 @@ impl Validate for FogConfig {
         within("fog.ambient_share", self.ambient_share, 0.0, 4.0)?;
         within("fog.sun_share", self.sun_share, 0.0, 4.0)?;
         within("fog.phase_g", self.phase_g, -0.95, 0.95)?;
+        positive_range("fog.sun_glow_m", self.sun_glow_m)?;
         self.presets.morning.validate("fog.presets.morning")?;
         self.presets.day.validate("fog.presets.day")?;
         self.presets.clear.validate("fog.presets.clear")?;
@@ -655,5 +665,25 @@ mod tests {
             ..FogConfig::default()
         };
         assert!(backwards.validate().is_err());
+        let glow_backwards = FogConfig {
+            sun_glow_m: [8000.0, 1000.0],
+            ..FogConfig::default()
+        };
+        assert!(glow_backwards.validate().is_err());
+    }
+
+    /// Dawn and dusk (owner, 2026-10-30: "dusk and dawn shouldnt be drawing atmosphere infront of
+    /// everything like this"): the low sun's glow comes into the fog's colour only past the first
+    /// distance of `sun_glow_m`, so the houses and trees a few hundred metres off, which the
+    /// morning mist and the rain haze by a tenth to a third, are hazed in the plain sky's colour.
+    #[test]
+    fn the_sun_glow_stays_off_the_near_fog() {
+        let cfg = FogConfig::default();
+        assert!(cfg.sun_glow_m[0] >= 500.0, "{:?}", cfg.sun_glow_m);
+        assert!(
+            cfg.sun_glow_m[1] <= cfg.sky_length_m,
+            "the sky takes the whole glow: {:?}",
+            cfg.sun_glow_m
+        );
     }
 }

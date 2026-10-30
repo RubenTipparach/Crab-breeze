@@ -99,6 +99,11 @@ pub struct FortressRun {
     pub capsules: Vec<PartCapsule>,
     /// Every live part as a target: (id, where).
     pub targets: Vec<(u32, Vec3)>,
+    /// Each part's rounds fired at the last step and the seconds since it last fired or warned (`hostiles` boxes a gun
+    /// only then).
+    fire: Vec<(u32, f32)>,
+    /// The guns warning the pilot of a burst now, by name (the HUD's warning).
+    pub warnings: Vec<String>,
     legs: Vec<FallingLeg>,
     was: bevy::math::Affine3A,
     /// The city it attacks (its circle's centre), by index.
@@ -296,6 +301,8 @@ fn switch(
             outcome: None,
             status_in_s: 0.0,
             beams: Vec::new(),
+            fire: Vec::new(),
+            warnings: Vec::new(),
             capsules: Vec::new(),
             targets: Vec::new(),
             legs: Vec::new(),
@@ -472,10 +479,17 @@ fn pose(run: Res<FortressRun>, data: Res<Data>, mut transforms: Query<&mut Trans
     }
 }
 
-/// Every live part is a target, boxed and lockable like a mech (`targeting`).
-fn hostiles(run: Res<FortressRun>, mut out: ResMut<Hostiles>) {
+/// The parts that bring it down (`always_target`: the lift thrusters and the bridge) are targets, boxed and lockable like
+/// a mech (`targeting`); a gun only while it warns, fires or burns at the pilot and `fire_box_s` after. Every part is
+/// still hit by what strikes it (its capsule).
+fn hostiles(run: Res<FortressRun>, data: Res<Data>, mut out: ResMut<Hostiles>) {
     let vel = run.f.velocity();
-    for (id, at) in &run.targets {
+    let d = &data.0.fortress;
+    let shown = |id: u32| {
+        let i = (id - FORTRESS_TARGET_BASE) as usize;
+        d.kind(i).always_target || run.fire.get(i).is_some_and(|(_, since)| *since < d.cfg.fire_box_s)
+    };
+    for (id, at) in run.targets.iter().filter(|(id, _)| shown(*id)) {
         out.0.push(Hostile {
             id: *id,
             aim: *at,
@@ -705,6 +719,18 @@ fn step(
         say("MISSION fortress lost: your mech was destroyed");
     }
     // Hit capsules and targets for this step's rounds, every live part's, then the hull's.
+    // How lately each gun fired or warned (`hostiles`), and which warn now (the HUD).
+    run.fire.resize(run.f.parts.len(), (0, f32::INFINITY));
+    run.warnings.clear();
+    for (i, (st, (fired, since))) in run.f.parts.iter().zip(run.fire.iter_mut()).enumerate() {
+        *since = if st.alive && st.gun.busy(*fired) { 0.0 } else { *since + dt };
+        *fired = st.gun.fired;
+        if st.alive && (st.gun.warn_s > 0.0 || st.gun.beam == cb_core::fortress::BeamPhase::Charging) {
+            run.warnings.push(d.kind(i).name.to_uppercase());
+        }
+    }
+    run.warnings.sort();
+    run.warnings.dedup();
     run.capsules.clear();
     run.targets.clear();
     if !run.f.crashed {

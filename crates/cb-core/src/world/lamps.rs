@@ -85,7 +85,7 @@ pub struct Lamp {
     pub colour: LightColour,
     /// True when it has a pole and a head to draw; false for a floodlight on something built.
     pub pole: bool,
-    /// The island's lot it stands on (a ship, a gantry), dark once that lot is damaged.
+    /// The island's lot it stands on (a ship, a gantry), dark once half of that lot is down.
     pub lot: Option<u32>,
 }
 
@@ -96,7 +96,7 @@ pub struct GlowDot {
     pub at: Vec3,
     /// Its colour.
     pub colour: LightColour,
-    /// The island's lot it stands on, dark once that lot is damaged.
+    /// The island's lot it stands on, dark once half of that lot is down.
     pub lot: Option<u32>,
 }
 

@@ -54,6 +54,13 @@ pub struct Beam {
     pub damage: f32,
 }
 
+/// The distance from `p` to the segment `a`..`b`, metres.
+fn point_segment_distance(p: Vec3, a: Vec3, b: Vec3) -> f32 {
+    let ab = b - a;
+    let t = ((p - a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
+    p.distance(a + ab * t)
+}
+
 fn seg_seg_distance(p1: Vec3, q1: Vec3, p2: Vec3, q2: Vec3) -> f32 {
     // Closest points of two segments (Ericson, Real-Time Collision Detection, 5.1.9).
     let (d1, d2, r) = (q1 - p1, q2 - p2, p1 - p2);
@@ -122,22 +129,52 @@ impl Fortress {
         let turn = d.cfg.turret_turn_deg_s.to_radians() * dt_s;
         let cone = d.cfg.fire_cone_deg.to_radians();
         let error_scale = if self.bridge_alive(d) { 1.0 } else { 2.0 };
-        for i in 0..d.shape.parts.len() {
+        // Half the guns (`armed_every`): the first of each run of a kind's parts carries one.
+        let mut seen: std::collections::BTreeMap<&str, u32> = std::collections::BTreeMap::new();
+        let armed: Vec<bool> = d
+            .shape
+            .parts
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let n = seen.entry(p.kind.as_str()).or_insert(0);
+                let a = n.is_multiple_of(d.kind(i).armed_every.max(1));
+                *n += 1;
+                a
+            })
+            .collect();
+        // At most `max_firing` at the pilot at once: a gun starts a warning or a charge only while fewer are engaged.
+        let mut engaged = (0..d.shape.parts.len())
+            .filter(|&i| armed[i] && self.parts[i].alive && self.parts[i].gun.engaged())
+            .count() as u32;
+        for (i, &armed) in armed.iter().enumerate() {
             let Some(g) = d.kind(i).gun.as_ref() else { continue };
             let Some(m) = mounts.get(i).copied().flatten() else { continue };
-            if !self.parts[i].alive {
+            if !self.parts[i].alive || !armed {
                 continue;
             }
             let mut st = self.parts[i].gun;
             st.cool_s -= dt_s;
             let Some(t) = target else {
                 st.beam = BeamPhase::Idle;
+                st.warn_s = 0.0;
+                st.firing = false;
                 self.parts[i].gun = st;
                 continue;
             };
             let dist = m.muzzle.distance(t.pos);
             let in_range = dist <= g.range_m;
-            let aim_at = if g.beam.is_some() {
+            let sweep = g.beam.filter(|b| b.sweep_m > 0.0);
+            let sweeping = sweep.is_some();
+            let aim_at = if let Some(b) = sweep.filter(|_| st.beam != BeamPhase::Idle) {
+                // Across the line from one side to the other while it burns, held at the start while it charges.
+                let s = if st.beam == BeamPhase::On {
+                    1.0 - (st.cool_s / b.on_s).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                st.sweep_at + st.sweep_side * b.sweep_m * (2.0 * s - 1.0)
+            } else if g.beam.is_some() {
                 t.pos
             } else {
                 lead(m.muzzle, t.pos, t.vel, g.weapon.speed_m_s, !g.weapon.shot().straight())
@@ -162,9 +199,13 @@ impl Fortress {
                 let mut damage = 0.0;
                 match st.beam {
                     BeamPhase::Idle => {
-                        if st.cool_s <= 0.0 && in_range && clear {
+                        if st.cool_s <= 0.0 && in_range && clear && engaged < d.cfg.max_firing {
+                            engaged += 1;
                             st.beam = BeamPhase::Charging;
                             st.cool_s = b.charge_s;
+                            let to = t.pos - m.muzzle;
+                            st.sweep_at = t.pos;
+                            st.sweep_side = Vec3::Y.cross(to).normalize_or(Vec3::X);
                         }
                     }
                     BeamPhase::Charging => {
@@ -174,7 +215,13 @@ impl Fortress {
                         }
                     }
                     BeamPhase::On => {
-                        if on_aim && clear && in_range {
+                        // A sweep burns the pilot only where its line crosses them; a held beam while on its aim.
+                        let hit = if sweeping {
+                            point_segment_distance(t.pos, m.muzzle, m.muzzle + world_dir * g.range_m) <= b.hit_m
+                        } else {
+                            on_aim
+                        };
+                        if hit && clear && in_range {
                             damage = b.damage_per_s * dt_s;
                         }
                         if st.cool_s <= 0.0 {
@@ -193,23 +240,45 @@ impl Fortress {
                         damage,
                     });
                 }
-            } else if st.cool_s <= 0.0 && in_range && clear && on_aim && (g.magazine == 0 || st.fired < g.magazine) {
-                let e = (g.aim_error_deg * error_scale).to_radians();
-                let (ea, eb) = (self.rng().range_f32(-e, e), self.rng().range_f32(-e, e));
-                let side = world_dir.cross(Vec3::Y).normalize_or(Vec3::X);
-                let up = side.cross(world_dir).normalize_or(Vec3::Y);
-                let dir = (world_dir + side * ea.tan() + up * eb.tan()).normalize_or(world_dir);
-                fires.push(Fire {
-                    part: i,
-                    from: m.muzzle,
-                    dir,
-                });
-                st.fired += 1;
-                st.left = st.left.saturating_sub(1);
-                st.cool_s = g.weapon.interval_s;
-                if st.left == 0 {
+            } else {
+                let loaded = g.magazine == 0 || st.fired < g.magazine;
+                if !(in_range && clear) {
+                    // Lost the pilot: the warning and the burst end, and its place goes to another gun.
+                    st.warn_s = 0.0;
+                    st.firing = false;
+                } else if !st.engaged() && st.cool_s <= 0.0 && loaded && engaged < d.cfg.max_firing {
+                    // A burst begins with its warning (owner, 2026-10-29: "have some way of telegraphing shots").
+                    engaged += 1;
                     st.left = g.burst;
-                    st.cool_s = g.pause_s.max(g.weapon.interval_s);
+                    st.warn_s = g.warn_s;
+                    st.firing = g.warn_s <= 0.0;
+                } else if st.warn_s > 0.0 {
+                    st.warn_s -= dt_s;
+                    if st.warn_s <= 0.0 {
+                        st.warn_s = 0.0;
+                        st.firing = true;
+                    }
+                }
+                if st.firing && st.cool_s <= 0.0 && on_aim && loaded {
+                    let e = (g.aim_error_deg * error_scale).to_radians();
+                    let (ea, eb) = (self.rng().range_f32(-e, e), self.rng().range_f32(-e, e));
+                    let side = world_dir.cross(Vec3::Y).normalize_or(Vec3::X);
+                    let up = side.cross(world_dir).normalize_or(Vec3::Y);
+                    let dir = (world_dir + side * ea.tan() + up * eb.tan()).normalize_or(world_dir);
+                    fires.push(Fire {
+                        part: i,
+                        from: m.muzzle,
+                        dir,
+                    });
+                    st.fired += 1;
+                    st.left = st.left.saturating_sub(1);
+                    st.cool_s = g.weapon.interval_s;
+                    if st.left == 0 {
+                        // The burst done: its place freed and the pause (15 s: "turrets should fire in bursts, then have
+                        // 15 second cooldowns").
+                        st.firing = false;
+                        st.cool_s = g.pause_s.max(g.weapon.interval_s);
+                    }
                 }
             }
             st.cool_s = st.cool_s.max(-1.0);
@@ -261,6 +330,69 @@ mod tests {
         let first = first.expect("it fires once on its aim");
         let turn_s = 180.0 / d.cfg.turret_turn_deg_s;
         assert!(first > turn_s * 0.8, "fired at {first} s, before it could have turned ({turn_s} s)");
+    }
+
+    /// The carrier made fair (owner, 2026-10-29: "1/2 weapons, weapons should not all target you at once, maybe 3 at a
+    /// time, and have some way of telegraphing shots", "turrets should fire in bursts, then have 15 second cooldowns"):
+    /// half its guns fire, never more than three are on the pilot at once, each warns before its burst, and a gun that
+    /// has fired waits out its pause.
+    #[test]
+    fn half_the_guns_fire_three_at_most_at_once_each_after_its_warning() {
+        let (d, mut f) = fortress();
+        let m = mounts(&f, &d);
+        let t = Target {
+            pos: f.pos + Vec3::new(300.0, 200.0, 300.0),
+            vel: Vec3::ZERO,
+        };
+        let guns: Vec<usize> = (0..d.shape.parts.len()).filter(|&i| d.kind(i).gun.is_some()).collect();
+        let mut fired = vec![false; d.shape.parts.len()];
+        let mut warned = vec![false; d.shape.parts.len()];
+        for _ in 0..(120.0 / DT) as usize {
+            let (fires, _) = f.guns(&d, &m, Some(t), DT);
+            let on = guns.iter().filter(|&&i| f.parts[i].gun.engaged()).count();
+            assert!(on as u32 <= d.cfg.max_firing, "{on} guns on the pilot at once");
+            for &i in &guns {
+                warned[i] |= f.parts[i].gun.warn_s > 0.0;
+            }
+            for x in fires {
+                let g = d.kind(x.part).gun.as_ref().unwrap();
+                assert!(
+                    g.warn_s <= 0.0 || warned[x.part],
+                    "{} fired with no warning",
+                    d.shape.parts[x.part].id
+                );
+                fired[x.part] = true;
+            }
+        }
+        let armed = guns.iter().filter(|&&i| fired[i]).count();
+        assert!(armed > 0, "the guns fire");
+        assert!(armed * 2 <= guns.len() + 1, "{armed} of {} guns fired: half are silent", guns.len());
+    }
+
+    /// A laser sweeps across where the pilot stood when it began to charge (owner, 2026-10-29: "lasers sweep"): standing
+    /// there it burns them; moved well off the line it misses.
+    #[test]
+    fn a_laser_sweeps_across_where_the_pilot_stood_and_misses_one_who_moved() {
+        let burn = |moved_m: f32| {
+            let (d, mut f) = fortress();
+            let m = mounts(&f, &d);
+            // Clear of the hull, 800 m off and a little above the guns (their mounts sit 60 m over the hull).
+            let at = f.pos + Vec3::new(0.0, 160.0, 800.0);
+            let mut total = 0.0;
+            let mut first: Option<usize> = None;
+            // The first laser to charge, through its charge and burn.
+            for _ in 0..(20.0 / DT) as usize {
+                // Off the line once it is charging: nearer, out of the plane it sweeps.
+                first = first.or_else(|| (0..d.shape.parts.len()).find(|&i| f.parts[i].gun.beam == BeamPhase::Charging));
+                let pos = if first.is_some() { at + Vec3::new(0.0, 0.0, moved_m) } else { at };
+                let (_, beams) = f.guns(&d, &m, Some(Target { pos, vel: Vec3::ZERO }), DT);
+                total += beams.iter().filter(|b| Some(b.part) == first).map(|b| b.damage).sum::<f32>();
+            }
+            total
+        };
+        assert!(burn(0.0) > 0.0, "standing on the line it burns");
+        let (still, moved) = (burn(0.0), burn(-120.0));
+        assert!(moved < still * 0.5, "moved off the line it burns {moved} against {still}");
     }
 
     #[test]

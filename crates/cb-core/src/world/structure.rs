@@ -147,8 +147,9 @@ pub struct StructureConfig {
     pub house_collapse_chunk_m: f32,
     /// A house's piece whose volume is under this turns to dust rather than a chunk, cubic metres.
     pub house_dust_m3: f32,
-    /// A damaged building's windows stay lit at night until this share of its elements has fallen
-    /// (owner, 2026-10-29: "damaged building should stay lit until the player destroys about 30% of the building").
+    /// A damaged building's lights stay on at night until this share of its elements (a house's or a ship's pieces)
+    /// has fallen (owner, 2026-10-29: "damaged building should stay lit until the player destroys about 30% of the
+    /// building", then "our 50% building destruction rule for switching off lights"). `lit_while_standing` is the rule.
     pub lights_out_share: f32,
 }
 
@@ -181,7 +182,7 @@ impl Default for StructureConfig {
             house_chunk_m: 1.5,
             house_collapse_chunk_m: 2.2,
             house_dust_m3: 0.0,
-            lights_out_share: 0.3,
+            lights_out_share: 0.5,
         }
     }
 }
@@ -226,6 +227,13 @@ impl crate::data::Validate for StructureConfig {
         }
         Ok(())
     }
+}
+
+/// Whether a building of `total` parts, `standing` of them still up, keeps its lights on at night: until
+/// `lights_out_share` of them have fallen. The one rule for every building, tower, house and ship (their windows, their
+/// rooms, their furniture's light and the lamps standing on them). Nothing to fall is lit.
+pub fn lit_while_standing(total: usize, standing: usize, lights_out_share: f32) -> bool {
+    total == 0 || (total.saturating_sub(standing) as f32) < lights_out_share * total as f32
 }
 
 /// A building's frame.
@@ -638,8 +646,7 @@ impl Frame {
     /// Whether the building's windows still light at night: until `lights_out_share` of its elements have fallen
     /// (`StructureConfig::lights_out_share`). A frame with no elements is lit.
     pub fn lit(&self, lights_out_share: f32) -> bool {
-        let n = self.elements.len();
-        n == 0 || ((n - self.standing()) as f32) < lights_out_share * n as f32
+        lit_while_standing(self.elements.len(), self.standing(), lights_out_share)
     }
 
     /// One pass: connectivity, islands (removed and returned), load line, load pass, stress. In a
@@ -790,7 +797,18 @@ fn held_share(els: &[Element], id: usize, cfg: &StructureConfig) -> f32 {
 #[cfg(test)]
 mod tests {
 
-    /// A hit building keeps its windows lit until 30% of it has fallen (owner, 2026-10-29).
+    /// Half a building down puts its lights out, less leaves them on (owner, 2026-10-29: "our 50% building destruction
+    /// rule for switching off lights").
+    #[test]
+    fn half_a_building_down_puts_its_lights_out() {
+        assert!(lit_while_standing(10, 10, 0.5), "whole");
+        assert!(lit_while_standing(10, 6, 0.5), "four tenths down: lit");
+        assert!(!lit_while_standing(10, 5, 0.5), "half down: dark");
+        assert!(lit_while_standing(0, 0, 0.5), "nothing to fall");
+        assert!(lit_while_standing(3, 7, 0.5), "more standing than parts counts nothing down");
+    }
+
+    /// A hit building keeps its windows lit until a share of it has fallen (owner, 2026-10-29).
     #[test]
     fn a_building_goes_dark_once_a_share_of_it_has_fallen() {
         let mut f = block();

@@ -513,6 +513,8 @@ struct FogLook {
     moon: Vec4,
     /// xyz toward the sun itself (`sun_dir` is the key light's, the moon's at night); w unused.
     sun_body: Vec4,
+    /// xy the distance (m) over which the glow toward the sun comes into the fog's colour (`FogTint::glow`); zw unused.
+    glow: Vec4,
 }
 
 /// The look's numbers the passes read.
@@ -608,6 +610,7 @@ fn extract_water_eye(
             ),
             moon: hour.moon_dir.extend((dn.moon_disc_deg * 0.5).to_radians()),
             sun_body: hour.sun_dir.extend(0.0),
+            glow: tint.glow.extend(0.0).extend(0.0),
         };
         // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).
         let glass = if eye.cabin_m > 0.0 {
@@ -659,6 +662,7 @@ struct WaterPostUniform {
     fog_night: Vec4,
     fog_moon: Vec4,
     fog_sun_body: Vec4,
+    fog_glow: Vec4,
     glass: Vec4,
     glass_look: Vec4,
     panes: [Vec4; 3 * MAX_PANE_TRIANGLES],
@@ -866,6 +870,7 @@ fn prepare_water_post(
             fog_night: settings.fog.night,
             fog_moon: settings.fog.moon,
             fog_sun_body: settings.fog.sun_body,
+            fog_glow: settings.fog.glow,
             glass: Vec4::new(
                 settings.glass.origin.x,
                 settings.glass.origin.y,
@@ -1032,6 +1037,8 @@ pub(crate) struct FogTint {
     pub exposure: f32,
     /// How much darker the fog is under the clouds' shade now.
     pub storm: f32,
+    /// The distance (m) over which the glow toward the sun comes into the fog's colour (`FogConfig::sun_glow_m`).
+    pub glow: Vec2,
 }
 
 impl FogTint {
@@ -1044,6 +1051,7 @@ impl FogTint {
             sun_dir: light.sun_dir,
             exposure,
             storm: cfg.storm_dim * (1.0 - shade.clamp(0.0, 1.0)),
+            glow: Vec2::from(cfg.sun_glow_m),
         }
     }
 }
