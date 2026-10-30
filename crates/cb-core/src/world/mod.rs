@@ -681,20 +681,27 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     };
     // Every site's access road, from its city's edge to its gate (the footprint's point nearest the city), graded as
     // a highway and joined to the streets by the lane graph, so cars reach every site (island-sites-layout).
+    // Its own city first; where no road can be laid from it (a base out in the country, behind steep ground), the next
+    // nearest cities in turn.
     for s in &placed_sites {
-        let Some(city) = cities.iter().position(|c| c.id == s.city) else {
-            continue;
-        };
         let f = s.footprint();
-        let gate = cities[city].centre.clamp(f.min, f.max);
-        let ground_m = s
-            .pads()
-            .iter()
-            .filter(|(r, _)| r.distance(gate) < 1.0)
-            .map(|(_, y)| *y)
-            .fold(s.ground_m, f32::max);
-        if let Some(road) = roads::lay_access(&shape, &drainage, &cities, city, (f, gate, ground_m), cfg) {
-            highways.push(road);
+        let mut order: Vec<usize> = (0..cities.len()).collect();
+        order.sort_by(|&a, &b| {
+            let key = |i: usize| (cities[i].id != s.city, cities[i].rect().distance(f.centre()));
+            key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        for city in order.into_iter().take(4) {
+            let gate = cities[city].centre.clamp(f.min, f.max);
+            let ground_m = s
+                .pads()
+                .iter()
+                .filter(|(r, _)| r.distance(gate) < 1.0)
+                .map(|(_, y)| *y)
+                .fold(s.ground_m, f32::max);
+            if let Some(road) = roads::lay_access(&shape, &drainage, &cities, city, (f, gate, ground_m), cfg) {
+                highways.push(road);
+                break;
+            }
         }
     }
     // a block-out base is levelled here; a site-built one by its site's pads

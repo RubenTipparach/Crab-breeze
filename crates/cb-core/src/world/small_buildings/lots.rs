@@ -253,7 +253,7 @@ pub enum Zone {
 impl Zone {
     /// True for a site's lots, which stand on their site's ground rather than levelling their own.
     pub fn is_site(self) -> bool {
-        matches!(self, Zone::Airport | Zone::Seaport)
+        matches!(self, Zone::Airport | Zone::Seaport | Zone::MilitaryBase)
     }
 }
 

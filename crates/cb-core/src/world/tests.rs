@@ -1267,12 +1267,26 @@ fn the_island_holds_two_airports_two_seaports_and_four_bases_none_overlapping() 
         .iter()
         .map(|s| (format!("{:?} {:?}", s.template.kind, s.origin), s.footprint()))
         .collect();
-    rects.extend(plan.bases.iter().map(|b| (format!("base {}", b.id), b.rect())));
-    rects.extend(plan.bases.iter().map(|b| (format!("base {} runway", b.id), b.runway.rect())));
+    // a base built as its page's site is that site (its runway inside it); a block-out base stands apart, its runway
+    // beside it
+    assert!(
+        plan.bases.iter().all(|b| b.site.is_some()),
+        "every base is built from the base page"
+    );
+    for b in &plan.bases {
+        let own = &plan.sites[b.site.unwrap() as usize];
+        assert_eq!(own.template.kind, sites::SiteKind::MilitaryBase);
+        assert!(own.footprint().distance(b.runway.a) <= 0.0 && own.footprint().distance(b.runway.b) <= 0.0);
+    }
+    rects.extend(
+        plan.bases
+            .iter()
+            .filter(|b| b.site.is_none())
+            .map(|b| (format!("base {}", b.id), b.rect())),
+    );
     for (i, (a, ra)) in rects.iter().enumerate() {
         for (b, rb) in &rects[i + 1..] {
-            let same_base = a.split(' ').take(2).eq(b.split(' ').take(2)) && a.starts_with("base");
-            assert!(same_base || !ra.overlaps(rb), "{a} overlaps {b}");
+            assert!(!ra.overlaps(rb), "{a} overlaps {b}");
         }
     }
     let d = airports[0].footprint().centre().distance(airports[1].footprint().centre());
