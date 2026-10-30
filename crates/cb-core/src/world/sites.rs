@@ -50,6 +50,12 @@ pub struct SitesConfig {
     pub port_city_clear_m: f32,
     /// Ground is sampled this far apart when a site is fitted, metres.
     pub sample_m: f32,
+    /// The sites' ground surfaces drawn with a PBR texture set instead of their page's flat look: surface name (the
+    /// export's `quay`, `asphalt`...) to the set's folder under `assets/` (owner, 2026-10-30: "dock platform should use
+    /// concrete textures", "and not textured").
+    pub ground_textures: BTreeMap<String, String>,
+    /// A ground texture repeats every this many metres.
+    pub ground_texture_m: f32,
 }
 
 impl Default for SitesConfig {
@@ -67,6 +73,8 @@ impl Default for SitesConfig {
             port_slides_m: vec![0.0, -300.0, 300.0, -600.0, 600.0],
             port_city_clear_m: 20.0,
             sample_m: 50.0,
+            ground_textures: BTreeMap::new(),
+            ground_texture_m: 4.0,
         }
     }
 }
@@ -87,6 +95,10 @@ impl Validate for SitesConfig {
         }
         positive("sites.port_city_clear_m", self.port_city_clear_m)?;
         positive("sites.sample_m", self.sample_m)?;
+        positive("sites.ground_texture_m", self.ground_texture_m)?;
+        if self.ground_textures.values().any(|f| f.trim().is_empty()) {
+            return Err("sites.ground_textures: every surface names a texture set's folder".into());
+        }
         Ok(())
     }
 }

@@ -243,6 +243,26 @@ const SECTIONS = [
         rec: 0,
         why: 'Ships that come and go make the port alive; a few that always lie alongside mean it never looks empty when you arrive.' },
     ] },
+  { tag: 'WN', name: 'The map and waypoints',
+    lead: 'Added on 2026-10-30, with the Waypoint Nav mockup (https://claude.ai/artifact/QsHAw7s5JknR9QHNFLAzjf; openspec/changes/waypoint-nav). Your words: "we need to add a waypoint nav system in the pause menu. Add a map and let me plop waypoints down to navigate to". Nothing is built in the game until you have looked at the page.',
+    qs: [
+      { id: 'WN1', q: 'A click on the map puts down a waypoint. Several in order, as a route, or one that each new click moves?',
+        options: ['A route of up to 9, taken in order', 'One waypoint: a new click moves it'],
+        rec: 0,
+        why: 'The island is 41 km across: a route lets you plan a trip, say past the seaport (8.4 km) on to the airport (6.9 km further).' },
+      { id: 'WN2', q: 'How close counts as reaching a waypoint, so it is taken off and the next one shows?',
+        options: ['150 m', '50 m', '400 m'],
+        rec: 0,
+        why: 'About six mech lengths: reached at a run or skating without stopping, still close enough to mean you are there.' },
+      { id: 'WN3', q: 'Should the map also show enemies, convoys or other units?',
+        options: ['No: only places, you and the waypoints', 'Yes: every unit the radar has seen'],
+        rec: 0,
+        why: 'A map that shows every enemy makes the radar and lock-on pointless; places are what you navigate by.' },
+      { id: 'WN4', q: 'Should the cockpit have a map page on its MFDs as well?',
+        options: ['Later, in the MFD work, reading the same map and route', 'Now, with the pause menu map'],
+        rec: 0,
+        why: 'The pause menu map is the one asked for; the MFD page reuses its image and route, so it costs little to add next.' },
+    ] },
 ];
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.

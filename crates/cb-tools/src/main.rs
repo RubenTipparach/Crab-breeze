@@ -180,12 +180,13 @@ fn main() -> ExitCode {
                     s.template.placements.len()
                 );
             }
-            // How far each stands from the free roam start, and which way (0 degrees north, +z; 90 east, +x).
+            // How far each stands from the free roam start, and which way (compass degrees: 0 north, which is -z; 90 east,
+            // +x).
             let start = plan.start.mech_xz;
             println!("start: ({:.0}, {:.0})", start.x, start.y);
             for s in &plan.sites {
                 let d = s.footprint().centre() - start;
-                let bearing = d.x.atan2(d.y).to_degrees().rem_euclid(360.0);
+                let bearing = d.x.atan2(-d.y).to_degrees().rem_euclid(360.0);
                 println!(
                     "{:?}: {:.1} km from the start, bearing {:.0} degrees",
                     s.template.kind,
@@ -204,6 +205,127 @@ fn main() -> ExitCode {
             }
             let [c, b, w, st, wa, r] = plan.airport_rejections;
             println!("airport candidates turned down: cities {c}, bases {b}, off dry land {w}, steep {st}, water {wa}, highways {r}");
+            ExitCode::SUCCESS
+        }
+        // A documentation instrument (openspec change `waypoint-nav`): the island as the waypoint map would draw it,
+        // for its mockup. `cb-tools mapdata [seed] [cells]` prints JSON: a cells x cells grid of ground heights (whole
+        // metres) and water (1 where water covers the ground), the cities' street rectangles, the highways' centre
+        // lines, the air bases, the airport and seaport footprints, and the start.
+        Some("mapdata") => {
+            let seed = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(42);
+            let cells: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(256);
+            let data = match GameData::load(&PathBuf::from("data"), "mechs/placeholder.ron") {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let plan = cb_core::world::generate(seed, &data.world);
+            let t = &plan.terrain;
+            let lo = t.origin_m;
+            let size = t.cell_m * t.n as f32;
+            let step = size / cells as f32;
+            let mut heights = Vec::with_capacity(cells * cells);
+            let mut water = String::with_capacity(cells * cells);
+            for j in 0..cells {
+                for i in 0..cells {
+                    let p = glam::Vec2::new(lo + (i as f32 + 0.5) * step, lo + (j as f32 + 0.5) * step);
+                    let g = t.height_at(p.x, p.y);
+                    heights.push(g.round() as i32);
+                    let wet = plan.waters.water_at(p, g).is_some_and(|w| w.depth_m > 0.0);
+                    water.push(if wet { '1' } else { '0' });
+                }
+            }
+            let rect = |r: &cb_core::world::layout::Rect| serde_json::json!([r.min.x, r.min.y, r.max.x, r.max.y]);
+            let out = serde_json::json!({
+                "seed": seed,
+                "origin_m": lo,
+                "size_m": size,
+                "cells": cells,
+                "heights": heights,
+                "water": water,
+                "sea_level_m": plan.waters.sea_level_m,
+                "start": [plan.start.mech_xz.x, plan.start.mech_xz.y],
+                "cities": plan.cities.iter().map(|c| serde_json::json!({
+                    "centre": [c.centre.x, c.centre.y],
+                    "half_m": c.half_size_m,
+                    "streets": c.streets.iter().map(|s| rect(&s.rect)).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>(),
+                "highways": plan.highways.iter().map(|h| {
+                    h.path.iter().step_by(4).map(|p| [p.x.round(), p.y.round()]).collect::<Vec<_>>()
+                }).collect::<Vec<_>>(),
+                "bases": plan.bases.iter().map(|b| serde_json::json!({
+                    "centre": [b.centre.x, b.centre.y], "half": [b.half_m.x, b.half_m.y],
+                })).collect::<Vec<_>>(),
+                "sites": plan.sites.iter().map(|s| serde_json::json!({
+                    "kind": format!("{:?}", s.template.kind),
+                    "rect": rect(&s.footprint()),
+                })).collect::<Vec<_>>(),
+            });
+            println!("{out}");
+            ExitCode::SUCCESS
+        }
+        // A measurement instrument (openspec change `seaport-layout`): the ground round a placed site as the game has it.
+        // `cb-tools siteground <Airport|Seaport> [seed] [step_m] [margin_m]` prints JSON: a grid over the site's
+        // footprint and a margin round it, each cell's ground height, its water surface if water covers it, and the
+        // top of the highest site solid over it (the quays walked on), plus the footprint and the pads in the world.
+        Some("siteground") => {
+            let kind = args.get(1).cloned().unwrap_or_else(|| "Seaport".into());
+            let seed = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(42);
+            let step: f32 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(5.0);
+            let margin: f32 = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(200.0);
+            let data = match GameData::load(&PathBuf::from("data"), "mechs/placeholder.ron") {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let plan = cb_core::world::generate(seed, &data.world);
+            let Some(site) = plan.sites.iter().find(|s| format!("{:?}", s.template.kind) == kind) else {
+                eprintln!("FAIL no {kind} on seed {seed}");
+                return ExitCode::FAILURE;
+            };
+            let f = site.footprint();
+            let lo = f.min - glam::Vec2::splat(margin);
+            let hi = f.max + glam::Vec2::splat(margin);
+            let (nx, nz) = (((hi.x - lo.x) / step) as usize, ((hi.y - lo.y) / step) as usize);
+            let mut ground = Vec::with_capacity(nx * nz);
+            let mut water = Vec::with_capacity(nx * nz);
+            let mut solid = Vec::with_capacity(nx * nz);
+            for j in 0..nz {
+                for i in 0..nx {
+                    let p = lo + glam::Vec2::new((i as f32 + 0.5) * step, (j as f32 + 0.5) * step);
+                    let g = plan.terrain.height_at(p.x, p.y);
+                    ground.push((g * 10.0).round() / 10.0);
+                    water.push(
+                        plan.waters
+                            .water_at(p, g)
+                            .filter(|w| w.depth_m > 0.0)
+                            .map(|w| (w.surface_m * 10.0).round() / 10.0),
+                    );
+                    let top = site
+                        .solids
+                        .iter()
+                        .filter(|(a, b)| p.x >= a.x && p.x <= b.x && p.y >= a.z && p.y <= b.z)
+                        .map(|(_, b)| b.y)
+                        .reduce(f32::max);
+                    solid.push(top.map(|t| (t * 10.0).round() / 10.0));
+                }
+            }
+            let pads: Vec<_> = site
+                .pads()
+                .iter()
+                .map(|(r, y)| serde_json::json!([r.min.x, r.min.y, r.max.x, r.max.y, y]))
+                .collect();
+            let out = serde_json::json!({
+                "lo": [lo.x, lo.y], "step_m": step, "nx": nx, "nz": nz,
+                "footprint": [f.min.x, f.min.y, f.max.x, f.max.y],
+                "sea_level_m": plan.waters.sea_level_m, "site_ground_m": site.ground_m,
+                "pads": pads, "ground": ground, "water": water, "solid": solid,
+            });
+            println!("{out}");
             ExitCode::SUCCESS
         }
         Some("cities") => {

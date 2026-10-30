@@ -41,9 +41,14 @@
     moon_shadow_far_m: 250.0,
     // The sun's and moon's direct light fades in over their first 2.5 degrees.
     horizon_fade_deg: 2.5,
-    // Stars come out as the sun sinks from 4 to 14 degrees below the horizon.
-    star_brightness: 0.8,
+    // Stars come out as the sun sinks from 4 to 14 degrees below the horizon. A darker night sky with plenty of stars
+    // out (owner, 2026-10-30: "make night sky darker and have stars out"): the sky drawn at 30 % of its brightness once
+    // they are fully out, the stars at up to 3 times white (they are dimmed with the sky), 1 in 12 of the fine cells
+    // holding one and a third as many bright ones (were 0.8, 1 in 22, and no dimming).
+    star_brightness: 3.0,
     stars_deg: (-14.0, -4.0),
+    star_share: 0.085,
+    night_sky_dim: 0.3,
     // The moon's disc, drawn with its phase: 0.8 degrees across (the real moon is 0.52), its lit face at 1.6
     // times white on screen when full.
     moon_disc_deg: 0.8,

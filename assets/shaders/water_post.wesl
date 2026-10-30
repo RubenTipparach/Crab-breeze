@@ -34,7 +34,7 @@ struct WaterPost {
     fog_sky_y: vec4<f32>,  // xyz its up; w the planet's radius m
     fog_sky_z: vec4<f32>,  // xyz its back; w 1 with the sky's LUT bound, 0 without (the fog's own colour)
     fog_sky_lut: vec4<f32>, // xy the sky-view LUT's size, texels; z the view's exposure; w how much darker the fog is under the clouds' shade
-    fog_night: vec4<f32>,  // x the stars' brightness on screen now; y the moon's lit face on screen now
+    fog_night: vec4<f32>,  // x the stars' brightness on screen now; y the moon's lit face on screen now; z the sky's brightness now (1 by day); w the share of sky cells holding a star
     fog_moon: vec4<f32>,   // xyz toward the moon; w its disc's angular radius, radians
     fog_sun_body: vec4<f32>, // xyz toward the sun itself (fog_sun_dir is the key light's)
     fog_glow: vec4<f32>,   // xy the distance m over which the glow toward the sun comes into the fog's colour; zw unused
@@ -166,16 +166,24 @@ fn night_sky(dir: vec3<f32>) -> vec3<f32> {
             uv = dir.xy / a.z;
         }
         face += select(0.0, 3.0, dot(dir, vec3<f32>(1.0)) < 0.0);
-        let grid = uv * 140.0;
-        let cell = floor(grid);
-        let h = fract(sin(dot(cell + face * 157.0, vec2<f32>(12.9898, 78.233))) * 43758.547);
-        if (h > 0.955) {
-            let h2 = fract(h * 91.7);
-            let at = vec2<f32>(fract(h * 13.1), fract(h * 7.3)) * 0.6 + 0.2;
-            let d = length(grid - cell - at);
-            let twinkle = 0.75 + 0.25 * sin(post.camera.w * (2.0 + 4.0 * h2) + h * 50.0);
-            let tint = mix(vec3<f32>(0.75, 0.82, 1.0), vec3<f32>(1.0, 0.9, 0.78), h2);
-            out += tint * pow(h2, 6.0) * (1.0 - smoothstep(0.03, 0.14, d)) * twinkle * post.fog_night.x;
+        // Two layers of cells: fine ones for the many faint stars, coarse ones for the few bright ones.
+        for (var layer = 0; layer < 2; layer++) {
+            let scale = select(110.0, 260.0, layer == 0);
+            let grid = uv * scale;
+            let cell = floor(grid);
+            let h = fract(sin(dot(cell + face * 157.0 + f32(layer) * 31.0, vec2<f32>(12.9898, 78.233))) * 43758.547);
+            let share = select(post.fog_night.w * 0.35, post.fog_night.w, layer == 0);
+            if (h > 1.0 - share) {
+                let h2 = fract(h * 91.7);
+                let at = vec2<f32>(fract(h * 13.1), fract(h * 7.3)) * 0.6 + 0.2;
+                let d = length(grid - cell - at);
+                let twinkle = 0.75 + 0.25 * sin(post.camera.w * (2.0 + 4.0 * h2) + h * 50.0);
+                let tint = mix(vec3<f32>(0.75, 0.82, 1.0), vec3<f32>(1.0, 0.9, 0.78), h2);
+                // The fine layer's stars faint (a quarter to two thirds), the coarse layer's bright.
+                let mag = select(0.45 + 0.55 * h2 * h2, 0.25 + 0.4 * h2, layer == 0);
+                let size = select(0.16, 0.12, layer == 0);
+                out += tint * mag * (1.0 - smoothstep(0.02, size, d)) * twinkle * post.fog_night.x;
+            }
         }
     }
     let moon = normalize(post.fog_moon.xyz);
@@ -220,6 +228,11 @@ fn fog(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if (len > 0.0) {
         let t = exp(-fog_depth(eye + direction * start, direction, len));
         color = mix(post_fog_colour(direction, end), color, t);
+    }
+    // At night the sky is dimmed, its stars and moon with it but still standing out (`night_sky_dim`).
+    // (Unset, before the first frame's numbers, it is 0: then the sky is left as it is.)
+    if (sky && post.fog_night.z > 0.0) {
+        color *= post.fog_night.z;
     }
     return vec4<f32>(color, 1.0);
 }
