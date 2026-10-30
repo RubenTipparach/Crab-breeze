@@ -318,7 +318,7 @@ const lods = document.getElementById("lods");
   b.onclick = () => { lod = i; applyLod(); press(lods, b); };
   lods.appendChild(b); if (!i) b.setAttribute("aria-pressed", "true");
 });
-function applyLod() { for (const s of Object.values(planes)) for (const o of s.meshes) { const l = lodOf(o) ?? lodOf(o.parent || {}); o.visible = l === null || l === lod; } }
+function applyLod() { for (const s of Object.values(planes)) for (const o of s.meshes) { const l = lodOf(o) ?? lodOf(o.parent || {}); o.visible = !o.userData.gone && (l === null || l === lod); } }
 
 let gearT = 0, gearTarget = 0;
 const gearBtn = document.getElementById("gear");
@@ -360,6 +360,8 @@ document.getElementById("repair").onclick = () => {
   for (const d of debris) scene.remove(d.mesh); debris.length = 0;
   for (const g of carved) { g.index.array.set(g.userData.index0); g.index.needsUpdate = true; } carved.length = 0;
   for (const m of remainders) m.parent && m.parent.remove(m); remainders.length = 0;
+  for (const s of Object.values(planes)) for (const m of s.meshes) m.userData.gone = false;
+  applyLod();
   for (const p of puffs) scene.remove(p.sp); puffs.length = 0;
 };
 
@@ -391,7 +393,10 @@ function breakZone(s, z, at) {
   s.flying.push({ z, v: new T.Vector3(out.x * 6, 4, out.z * 3), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(1.6), t: 0, puff: 0 });
   const parent = s.zones[z.z.parent];
   const joint = s.holder.localToWorld(z.centre.clone().add(parent.centre).multiplyScalar(0.5));
-  const cabin = /cabin|centre|nose|tail/.test(z.z.name);
+  // the section's fit-out (seats, floor, bins, galleys) is simply gone with it, here and in every zone that hangs from
+  // it (owner, 2026-10-30: "the seats should just despawn when that section of plane id destroyed")
+  for (const mesh of s.meshes) if (isInterior(mesh) && (zoneOf(mesh) === z.node || isUnder(zoneOf(mesh), z.node))) mesh.userData.gone = mesh.visible = false;
+  const cabin = false;
   // big chunks of the real model, as the boats break (half as many since 2026-10-30: "maybe half the amount of debris"): the skin, frames and seats round the hit and both sides of the
   // torn joint come away in cells of about 2.5 m
   if (at) carve(s, z.node, at, 3.2, out);
@@ -424,7 +429,7 @@ function carve(s, zoneNode, at, r, out) {
   const cells = new Map();
   const cellNear = (i, j, k) => new T.Vector3((i + 0.5) * CHUNK, (j + 0.5) * CHUNK, (k + 0.5) * CHUNK).distanceTo(at) <= r;
   for (const mesh of s.meshes) {
-    if (!mesh.visible || zoneOf(mesh) !== zoneNode || !mesh.geometry.index) continue;
+    if (!mesh.visible || isInterior(mesh) || zoneOf(mesh) !== zoneNode || !mesh.geometry.index) continue;
     mesh.updateMatrixWorld();
     const g = mesh.geometry, idx = g.index, pos = g.attributes.position, nrm = g.attributes.normal, uv = g.attributes.uv;
     if (!g.userData.index0) g.userData.index0 = idx.array.slice();
@@ -483,6 +488,8 @@ function carve(s, zoneNode, at, r, out) {
     debris.push({ mesh, v: dir.multiplyScalar(4 + Math.random() * 7), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(3), t: 0, half: Math.min(size.x, size.y, size.z) * 0.5 + 0.05, big: true });
   }
 }
+function isInterior(o) { for (let n = o; n && !(n.name || "").startsWith("ZONE_"); n = n.parent) if ((n.name || "").startsWith("int_")) return true; return false; }
+function isUnder(node, ancestor) { for (let n = node && node.parent; n; n = n.parent) if (n === ancestor) return true; return false; }
 function geoOf(b) {
   const geo = new T.BufferGeometry();
   geo.setAttribute("position", new T.Float32BufferAttribute(b.p, 3));
