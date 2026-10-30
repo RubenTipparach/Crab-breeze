@@ -96,8 +96,11 @@ fn fog_colour(lut: texture_2d<f32>, lut_sampler: sampler, c: FogColour, dir: vec
     let glow = sun_glow_share(c, len);
     if (c.sky_z.w > 0.5) {
         var colour = sky_horizon_colour(lut, lut_sampler, c, dir);
+        // The plain colour only ever takes the glow away, never adds light: a downward ray at dusk reads the dark
+        // air below the horizon, while the plain colour is the sky just above it, the brightest band at twilight,
+        // and taking it turned the far city into a pale wall at 19:30 (2026-10-30).
         if (glow < 1.0) {
-            colour = mix(sky_plain_colour(lut, lut_sampler, c, dir), colour, glow);
+            colour = mix(min(sky_plain_colour(lut, lut_sampler, c, dir), colour), colour, glow);
         }
         return colour * (1.0 - clamp(c.sky_lut.w, 0.0, 1.0));
     }

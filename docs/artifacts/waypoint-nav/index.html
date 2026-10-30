@@ -54,7 +54,9 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--edge); 
 @keyframes flash { from { background: rgba(255, 199, 77, 0.85); border-color: #fff; color: #000; } to { background: transparent; } }
 .page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.42fr); gap: 1.6%; min-height: 0; }
 .mapbox { position: relative; background: var(--panel); border: 2px solid var(--dim); min-height: 0; overflow: hidden; }
-#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
+.zbtns { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 6px; }
+.zbtns .btn { min-width: 44px; min-height: 44px; padding: 0; font-size: 20px; background: rgba(0, 0, 0, 0.55); }
 .zoom { position: absolute; left: 10px; bottom: 8px; font-size: clamp(9px, 1vw, 12px); color: var(--dim); pointer-events: none; letter-spacing: 0.08em; }
 .side { background: rgba(3, 10, 8, 0.94); border: 2px solid var(--dim); padding: 4% 5%; display: grid; grid-template-rows: auto 1fr auto auto; gap: 8px; min-height: 0; font-size: clamp(9px, 1.05vw, 13px); }
 .side h3 { margin: 0; font-family: var(--display); font-size: clamp(12px, 1.4vw, 17px); color: var(--ink); letter-spacing: 0.08em; }
@@ -69,7 +71,7 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--edge); 
 .sidebtns { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* The pilot's view */
-.view { position: relative; border: 1px solid var(--edge); background: #000; aspect-ratio: 16 / 7; max-width: 100%; overflow: hidden; cursor: grab; }
+.view { position: relative; border: 1px solid var(--edge); background: #000; aspect-ratio: 16 / 7; max-width: 100%; overflow: hidden; cursor: grab; touch-action: none; }
 .view canvas { display: block; width: 100%; height: 100%; }
 .hud { position: absolute; inset: 0; pointer-events: none; }
 .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -95,7 +97,7 @@ td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
     <div class="eyebrow">Crab Breeze · openspec change waypoint-nav · mockup</div>
     <h1>Waypoint Nav</h1>
     <p class="lede">The pause menu's MAP page, on the real seed 42 island (41 km across, from <code>cb-tools mapdata</code>), and the marker it puts in the pilot's view.</p>
-    <p class="how"><kbd>Click</kbd> the map to put down a waypoint (up to 9, in order) · <kbd>Right click</kbd> one to take it away · <kbd>Wheel</kbd> zooms round the pointer · <kbd>Drag</kbd> pans · drag the pilot's view to look round.</p>
+    <p class="how"><kbd>Click</kbd> the map to put down a waypoint (up to 9, in order) · <kbd>Right click</kbd> one to take it away · <kbd>Wheel</kbd> zooms round the pointer · <kbd>Drag</kbd> pans · drag the pilot's view to look round. On a phone: tap to put one down, tap one to take it away, pinch or the + and &minus; buttons to zoom.</p>
   </header>
 
   <div class="screen" id="screen">
@@ -110,7 +112,7 @@ td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
         <button class="btn" type="button" id="t-quit">Quit</button>
       </div>
       <div class="page">
-        <div class="mapbox"><canvas id="map"></canvas><div class="zoom" id="zoom">1.0x</div></div>
+        <div class="mapbox"><canvas id="map"></canvas><div class="zoom" id="zoom">1.0x</div><div class="zbtns"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">&minus;</button></div></div>
         <div class="side">
           <h3>ROUTE</h3>
           <div class="list" id="list"></div>
@@ -309,42 +311,74 @@ const D = {"bases":[{"centre":[-10476.6259765625,-5624.31494140625],"half":[350.
     return bd < 1500 ? 'CITY ' + best : 'OPEN GROUND';
   }
 
-  // ---- map input
+  // ---- map input: mouse and touch (a tap on a waypoint takes it away on a phone; two fingers pinch to zoom)
   let drag = null;
+  const touches = new Map();
+  let pinch = null;
+  const at = e => { const r = map.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; return [(e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr]; };
+  const zoomAt = (px, pz, z) => {
+    const [wx, wz] = toWorld(px, pz);
+    zoom = Math.min(8, Math.max(1, z));
+    cx = wx - (px - map.width / 2) / scale(); cz = wz - (pz - map.height / 2) / scale();
+    drawMap();
+  };
+  const hitAt = (px, pz, reach) => {
+    let hit = -1, best = reach;
+    route.forEach((p, i) => { const [a, b] = toPx(p.x, p.z); const d = Math.hypot(a - px, b - pz); if (d < best) { best = d; hit = i; } });
+    return hit;
+  };
   map.addEventListener('contextmenu', e => e.preventDefault());
   map.addEventListener('pointerdown', e => {
     map.setPointerCapture(e.pointerId);
-    drag = { x: e.clientX, y: e.clientY, cx, cz, t: performance.now(), button: e.button, moved: false };
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom };
+      drag = null;
+      return;
+    }
+    drag = { x: e.clientX, y: e.clientY, cx, cz, t: performance.now(), button: e.button, moved: false, touch: e.pointerType === 'touch' };
   });
   map.addEventListener('pointermove', e => {
+    if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      const r = map.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      const mx = ((a.x + b.x) / 2 - r.left) * dpr, mz = ((a.y + b.y) / 2 - r.top) * dpr;
+      zoomAt(mx, mz, pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y) / Math.max(1, pinch.d));
+      return;
+    }
     if (!drag) return;
     const dpr = window.devicePixelRatio || 1, dx = (e.clientX - drag.x) * dpr, dy = (e.clientY - drag.y) * dpr;
-    if (Math.hypot(dx, dy) > 4 * dpr) drag.moved = true;
+    if (Math.hypot(dx, dy) > (drag.touch ? 10 : 4) * dpr) drag.moved = true;
     if (drag.moved && (drag.button === 1 || drag.button === 0)) { cx = drag.cx - dx / scale(); cz = drag.cz - dy / scale(); drawMap(); }
   });
-  map.addEventListener('pointerup', e => {
+  const lift = e => {
+    touches.delete(e.pointerId);
+    if (pinch) { if (touches.size < 2) pinch = null; drag = null; return; }
     if (!drag) return;
-    const r = map.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    const px = (e.clientX - r.left) * dpr, pz = (e.clientY - r.top) * dpr;
+    const [px, pz] = at(e), dpr = window.devicePixelRatio || 1;
     const quick = !drag.moved && performance.now() - drag.t < 350;
-    if (quick && drag.button === 0 && route.length < MAX_WP) {
-      const [x, z] = toWorld(px, pz); route.push({ x, z }); save(); refresh();
+    if (quick && drag.button === 0) {
+      // A finger's tap on a waypoint takes it away; anywhere else it puts one down.
+      const hit = drag.touch ? hitAt(px, pz, PICK_PX * 2 * dpr) : -1;
+      if (hit >= 0) { route.splice(hit, 1); save(); refresh(); }
+      else if (route.length < MAX_WP) { const [x, z] = toWorld(px, pz); route.push({ x, z }); save(); refresh(); }
     } else if (quick && drag.button === 2) {
-      let hit = -1, best = PICK_PX * dpr;
-      route.forEach((p, i) => { const [a, b] = toPx(p.x, p.z); const d = Math.hypot(a - px, b - pz); if (d < best) { best = d; hit = i; } });
+      const hit = hitAt(px, pz, PICK_PX * dpr);
       if (hit >= 0) { route.splice(hit, 1); save(); refresh(); }
     }
     drag = null;
-  });
+  };
+  map.addEventListener('pointerup', lift);
+  map.addEventListener('pointercancel', e => { touches.delete(e.pointerId); pinch = null; drag = null; });
   map.addEventListener('wheel', e => {
     e.preventDefault();
-    const r = map.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    const px = (e.clientX - r.left) * dpr, pz = (e.clientY - r.top) * dpr;
-    const [wx, wz] = toWorld(px, pz);
-    zoom = Math.min(8, Math.max(1, zoom * (e.deltaY < 0 ? 1.25 : 0.8)));
-    cx = wx - (px - map.width / 2) / scale(); cz = wz - (pz - map.height / 2) / scale();
-    drawMap();
+    const [px, pz] = at(e);
+    zoomAt(px, pz, zoom * (e.deltaY < 0 ? 1.25 : 0.8));
   }, { passive: false });
+  document.getElementById('zin').addEventListener('click', () => zoomAt(map.width / 2, map.height / 2, zoom * 1.5));
+  document.getElementById('zout').addEventListener('click', () => zoomAt(map.width / 2, map.height / 2, zoom / 1.5));
 
   // ---- buttons flash on press, as the game's do now
   document.querySelectorAll('.btn').forEach(b => b.addEventListener('pointerdown', () => {

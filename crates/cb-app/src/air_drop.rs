@@ -149,6 +149,15 @@ fn design_of(run: &CareerRun, key: u32) -> Option<&MechConfig> {
     run.career.mech(key).and_then(|m| run.data.design(&m.design))
 }
 
+/// Where the player is (x, z): their mech's feet in the seat, their own on foot. The one answer, for the drops and the
+/// map's route (waypoint-nav).
+pub(crate) fn pilot_xz(pilot: &PilotSim, piloted: Option<&MechSim>) -> Vec2 {
+    match (pilot.curr.mode == PilotMode::Seated, piloted) {
+        (true, Some(sim)) => Vec2::new(sim.curr.pos.x, sim.curr.pos.z),
+        _ => Vec2::new(pilot.curr.feet.x, pilot.curr.feet.z),
+    }
+}
+
 /// Where the player is and what stands near them.
 fn track_where(
     pilot: Res<PilotSim>,
@@ -158,9 +167,10 @@ fn track_where(
 ) {
     let seated = pilot.curr.mode == PilotMode::Seated;
     let mine = mechs.iter().find(|m| m.3);
-    (out.pilot, out.body_radius_m) = match (seated, mine) {
-        (true, Some((sim, spec, ..))) => (Vec2::new(sim.curr.pos.x, sim.curr.pos.z), spec.locomotion.body_radius_m),
-        _ => (Vec2::new(pilot.curr.feet.x, pilot.curr.feet.z), PILOT_RADIUS_M),
+    out.pilot = pilot_xz(&pilot, mine.map(|m| m.0));
+    out.body_radius_m = match (seated, mine) {
+        (true, Some((_, spec, ..))) => spec.locomotion.body_radius_m,
+        _ => PILOT_RADIUS_M,
     };
     out.mechs.clear();
     out.wrecks.clear();

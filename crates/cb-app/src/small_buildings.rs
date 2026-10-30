@@ -677,7 +677,7 @@ fn bind(
     kits.furniture = Arc::new(furniture);
     // Each site's ground: its one mesh's primitives in the look its table gives each surface.
     let mut grounds = Vec::with_capacity(loading.grounds.len());
-    let mut ground_sets: BTreeMap<String, Handle<StandardMaterial>> = BTreeMap::new();
+    let mut ground_sets: BTreeMap<(String, String), Handle<StandardMaterial>> = BTreeMap::new();
     for (site, h) in plan.sites.iter().zip(&loading.grounds) {
         let Some(g) = gltfs.get(h) else { return };
         let Some(mesh) = g.meshes.first().and_then(|m| gltf_meshes.get(m)) else {
@@ -693,9 +693,11 @@ fn bind(
             if let Some(folder) = sites_cfg.ground_textures.get(&surface)
                 && let Some(textured) = meshes.get(&p.mesh).map(|m| metre_uvs(m, sites_cfg.ground_texture_m))
             {
+                // Tinted the page's colour for the surface: the set gives the grain, the page the colour.
+                let colour = site.template.ground.materials.get(&surface).map(|l| l.colour);
                 let m = ground_sets
-                    .entry(folder.clone())
-                    .or_insert_with(|| crate::pbr_set::set_material(&mut images, &mut plain, folder, 0.9))
+                    .entry((folder.clone(), surface.clone()))
+                    .or_insert_with(|| crate::pbr_set::set_material_tinted(&mut images, &mut plain, folder, 0.9, colour))
                     .clone();
                 prims.push((meshes.add(textured), m));
                 continue;

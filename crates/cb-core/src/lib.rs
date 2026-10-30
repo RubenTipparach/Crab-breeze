@@ -30,6 +30,7 @@ pub mod mech;
 pub mod mfd_focus;
 pub mod mission;
 pub mod missions;
+pub mod nav;
 pub mod night_light;
 pub mod people_vat;
 pub mod perf;
@@ -81,6 +82,8 @@ pub struct GameData {
     pub fx: fx::FxConfig,
     /// `data/hud/targeting.ron`.
     pub targeting: targeting::TargetingConfig,
+    /// `data/hud/nav.ron`: the waypoint route and the MAP page (openspec change `waypoint-nav`).
+    pub nav: nav::NavConfig,
     /// `data/hud/cockpit_light.ron`.
     pub cockpit_light: cockpit::CockpitLightConfig,
     /// `data/world/sky_light.ron`.
@@ -229,6 +232,7 @@ impl GameData {
             defence,
             fx: data::load_ron(&root.join("fx/fx.ron"))?,
             targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
+            nav: data::load_ron(&root.join("hud/nav.ron"))?,
             cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
             sky_light: data::load_ron(&root.join("world/sky_light.ron"))?,
             day_night: data::load_ron(&root.join("world/day_night.ron"))?,

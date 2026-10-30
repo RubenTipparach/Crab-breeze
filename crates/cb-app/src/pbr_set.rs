@@ -83,19 +83,60 @@ pub fn set_material(
     folder: &str,
     roughness: f32,
 ) -> Handle<StandardMaterial> {
+    set_material_tinted(images, materials, folder, roughness, None)
+}
+
+/// `set_material`, its base colour `colour` (linear) over the albedo's own mean, so the surface averages to
+/// `colour` and the set gives only its grain: the building concrete is near-white detail, and drawn white it
+/// turned the seaport's quays a flat white (owner, 2026-10-30: "dock platform should use concrete textures",
+/// "and not textured"). `None` is white.
+pub fn set_material_tinted(
+    images: &mut Assets<Image>,
+    materials: &mut Assets<StandardMaterial>,
+    folder: &str,
+    roughness: f32,
+    colour: Option<[f32; 3]>,
+) -> Handle<StandardMaterial> {
     let root = crate::cli::repo_root().join("assets");
-    let mut map = |file: &str, srgb: bool| load_tiling(&root, &format!("{folder}/{file}"), srgb).map(|i| images.add(i));
-    let orm = map("orm.png", false);
+    let map = |file: &str, srgb: bool| load_tiling(&root, &format!("{folder}/{file}"), srgb);
+    let albedo = map("albedo.jpg", true);
+    let base_color = match (colour, albedo.as_ref().and_then(mean_linear)) {
+        (Some(c), Some(mean)) => {
+            let k = |i: usize| (c[i] / mean[i].max(1e-3)).min(4.0);
+            Color::linear_rgb(k(0), k(1), k(2))
+        }
+        (Some(c), None) => Color::linear_rgb(c[0], c[1], c[2]),
+        (None, _) => Color::WHITE,
+    };
+    let orm = map("orm.png", false).map(|i| images.add(i));
+    let normal = map("normal_gl.png", false).map(|i| images.add(i));
     materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        base_color_texture: map("albedo.jpg", true),
-        normal_map_texture: map("normal_gl.png", false),
+        base_color,
+        base_color_texture: albedo.map(|i| images.add(i)),
+        normal_map_texture: normal,
         occlusion_texture: orm.clone(),
         perceptual_roughness: if orm.is_some() { 1.0 } else { roughness },
         metallic: if orm.is_some() { 1.0 } else { 0.0 },
         metallic_roughness_texture: orm,
         ..default()
     })
+}
+
+/// The mean linear colour of an sRGB RGBA8 image's top level.
+fn mean_linear(img: &Image) -> Option<[f32; 3]> {
+    let data = img.data.as_ref()?;
+    let n = (img.texture_descriptor.size.width * img.texture_descriptor.size.height) as usize;
+    if n == 0 || data.len() < n * 4 {
+        return None;
+    }
+    let lin = |c: u8| (f32::from(c) / 255.0).powf(2.2);
+    let mut sum = [0.0f64; 3];
+    for p in data[..n * 4].as_chunks::<4>().0 {
+        for (s, &c) in sum.iter_mut().zip(p) {
+            *s += f64::from(lin(c));
+        }
+    }
+    Some(sum.map(|s| (s / n as f64) as f32))
 }
 
 /// Turns an sRGB RGBA8 colour map (every mip level) into a neutral detail map: each pixel's

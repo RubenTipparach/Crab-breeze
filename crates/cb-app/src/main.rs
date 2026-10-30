@@ -52,6 +52,7 @@ mod mfd;
 mod mfd_apps;
 mod missions;
 mod music;
+mod nav;
 mod nuke;
 mod one_sided;
 mod particles;
@@ -186,6 +187,7 @@ fn main() -> AppExit {
         },
     })
     .add_plugins(main_menu::MainMenuPlugin)
+    .add_plugins(nav::NavPlugin)
     // Every frame after GAME_READY against 16.7 ms, and `--perf-gate` to fail a run on one (CLAUDE.md section 7).
     .add_plugins(perf_gate::PerfGatePlugin { enforce: args.perf_gate })
     .insert_resource(sim::Data(data))
