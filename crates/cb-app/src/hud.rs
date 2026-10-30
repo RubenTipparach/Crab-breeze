@@ -1429,6 +1429,25 @@ pub(crate) fn edge_arrow(p: Vec2, size: Vec2) -> &'static str {
     }
 }
 
+/// Where the pilot's objective is and what the marker calls it: a career's accepted job, else free roam's running
+/// mission. The one answer for the HUD's job marker and the MAP page's mission mark (waypoint-nav).
+pub(crate) fn objective(
+    career: Option<&crate::career::CareerRun>,
+    free: Option<&crate::missions::FreeRoamRun>,
+    fortress: Option<&crate::fortress::FortressRun>,
+    defence: Option<&crate::defence::DefenceRun>,
+    data: &crate::sim::Data,
+    plan: &Plan,
+) -> Option<(Vec3, String)> {
+    match career.and_then(|c| c.career.board.current()) {
+        Some(j) => Some((
+            Vec3::new(j.site.x, plan.terrain.height_at(j.site.x, j.site.y) + 20.0, j.site.y),
+            "JOB".to_string(),
+        )),
+        None => mission_site(free, fortress, defence, data, plan),
+    }
+}
+
 /// Free roam's running mission, where it is and what it is called on the marker.
 fn mission_site(
     free: Option<&crate::missions::FreeRoamRun>,
@@ -1474,13 +1493,14 @@ fn draw_job(
     };
     let (cam, at) = *camera;
     let eye = at.translation();
-    let site = match &job {
-        Some(j) => Some((
-            Vec3::new(j.site.x, plan.terrain.height_at(j.site.x, j.site.y) + 20.0, j.site.y),
-            "JOB".to_string(),
-        )),
-        None => mission_site(free.as_deref(), fortress.as_deref(), defence.as_deref(), &data, &plan),
-    };
+    let site = objective(
+        career.as_deref(),
+        free.as_deref(),
+        fortress.as_deref(),
+        defence.as_deref(),
+        &data,
+        &plan,
+    );
     match site.and_then(|(s, name)| Some((pin(cam, at, s, 40.0)?, s, name))) {
         Some(((p, seen), s, name)) => {
             let km = Vec2::new(eye.x, eye.z).distance(Vec2::new(s.x, s.z)) / 1000.0;

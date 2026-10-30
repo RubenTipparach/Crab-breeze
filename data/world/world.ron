@@ -218,8 +218,8 @@
     // downtown asphalt on the roads, the suburb asphalt on the yards. The rest keep their page's look.
     sites: (
         ground_textures: {
-            "quay": "textures/building/concrete",
-            "crown": "textures/building/concrete",
+            "quay": "textures/ground/concrete047a",
+            "crown": "textures/ground/concrete047a",
             "asphalt": "textures/roads/asphalt027c",
             "road": "textures/roads/asphalt027c",
             "yard": "textures/roads/asphalt026c",

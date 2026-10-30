@@ -13,8 +13,8 @@ use bevy::prelude::*;
 use bevy::ui::UiTargetCamera;
 use bevy::window::{CursorGrabMode, CursorOptions};
 
-const INK: Color = Color::srgb(0.55, 0.95, 0.6);
-const DIM: Color = Color::srgb(0.35, 0.6, 0.4);
+pub(crate) const INK: Color = Color::srgb(0.55, 0.95, 0.6);
+pub(crate) const DIM: Color = Color::srgb(0.35, 0.6, 0.4);
 const PANEL: Color = Color::srgba(0.01, 0.04, 0.03, 0.94);
 const WARN: Color = Color::srgb(1.0, 0.75, 0.3);
 
@@ -38,6 +38,8 @@ pub enum Menu {
     Terminal,
     /// Free roam's mech page: the roster, a pick restarting free roam in it (mech-select).
     Mech,
+    /// The island's map and the waypoint route (openspec change `waypoint-nav`, `crate::nav`).
+    Map,
 }
 
 impl Menu {
@@ -104,6 +106,8 @@ pub(crate) enum MenuButton {
     Mail,
     /// Free roam's Mech page.
     MechPage,
+    /// The MAP page (waypoint-nav).
+    Map,
     /// Free roam again in this roster mech.
     PickMech(usize),
     Accept(u32),
@@ -284,6 +288,7 @@ fn escape(
     }
     let next = match *menu {
         Menu::Mail | Menu::Terminal | Menu::Mech => Menu::Closed,
+        Menu::Map => back.0,
         Menu::Closed => Menu::Pause,
         Menu::Pause => Menu::Closed,
         Menu::Title => Menu::Title,
@@ -393,6 +398,13 @@ fn press(
             p.back.0 = Menu::Pause;
             set(p.menu, Menu::Mech, p.time, p.cursor);
         }
+        MenuButton::Map => {
+            if matches!(*p.menu, Menu::Options) {
+                save(p.settings);
+            }
+            p.back.0 = Menu::Pause;
+            set(p.menu, Menu::Map, p.time, p.cursor);
+        }
         // The picked mech swapped in where the piloted one stands, in this program (mech-select: "In free play i can
         // select any mech from the menu and it will swap out models"; menu-in-game: "it should all be the same
         // instance, not relaunch the game"). Its data loads first; a mech that does not load changes nothing.
@@ -486,12 +498,12 @@ fn press(
     }
 }
 
-fn label(s: &str, size: f32, colour: Color) -> (Text, TextFont, TextColor) {
+pub(crate) fn label(s: &str, size: f32, colour: Color) -> (Text, TextFont, TextColor) {
     (Text::new(s), TextFont::from_font_size(size), TextColor(colour))
 }
 
 /// A button's frame and label, carrying `what`; the caller says what a click does.
-fn button_frame<'a>(parent: &'a mut ChildSpawnerCommands, text: &str, what: impl Component, width: f32) -> EntityCommands<'a> {
+pub(crate) fn button_frame<'a>(parent: &'a mut ChildSpawnerCommands, text: &str, what: impl Component, width: f32) -> EntityCommands<'a> {
     let mut b = parent.spawn((
         what,
         crate::ui_feedback::UiButton::default(),
@@ -511,7 +523,7 @@ fn button_frame<'a>(parent: &'a mut ChildSpawnerCommands, text: &str, what: impl
     b
 }
 
-fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton, width: f32) {
+pub(crate) fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton, width: f32) {
     button_frame(parent, text, what, width).observe(
         move |_: On<PointerClick>,
               mut commands: Commands,
@@ -575,12 +587,17 @@ fn tabs(p: &mut ChildSpawnerCommands, back: Menu) {
         } else {
             ("Resume", MenuButton::Resume)
         };
+        let map = (back != Menu::Title).then_some(("Map", MenuButton::Map));
         for (t, b) in [
-            first,
-            ("Options", MenuButton::Options),
-            ("Controls", MenuButton::Controls),
-            ("Quit", MenuButton::Quit),
-        ] {
+            Some(first),
+            map,
+            Some(("Options", MenuButton::Options)),
+            Some(("Controls", MenuButton::Controls)),
+            Some(("Quit", MenuButton::Quit)),
+        ]
+        .into_iter()
+        .flatten()
+        {
             button_sized(row, t, b, 180.0);
         }
     });
@@ -701,6 +718,7 @@ fn draw(
             Menu::Pause => {
                 p.spawn(label("PAUSED", 44.0, INK));
                 button(p, "Resume", MenuButton::Resume);
+                button(p, "Map", MenuButton::Map);
                 if career.is_some() || free.is_some() {
                     button(p, "Mail", MenuButton::Mail);
                 }
@@ -733,6 +751,10 @@ fn draw(
                 button(p, "Options", MenuButton::Options);
                 button(p, "Controls", MenuButton::Controls);
                 button(p, "Quit", MenuButton::Quit);
+            }
+            Menu::Map => {
+                tabs(p, back.0);
+                crate::nav::map_page(p);
             }
             Menu::Options => {
                 tabs(p, back.0);
