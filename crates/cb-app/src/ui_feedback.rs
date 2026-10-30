@@ -100,7 +100,9 @@ fn click(
     settings: Option<Res<crate::settings::Settings>>,
 ) {
     let target = ev.event_target();
-    let Ok((mut face, border, button, flashing)) = buttons.get_mut(target) else { return };
+    let Ok((mut face, border, button, flashing)) = buttons.get_mut(target) else {
+        return;
+    };
     let sfx = settings.map_or(1.0, |s| s.0.sfx_volume);
     play(&mut commands, &data, &assets, sfx, "ui_click");
     // A press during a flash starts it again, fading back to the face the button had before the first.
@@ -109,7 +111,11 @@ fn click(
         None => (*face, button.idle.unwrap_or(*border).top),
     };
     *face = BackgroundColor(FLASH_FACE);
-    commands.entity(target).insert(Flash { t_s: 0.0, face: idle, edge });
+    commands.entity(target).insert(Flash {
+        t_s: 0.0,
+        face: idle,
+        edge,
+    });
 }
 
 /// Fades each flashing button's face and border back: the face to its own, the border to the hover light while the
