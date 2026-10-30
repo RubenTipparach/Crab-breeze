@@ -1233,7 +1233,8 @@ mod tests {
     fn the_shipped_cue_file_loads() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/audio");
         let cues: AudioConfig = crate::data::load_ron(&root.join("cues.ron")).expect("cues.ron");
-        assert!(cues.cues.values().all(|c| c.space.is_placed()));
+        // Every sound effect is placed; only the menus' own sounds are not.
+        assert!(cues.cues.values().all(|c| c.space.is_placed() || c.space == Space::Ui));
         let _: MusicConfig = crate::data::load_ron(&root.join("music.ron")).expect("music.ron");
         let _: AmbienceConfig = crate::data::load_ron(&root.join("ambience.ron")).expect("ambience.ron");
     }
