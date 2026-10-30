@@ -1589,6 +1589,13 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // A tower's windows from inside (`tower_inside_view`).
+    View {
+        name: "tower-inside-out",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Close on the seaport's ships and quays (owner, 2026-10-29: "No closeups of seaport or boats"): the container
     // ship at its berth, the quay under the gantries at eye height, the ferry, the tugs, the trawlers, the tanker and
     // the fish market, each a few tens of metres off.
@@ -2158,6 +2165,32 @@ fn house_view(plan: &crate::world::Plan, off_m: f32) -> ([f32; 3], [f32; 3]) {
     ([eye.x, ground + up, eye.y], [lot.centre.x, lot.ground_m + 3.0, lot.centre.y])
 }
 
+/// Inside the tower of 5 storeys or more nearest the largest city's middle, on its third floor, 3 m in from its +x
+/// facade, looking out through its windows a little down at the street: the windows seen from inside (owner,
+/// 2026-10-29: "interior windows i think shouldnt have been shaded with reflection probe").
+fn tower_inside_view(plan: &crate::world::Plan, storey_m: f32) -> ([f32; 3], [f32; 3]) {
+    let c = plan
+        .cities
+        .iter()
+        .max_by(|a, b| a.half_size_m.total_cmp(&b.half_size_m))
+        .map_or(Vec2::ZERO, |c| c.centre);
+    let Some(b) = plan.buildings.iter().filter(|b| b.storeys >= 5).min_by(|a, b| {
+        a.footprint
+            .centre()
+            .distance(c)
+            .total_cmp(&b.footprint.centre().distance(c))
+            .then(a.id.cmp(&b.id))
+    }) else {
+        return ([c.x, 20.0, c.y], [c.x + 100.0, 10.0, c.y]);
+    };
+    let r = b.footprint;
+    let mid = r.centre();
+    let ground = plan.terrain.height_at(mid.x, mid.y);
+    let y = ground + 2.0 * storey_m + 1.7;
+    info!("tower inside: building {} of {} storeys at {mid}", b.id, b.storeys);
+    ([r.max.x - 3.0, y, mid.y], [r.max.x + 60.0, y - 6.0, mid.y])
+}
+
 /// A view of the placed site of `kind` from `eye` to `at`, points of its frame as its page's views give them.
 fn site_view(plan: &crate::world::Plan, kind: cb_core::world::sites::SiteKind, eye: [f32; 3], at: [f32; 3]) -> ([f32; 3], [f32; 3]) {
     let Some(site) = plan.sites.iter().find(|s| s.template.kind == kind) else {
@@ -2298,6 +2331,7 @@ fn run_weather_script(
     mut script: ResMut<WeatherScript>,
     mut pilot: ResMut<PilotSim>,
     plan: Res<crate::world::Plan>,
+    data: Res<crate::sim::Data>,
     time: Res<Time<Real>>,
     ready: Option<Res<crate::loading::GameReady>>,
     mut exit: MessageWriter<AppExit>,
@@ -2364,6 +2398,7 @@ fn run_weather_script(
                 [90.0, 1.85, 446.0],
                 [200.0, 2.4, 450.0],
             ),
+            "tower-inside-out" => tower_inside_view(&plan, data.0.world.storey_height_m),
             "airport-inside-out" => site_view(
                 &plan,
                 cb_core::world::sites::SiteKind::Airport,
