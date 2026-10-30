@@ -15,4 +15,8 @@
     // as much slower. The fog is the one the screens draw (data/world/world.ron, fog:).
     fog_clear_share: 0.6,
     fog_min_scale: 0.25,
+    // Q (owner, 2026-10-29: "cool down 15 seconds for objects close to q"): the enemy nearest the crosshair within
+    // pick_cone_deg it has not picked in the last 15 s; with all of those picked, the rest by priority then distance;
+    // with those used up too, the nearest the crosshair again.
+    cycle_cooldown_s: 15.0,
 )

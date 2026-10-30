@@ -34,6 +34,8 @@ pub struct TargetState {
     /// Every target seen this step and how much of the sensors' reach the fog leaves toward it
     /// (`cb_core::targeting::fog_scale`), by id.
     pub fog: Vec<(u32, f32)>,
+    /// What Q picked and when, seconds of game time: passed over for `cycle_cooldown_s` (`cb_core::targeting::cycle`).
+    pub picked: Vec<(u32, f32)>,
 }
 
 impl TargetState {
@@ -122,7 +124,24 @@ fn update_targeting(
         .collect();
     targets.sort_by_key(|t| t.id);
     state.fog = targets.iter().map(|t| (t.id, t.fog)).collect();
-    state.selected = select(state.selected, actions.0.target_next, eye, aim, &targets, cfg);
+    // Q: what it picked lately is passed over; a unit shelling the city matters more (provisional, survey).
+    state.picked.retain(|(_, at)| elapsed_s - at < cfg.cycle_cooldown_s);
+    let recent: Vec<u32> = state.picked.iter().map(|(id, _)| *id).collect();
+    let shelling = |id: u32| u8::from(hostiles.0.iter().any(|h| h.id == id && h.shelling));
+    let q = actions.0.target_next.then_some(cb_core::targeting::Recent {
+        ids: &recent,
+        priority: &shelling,
+    });
+    state.selected = select(state.selected, q, eye, aim, &targets, cfg);
+    if actions.0.target_next
+        && let Some(p) = state.selected
+    {
+        // Exhausted and back to the start: the memory starts over.
+        if recent.contains(&p) {
+            state.picked.clear();
+        }
+        state.picked.push((p, elapsed_s));
+    }
     let chosen = state.selected.and_then(|s| targets.iter().find(|t| t.id == s)).copied();
     let (off, range, fog) = chosen.map_or((180.0, f32::INFINITY, 1.0), |t| {
         (off_aim_deg(eye, aim, t.torso), t.torso.distance(eye), t.fog)

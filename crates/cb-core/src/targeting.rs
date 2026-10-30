@@ -42,6 +42,8 @@ pub struct TargetingConfig {
     /// In fog nothing gets through, the boxing and lock ranges are this share of their own, and a
     /// lock builds this much as fast.
     pub fog_min_scale: f32,
+    /// Q passes over a target it picked within this long, seconds (`cycle`).
+    pub cycle_cooldown_s: f32,
 }
 
 impl Default for TargetingConfig {
@@ -55,6 +57,7 @@ impl Default for TargetingConfig {
             box_px: [18.0, 160.0],
             fog_clear_share: 0.6,
             fog_min_scale: 0.25,
+            cycle_cooldown_s: 15.0,
         }
     }
 }
@@ -68,7 +71,8 @@ impl Validate for TargetingConfig {
         positive("lock_s", self.lock_s)?;
         positive_range("box_px", self.box_px)?;
         within("fog_clear_share", self.fog_clear_share, 0.01, 1.0)?;
-        within("fog_min_scale", self.fog_min_scale, 0.01, 1.0)
+        within("fog_min_scale", self.fog_min_scale, 0.01, 1.0)?;
+        within("cycle_cooldown_s", self.cycle_cooldown_s, 0.0, 600.0)
     }
 }
 
@@ -252,30 +256,69 @@ pub fn nearest_to_aim(eye: Vec3, aim: Vec3, targets: &[Target], cone_deg: f32) -
         .map(|(_, id)| id)
 }
 
-/// The next enemy after `selected` by distance from `eye`, wrapping; the nearest if none is selected
-/// (neutrals are not in the cycle).
-pub fn next(selected: Option<u32>, targets: &[Target], eye: Vec3) -> Option<u32> {
-    let mut by_range: Vec<(f32, u32)> = targets
-        .iter()
-        .filter(|t| !t.neutral)
-        .map(|t| (t.torso.distance(eye), t.id))
-        .collect();
-    by_range.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    let at = selected.and_then(|s| by_range.iter().position(|(_, id)| *id == s));
-    match at {
-        Some(i) => by_range.get((i + 1) % by_range.len()).map(|(_, id)| *id),
-        None => by_range.first().map(|(_, id)| *id),
-    }
+/// What Q remembers: the targets it picked within `cycle_cooldown_s`, and how much each matters.
+#[derive(Clone, Copy)]
+pub struct Recent<'a> {
+    /// Picked lately, by id.
+    pub ids: &'a [u32],
+    /// How much a target matters, higher first (`cycle`'s second round).
+    pub priority: &'a dyn Fn(u32) -> u8,
+}
+
+/// The target Q picks (owner, 2026-10-29: "Q shuold first cycle nearest object with in last 30 seconds, if all objects
+/// in the neares q area have been selected it should try other objects by distance and priority", "then if those are
+/// exhausted it should try nearest again to cursor", "cool down 15 seconds for objects close to q"). Never the one
+/// selected now, never a neutral, never one picked lately (`recent`):
+/// 1. the enemy nearest the aim within `pick_cone_deg`;
+/// 2. with every one in that cone picked lately, the rest by priority, then distance from `eye`;
+/// 3. with those exhausted too, the enemy nearest the aim again, wherever it is, picked lately or not (the caller starts
+///    its memory over when the result is in `recent`). The one selected now when it is the only enemy.
+pub fn cycle(
+    selected: Option<u32>,
+    targets: &[Target],
+    eye: Vec3,
+    aim: Vec3,
+    cfg: &TargetingConfig,
+    recent: Recent<'_>,
+) -> Option<u32> {
+    let enemies = || targets.iter().filter(|t| !t.neutral && Some(t.id) != selected);
+    let fresh: Vec<Target> = enemies().filter(|t| !recent.ids.contains(&t.id)).copied().collect();
+    let off = |t: &Target| off_aim_deg(eye, aim, t.torso);
+    nearest_to_aim(eye, aim, &fresh, cfg.pick_cone_deg)
+        .or_else(|| {
+            fresh
+                .iter()
+                .min_by(|a, b| {
+                    (recent.priority)(b.id)
+                        .cmp(&(recent.priority)(a.id))
+                        .then(a.torso.distance(eye).total_cmp(&b.torso.distance(eye)))
+                        .then(a.id.cmp(&b.id))
+                })
+                .map(|t| t.id)
+        })
+        .or_else(|| {
+            enemies()
+                .min_by(|a, b| off(a).total_cmp(&off(b)).then(a.id.cmp(&b.id)))
+                .map(|t| t.id)
+        })
+        .or_else(|| selected.filter(|s| targets.iter().any(|t| t.id == *s && !t.neutral)))
 }
 
 /// The selection after this step: the one kept from the last step while it is still a target, else
-/// the nearest the aim within `cfg.pick_cone_deg`; with the cycle key (`cycle`), the next by
-/// distance. A neutral is never the result, however it was reached (survey W47), so the lock, which
+/// the nearest the aim within `cfg.pick_cone_deg`; with the cycle key pressed (`q`, what it remembers), `cycle`'s
+/// pick. A neutral is never the result, however it was reached (survey W47), so the lock, which
 /// builds only on the selection, never builds on one and no missile homes on one.
-pub fn select(selected: Option<u32>, cycle: bool, eye: Vec3, aim: Vec3, targets: &[Target], cfg: &TargetingConfig) -> Option<u32> {
+pub fn select(
+    selected: Option<u32>,
+    q: Option<Recent<'_>>,
+    eye: Vec3,
+    aim: Vec3,
+    targets: &[Target],
+    cfg: &TargetingConfig,
+) -> Option<u32> {
     let still = selected.filter(|s| targets.iter().any(|t| t.id == *s && !t.neutral));
-    if cycle {
-        next(still, targets, eye)
+    if let Some(recent) = q {
+        cycle(still, targets, eye, aim, cfg, recent)
     } else {
         still.or_else(|| nearest_to_aim(eye, aim, targets, cfg.pick_cone_deg))
     }
@@ -342,9 +385,11 @@ mod tests {
             "the enemy, not the airliner on the crosshair"
         );
         assert_eq!(nearest_to_aim(Vec3::ZERO, Vec3::NEG_Z, &ts[..1], 30.0), None);
-        assert_eq!(next(None, &ts, Vec3::ZERO), Some(2));
-        assert_eq!(next(Some(2), &ts, Vec3::ZERO), Some(2), "the cycle has one enemy in it");
-        assert_eq!(next(Some(9), &ts, Vec3::ZERO), Some(2));
+        let cfg = TargetingConfig::default();
+        let q = |sel| cycle(sel, &ts, Vec3::ZERO, Vec3::NEG_Z, &cfg, none());
+        assert_eq!(q(None), Some(2));
+        assert_eq!(q(Some(2)), Some(2), "the cycle has one enemy in it");
+        assert_eq!(q(Some(9)), Some(2));
     }
 
     #[test]
@@ -353,19 +398,19 @@ mod tests {
         let cfg = TargetingConfig::default();
         let alone = [civ(9, 0.0, -600.0)];
         let (eye, aim) = (Vec3::ZERO, Vec3::NEG_Z);
-        assert_eq!(select(None, false, eye, aim, &alone, &cfg), None, "the crosshair held on it");
-        assert_eq!(select(None, true, eye, aim, &alone, &cfg), None, "Q with the crosshair on it");
+        assert_eq!(select(None, None, eye, aim, &alone, &cfg), None, "the crosshair held on it");
+        assert_eq!(select(None, Some(none()), eye, aim, &alone, &cfg), None, "Q with the crosshair on it");
         assert_eq!(
-            select(Some(9), false, eye, aim, &alone, &cfg),
+            select(Some(9), None, eye, aim, &alone, &cfg),
             None,
             "a stale selection of it is dropped"
         );
         let mixed = [civ(9, 0.0, -300.0), t(2, 60.0, -400.0)];
-        assert_eq!(select(Some(9), true, eye, aim, &mixed, &cfg), Some(2), "Q goes to the enemy");
+        assert_eq!(select(Some(9), Some(none()), eye, aim, &mixed, &cfg), Some(2), "Q goes to the enemy");
         let mut held = None;
         let mut lock = Lock::default();
         for _ in 0..300 {
-            held = select(held, false, eye, aim, &alone, &cfg);
+            held = select(held, None, eye, aim, &alone, &cfg);
             assert!(!lock.step(held, 0.0, 600.0, 1.0, &cfg, 0.01), "no lock ever builds on an airliner");
         }
         assert_eq!(lock.target, None);
@@ -378,13 +423,36 @@ mod tests {
         assert_eq!(nearest_to_aim(Vec3::ZERO, Vec3::X, &ts, 30.0), None, "nothing within the cone");
     }
 
+    /// Q with nothing remembered and nothing mattering more than anything else.
+    fn none() -> Recent<'static> {
+        Recent { ids: &[], priority: &|_| 0 }
+    }
+
+    /// Q's order (owner, 2026-10-29): nearest the crosshair first, skipping what it picked in the last 15 s; with the
+    /// cone used up, the rest by priority then distance; with those used up too, nearest the crosshair again.
     #[test]
-    fn next_cycles_by_distance_and_wraps() {
-        let ts = [t(7, 0.0, -900.0), t(3, 0.0, -300.0), t(5, 0.0, -600.0)];
-        assert_eq!(next(None, &ts, Vec3::ZERO), Some(3));
-        assert_eq!(next(Some(3), &ts, Vec3::ZERO), Some(5));
-        assert_eq!(next(Some(5), &ts, Vec3::ZERO), Some(7));
-        assert_eq!(next(Some(7), &ts, Vec3::ZERO), Some(3), "wraps");
+    fn q_takes_the_nearest_the_crosshair_then_the_rest_by_priority_and_distance_then_starts_over() {
+        let cfg = TargetingConfig::default();
+        // 1 and 2 in the cone (2 nearer the crosshair), 3 behind and near, 4 behind and far but it matters more.
+        let ts = [t(1, 100.0, -500.0), t(2, -10.0, -400.0), t(3, 0.0, 200.0), t(4, 0.0, 900.0)];
+        let (eye, aim) = (Vec3::ZERO, Vec3::NEG_Z);
+        let mut picked: Vec<u32> = Vec::new();
+        let mut sel = None;
+        let mut order = Vec::new();
+        for _ in 0..5 {
+            let recent = Recent { ids: &picked, priority: &|id| u8::from(id == 4) };
+            let p = cycle(sel, &ts, eye, aim, &cfg, recent).unwrap();
+            if picked.contains(&p) {
+                picked.clear();
+            }
+            picked.push(p);
+            order.push(p);
+            sel = Some(p);
+        }
+        assert_eq!(order, vec![2, 1, 4, 3, 2], "the cone by the crosshair, then priority, then distance, then over");
+        // A target picked lately is passed over while another in the cone is fresh.
+        let recent = Recent { ids: &[2], priority: &|_| 0 };
+        assert_eq!(cycle(None, &ts, eye, aim, &cfg, recent), Some(1));
     }
 
     #[test]
