@@ -238,7 +238,8 @@ pub fn pose_airliners(
                 let ground = plan.terrain.height_at(a.pos.x, a.pos.z);
                 (gear_up(a, ground, below), flap_step(a), a.bank_rad, a.pitch_rad)
             }
-            _ => (false, 0, 0.0, 0.0),
+            // not the traffic's: a scrambled base aircraft flown by the units (airfield-traffic), always in the air
+            _ => (!pose.parked, 0, 0.0, 0.0),
         };
         let seq = man.gear_sequence_s.max(1.0);
         let target = if want_up { 1.0 } else { 0.0 };

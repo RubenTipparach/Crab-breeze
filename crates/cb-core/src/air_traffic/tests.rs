@@ -1201,6 +1201,10 @@ fn a_scrambled_base_sends_its_fighters_and_gunships_to_circle_over_the_pilot() {
         .count();
     let story: Vec<String> = t.list.iter().map(|a| format!("{} {:?} {:?}", a.kind, a.phase, a.flight)).collect();
     assert_eq!(circling, 5, "all five over the pilot within 400 s: {story:#?}");
+    let attackers = t.take_attackers();
+    assert_eq!(attackers.len(), 5, "over the pilot they are handed to the units to attack");
+    assert!(attackers.iter().all(|a| a.hostile));
+    assert!(t.list.iter().all(|a| !a.hostile), "and leave the traffic");
     let cargo = t.list.iter().find(|a| a.kind == "military_cargo").unwrap();
     assert!(matches!(cargo.phase, Phase::Stand { .. }), "the transport is not scrambled");
 }

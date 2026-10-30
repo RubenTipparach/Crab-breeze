@@ -232,6 +232,17 @@ impl GameData {
             .validate_with(&world)
             .map_err(|reason| data::DataError { path: grass_path, reason })?;
         let units: units::UnitsConfig = data::load_ron(&root.join("world/units.ron"))?;
+        // a unit drawn as an aircraft draws one the traffic has a model for
+        for (k, u) in &units.units {
+            if let Some(look) = &u.look
+                && air_traffic.kinds.get(look).and_then(|s| s.model.as_ref()).is_none()
+            {
+                return Err(data::DataError {
+                    path: root.join("world/units.ron"),
+                    reason: format!("units.{k}.look `{look}` is no modelled kind in {}", air_path.display()),
+                });
+            }
+        }
         // The gunboat is a vehicle in a fight and a boat when it sinks: one size in both files.
         if let (Some(u), Some(b)) = (units.units.get(ships::GUNBOAT), ships.kinds.get(ships::GUNBOAT))
             && (u.size_m != b.size_m || u.draft_m != b.draft_m)

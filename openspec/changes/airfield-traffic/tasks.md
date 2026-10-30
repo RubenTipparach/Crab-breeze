@@ -17,7 +17,7 @@
 ## 4. Military traffic
 - [x] 4.1 Military kinds from `military-base`
 - [x] 4.2 Patrols, supply runs, helicopter patrols
-- [ ] 4.3 Hostility and scramble from the alert apron, through `cb_core::units` brains (the scramble is built; the weapons are not)
+- [x] 4.3 Hostility and scramble, through `cb_core::units` brains: over the pilot a scrambled fighter or gunship is handed to the units (`base_fighter`, `base_gunship`) and attacks with their weapons, drawn as its own model
 
 ## 5. Stealing
 - [x] 5.1 `Traffic::steal` and stand release for aircraft

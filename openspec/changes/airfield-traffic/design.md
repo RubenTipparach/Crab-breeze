@@ -95,8 +95,8 @@ What the code does now, and where it differs from the plan above.
   The stand-only kinds (`max_near` 0) are never spawned in the air.
 - **Scramble.** `Traffic::scramble`: when the pilot hits a military aircraft, its home field's fighters and gunships
   leave their stands at once and circle over where the pilot was, and those already on patrol from it turn to circle
-  there. They circle; they do not yet fire (the `cb_core::units` brains are not wired to them: open).
+  there. Once circling there they leave the traffic (`Traffic::take_attackers`) and become units (`base_fighter`, `base_gunship` in `data/world/units.ron`): the invasion's brains fly them, attack runs for the fighter and a firing circle for the gunship, with its cannon and rockets, drawn as the aircraft's own model (`UnitSpec::look`).
 - **Not built yet:** far-from-the-pilot timetables (traffic lives near the pilot only, as before), ground vehicles,
-  taxiway edge reservation, the scrambled aircraft's weapons, and stealing (`fly-stolen-aircraft`).
+  taxiway edge reservation, and stealing (`fly-stolen-aircraft`).
 - **Cost.** Not measured (a cloud session measures nothing). Per fixed step it adds one pass over the traffic list and,
   every `check_s`, a pass over the stands of the fields near the pilot (21 at an airport, 6 at a base).

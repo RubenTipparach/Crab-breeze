@@ -249,17 +249,28 @@ impl Traffic {
                 (_, Phase::Stand { .. }) if a.field == Some(field) => {
                     a.phase = Phase::Stand { t_s: spec.turn_s };
                     a.scramble = Some(over);
+                    a.hostile = true;
                     n += 1;
                 }
                 (Flight::Patrol { home, centre, left_s, .. }, _) if *home == field => {
                     *centre = over;
                     *left_s = left_s.max(cfg.routes.patrol_s * 0.5);
+                    a.hostile = true;
                     n += 1;
                 }
                 _ => {}
             }
         }
         n
+    }
+
+    /// The scrambled aircraft now circling over the pilot: they leave the traffic, to be flown and fired by the
+    /// invasion's units (design F2: "using the existing unit weapons"). In id order.
+    pub fn take_attackers(&mut self) -> Vec<Aircraft> {
+        let ready = |a: &Aircraft| a.hostile && !a.downed() && a.phase == Phase::Orbit && matches!(a.flight, Flight::Patrol { .. });
+        let out: Vec<Aircraft> = self.list.iter().filter(|a| ready(a)).cloned().collect();
+        self.list.retain(|a| !ready(a));
+        out
     }
 
     /// The fields whose runway is in use: an aircraft lining up or rolling on it, or one on final or rolling out.

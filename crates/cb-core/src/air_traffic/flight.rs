@@ -372,6 +372,9 @@ pub struct Aircraft {
     pub departure: Option<Strip>,
     /// Stolen by the pilot (`fly-stolen-aircraft`): the traffic neither flies it nor sends it anywhere again.
     pub stolen: bool,
+    /// Scrambled against the pilot and armed: once over them it is handed to the invasion's units to attack
+    /// (`Traffic::take_attackers`).
+    pub hostile: bool,
     /// Scrambled against a hostile pilot (airfield-traffic): it leaves its stand at once and patrols over this point
     /// (x, z), not its base.
     pub scramble: Option<Vec2>,
@@ -494,6 +497,7 @@ impl Aircraft {
             field: None,
             departure: None,
             stolen: false,
+            hostile: false,
             scramble: None,
         }
     }

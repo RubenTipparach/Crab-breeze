@@ -272,6 +272,7 @@ pub(crate) fn step_traffic(
     mut live: ResMut<Live>,
     mut explosions: MessageWriter<Explosion>,
     mut crashed: MessageWriter<crate::airliners::AirlinerCrashed>,
+    mut units: ResMut<crate::units::Units>,
 ) {
     let _t = crate::perf_hud::slow("step_traffic");
     let cfg = &data.0.air_traffic;
@@ -293,7 +294,30 @@ pub(crate) fn step_traffic(
         cities: &plan.cities,
         zones: &zones,
     };
-    for e in air.0.step(cfg, &w, &island, time.delta_secs()) {
+    let events = air.0.step(cfg, &w, &island, time.delta_secs());
+    // A scrambled base's aircraft over the pilot is handed to the invasion's units, whose brains fly attack runs and
+    // fire their weapons (airfield-traffic F2); it keeps its model (`UnitSpec::look`).
+    for a in air.0.take_attackers() {
+        let role = cfg.kinds.get(&a.kind).map(|k| k.role);
+        let kind = match role {
+            Some(cb_core::air_traffic::Role::Fighter) => "base_fighter",
+            Some(cb_core::air_traffic::Role::Gunship) => "base_gunship",
+            _ => continue,
+        };
+        let Some(spec) = data.0.units.units.get(kind) else { continue };
+        let id = units.add_for(
+            |id| {
+                let mut u = cb_core::units::Unit::new(id, kind, spec, a.pos, a.heading_rad, id);
+                u.vel = a.vel;
+                u
+            },
+            None,
+            None,
+            None,
+        );
+        warn!("air traffic: {} {} attacks the pilot as unit {id}", a.kind, a.id);
+    }
+    for e in events {
         match e.what {
             Happened::Crashed => {
                 let Some(spec) = cfg.kinds.get(&e.kind) else { continue };
