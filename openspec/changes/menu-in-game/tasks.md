@@ -11,3 +11,4 @@
   (`Saving.mech`, and Continue reads the save's mech); not yet seen in a playtest
 - [ ] 4.1 Playtest: menu, free roam, swap the mech, quit to menu, start a career, quit; one window throughout
 - [x] 3.3 Leaving the menu shows the loading panel on its own camera before the world spawns (owner, 2026-10-29: "also need loading screen going from main menu into game world"; `loading::show_from_the_menu`)
+- [x] 3.4 Free roam's picked mech comes to a pilot on foot: put on good ground near them by the career's drop search (`air_drop::drop_site`), facing them, and marked on the HUD (`mech::Delivered`, `hud::draw_delivered`) until they sit in it (owner, 2026-10-29: "I request mech delivery and no mech was sent tomy location in free roam"). No aircraft or fall yet: it stands there when picked. Not yet built or tested: the owner was playing

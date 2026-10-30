@@ -32,6 +32,7 @@ impl Plugin for HudPlugin {
                 exit_ring,
                 update_stations,
                 draw_job,
+                draw_delivered,
                 draw_signs,
                 draw_body,
             )
@@ -94,6 +95,10 @@ const STATION_ROWS: usize = 6;
 /// The accepted job's site over the screens.
 #[derive(Component)]
 struct JobMarker;
+
+/// Free roam's delivered mech's marker (`draw_delivered`).
+#[derive(Component)]
+struct DeliveredMarker;
 
 /// The selected weapon's name under the crosshair: what the left mouse fires.
 #[derive(Component)]
@@ -307,6 +312,16 @@ fn spawn_hud(mut commands: Commands) {
                 (Text::new(""), TextFont::from_font_size(22.0), TextColor(AMBER)),
                 Visibility::Hidden,
                 JobMarker,
+            ));
+            // Free roam's delivered mech (draw_delivered).
+            root.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                (Text::new(""), TextFont::from_font_size(22.0), TextColor(AMBER)),
+                Visibility::Hidden,
+                DeliveredMarker,
             ));
             // The missile lock's two boxes (draw_lock).
             for i in 0..2 {
@@ -1332,12 +1347,109 @@ fn draw_lock(
     }
 }
 
-/// The accepted job in a career: a diamond and its distance over the site on the screens, and a line on
+/// Free roam's delivered mech (`mech::Delivered`): its name and distance over it, wherever it is, until the pilot sits
+/// in it.
+fn draw_delivered(
+    mut commands: Commands,
+    delivered: Option<Res<crate::mech::Delivered>>,
+    pilot: Res<PilotSim>,
+    camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
+    mut marker: Query<(&mut Node, &mut Text, &mut Visibility), With<DeliveredMarker>>,
+) {
+    let Ok((mut node, mut text, mut vis)) = marker.single_mut() else {
+        return;
+    };
+    let Some(d) = delivered else {
+        *vis = Visibility::Hidden;
+        return;
+    };
+    if pilot.curr.mode == PilotMode::Seated {
+        commands.remove_resource::<crate::mech::Delivered>();
+        *vis = Visibility::Hidden;
+        return;
+    }
+    let (cam, at) = *camera;
+    let Some((p, seen)) = pin(cam, at, d.at + Vec3::Y * 30.0, 40.0) else {
+        return;
+    };
+    let size = cam.logical_viewport_size().unwrap_or(Vec2::ONE);
+    let eye = at.translation();
+    let m = Vec2::new(eye.x, eye.z).distance(Vec2::new(d.at.x, d.at.z));
+    let arrow = if seen { "<> " } else { edge_arrow(p, size) };
+    node.left = px((p.x - 60.0).clamp(0.0, size.x - 260.0));
+    node.top = px((p.y - 14.0).clamp(0.0, size.y - 50.0));
+    text.0 = format!("{arrow}YOUR {} {m:.0} M\nWALK UP TO BOARD", d.name.to_uppercase());
+    *vis = Visibility::Inherited;
+}
+
+/// Where a HUD marker for `world` goes on the screen, at any distance (owner, 2026-10-29: "no matter how far it is
+/// should always show up on hud"): over it when it is in view, else held at the screen's edge on the side it lies, and
+/// whether it is in view. Only the direction to it counts, so no far plane hides it. `None` before the camera has a
+/// viewport.
+pub(crate) fn pin(cam: &Camera, at: &GlobalTransform, world: Vec3, edge_px: f32) -> Option<(Vec2, bool)> {
+    let size = cam.logical_viewport_size()?;
+    let eye = at.translation();
+    let dir = (world - eye).normalize_or_zero();
+    let ahead = dir.dot(*at.forward()) > 0.0;
+    if ahead
+        && let Ok(p) = cam.world_to_viewport(at, eye + dir * 50.0)
+        && p.x >= edge_px
+        && p.y >= edge_px
+        && p.x <= size.x - edge_px
+        && p.y <= size.y - edge_px
+    {
+        return Some((p, true));
+    }
+    // Off screen: from the middle toward it, as seen across the view (behind, the same side it lies on).
+    let across = Vec2::new(dir.dot(*at.right()), -dir.dot(*at.up()));
+    let across = if across.length_squared() < 1e-6 { Vec2::Y } else { across.normalize() };
+    let half = size * 0.5 - Vec2::splat(edge_px);
+    let reach = (half.x / across.x.abs().max(1e-6)).min(half.y / across.y.abs().max(1e-6));
+    Some((size * 0.5 + across * reach, false))
+}
+
+/// The marker's text at the screen's edge: an arrow toward it in front.
+pub(crate) fn edge_arrow(p: Vec2, size: Vec2) -> &'static str {
+    let d = p - size * 0.5;
+    if d.x.abs() * size.y > d.y.abs() * size.x {
+        if d.x > 0.0 { "> " } else { "< " }
+    } else if d.y > 0.0 {
+        "v "
+    } else {
+        "^ "
+    }
+}
+
+/// Free roam's running mission, where it is and what it is called on the marker.
+fn mission_site(
+    free: Option<&crate::missions::FreeRoamRun>,
+    fortress: Option<&crate::fortress::FortressRun>,
+    defence: Option<&crate::defence::DefenceRun>,
+    data: &crate::sim::Data,
+    plan: &Plan,
+) -> Option<(Vec3, String)> {
+    match free?.free.active? {
+        cb_core::missions::MissionKind::Fortress => fortress.map(|f| (f.f.pos, "CRAB CARRIER".to_string())),
+        cb_core::missions::MissionKind::Defence => {
+            let city = defence?.state.city(&data.0.defence)?;
+            let c = plan.cities.get(city as usize)?;
+            Some((Vec3::new(c.centre.x, c.ground_m + 60.0, c.centre.y), format!("DEFEND CITY {}", city + 1)))
+        }
+    }
+}
+
+/// The accepted job in a career, or free roam's running mission: a diamond and its distance over the site, on foot
+/// and in the seat, wherever it is (held at the screen's edge when it is out of view), and for a career's job a line on
 /// the MISSION page (where, how far, the time left, the enemies left), from the career's own board.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn draw_job(
     career: Option<Res<crate::career::CareerRun>>,
-    pilot: Res<PilotSim>,
+    (free, fortress, defence, data): (
+        Option<Res<crate::missions::FreeRoamRun>>,
+        Option<Res<crate::fortress::FortressRun>>,
+        Option<Res<crate::defence::DefenceRun>>,
+        Res<crate::sim::Data>,
+    ),
     plan: Res<Plan>,
     camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
     enemies: Query<(&MechSim, &crate::career::JobEnemy)>,
@@ -1348,32 +1460,33 @@ fn draw_job(
     let Ok((mut node, mut text, mut vis)) = marker.single_mut() else {
         return;
     };
+    let (cam, at) = *camera;
+    let eye = at.translation();
+    let site = match &job {
+        Some(j) => Some((
+            Vec3::new(j.site.x, plan.terrain.height_at(j.site.x, j.site.y) + 20.0, j.site.y),
+            "JOB".to_string(),
+        )),
+        None => mission_site(free.as_deref(), fortress.as_deref(), defence.as_deref(), &data, &plan),
+    };
+    match site.and_then(|(s, name)| Some((pin(cam, at, s, 40.0)?, s, name))) {
+        Some(((p, seen), s, name)) => {
+            let km = Vec2::new(eye.x, eye.z).distance(Vec2::new(s.x, s.z)) / 1000.0;
+            let size = cam.logical_viewport_size().unwrap_or(Vec2::ONE);
+            let arrow = if seen { "<> " } else { edge_arrow(p, size) };
+            node.left = px((p.x - 40.0).clamp(0.0, size.x - 200.0));
+            node.top = px((p.y - 14.0).clamp(0.0, size.y - 30.0));
+            text.0 = format!("{arrow}{name} {km:.1} KM");
+            *vis = Visibility::Inherited;
+        }
+        None => *vis = Visibility::Hidden,
+    }
     let Some(j) = job else {
-        *vis = Visibility::Hidden;
         if let Ok(mut l) = line.single_mut() {
             l.0.clear();
         }
         return;
     };
-    let (cam, at) = *camera;
-    let eye = at.translation();
-    let ground = plan.terrain.height_at(j.site.x, j.site.y);
-    let site = Vec3::new(j.site.x, ground + 20.0, j.site.y);
-    let d = Vec2::new(eye.x, eye.z).distance(j.site);
-    let km = d / 1000.0;
-    match cam
-        .world_to_viewport(at, site)
-        .ok()
-        .filter(|_| pilot.curr.mode == PilotMode::Seated)
-    {
-        Some(p) => {
-            node.left = px(p.x - 40.0);
-            node.top = px(p.y - 14.0);
-            text.0 = format!("<> JOB {km:.1} KM");
-            *vis = Visibility::Inherited;
-        }
-        None => *vis = Visibility::Hidden,
-    }
     if let Ok(mut l) = line.single_mut() {
         let bearing = bearing_deg(Vec2::new(j.site.x - eye.x, j.site.y - eye.z));
         let left = enemies.iter().filter(|(s, e)| e.0 == j.id && !s.dead).count();
