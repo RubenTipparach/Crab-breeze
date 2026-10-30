@@ -418,14 +418,14 @@ fn run_script(
     if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_SUN") {
         let path = script.dir.join("sun.png");
         if script.beat >= 2 {
-            if in_beat > 2.0 && (path.exists() || in_beat > 30.0) {
+            // A software renderer's frames take seconds: wait for the file itself (up to 120 s).
+            if in_beat > 2.0 && (path.exists() || in_beat > 120.0) {
                 exit.write(AppExit::Success);
             }
             return;
         }
-        if in_beat < 0.05
-            && let Some(sun) = suns.iter().next()
-        {
+        // Held every frame until the shot, so nothing turns the view off the sun in between.
+        if let Some(sun) = suns.iter().next() {
             let to_sun = sun.back();
             let mut st = pilot.curr.clone();
             st.mode = PilotMode::OnFoot;

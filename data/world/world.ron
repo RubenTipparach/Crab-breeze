@@ -212,6 +212,21 @@
         draw_radius_m: 2000.0,
     ),
 
+    // The airport and the seaport (openspec changes `airport-layout`, `seaport-layout`): the placing rules keep their
+    // defaults. Their ground's quays and paving are drawn with the game's PBR sets, a tile every 4 m (owner, 2026-10-30:
+    // "dock platform should use concrete textures", "and not textured"): concrete on the quays and their crowns, the
+    // downtown asphalt on the roads, the suburb asphalt on the yards. The rest keep their page's look.
+    sites: (
+        ground_textures: {
+            "quay": "textures/building/concrete",
+            "crown": "textures/building/concrete",
+            "asphalt": "textures/roads/asphalt027c",
+            "road": "textures/roads/asphalt027c",
+            "yard": "textures/roads/asphalt026c",
+        },
+        ground_texture_m: 4.0,
+    ),
+
     // Clouds (openspec/changes/cloud-weather): one camera-facing billboard a puff, lit as a sphere
     // by the scene's sun and sky, sorted back to front, faded where they meet the ground. Drawn
     // within 20 km of the eye, so storm towers and the front stand on the horizon; re-sorted when
