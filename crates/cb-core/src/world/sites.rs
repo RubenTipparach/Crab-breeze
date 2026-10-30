@@ -637,6 +637,26 @@ impl PlacedSite {
             .collect()
     }
 
+    /// The pads the ground is shaped to: under each quay standing up out of the sea, the ground just below its deck
+    /// first, then the template's pads. The nearest pad wins and ties go to the earlier, so the ground under a quay is
+    /// raised although the basin's pad covers it too. Without these the ground fell from the land's height to the
+    /// basin's across the one terrain cell at the quays' landward edge, a strip of open water between the land and
+    /// the quays a mech walked into (owner, 2026-10-30: "theres also a big gap between dock platform and LAND").
+    pub fn shaping_pads(&self) -> Vec<(Rect, f32)> {
+        const UNDER_DECK_M: f32 = 1.0;
+        const MIN_AREA_M2: f32 = 100.0;
+        let under = self.template.ground.solids.iter().filter_map(|(lo, hi)| {
+            let area = (hi.x - lo.x) * (hi.z - lo.z);
+            (lo.y < 0.0 && hi.y > UNDER_DECK_M && area >= MIN_AREA_M2).then(|| {
+                (
+                    self.rect_to_world(Vec2::new(lo.x, lo.z), Vec2::new(hi.x, hi.z)),
+                    self.ground_m + hi.y - UNDER_DECK_M,
+                )
+            })
+        });
+        under.chain(self.pads()).collect()
+    }
+
     /// Its footprint in the world.
     pub fn footprint(&self) -> Rect {
         let (lo, hi) = self.template.footprint();

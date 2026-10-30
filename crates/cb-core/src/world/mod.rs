@@ -673,7 +673,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         small_buildings::Lots::new(cfg.small_kits.clone(), placed, cfg.world_size_m)
     };
     let flats = Flats::new(&plateaus, &highways, cfg).with_pads(
-        small.pads().into_iter().chain(placed_sites.iter().flat_map(|s| s.pads())).collect(),
+        small.pads().into_iter().chain(placed_sites.iter().flat_map(|s| s.shaping_pads())).collect(),
         cfg.terrain_cell_m,
         cfg.small_buildings.pad_blend_m,
         cfg.world_size_m,

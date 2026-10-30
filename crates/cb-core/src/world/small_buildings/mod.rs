@@ -141,6 +141,19 @@ mod tests {
                     assert!((h - y).abs() < 0.3, "{:?} pad at {p}: ground {h}, pad {y}", s.template.kind);
                 }
             }
+            // A quay meets the land with no water between: just inside its landward edge, and just on the land
+            // beside it, the ground stands above the sea (it fell to the basin's depth across that terrain cell).
+            for (lo, hi) in s.template.ground.solids.iter().filter(|(lo, hi)| {
+                lo.y < 0.0 && hi.y > 1.0 && lo.z.abs() < 1.0 && (hi.x - lo.x) * (hi.z - lo.z) >= 100.0
+            }) {
+                for x in [lo.x + 2.0, (lo.x + hi.x) * 0.5, hi.x - 2.0] {
+                    for z in [lo.z - 2.0, lo.z + 2.0, lo.z + 6.0] {
+                        let p = s.to_world(Vec2::new(x, z));
+                        let h = plan.height_at(p.x, p.y);
+                        assert!(h > s.ground_m, "the ground at a quay's landward edge, {p}: {h} under the sea");
+                    }
+                }
+            }
             // No house stands on a site.
             let foot = s.footprint();
             for l in plan.small.lots.iter().filter(|l| !l.zone.is_site()) {
