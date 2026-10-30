@@ -212,8 +212,8 @@
         draw_radius_m: 2000.0,
     ),
 
-    // The airport and the seaport (openspec changes `airport-layout`, `seaport-layout`): the placing rules keep their
-    // defaults. Their ground's quays and paving are drawn with the game's PBR sets, a tile every 4 m (owner, 2026-10-30:
+    // The airports, the seaports and the military bases' sites (openspec changes `airport-layout`, `seaport-layout`,
+    // `island-sites-layout`). Their ground's quays and paving are drawn with the game's PBR sets, a tile every 4 m (owner, 2026-10-30:
     // "dock platform should use concrete textures", "and not textured"): concrete on the quays and their crowns, the
     // downtown asphalt on the roads, the suburb asphalt on the yards. The rest keep their page's look.
     sites: (
@@ -225,6 +225,10 @@
             "yard": "textures/roads/asphalt026c",
         },
         ground_texture_m: 4.0,
+        // island-sites-layout (owner, 2026-10-30: "We need to add 2 civilian airports", "Place civilians airports first",
+        // "Add ship ports. I want at least 2"); the placing rules keep their defaults
+        airports: 2,
+        seaports: 2,
     ),
 
     // Clouds (openspec/changes/cloud-weather): one camera-facing billboard a puff, lit as a sphere
@@ -539,12 +543,6 @@
         runway_step_m: 100.0,
         runway_max_cut_m: 45.0,
         runway_city_clear_m: 300.0,
-    ),
-    // The civil sites (openspec change island-sites-layout; owner, 2026-10-30: "We need to add 2 civilian airports",
-    // "Place civilians airports first", "Add ship ports. I want at least 2"); the rest is the code default.
-    sites: (
-        airports: 2,
-        seaports: 2,
     ),
     // The offshore limit (openspec change offshore-limit; owner, 2026-10-30: "Offshore limit: 15 km", and "15 km, edge
     // clamps"): 15 km past the coast or 1 km inside the world's edge, whichever comes first.
