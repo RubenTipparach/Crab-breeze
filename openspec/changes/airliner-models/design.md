@@ -57,8 +57,10 @@ emission and the night glow sprite (`night-voxel-light`).
 
 ## 4. Interiors
 
-The fuselage is a shell: the outer loft minus an inner loft 0.12 m inside it (0.08 m on the propliner), so window
-holes cut by Exact booleans open into the cabin and a broken section shows its wall. Each window is a hole with a pane
+The fuselage is a shell above the floor and solid below it (owner, 2026-10-30: "botoom half of plane should be solid"):
+the outer loft minus an inner loft 0.12 m inside it (0.08 m on the propliner) whose bottom is flat 4 cm under the floor's
+top. Window holes cut by Exact booleans open into the cabin, and a broken section shows its wall, the cabin over the
+floor and a solid lower half (the hold, the wing box and the wheel wells are not modelled inside). Each window is a hole with a pane
 of glass 0.03 m in from the outer skin. Inside, by section:
 
 - **Flight deck**: floor, two seats (three on the jets), the panel, the glare shield, the yoke columns.
@@ -93,8 +95,11 @@ BeamNG-style part trees, and our own `structural-destruction`):
    trail from `FX_engine_<n>`), an outer wing roll plus spiral, the tail a pitch down, the fuselage broken in two
    both halves fall. Any zone on the main box (centre fuselage) at zero downs the aircraft.
 8. **Damage shows before it breaks**: smoke at a zone below half its health, fire below a quarter (anchors `FX_*`).
-9. **Debris are the real pieces**: a detached zone is its own mesh as a rigid body (`debris-physics`), never a box;
-   far away, a dust puff.
+9. **Debris are the real pieces, and a break throws more** (owner, 2026-10-30: "there should be debris coming out when
+   pecies are shot"): a detached zone is its own mesh as a rigid body (`debris-physics`), never a box, trailing smoke
+   and now and then fire as it falls. The break itself throws out a burst at the hit and at the joint: about 45 torn
+   skin and frame fragments (0.1-0.7 m plates), seats and luggage when a cabin section opens, a flash of fire and a
+   cloud of smoke. Near you the fragments are rigid bodies that bounce and settle; far away, a dust puff.
 10. **Deterministic**: the zone tree, shares and capsules are data; the same hits break the same zones.
 
 | Kind | Zones |

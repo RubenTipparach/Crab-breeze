@@ -122,7 +122,7 @@ KINDS = {
                   (0.95, 0.5, 0.5, 0.32), (1.0, 0.32, 0.32, 0.38)],
         wing=dict(y=-1.5, le=20.5, root=11.5, tip=2.9, centre=2.9, dihedral=7.5, t_root=0.13, t_tip=0.09,
                   le_sweep=37.0, split=14.5, stations=[2.9, 9.6, 14.5, 18.0], chords={2.9: 11.0, 9.6: 7.6, 14.5: 5.6, 18.0: 4.4}),
-        fin=dict(le=-11.4, root=8.6, tip=3.0, top=12.1, sweep=38.0, t=0.1, base=1.55),
+        fin=dict(le=-11.4, root=8.6, tip=3.0, top=12.1, sweep=38.0, t=0.1),
         tailplane=dict(le=-10.4, root=6.5, tip=2.2, span=21.8, sweep=35.0, y=0.25, dihedral=3.0, t=0.09),
         engines=[dict(kind="turbofan", x=9.6, zone="wing_inner"), dict(kind="tail", zone="tail")],
         turbofan=dict(r=1.32, intake=1.12, length=6.8, ahead=3.6, drop=1.9),
@@ -361,11 +361,14 @@ class Plane:
         return w["t_root"] + (w["t_tip"] - w["t_root"]) * abs(x) / (self.S * 0.5)
 
 
-def fuselage_ring(p, z, n, inset=0.0, levels=()):
+def fuselage_ring(p, z, n, inset=0.0, levels=(), floor_y=None):
     """A fuselage ring at z: the superellipse, with extra points exactly at each height in `levels` on both sides, so
-    the livery's lines run along ring edges."""
+    the livery's lines run along ring edges. With `floor_y` no point lies below that height (the cabin's cavity, whose
+    bottom is the floor: under it the fuselage is solid)."""
     hw, hh, cy = p.at(z)
     hw, hh = max(hw - inset, 0.01), max(hh - inset, 0.01)
+    if floor_y is not None:
+        floor_y = min(floor_y, cy + hh - 0.3)
     angles = [math.tau * i / n for i in range(n)]
     for y in levels:
         s = max(min((y - cy) / hh, 0.999), -0.999)
@@ -378,7 +381,7 @@ def fuselage_ring(p, z, n, inset=0.0, levels=()):
         c, s = math.sin(a), math.cos(a)
         x = hw * math.copysign(abs(c) ** (2 / EXP), c)
         y = hh * math.copysign(abs(s) ** (2 / EXP), s)
-        out.append((x, cy + y, z))
+        out.append((x, cy + y if floor_y is None else max(cy + y, floor_y), z))
     return out
 
 
@@ -412,12 +415,16 @@ def outer_loft(p, n, name, parent, levels):
 
 
 def inner_loft(p, n, name, parent):
-    """The cabin's cavity: from just behind the nose cap to the rear pressure bulkhead, a wall's thickness in."""
+    """The cabin's cavity: from just behind the nose cap to the rear pressure bulkhead, a wall's thickness in, its
+    bottom 4 cm under the floor's top (inside the floor slab), so everything under the floor (the hold, the wing box,
+    the wheel wells) stays solid and a break shows a solid lower half (owner, 2026-10-30: "botoom half of plane should
+    be solid")."""
     k = p.k
     lo = p.z0 + p.L * k["stations"][2][0]
     hi = p.z0 + p.L * 0.94
     zs = [lo] + [z for z in p.zs(lo, hi) if lo + 0.05 < z < hi - 0.05] + [hi]
-    rings = [fuselage_ring(p, z, n, k["wall"], ()) for z in zs]
+    floor = k["cabin"]["floor"] - 0.04
+    rings = [fuselage_ring(p, z, n, k["wall"], (), floor_y=floor) for z in zs]
     return A.obj(name, loft(rings), "cabin_wall", parent)
 
 
@@ -837,8 +844,9 @@ def build_wings(m, p, lod):
 def fin_geom(p):
     f = p.k["fin"]
     le_root = p.L * 0.5 + f["le"]
-    z_mid = le_root + f["root"] * 0.5
-    h_root = p.crown(z_mid) - 0.25 + f.get("base", 0.0)
+    # the root sits 20 cm into the skin at its lowest point along the root chord: the tail cone drops away aft, so a
+    # root set at one station's crown stands clear of it further back (owner, 2026-10-30: "tail piece is floating")
+    h_root = min(p.crown(le_root + f["root"] * t) for t in (0.0, 0.25, 0.5, 0.75, 1.0)) - 0.2
     return le_root, h_root
 
 
@@ -1599,6 +1607,7 @@ def build(kind, shots=None):
                            "strobe": {"period_s": 1.2, "on_s": 0.05, "gap_s": 0.15, "flashes": 2},
                            "landing": {"below_agl_m": 600}},
         "cabin_view": cabin_view(p),
+        "livery_seat": [round(v, 3) for v in lin(p.k["livery"]["seat"])],
         "cabin_lights": cabin_lights(p),
         "materials": [A.MATS[k].name for k in ORDER],
         "csg_steps": len(CSG),

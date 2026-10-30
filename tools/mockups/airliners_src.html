@@ -76,7 +76,7 @@ input[type=range] { accent-color: var(--accent); width: min(220px, 50vw); }
   <p class="lede">The propliner (after the DC-3), the four-jet airliner (after the Boeing 720) and the wide-body (after the L-1011 TriStar),
   the very files the game will load, at true size beside a 1.8 m pilot and the 24 m Foreman. Raise and lower the gear, spin the props and
   fans, work the controls, switch to night for the navigation lights, beacons and strobes, cut the fuselage open or walk the aisle to see
-  the cabins, and pull the damage zones apart or click a part to shoot it off.</p>
+  the cabins, and pull the damage zones apart or click a part to shoot it off and watch the debris fly.</p>
 </header>
 <div class="wrap">
   <section>
@@ -357,6 +357,8 @@ const explode = document.getElementById("explode");
 document.getElementById("repair").onclick = () => {
   explode.value = 0;
   for (const s of Object.values(planes)) { s.flying = []; for (const z of Object.values(s.zones)) { z.node.position.copy(z.base); z.node.quaternion.copy(z.baseQ); z.node.visible = true; } }
+  for (const d of debris) scene.remove(d.mesh); debris.length = 0;
+  for (const p of puffs) scene.remove(p.sp); puffs.length = 0;
 };
 
 // click a part: its zone breaks off and falls, with every zone that hangs from it
@@ -375,11 +377,69 @@ canvas.addEventListener("pointerup", e => {
   if (!zn) return;
   for (const s of Object.values(planes)) {
     const z = Object.values(s.zones).find(q => q.node === zn);
-    if (!z || !z.z.parent) continue;  // the main box holds the rest; it falls with the aircraft
-    const out = z.centre.clone().normalize();
-    s.flying.push({ z, v: new T.Vector3(out.x * 6, 4, out.z * 3), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(1.6), t: 0 });
+    if (z) breakZone(s, z, hit.point);
   }
 });
+
+// A zone shot off: it flies on with a spin and a smoke trail, and the break throws out debris: torn skin and frame
+// fragments, seats and luggage from a cabin section, a flash of fire and a cloud of smoke (design section 5, items 6-9).
+function breakZone(s, z, at) {
+  if (!z.z.parent || s.flying.some(f => f.z === z)) return;  // the main box holds the rest
+  const out = z.centre.clone().normalize();
+  s.flying.push({ z, v: new T.Vector3(out.x * 6, 4, out.z * 3), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(1.6), t: 0, puff: 0 });
+  const parent = s.zones[z.z.parent];
+  const joint = s.holder.localToWorld(z.centre.clone().add(parent.centre).multiplyScalar(0.5));
+  const cabin = /cabin|centre|nose|tail/.test(z.z.name);
+  burst(at || joint, out, cabin, s.man.livery_seat);
+  if (at) burst(joint, out, cabin, s.man.livery_seat, 0.5);
+}
+const debris = [], puffs = [];
+const FRAG = new T.BoxGeometry(1, 1, 1);
+const fragMats = [lin(0xe9e9e6), lin(0xb9bcc0), lin(0x2a2a2c), lin(0x5b5e62)].map(c => new T.MeshStandardMaterial({ color: c, roughness: 0.6, metalness: 0.5 }));
+const smokeMat = () => new T.SpriteMaterial({ map: glowTex(), color: 0x6b6b6b, transparent: true, opacity: 0.55, depthWrite: false });
+const fireMat = () => new T.SpriteMaterial({ map: glowTex(), color: 0xff8a2a, transparent: true, blending: T.AdditiveBlending, depthWrite: false });
+function burst(at, out, cabin, seatRgb, k = 1) {
+  const n = Math.round(46 * k);
+  for (let i = 0; i < n; i++) {
+    const seat = cabin && i % 5 === 0;
+    const m = seat ? new T.MeshStandardMaterial({ color: new T.Color(...(seatRgb || [0.2, 0.4, 0.4])), roughness: 0.9 }) : fragMats[i % fragMats.length];
+    const mesh = new T.Mesh(FRAG, m);
+    const sz = seat ? [0.5, 0.75, 0.55] : [0.08 + Math.random() * 0.6, 0.02 + Math.random() * 0.06, 0.08 + Math.random() * 0.5];
+    mesh.scale.set(...sz); mesh.position.copy(at); mesh.castShadow = true;
+    const dir = new T.Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).normalize().addScaledVector(out, 0.6).normalize();
+    scene.add(mesh);
+    debris.push({ mesh, v: dir.multiplyScalar(6 + Math.random() * 12), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(14), t: 0 });
+  }
+  for (let i = 0; i < 8 * k; i++) puff(at, true);
+  for (let i = 0; i < 14 * k; i++) puff(at, false);
+}
+function puff(at, fire) {
+  const sp = new T.Sprite(fire ? fireMat() : smokeMat());
+  sp.position.copy(at).add(new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(fire ? 2 : 3));
+  const s0 = fire ? 2 + Math.random() * 2 : 2 + Math.random() * 3;
+  sp.scale.set(s0, s0, 1); scene.add(sp);
+  puffs.push({ sp, fire, t: 0, life: fire ? 0.5 + Math.random() * 0.4 : 3 + Math.random() * 3, s0, v: new T.Vector3((Math.random() - 0.5) * 2, fire ? 1 : 1.5 + Math.random(), (Math.random() - 0.5) * 2) });
+}
+function stepDebris(dt) {
+  for (let i = debris.length - 1; i >= 0; i--) {
+    const d = debris[i]; d.t += dt;
+    d.v.y -= 9.81 * dt;
+    d.mesh.position.addScaledVector(d.v, dt);
+    d.mesh.rotateOnAxis(d.w.clone().normalize(), d.w.length() * dt);
+    const half = d.mesh.scale.y * 0.5;
+    if (d.mesh.position.y < half) { d.mesh.position.y = half; d.v.y *= -0.3; d.v.x *= 0.6; d.v.z *= 0.6; d.w.multiplyScalar(0.6); }
+    if (d.t > 14) { scene.remove(d.mesh); debris.splice(i, 1); }
+  }
+  for (let i = puffs.length - 1; i >= 0; i--) {
+    const p = puffs[i]; p.t += dt;
+    const u = p.t / p.life;
+    p.sp.position.addScaledVector(p.v, dt);
+    const sc = p.s0 * (1 + u * (p.fire ? 0.8 : 2.5));
+    p.sp.scale.set(sc, sc, 1);
+    p.sp.material.opacity = (p.fire ? 1 : 0.55) * (1 - u);
+    if (u >= 1) { scene.remove(p.sp); p.sp.material.dispose(); puffs.splice(i, 1); }
+  }
+}
 
 const sph = new T.Spherical(), off = new T.Vector3();
 let mode = "orbit";
@@ -446,7 +506,8 @@ let ready = false;
 function markReady() { ready = true; }
 window.MOCKUP_SCENE = scene;
 window.MOCKUP_API = { planes, setGear: t => { gearT = gearTarget = t; }, night: v => { night = v; applyNight(); }, cut: v => { cut = v; applyClip(); }, inside, home,
-  explode: v => { explode.value = v; }, show: id => { [...pick.children][["all", ...ORDER].indexOf(id)].click(); }, caps: v => { for (const s of Object.values(planes)) for (const c of s.capsules) c.visible = v; },
+  explode: v => { explode.value = v; },
+  shoot: (id, zone) => { const s = planes[id]; breakZone(s, s.zones[zone], null); }, show: id => { [...pick.children][["all", ...ORDER].indexOf(id)].click(); }, caps: v => { for (const s of Object.values(planes)) for (const c of s.capsules) c.visible = v; },
   cam: (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); },
   camOn: (id, p, t) => { const h = planes[id].holder; camera.position.copy(h.localToWorld(new T.Vector3(...p))); controls.target.copy(h.localToWorld(new T.Vector3(...t))); controls.update(); }, lod: n => { [...lods.children][n].click(); } };
 function frame(now) {
@@ -474,6 +535,8 @@ function frame(now) {
     }
     for (const f of s.flying) {
       f.t += dt;
+      f.puff -= dt;
+      if (f.puff <= 0 && f.z.node.visible && f.t < 12) { f.puff = 0.07; puff(f.z.node.localToWorld(f.z.centre.clone()), Math.random() < 0.25); }
       if (f.z.node.position.y + s.holder.position.y > -40) {
         f.v.y -= 9.81 * dt;
         f.z.node.position.addScaledVector(f.v, dt);
@@ -486,6 +549,7 @@ function frame(now) {
       if (L.light) L.light.intensity = on ? (L.l.pattern === "landing" ? 6 : 3) : 0;
     }
   }
+  stepDebris(dt);
   renderer.render(scene, camera);
   const w = canvas.clientWidth, h = canvas.clientHeight;
   for (const t of tags) {
