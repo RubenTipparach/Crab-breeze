@@ -97,9 +97,12 @@ BeamNG-style part trees, and our own `structural-destruction`):
 8. **Damage shows before it breaks**: smoke at a zone below half its health, fire below a quarter (anchors `FX_*`).
 9. **Debris are the real pieces, and a break throws more** (owner, 2026-10-30: "there should be debris coming out when
    pecies are shot"): a detached zone is its own mesh as a rigid body (`debris-physics`), never a box, trailing smoke
-   and now and then fire as it falls. The break itself throws out a burst at the hit and at the joint: about 45 torn
-   skin and frame fragments (0.1-0.7 m plates), seats and luggage when a cabin section opens, a flash of fire and a
-   cloud of smoke. Near you the fragments are rigid bodies that bounce and settle; far away, a dust puff.
+   and now and then fire as it falls. The break itself tears big chunks out of the real model, as the boats break
+   (owner, 2026-10-30: "need bigger debris chucks like the boats had"): the skin, frames, floor and seats within about
+   4.5 m of the hit and 3 m either side of the torn joint are clipped into cells of about 2.2 m (the boats' engine's
+   method, `docs/mockups/building_engine.js` `fromObject`), each cell a chunk thrown out tumbling, and what is left of
+   each cut triangle stays on the aircraft as a ragged hole. Small fragments, a flash of fire and a cloud of smoke fill
+   it in. Near you the fragments are rigid bodies that bounce and settle; far away, a dust puff.
 10. **Deterministic**: the zone tree, shares and capsules are data; the same hits break the same zones.
 
 | Kind | Zones |

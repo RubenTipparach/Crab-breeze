@@ -37,5 +37,6 @@ await shot("propliner-aisle", `${A}.setGear(0); ${A}.show("propliner"); ${A}.ins
 await shot("widebody-tail", `${A}.show("widebody"); ${A}.camOn("widebody", [-16, 6, 12], [0, 4, 21])`);
 await shot("widebody-shot", `${A}.explode(0); ${A}.caps(false); ${A}.show("widebody"); ${A}.camOn("widebody", [-34, 6, -30], [0, 2, 0]); ${A}.shoot("widebody", "cabin_aft"); ${A}.shoot("widebody", "wing_outer_l")`, 700);
 await shot("widebody-shot-later", `0`, 1800);
+await shot("widebody-shot-settled", `${A}.camOn("widebody", [-30, 10, 8], [0, 0, 20])`, 4000);
 await shot("airliner-apart", `${A}.show("airliner"); ${A}.explode(100); ${A}.caps(true)`);
 await browser.close();

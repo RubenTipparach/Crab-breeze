@@ -389,6 +389,8 @@ document.getElementById("repair").onclick = () => {
   explode.value = 0;
   for (const s of Object.values(planes)) { s.flying = []; for (const z of Object.values(s.zones)) { z.node.position.copy(z.base); z.node.quaternion.copy(z.baseQ); z.node.visible = true; } }
   for (const d of debris) scene.remove(d.mesh); debris.length = 0;
+  for (const g of carved) { g.index.array.set(g.userData.index0); g.index.needsUpdate = true; } carved.length = 0;
+  for (const m of remainders) m.parent && m.parent.remove(m); remainders.length = 0;
   for (const p of puffs) scene.remove(p.sp); puffs.length = 0;
 };
 
@@ -421,8 +423,103 @@ function breakZone(s, z, at) {
   const parent = s.zones[z.z.parent];
   const joint = s.holder.localToWorld(z.centre.clone().add(parent.centre).multiplyScalar(0.5));
   const cabin = /cabin|centre|nose|tail/.test(z.z.name);
-  burst(at || joint, out, cabin, s.man.livery_seat);
-  if (at) burst(joint, out, cabin, s.man.livery_seat, 0.5);
+  // big chunks of the real model, as the boats break: the skin, frames and seats round the hit and both sides of the
+  // torn joint come away in cells of about 2.5 m
+  if (at) carve(s, z.node, at, 4.5, out);
+  carve(s, z.node, joint, 3.0, out);
+  carve(s, parent.node, joint, 2.6, out.clone().negate());
+  burst(at || joint, out, cabin, s.man.livery_seat, 0.45);
+  if (at) burst(joint, out, cabin, s.man.livery_seat, 0.25);
+}
+// Cut a zone's own meshes (its children's are left) into cells of about CHUNK metres round a world point, as the boats'
+// engine cuts a ship (docs/mockups/building_engine.js, fromObject): every triangle touching a cell within `r` is
+// clipped to the cells it crosses; the clipped pieces inside become chunks of the real model, thrown out; the pieces
+// outside are handed back to the zone as a remainder mesh, so the hull keeps a ragged hole, not a missing strip.
+// Repair puts it all back.
+const CHUNK = 2.2;
+const carved = [], remainders = [];
+function clipPoly(poly, axis, at, keep) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    const dp = (p.v.getComponent(axis) - at) * keep, dq = (q.v.getComponent(axis) - at) * keep;
+    if (dp >= 0) out.push(p);
+    if ((dp >= 0) !== (dq >= 0)) {
+      const t = dp / (dp - dq);
+      out.push({ v: p.v.clone().lerp(q.v, t), n: p.n.clone().lerp(q.n, t), u: p.u.clone().lerp(q.u, t) });
+    }
+  }
+  return out;
+}
+function carve(s, zoneNode, at, r, out) {
+  const cells = new Map();
+  const cellNear = (i, j, k) => new T.Vector3((i + 0.5) * CHUNK, (j + 0.5) * CHUNK, (k + 0.5) * CHUNK).distanceTo(at) <= r;
+  for (const mesh of s.meshes) {
+    if (!mesh.visible || zoneOf(mesh) !== zoneNode || !mesh.geometry.index) continue;
+    mesh.updateMatrixWorld();
+    const g = mesh.geometry, idx = g.index, pos = g.attributes.position, nrm = g.attributes.normal, uv = g.attributes.uv;
+    if (!g.userData.index0) g.userData.index0 = idx.array.slice();
+    const nm = new T.Matrix3().getNormalMatrix(mesh.matrixWorld);
+    const inv = new T.Matrix4().copy(mesh.matrixWorld).invert(), invN = new T.Matrix3().getNormalMatrix(inv);
+    const rest = { p: [], n: [], u: [] };
+    let touched = false;
+    for (let t = 0; t < idx.count; t += 3) {
+      const ii = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+      if (ii[0] === ii[1] && ii[1] === ii[2]) continue;
+      const tri = ii.map(i => ({ v: new T.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld),
+        n: nrm ? new T.Vector3().fromBufferAttribute(nrm, i).applyMatrix3(nm).normalize() : new T.Vector3(0, 1, 0),
+        u: uv ? new T.Vector2(uv.getX(i), uv.getY(i)) : new T.Vector2() }));
+      const lo = [0, 1, 2].map(a => Math.floor(Math.min(...tri.map(q => q.v.getComponent(a))) / CHUNK));
+      const hi = [0, 1, 2].map(a => Math.floor((Math.max(...tri.map(q => q.v.getComponent(a))) - 1e-6) / CHUNK));
+      let near = false;
+      for (let i = lo[0]; i <= hi[0] && !near; i++) for (let j = lo[1]; j <= hi[1] && !near; j++) for (let k = lo[2]; k <= hi[2] && !near; k++) near = cellNear(i, j, k);
+      if (!near) continue;
+      touched = true;
+      idx.setXYZ(t, ii[0], ii[0], ii[0]);
+      for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let k = lo[2]; k <= hi[2]; k++) {
+        let poly = tri;
+        const cmin = [i * CHUNK, j * CHUNK, k * CHUNK];
+        for (let a = 0; a < 3 && poly.length >= 3; a++) { poly = clipPoly(poly, a, cmin[a], 1); if (poly.length >= 3) poly = clipPoly(poly, a, cmin[a] + CHUNK, -1); }
+        if (poly.length < 3) continue;
+        let dst;
+        if (cellNear(i, j, k)) {
+          const key = i + "," + j + "," + k + "|" + mesh.material.uuid;
+          if (!cells.has(key)) cells.set(key, { mat: mesh.material, p: [], n: [], u: [] });
+          dst = cells.get(key);
+        } else dst = rest;
+        for (let f = 1; f + 1 < poly.length; f++) for (const q of [poly[0], poly[f], poly[f + 1]]) {
+          const v = dst === rest ? q.v.clone().applyMatrix4(inv) : q.v, n = dst === rest ? q.n.clone().applyMatrix3(invN).normalize() : q.n;
+          dst.p.push(v.x, v.y, v.z); dst.n.push(n.x, n.y, n.z); dst.u.push(q.u.x, q.u.y);
+        }
+      }
+    }
+    if (!touched) continue;
+    idx.needsUpdate = true; carved.push(g);
+    if (rest.p.length) {
+      const rm = new T.Mesh(geoOf(rest), mesh.material);
+      rm.castShadow = true; mesh.add(rm); remainders.push(rm);
+    }
+  }
+  for (const cell of cells.values()) {
+    const geo = geoOf(cell);
+    geo.computeBoundingBox();
+    const ctr = geo.boundingBox.getCenter(new T.Vector3());
+    geo.translate(-ctr.x, -ctr.y, -ctr.z);
+    const mat = cell.mat.clone(); mat.side = T.DoubleSide; mat.clippingPlanes = null;
+    const mesh = new T.Mesh(geo, mat);
+    mesh.position.copy(ctr); mesh.castShadow = true;
+    scene.add(mesh);
+    const dir = ctr.clone().sub(at).normalize().addScaledVector(out, 0.7).add(new T.Vector3(0, 0.6, 0)).normalize();
+    const size = geo.boundingBox.getSize(new T.Vector3());
+    debris.push({ mesh, v: dir.multiplyScalar(4 + Math.random() * 7), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(3), t: 0, half: Math.min(size.x, size.y, size.z) * 0.5 + 0.05, big: true });
+  }
+}
+function geoOf(b) {
+  const geo = new T.BufferGeometry();
+  geo.setAttribute("position", new T.Float32BufferAttribute(b.p, 3));
+  geo.setAttribute("normal", new T.Float32BufferAttribute(b.n, 3));
+  geo.setAttribute("uv", new T.Float32BufferAttribute(b.u, 2));
+  return geo;
 }
 const debris = [], puffs = [];
 const FRAG = new T.BoxGeometry(1, 1, 1);
@@ -457,9 +554,9 @@ function stepDebris(dt) {
     d.v.y -= 9.81 * dt;
     d.mesh.position.addScaledVector(d.v, dt);
     d.mesh.rotateOnAxis(d.w.clone().normalize(), d.w.length() * dt);
-    const half = d.mesh.scale.y * 0.5;
-    if (d.mesh.position.y < half) { d.mesh.position.y = half; d.v.y *= -0.3; d.v.x *= 0.6; d.v.z *= 0.6; d.w.multiplyScalar(0.6); }
-    if (d.t > 14) { scene.remove(d.mesh); debris.splice(i, 1); }
+    const half = d.half != null ? d.half : d.mesh.scale.y * 0.5;
+    if (d.mesh.position.y < half) { d.mesh.position.y = half; d.v.y *= -0.25; d.v.x *= 0.5; d.v.z *= 0.5; d.w.multiplyScalar(0.5); }
+    if (!d.big && d.t > 14) { scene.remove(d.mesh); debris.splice(i, 1); }
   }
   for (let i = puffs.length - 1; i >= 0; i--) {
     const p = puffs[i]; p.t += dt;
@@ -538,7 +635,7 @@ function markReady() { ready = true; }
 window.MOCKUP_SCENE = scene;
 window.MOCKUP_API = { planes, setGear: t => { gearT = gearTarget = t; }, night: v => { night = v; applyNight(); }, cut: v => { cut = v; applyClip(); }, inside, home,
   explode: v => { explode.value = v; },
-  shoot: (id, zone) => { const s = planes[id]; breakZone(s, s.zones[zone], null); }, show: id => { [...pick.children][["all", ...ORDER].indexOf(id)].click(); }, caps: v => { for (const s of Object.values(planes)) for (const c of s.capsules) c.visible = v; },
+  shoot: (id, zone) => { const s = planes[id], z = s.zones[zone]; breakZone(s, z, s.holder.localToWorld(z.centre.clone())); }, show: id => { [...pick.children][["all", ...ORDER].indexOf(id)].click(); }, caps: v => { for (const s of Object.values(planes)) for (const c of s.capsules) c.visible = v; },
   cam: (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); },
   camOn: (id, p, t) => { const h = planes[id].holder; camera.position.copy(h.localToWorld(new T.Vector3(...p))); controls.target.copy(h.localToWorld(new T.Vector3(...t))); controls.update(); }, lod: n => { [...lods.children][n].click(); } };
 function frame(now) {
