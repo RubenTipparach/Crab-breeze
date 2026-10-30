@@ -444,7 +444,9 @@ fn setup(
     }
     let smoke = lib.sheet_image("smoke_puffs").unwrap_or_else(|| disc.clone());
     let dust = lib.sheet_image("dust_wisps").unwrap_or_else(|| disc.clone());
-    crate::soft_sprites::make_draw(&mut commands, &mut meshes, &mut soft_materials, smoke, dust, data.0.fx.soft_m);
+    // The fireball sheet; until it is rendered, the smoke's (the same shapes).
+    let fire = lib.sheet_image("fireball_puffs").unwrap_or_else(|| smoke.clone());
+    crate::soft_sprites::make_draw(&mut commands, &mut meshes, &mut soft_materials, smoke, dust, fire, data.0.fx.soft_m);
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         sphere: meshes.add(Sphere::new(1.0).mesh().uv(32, 16)),

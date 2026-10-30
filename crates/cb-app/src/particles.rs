@@ -126,8 +126,8 @@ pub fn sheet(kind: ParticleKind) -> Option<&'static str> {
     }
 }
 
-/// Every sheet `sheet` names.
-pub const SHEETS: [&str; 4] = ["smoke_puffs", "fire_flipbook", "dust_wisps", "dirt_clods"];
+/// Every sheet `sheet` names, and the fireball puffs the nuclear cloud burns with (`soft_sprites::Look::Burning`).
+pub const SHEETS: [&str; 5] = ["smoke_puffs", "fire_flipbook", "dust_wisps", "dirt_clods", "fireball_puffs"];
 
 /// Cells across a sheet.
 pub(crate) const GRID: u32 = 4;

@@ -90,8 +90,28 @@ pub struct SoftSprites {
     placed: Vec<Placed>,
 }
 
-/// A sprite placed for one frame: where, its full size (m), its colour (linear HDR, alpha in w), its sheet cell and
-/// its spin (radians). Smoke sheet.
+/// Which sheet a placed sprite draws from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Look {
+    /// The dust wisps.
+    Dust,
+    /// The fireball puffs cross-faded into the smoke puffs, the same shapes cell for cell: 1 all fire, 0 all smoke.
+    Burning(f32),
+}
+
+impl Look {
+    /// The sheet code the shader reads (`soft_sprite.wesl`): 1 dust, 2 to 3 smoke to fire (0, smoke alone, is the
+    /// particles').
+    fn code(self) -> f32 {
+        match self {
+            Look::Dust => 1.0,
+            Look::Burning(k) => 2.0 + k.clamp(0.0, 1.0),
+        }
+    }
+}
+
+/// A sprite placed for one frame: where, its full size (m), its colour (linear HDR, alpha in w), its sheet and cell,
+/// and its spin (radians).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Placed {
     /// Its centre, world.
@@ -100,7 +120,9 @@ pub struct Placed {
     pub size_m: f32,
     /// Its colour, linear HDR, alpha in w.
     pub colour: Vec4,
-    /// Its cell of the smoke sheet, 0..16.
+    /// Its sheet...
+    pub look: Look,
+    /// ...and its cell of it, 0..16.
     pub cell: f32,
     /// Its spin, radians.
     pub spin_rad: f32,
@@ -190,7 +212,7 @@ struct SoftLook {
     haze: Vec4,
 }
 
-/// The one soft sprite material: the smoke and dust sheets.
+/// The one soft sprite material: the smoke, dust and fireball sheets.
 #[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
 pub struct SoftMaterial {
     #[uniform(0)]
@@ -201,6 +223,9 @@ pub struct SoftMaterial {
     #[texture(3)]
     #[sampler(4)]
     dust: Handle<Image>,
+    #[texture(5)]
+    #[sampler(6)]
+    fire: Handle<Image>,
 }
 
 impl Material for SoftMaterial {
@@ -294,6 +319,7 @@ pub fn make_draw(
     materials: &mut Assets<SoftMaterial>,
     smoke: Handle<Image>,
     dust: Handle<Image>,
+    fire: Handle<Image>,
     soft_m: f32,
 ) {
     let mesh = meshes.add(sprite_mesh(&[]));
@@ -304,6 +330,7 @@ pub fn make_draw(
         },
         smoke,
         dust,
+        fire,
     });
     commands.spawn((
         Name::new("soft sprites"),
@@ -446,7 +473,7 @@ fn sorted_quads(parts: &[Part], placed: &[Placed], eye: Vec3, forward: Vec3) -> 
                 (p.at - eye).dot(forward),
                 Quad {
                     centre: p.at,
-                    shape: Vec4::new(p.size_m.max(0.01), p.spin_rad, p.cell, 0.0),
+                    shape: Vec4::new(p.size_m.max(0.01), p.spin_rad, p.cell, p.look.code()),
                     colour: p.colour,
                 },
             )

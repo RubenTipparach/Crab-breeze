@@ -164,24 +164,45 @@ const FLASH_S: f32 = 0.8;
 /// ...its lens flare this many times the sun's at first, falling to nothing.
 const FLASH_GLOW: f32 = 12.0;
 
-/// A puff this hot or hotter is fire, more opaque; cooler, smoke (where the palette has turned to smoke, `heat_colour`).
-const SMOKE_FROM_HEAT: f32 = 0.6;
+/// A puff's fire gives way to smoke over this span of heat, the fireball sheet cross-fading into the smoke sheet's
+/// same shapes (`soft_sprites::Look::Burning`).
+const BURN_TO_SMOKE: (f32, f32) = (0.4, 0.72);
+
+/// A puff's opacity: fire, then smoke, then dust. Ten times the puffs drawn fainter (owner, 2026-10-30: "increase smoke
+/// puff density even more, 10x original", "but make them more transparent too").
+const FIRE_ALPHA: f32 = 0.4;
+const SMOKE_ALPHA: f32 = 0.32;
+const DUST_ALPHA: f32 = 0.3;
 
 /// Each puff spans this much of its part's radius (the ball's, the ring's tube, the column's, the skirt's tube): a
-/// smoke-sheet cell is mostly its soft edge, so puffs a part's radius across drew scattered clumps (side-by-side scene
-/// 13); at 1.3 they overlap into the part's whole shape.
-const PUFF_SPAN: f32 = 1.3;
+/// smoke-sheet cell is mostly its soft edge, so with few puffs they had to overlap a whole part; with ten times as many
+/// they can be smaller.
+const PUFF_SPAN: f32 = 0.9;
 /// Every puff bursts out of the blast point to its place in the cloud in 0.2-0.5 s, each at its own pace (owner,
 /// 2026-10-30: "They originate from one location!", "grow to their max size withing .2-.5 seconds").
 const BURST_S: (f32, f32) = (0.2, 0.5);
 /// A puff's size as it leaves the blast point, as a share of its full size.
 const BURST_SEED: f32 = 0.12;
 
-/// The puffs of each part of the cloud.
-const BALL: u32 = 90;
-const RING: u32 = 24;
-const COLUMN: u32 = 50;
-const SKIRT: u32 = 24;
+/// The puffs of each part of the cloud, ten times the first cloud's.
+const BALL: u32 = 900;
+const RING: u32 = 240;
+const COLUMN: u32 = 500;
+const SKIRT: u32 = 240;
+
+/// The fire's tint over the fireball sheet (which carries its own white cores and red folds): white-hot, then orange,
+/// then a dull red, pushed into HDR while it burns so it blooms. Linear RGB.
+fn fire_tint(h: f32) -> Vec3 {
+    let h = (h / BURN_TO_SMOKE.1).clamp(0.0, 1.0);
+    let c = Vec3::new(1.0, 0.98, 0.92).lerp(Vec3::new(1.0, 0.62, 0.32), (h * 2.0).min(1.0));
+    let c = c.lerp(Vec3::new(0.8, 0.32, 0.16), (h * 2.0 - 1.0).max(0.0));
+    c * (4.0 - 3.0 * h)
+}
+
+/// How long the whole cloud lasts: the explosion, then its smoke hanging.
+pub fn lasts_s(n: &NukeSpec) -> f32 {
+    n.cloud_s + n.smoke_linger_s
+}
 
 /// The heat palette (Mining Mike's `nuke_cloud.gdshader`): white-hot, yellow, orange, red, then smoke lit from `lit`
 /// (0 shade, 1 sunlit); the fire pushed `FIRE_GLOW` times into HDR, so it blooms. Linear RGB.
@@ -210,41 +231,58 @@ pub fn heat_colour(h: f32, lit: f32) -> Vec3 {
 /// own fixed place in its part, cell and spin), so the cloud moves as one. Mining Mike's parts as his animation poses
 /// them (his units, scaled so the head reaches `cap_height_m`):
 /// - the ball: his cap made round, a ball of `BALL` puffs 90 of his units in radius times the head's scale round the
-///   head, there whole from the first frame, swelling and climbing with the head;
+///   head, swelling and climbing with the head;
 /// - the ring rolling under it (a torus 77.5 round and 37.5 thick under the head);
 /// - the column: a thick cone (his stem, 1.3 times as wide) from the ground up to the ball's foot, filling in as the
-///   ball climbs off it;
-/// - the dust skirt round the foot (a torus 90 round, 50 thick, on the ground).
+///   ball climbs off it, half dust low down, the ground sucked up into it;
+/// - the dust skirt round the foot (a torus 90 round, 50 thick, on the ground), all dust.
 ///
-/// Each puff takes the heat now plus his per-part offset and its own noise, its undersides hotter, lit from the sun;
-/// each fades out at its own point as he dissolves the cloud.
+/// Every puff bursts out of the blast point to its place in 0.2-0.5 s. Each takes the heat now plus his per-part
+/// offset and its own noise, its undersides hotter: fire (the fireball sheet) that cross-fades into lit smoke as it
+/// cools. After the explosion's `cloud_s` the smoke hangs `smoke_linger_s`, spreading slowly to `smoke_grow` times
+/// its size, each puff fading at its own point over the last fifth.
 pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_sprites::Placed> {
-    use crate::soft_sprites::Placed;
+    use crate::soft_sprites::{Look, Placed};
     let rand = |i: u32| ((i.wrapping_mul(2_654_435_761).rotate_left(13) ^ 0x9e37_79b9) >> 8 & 0xffff) as f32 / 65_535.0;
     let tau = std::f32::consts::TAU;
     let u = timeline(t_s, n.cloud_s);
     let p = pose(u);
     let s = n.cap_height_m / AUTHORED_HEAD_M;
     let heat_now = heat(u);
-    let mut out = Vec::new();
-    let mut put = |i: u32, pos: Vec3, normal: Vec3, size: f32, heat_offset: f32| {
+    // the hanging smoke: 0 at the explosion's end, 1 at the cloud's
+    let hang = ((t_s - n.cloud_s) / n.smoke_linger_s.max(0.1)).clamp(0.0, 1.0);
+    let grow = 1.0 + (n.smoke_grow - 1.0) * (1.0 - (1.0 - hang) * (1.0 - hang));
+    let mut out = Vec::with_capacity((BALL + RING + COLUMN + SKIRT) as usize);
+    let mut put = |i: u32, pos: Vec3, normal: Vec3, size: f32, heat_offset: f32, dust: bool| {
         let normal = normal.normalize_or(Vec3::Y);
         let under = (-normal.y).clamp(0.0, 1.0);
         let h = heat_now + heat_offset + (rand(i + 7) - 0.5) * 0.7 - under * 0.3;
         let lit = normal.dot(to_sun) * 0.5 + 0.5;
-        // as he dissolves it, each puff goes at its own point
-        let keep = ((rand(i + 11) - p.dissolve) / 0.2 + 0.5).clamp(0.0, 1.0);
+        // each puff goes at its own point over the last fifth of the hang
+        let keep = ((rand(i + 11) * 0.2 + 0.8 - hang) / 0.05).clamp(0.0, 1.0);
         // out of the blast point, fast then easing into place
         let k = 1.0 - (1.0 - (t_s / (BURST_S.0 + (BURST_S.1 - BURST_S.0) * rand(i + 9))).clamp(0.0, 1.0)).powi(3);
-        let pos = at + (pos - at) * k;
-        let size = size * (BURST_SEED + (1.0 - BURST_SEED) * k);
-        let opacity = if h < SMOKE_FROM_HEAT { 0.95 } else { 0.8 };
+        let pos = at + (pos - at) * k * grow;
+        let size = size * (BURST_SEED + (1.0 - BURST_SEED) * k) * grow;
+        let ss = |a: f32, b: f32, x: f32| {
+            let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        };
+        let fire = 1.0 - ss(BURN_TO_SMOKE.0, BURN_TO_SMOKE.1, h);
+        let (look, colour, alpha) = if dust {
+            let dust = Vec3::new(0.30, 0.25, 0.20).lerp(Vec3::new(0.62, 0.52, 0.42), lit.clamp(0.0, 1.0));
+            (Look::Dust, dust.lerp(heat_colour(h, lit), fire * 0.5), DUST_ALPHA)
+        } else {
+            let colour = heat_colour(h.max(BURN_TO_SMOKE.1), lit).lerp(fire_tint(h), fire);
+            (Look::Burning(fire), colour, SMOKE_ALPHA + (FIRE_ALPHA - SMOKE_ALPHA) * fire)
+        };
         out.push(Placed {
             at: pos,
             size_m: size * (0.8 + 0.4 * rand(i + 6)),
-            colour: heat_colour(h, lit).extend(opacity * keep),
+            colour: colour.extend(alpha * keep),
+            look,
             cell: (rand(i + 5) * 16.0).floor().min(15.0),
-            spin_rad: rand(i + 3) * tau + t_s * 0.3 * (rand(i + 4) - 0.5),
+            spin_rad: rand(i + 3) * tau + t_s * 0.05 * (rand(i + 4) - 0.5),
         });
     };
     // the ball, round, every puff out of the blast point at once
@@ -255,8 +293,8 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         let i = j * 13 + 1;
         let (a, z) = (rand(i) * tau, rand(i + 1) * 2.0 - 1.0);
         let dir = Vec3::new((1.0 - z * z).sqrt() * a.cos(), z, (1.0 - z * z).sqrt() * a.sin());
-        let reach = 0.45 + 0.55 * rand(i + 2).sqrt();
-        put(i, centre + dir * reach * r, dir, r * PUFF_SPAN, 0.0);
+        let reach = rand(i + 2).cbrt();
+        put(i, centre + dir * reach * r, dir, r * PUFF_SPAN, 0.0, false);
     }
     // the ring rolling under it
     for j in 0..RING {
@@ -266,9 +304,9 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         let round = Vec3::new(a.cos(), 0.0, a.sin());
         let tube = round * 37.5 * b.cos() + Vec3::Y * 37.5 * b.sin();
         let pos = ring_c + (round * 77.5 + tube) * p.head_scale * s;
-        put(i, pos, tube, 37.5 * 2.0 * p.head_scale * s * PUFF_SPAN, 0.05);
+        put(i, pos, tube, 37.5 * 2.0 * p.head_scale * s * PUFF_SPAN, 0.05, false);
     }
-    // the column, from the ground up to the ball's foot
+    // the column, from the ground up to the ball's foot, the ground sucked up into it low down
     let top = (centre.y - at.y - r * 0.7).max(0.0);
     for j in 0..COLUMN {
         let i = j * 19 + 5;
@@ -276,7 +314,8 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         let wide = (40.0 + (22.0 - 40.0) * f) * p.stem.x * 1.3 * s;
         let a = rand(i + 1) * tau;
         let off = Vec3::new(a.cos(), 0.0, a.sin()) * wide * 0.6 * rand(i + 2).sqrt();
-        put(i, at + Vec3::Y * f * top + off, off, wide * 2.0 * PUFF_SPAN, 0.12);
+        let dust = rand(i + 8) < 0.15 + 0.5 * (1.0 - f);
+        put(i, at + Vec3::Y * f * top + off, off, wide * 2.0 * PUFF_SPAN, 0.12, dust);
     }
     // the dust skirt round the foot
     for j in 0..SKIRT {
@@ -284,7 +323,7 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         let (a, b) = (rand(i) * tau, rand(i + 1) * std::f32::consts::PI);
         let round = Vec3::new(a.cos(), 0.0, a.sin());
         let pos = at + (round * (90.0 + 50.0 * b.cos()) * p.skirt.x + Vec3::Y * (8.0 + 50.0 * b.sin() * p.skirt.y)) * s;
-        put(i, pos, round + Vec3::Y * 0.3, 50.0 * 2.0 * p.skirt.x * s * PUFF_SPAN, 0.35);
+        put(i, pos, round + Vec3::Y * 0.3, 50.0 * 2.0 * p.skirt.x * s * PUFF_SPAN, 0.35, true);
     }
     out
 }
@@ -304,7 +343,7 @@ fn animate_clouds(
     let to_sun = cb_core::world::sun_shade::to_sun();
     for (e, mut c) in &mut clouds {
         c.t_s += time.delta_secs();
-        if c.t_s > n.cloud_s {
+        if c.t_s > lasts_s(&n) {
             commands.entity(e).despawn();
             continue;
         }
@@ -343,6 +382,8 @@ mod tests {
             fireball_radius_m: 250.0,
             cap_height_m: 1100.0,
             cloud_s: 6.0,
+            smoke_linger_s: 60.0,
+            smoke_grow: 1.5,
         }
     }
 
@@ -377,10 +418,36 @@ mod tests {
             .map(|p| p.at.xz().length())
             .fold(0.0f32, f32::max);
         assert!(ball_w > col_w * 1.5, "a mushroom: the ball {ball_w} m out, the column {col_w} m");
-        let end = cloud(&n, Vec3::ZERO, n.cloud_s * 0.999, Vec3::Y);
+    }
+
+    #[test]
+    fn the_smoke_hangs_a_minute_spreading_half_again_then_fades_away() {
+        let n = spec();
+        assert_eq!(lasts_s(&n), 66.0);
+        let shown = |ps: &[crate::soft_sprites::Placed]| ps.iter().filter(|p| p.colour.w > 0.05).count();
+        let size = |ps: &[crate::soft_sprites::Placed]| ps.iter().map(|p| p.size_m).sum::<f32>();
+        let done = cloud(&n, Vec3::ZERO, n.cloud_s, Vec3::Y);
+        let hanging = cloud(&n, Vec3::ZERO, n.cloud_s + 40.0, Vec3::Y);
+        assert_eq!(shown(&hanging), hanging.len(), "all of it still there 40 s on");
+        let spread = size(&hanging) / size(&done);
+        assert!(spread > 1.3 && spread < 1.5, "spreading toward half again its size: {spread}");
+        let gone = cloud(&n, Vec3::ZERO, lasts_s(&n) - 0.01, Vec3::Y);
+        assert!(shown(&gone) < gone.len() / 20, "faded away at the end: {}", shown(&gone));
+    }
+
+    #[test]
+    fn its_fire_cools_into_smoke_and_its_foot_is_dust() {
+        use crate::soft_sprites::Look;
+        let n = spec();
+        let burning = |ps: &[crate::soft_sprites::Placed]| ps.iter().filter(|p| matches!(p.look, Look::Burning(k) if k > 0.5)).count();
+        let first = cloud(&n, Vec3::ZERO, 0.3, Vec3::Y);
+        let late = cloud(&n, Vec3::ZERO, n.cloud_s, Vec3::Y);
+        assert!(burning(&first) * 2 > BALL as usize, "the fireball burns: {}", burning(&first));
+        assert!(burning(&late) * 10 < late.len(), "smoke by the end: {}", burning(&late));
+        let dust = late.iter().filter(|p| p.look == Look::Dust).count();
         assert!(
-            end.iter().filter(|p| p.colour.w > 0.1).count() < end.len() / 4,
-            "dissolving at the end"
+            dust >= SKIRT as usize && dust < late.len() / 2,
+            "the skirt and the column's foot are dust: {dust}"
         );
     }
 

@@ -35,6 +35,8 @@ fn air_between(eye: vec3<f32>, dir: vec3<f32>, dist: f32) -> f32 {
 @group(constants::MATERIAL_BIND_GROUP) @binding(2) var smoke_sampler: sampler;
 @group(constants::MATERIAL_BIND_GROUP) @binding(3) var dust_tex: texture_2d<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(4) var dust_sampler: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(5) var fire_tex: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(6) var fire_sampler: sampler;
 
 // Cells across a sheet (`particles::GRID`).
 const GRID: f32 = 4.0;
@@ -44,7 +46,7 @@ struct SoftVertex {
     @location(0) centre: vec3<f32>,
     // The quad's corner, -1..1.
     @location(1) corner: vec2<f32>,
-    // x full size m, y spin radians, z sheet cell, w sheet (0 smoke, 1 dust).
+    // x full size m, y spin radians, z sheet cell, w sheet (0 smoke, 1 dust, 2 to 3 smoke cross-faded to fire).
     @location(2) shape: vec4<f32>,
     // Colour over life, linear, alpha in w.
     @location(3) colour: vec4<f32>,
@@ -98,7 +100,10 @@ fn soft_edge(pixel: vec4<f32>) -> f32 {
 fn fragment(in: SoftFragment) -> @location(0) vec4<f32> {
     let a = textureSample(smoke_tex, smoke_sampler, in.uv);
     let b = textureSample(dust_tex, dust_sampler, in.uv);
-    let tex = select(a, b, in.sheet > 0.5);
+    let f = textureSample(fire_tex, fire_sampler, in.uv);
+    // 2 to 3: the fireball sheet over the smoke's same shapes, by how much it still burns.
+    let burning = mix(a, f, clamp(in.sheet - 2.0, 0.0, 1.0));
+    let tex = select(select(a, b, in.sheet > 0.5), burning, in.sheet > 1.5);
     var out = tex * in.colour;
     let eye = view.world_position;
     let dist = distance(in.world, eye);

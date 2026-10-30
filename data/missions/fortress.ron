@@ -166,6 +166,7 @@
         // them up!!!"): Mining Mike's mushroom cloud scaled so its cap climbs to 1.1 km, on his timeline over 6 s (his 5 s
         // explode animation); a crater 800 m across and 100 m deep, everything within 700 m down, the wreck gone.
         nuke: Some((crater_radius_m: 400.0, crater_depth_m: 100.0, rim_m: 25.0, flatten_radius_m: 700.0,
-                    fireball_radius_m: 250.0, cap_height_m: 1100.0, cloud_s: 6.0)),
+                    fireball_radius_m: 250.0, cap_height_m: 1100.0, cloud_s: 6.0,
+                    smoke_linger_s: 60.0, smoke_grow: 1.5)),
     ),
 )
