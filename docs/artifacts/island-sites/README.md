@@ -11,6 +11,7 @@ where the limit falls and which rule sets it. Today's sites can be shown beside 
 
 - `index.html` is the published page as built by `python3 tools/mockups/gen_island_sites.py` from
   `tools/mockups/island_sites_src.html`.
-- The data it shows: the map is `cb-tools map 42` (inlined as a JPEG), today's sites and bases are `cb-tools sites 42`,
-  and the proposed second airport and seaport are the generator script's `PROPOSED` table, placed by eye on the map.
+- The data it shows: the map is `cb-tools map 42` (inlined as a JPEG), and every site and base is where the game now
+  places them (`cb-tools sites 42`, since island-sites-layout was built). The Today view is the generator's `TODAY`
+  table: what the game built before the change.
 - Shots: `docs/screenshots/island-sites/`, by `tools/mockups/shoot_island_sites.mjs`.
