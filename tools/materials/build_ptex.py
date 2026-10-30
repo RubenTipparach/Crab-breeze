@@ -326,12 +326,7 @@ float edge_$name(vec2 uv) { vec2 c = local_$name(uv) - vec2(0.5); return smooths
 """
 
 
-def smoke_puffs():
-    """Sixteen billowing smoke puffs, each a cluster of soft spheres eaten at the edge by noise, lit from above."""
-    g = Graph("Smoke Puffs")
-    erode = fbm(g, 16, iterations=5, persistence=0.6)
-    grain = fbm(g, 64, iterations=4, persistence=0.5, offset=0.3)
-    inst = HASH + CELL + """
+PUFF_HEIGHT = """
 float height_$name(vec2 uv) {
 	vec2 cl = cell_$name(uv);
 	vec2 c = local_$name(uv);
@@ -351,7 +346,15 @@ float height_$name(vec2 uv) {
 	// Billows: smaller rolls on the big ones, so the shading folds.
 	return h + 0.22 * smoothstep(0.0, 0.25, h) * ($billow(uv) - 0.5);
 }
-""" + LIT + """
+"""
+
+
+def smoke_puffs():
+    """Sixteen billowing smoke puffs, each a cluster of soft spheres eaten at the edge by noise, lit from above."""
+    g = Graph("Smoke Puffs")
+    erode = fbm(g, 16, iterations=5, persistence=0.6)
+    grain = fbm(g, 64, iterations=4, persistence=0.5, offset=0.3)
+    inst = HASH + CELL + PUFF_HEIGHT + LIT + """
 vec4 puff_$name(vec2 uv) {
 	float h = height_$name(uv);
 	vec3 n = lit_$name(uv, 0.0015);
@@ -367,6 +370,34 @@ vec4 puff_$name(vec2 uv) {
     g.material(albedo=(s, 0), metallic_v=0.0, transparent=True, opacity=(s, 1))
     return g
 
+
+def fireball_puffs():
+    """Sixteen fireball billows, the smoke puffs' own silhouettes (`PUFF_HEIGHT`, cell for cell) burning from within:
+    white-yellow where a billow is thick and faces out, orange to deep red in its folds and at its rim, streaked with
+    soot. Glows; not lit. A puff cross-fades from this sheet to the smoke sheet as it cools, with no change of shape
+    (owner, 2026-10-30: "I dont buy the flames as falmes, they look way too much like smoke")."""
+    g = Graph("Fireball Puffs")
+    erode = fbm(g, 16, iterations=5, persistence=0.6)
+    billow = fbm(g, 10, iterations=3, persistence=0.45, offset=0.15)
+    turb = fbm(g, 24, iterations=5, persistence=0.6, offset=0.7)
+    soot = fbm(g, 12, iterations=4, persistence=0.5, offset=0.9)
+    inst = HASH + CELL + PUFF_HEIGHT + LIT + """
+vec4 fire_$name(vec2 uv) {
+	float h = height_$name(uv);
+	vec3 n = lit_$name(uv, 0.0015);
+	// a fold or the rim faces away from the eye: cooler there
+	float fold = 1.0 - clamp(n.z, 0.0, 1.0);
+	float heat = clamp(0.2 + 1.1 * smoothstep(0.03, 0.55, h) - 0.7 * fold + 0.8 * ($turb(uv) - 0.5), 0.0, 1.0);
+	vec3 c = mix(vec3(0.30, 0.06, 0.02), vec3(1.0, 0.42, 0.08), smoothstep(0.0, 0.55, heat));
+	c = mix(c, vec3(1.0, 0.93, 0.72), smoothstep(0.55, 1.0, heat));
+	c *= mix(1.0, 0.3, smoothstep(0.58, 0.78, $soot(uv)) * (1.0 - heat));
+	float a = smoothstep(0.0, 0.45, h - 0.3 * ($erode(uv) - 0.5) - 0.05) * edge_$name(uv);
+	return vec4(c, a);
+}
+"""
+    s = shader(g, "fireball puffs", [("erode", "f", erode), ("billow", "f", billow), ("turb", "f", turb), ("soot", "f", soot)], inst, [("rgba", "fire_$name($uv)"), ("f", "fire_$name($uv).a")])
+    g.material(albedo=(s, 0), metallic_v=0.0, transparent=True, opacity=(s, 1))
+    return g
 
 def fire_flipbook():
     """Sixteen frames of a flame tongue licking up and breaking into wisps, played over a fire particle's life."""
@@ -564,6 +595,7 @@ GRAPHS = {
     "churned_soil": churned_soil,
     "smoke_puffs": smoke_puffs,
     "fire_flipbook": fire_flipbook,
+    "fireball_puffs": fireball_puffs,
     "dust_wisps": dust_wisps,
     "dirt_clods": dirt_clods,
 }
