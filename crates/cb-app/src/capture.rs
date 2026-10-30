@@ -314,7 +314,10 @@ fn offscreen_for_buildings(
     mut images: ResMut<Assets<Image>>,
     mut script: ResMut<Script>,
 ) {
-    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") && !crate::cli::switched_off("CB_STILLS_POSTER") {
+    if !crate::cli::switched_off("CB_STILLS_BUILDINGS")
+        && !crate::cli::switched_off("CB_STILLS_POSTER")
+        && !crate::cli::switched_off("CB_STILLS_SUN")
+    {
         return;
     }
     script.offscreen = Some(draw_offscreen(&mut commands, *camera, *cockpit, &mut images));
@@ -434,8 +437,10 @@ fn run_script(
             pilot.prev = st.clone();
             pilot.curr = st;
         }
-        if in_beat > 6.0 {
-            shoot(&mut commands, &script.dir, "sun.png");
+        // Into the offscreen image (`offscreen_for_buildings`): a window's screenshot is never saved under a virtual
+        // display. After 20 s, so the ground, trees and houses round the pilot have streamed in.
+        if in_beat > 20.0 {
+            shoot_image(&mut commands, &script, "sun.png");
             script.beat += 1;
             script.beat_started_s = now;
         }
@@ -1000,7 +1005,10 @@ fn run_site_tour(
     let now = time.elapsed_secs();
     let Some(home) = access.0.map(|a| a.ladder_base.xz()) else { return };
     if state.is_none() {
-        let harbour = std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "harbour");
+        let fx = std::env::var("CB_STILLS_FX").unwrap_or_default();
+        // `seaport`: the seaport's harbour wherever it is, not the harbour nearest the mech.
+        let seaport = fx == "seaport";
+        let harbour = fx == "harbour" || seaport;
         // The site's centre, and the way it faces (from the land toward the water for a harbour, along the runway for
         // a base).
         let site = if harbour {
@@ -1008,6 +1016,7 @@ fn run_site_tour(
                 b.traffic
                     .harbours
                     .iter()
+                    .filter(|h| !seaport || h.port)
                     .min_by(|a, b| a.shore.distance(home).total_cmp(&b.shore.distance(home)))
                     .map(|h| (h.shore, (h.out).normalize_or(Vec2::X)))
             })
