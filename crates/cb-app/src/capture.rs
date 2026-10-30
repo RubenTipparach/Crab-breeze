@@ -353,12 +353,14 @@ fn run_script(
     enemies: Query<&GlobalTransform, With<crate::mech::Enemy>>,
     // The piloted mech's sim and the data: the boarding clock and its timeline for the shot of the seals venting
     // (`boarding-vents`), the mech's pose for the clouds (`cloud-puffs`).
-    (mechs, data, mut steam_shot): (
+    (mechs, data, mut steam_shot, suns): (
         Query<&MechSim, With<Piloted>>,
         Res<Data>,
         // The steam shot is taken; frames drawn since the cabin sealed (the screens power up over 2.5 s of game,
         // 10 frames at the cap), counting on through the outline shot.
         Local<(bool, u32)>,
+        // `CB_STILLS_SUN`: the sun, to face it.
+        Query<&GlobalTransform, With<crate::world::Sun>>,
     ),
     // `CB_STILLS_MAIL`: where the view points on the MFDs, a career's board (none in free roam), whether the city
     // defence runs (free roam's mail), and how far through taking the offer the script is (its step, frames in it).
@@ -404,6 +406,36 @@ fn run_script(
             &mut exit,
         );
         if next {
+            script.beat += 1;
+            script.beat_started_s = now;
+        }
+        return;
+    }
+    // The sun variant (`CB_STILLS_SUN=1`, with `CB_HOUR` near dawn or dusk; owner, 2026-10-30: "dusk and dawn shouldnt
+    // be drawing atmosphere infront of everything like this"): on foot where the pilot starts, the view turned onto
+    // the sun's bearing just over the horizon, so the near trees and houses stand against the low sun; one still,
+    // `sun.png`, then out.
+    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_SUN") {
+        let path = script.dir.join("sun.png");
+        if script.beat >= 2 {
+            if in_beat > 2.0 && (path.exists() || in_beat > 30.0) {
+                exit.write(AppExit::Success);
+            }
+            return;
+        }
+        if in_beat < 0.05
+            && let Some(sun) = suns.iter().next()
+        {
+            let to_sun = sun.back();
+            let mut st = pilot.curr.clone();
+            st.mode = PilotMode::OnFoot;
+            st.yaw_rad = (-to_sun.x).atan2(-to_sun.z);
+            st.pitch_rad = 0.05;
+            pilot.prev = st.clone();
+            pilot.curr = st;
+        }
+        if in_beat > 6.0 {
+            shoot(&mut commands, &script.dir, "sun.png");
             script.beat += 1;
             script.beat_started_s = now;
         }
