@@ -1700,6 +1700,19 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // a parked airliner (airliner-models) at its pier stand, from the apron and from under its wing
+    View {
+        name: "airport-stand",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-stand-gear",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     View {
         name: "airport-tower-base",
         eye: [0.0, 0.0, 0.0],
@@ -2471,6 +2484,18 @@ fn run_weather_script(
                 cb_core::world::sites::SiteKind::Airport,
                 [565.0, 6.7, 410.0],
                 [555.0, 6.7, 290.0],
+            ),
+            "airport-stand" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [455.0, 9.0, 250.0],
+                [517.0, 3.0, 285.0],
+            ),
+            "airport-stand-gear" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [490.0, 1.8, 300.0],
+                [517.0, 2.0, 282.0],
             ),
             "airport-tower-base" => site_view(
                 &plan,
