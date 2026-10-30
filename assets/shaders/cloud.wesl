@@ -52,6 +52,8 @@ struct CloudLight {
     fog_ambient: vec4<f32>,
     fog_sun: vec4<f32>,
     fog_sun_dir: vec4<f32>,
+    fog_sun_body: vec4<f32>,
+    fog_glow: vec4<f32>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> cloud: CloudLight;
@@ -336,10 +338,11 @@ fn air_between(eye: vec3<f32>, look: vec3<f32>, dist: f32) -> f32 {
     return exp(-(max(layer, 0.0) + max(haze, 0.0)));
 }
 
-// The fog's colour along `look` (`fog_colour.wesl`, as the fog pass has it): the cloud's one texture read.
-fn fog_along(look: vec3<f32>) -> vec3<f32> {
-    let f = FogColour(cloud.sky_x, cloud.sky_y, cloud.sky_z, cloud.sky_lut, cloud.fog_ambient, cloud.fog_sun, cloud.fog_sun_dir);
-    return fog_colour(sky_view_lut, sky_view_sampler, f, look);
+// The fog's colour along `look` over `dist` metres (`fog_colour.wesl`, as the fog pass has it): the cloud's one texture
+// read, so a cloud nearer than the sun's glow reaches is not painted with it either.
+fn fog_along(look: vec3<f32>, dist: f32) -> vec3<f32> {
+    let f = FogColour(cloud.sky_x, cloud.sky_y, cloud.sky_z, cloud.sky_lut, cloud.fog_ambient, cloud.fog_sun, cloud.fog_sun_dir, cloud.fog_sun_body, cloud.fog_glow);
+    return fog_colour(sky_view_lut, sky_view_sampler, f, look, dist);
 }
 
 @fragment
@@ -353,7 +356,7 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
     // across); taken here, before any branch, where screen derivatives are defined.
     let px = length(fwidth(in.uv));
     let fine = smoothstep(1.0 / 300.0, 1.0 / 600.0, px);
-    let fog_c = fog_along(look);
+    let fog_c = fog_along(look, dist);
     var out: vec4<f32>;
     if kind > KIND_CIRRUS - 0.5 {
         out = cirrus(in, look);

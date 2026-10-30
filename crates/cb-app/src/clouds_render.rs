@@ -86,6 +86,10 @@ pub struct CloudUniform {
     pub fog_sun: Vec4,
     /// xyz toward the sun; w unused.
     pub fog_sun_dir: Vec4,
+    /// xyz toward the sun itself (the sky-view LUT's glow is round it; `fog_sun_dir` is the key light's); w unused.
+    pub fog_sun_body: Vec4,
+    /// xy the distance (m) over which the glow toward the sun comes into the fog's colour (`FogTint::glow`); zw unused.
+    pub fog_glow: Vec4,
 }
 
 impl CloudUniform {
@@ -462,6 +466,7 @@ fn refresh_light(
     fog_on: Option<Res<GroundFogOn>>,
     fog_now: Res<crate::ground_fog::FogNow>,
     weather: Res<crate::ground_fog::EyeWeather>,
+    day_light: Res<crate::day_night::Light>,
     ambient: Res<GlobalAmbientLight>,
     sun: Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody)>,
     camera: Query<(&GlobalTransform, Option<&Exposure>, Option<&bevy::pbr::AtmosphereSettings>), With<PilotCamera>>,
@@ -518,6 +523,8 @@ fn refresh_light(
         fog_ambient: tint.ambient,
         fog_sun: tint.sun.extend(0.0),
         fog_sun_dir: tint.sun_dir.extend(0.0),
+        fog_sun_body: day_light.0.sun_dir.extend(0.0),
+        fog_glow: tint.glow.extend(0.0).extend(0.0),
     };
 }
 
