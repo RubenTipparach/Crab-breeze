@@ -913,6 +913,11 @@ fn fmt_fortress(run: &crate::fortress::FortressRun, d: &cb_core::fortress::Fortr
     if f.falling {
         s += "   FALLING";
     }
+    // A burst or a beam coming (owner, 2026-10-29: "have some way of telegraphing shots"): red, naming each gun on you.
+    if !run.warnings.is_empty() {
+        s += &format!("\n!! INCOMING: {} !!", run.warnings.join(", "));
+        return (s, RED);
+    }
     // amber while its hull thrusters open and hold it, green again once it is falling
     let colour = if f.doors_s.is_some() && !f.falling { AMBER } else { GREEN };
     (s, colour)
