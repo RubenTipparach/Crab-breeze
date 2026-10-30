@@ -135,7 +135,7 @@ const GOLDEN_HIGHWAYS: usize = 12;
 const GOLDEN_RIVERS: usize = 64;
 const GOLDEN_TREES_AT_START: usize = 38407;
 // 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
-const GOLDEN_FINGERPRINT: u64 = 7415741982539864567;
+const GOLDEN_FINGERPRINT: u64 = 2360908105245372907;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -1020,7 +1020,7 @@ fn no_rivers_water_lies_under_the_ground() {
 
 #[test]
 fn the_island_has_air_bases_on_flat_ground_clear_of_the_cities() {
-    // Owner, survey J5: five air bases (air-bases). Each stands on its flattened site, clear of every
+    // Owner, 2026-10-30: four air bases (island-sites-layout; survey J5 had five). Each stands on its flattened site, clear of every
     // city, the bases spread apart, the first the nearest the largest city.
     let plan = seed_42();
     let cfg = shipped().bases;
@@ -1242,4 +1242,116 @@ fn the_pilot_walks_on_the_road_and_steps_up_onto_the_kerb() {
         "on the pavement: {}",
         p.feet.y
     );
+}
+
+/// Seed 42 as the game builds it, with the site templates `GameData::load` reads from `assets/models/sites/`.
+fn with_sites() -> &'static (WorldPlan, WorldConfig) {
+    static PLAN: OnceLock<(WorldPlan, WorldConfig)> = OnceLock::new();
+    PLAN.get_or_init(|| {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let data = crate::GameData::load(&root, "mechs/placeholder.ron").expect("the shipped data loads");
+        (generate(42, &data.world), data.world)
+    })
+}
+
+#[test]
+fn the_island_holds_two_airports_two_seaports_and_four_bases_none_overlapping() {
+    // Owner, 2026-10-30 (openspec change `island-sites-layout`): "We need to add 2 civilian airports", "Add ship ports.
+    // I want at least 2", three bases, then "lets add military base 2 back in".
+    let (plan, cfg) = with_sites();
+    let airports: Vec<_> = plan.sites.iter().filter(|s| s.template.kind == sites::SiteKind::Airport).collect();
+    let ports: Vec<_> = plan.sites.iter().filter(|s| s.template.kind == sites::SiteKind::Seaport).collect();
+    assert_eq!((airports.len(), ports.len(), plan.bases.len()), (2, 2, 4));
+    let mut rects: Vec<(String, Rect)> = plan
+        .sites
+        .iter()
+        .map(|s| (format!("{:?} {:?}", s.template.kind, s.origin), s.footprint()))
+        .collect();
+    // a base built as its page's site is that site (its runway inside it); a block-out base stands apart, its runway
+    // beside it
+    assert!(
+        plan.bases.iter().all(|b| b.site.is_some()),
+        "every base is built from the base page"
+    );
+    for b in &plan.bases {
+        let own = &plan.sites[b.site.unwrap() as usize];
+        assert_eq!(own.template.kind, sites::SiteKind::MilitaryBase);
+        assert!(own.footprint().distance(b.runway.a) <= 0.0 && own.footprint().distance(b.runway.b) <= 0.0);
+    }
+    rects.extend(
+        plan.bases
+            .iter()
+            .filter(|b| b.site.is_none())
+            .map(|b| (format!("base {}", b.id), b.rect())),
+    );
+    for (i, (a, ra)) in rects.iter().enumerate() {
+        for (b, rb) in &rects[i + 1..] {
+            assert!(!ra.overlaps(rb), "{a} overlaps {b}");
+        }
+    }
+    let d = airports[0].footprint().centre().distance(airports[1].footprint().centre());
+    assert!(d >= cfg.sites.airport_spacing_m, "the airports are {d} m apart");
+    let apart = cfg.sites.port_coast_apart_deg.to_radians().cos();
+    assert!(
+        ports[0].out().dot(ports[1].out()) <= apart + 1e-4,
+        "the seaports face different coasts"
+    );
+}
+
+#[test]
+fn nothing_stands_in_a_civil_runways_approach_cones() {
+    let (plan, cfg) = with_sites();
+    let cfg = cfg.sites.approach;
+    let airports: Vec<_> = plan.sites.iter().filter(|s| s.template.kind == sites::SiteKind::Airport).collect();
+    for (i, a) in airports.iter().enumerate() {
+        for cone in a.approaches(cfg) {
+            for s in plan.sites.iter().filter(|s| !std::ptr::eq(*s, *a)) {
+                assert!(
+                    !cone.covers(&s.footprint(), 100.0),
+                    "airport {i}'s cone covers a site at {:?}",
+                    s.origin
+                );
+            }
+            for b in &plan.bases {
+                assert!(
+                    !cone.covers(&b.rect(), 100.0) && !cone.covers(&b.runway.rect(), 100.0),
+                    "airport {i}'s cone covers base {}",
+                    b.id
+                );
+            }
+            for b in &plan.buildings {
+                let top = plan.cities[b.city as usize].ground_m + b.height_m;
+                assert!(
+                    !cone.pierced_by(&b.footprint, top, 10.0),
+                    "building {} rises into airport {i}'s cone",
+                    b.id
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_road_runs_from_a_city_to_every_site_and_the_lane_graph_reaches_its_gate() {
+    let (plan, cfg) = with_sites();
+    let access: Vec<_> = plan.highways.iter().filter(|h| h.cities[1] == roads::SITE_END).collect();
+    assert_eq!(access.len(), plan.sites.len(), "one access road a site");
+    for s in &plan.sites {
+        let f = s.footprint();
+        assert!(
+            access.iter().any(|h| f.distance(h.ends[1]) < 1.0),
+            "a road ends at {:?}'s gate",
+            s.origin
+        );
+    }
+    let graph = lanes::LaneGraph::build(&plan.cities, &plan.highways, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    for h in &access {
+        let gate = graph.nodes.iter().find(|n| n.at.distance(h.ends[1]) < 1.0).expect("a gate node");
+        assert!(
+            graph.lanes.iter().any(|l| l.to_node == gate.id),
+            "lanes run into the gate at {:?}",
+            gate.at
+        );
+        assert!(graph.lanes.iter().any(|l| l.from_node == gate.id), "and out of it");
+    }
 }

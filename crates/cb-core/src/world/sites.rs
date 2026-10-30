@@ -8,7 +8,13 @@
 //! fits by (survey AP1: one airport, the air bases are the military airfields); the seaport on the largest coastal
 //! city's coast, its quays on the shoreline and its basin out to sea (survey SP1). Each site shapes the ground inside
 //! its own footprint with its pads (survey SP2). Pure and deterministic.
+//!
+//! How many of each there are is data (owner, 2026-10-30: "We need to add 2 civilian airports", "Add ship ports. I want
+//! at least 2"; openspec change `island-sites-layout`): the civil airports are placed first, before the military bases,
+//! each later one beside the city farthest from those already down; then the seaports, each later one on a coast facing
+//! away from the ports before it. Every runway carries its approach cones (`approach`), kept clear.
 
+use super::approach::{Approach, ApproachConfig};
 use super::bases::{AirBase, KeepClear};
 use super::lamps::LightColour;
 use super::layout::{City, Rect};
@@ -26,6 +32,28 @@ use std::sync::Arc;
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct SitesConfig {
+    /// Civil airports on the island (owner, 2026-10-30: two).
+    pub airports: usize,
+    /// Seaports on the island (owner, 2026-10-30: at least two).
+    pub seaports: usize,
+    /// Least distance between two civil airports' middles, metres.
+    pub airport_spacing_m: f32,
+    /// A later airport's middle is tried out to this far past a city's square (the first's, `airport_reach_m`), metres:
+    /// the far side of the island has few cities, and an airport may stand out in the country.
+    pub later_airport_reach_m: f32,
+    /// A later airport takes the flattest fitting ground, whose natural rise across it may be up to this (it is
+    /// levelled), metres: on seed 42 the only ground within `airport_max_rise_m` is beside the first airport.
+    pub later_airport_max_rise_m: f32,
+    /// A military base's middle is tried out to this far past a city's square, metres (military-base section 4: a base
+    /// stands out in the country more than an airport, and four of its 2,780 x 960 m footprint do not fit within an
+    /// airport's reach on seed 42).
+    pub base_reach_m: f32,
+    /// The natural rise a military base's ground may have across it (its pads level it), metres.
+    pub base_max_rise_m: f32,
+    /// A later seaport's way out to sea turns at least this far from every earlier port's, degrees (another coast).
+    pub port_coast_apart_deg: f32,
+    /// Every runway's approach cones.
+    pub approach: ApproachConfig,
     /// The airport's footprint keeps this far from every city's square, metres.
     pub airport_city_clear_m: f32,
     /// ...and this far from every air base's site and runway, metres.
@@ -61,6 +89,15 @@ pub struct SitesConfig {
 impl Default for SitesConfig {
     fn default() -> Self {
         Self {
+            airports: 1,
+            seaports: 1,
+            airport_spacing_m: 8000.0,
+            later_airport_reach_m: 16000.0,
+            later_airport_max_rise_m: 90.0,
+            base_reach_m: 20000.0,
+            base_max_rise_m: 150.0,
+            port_coast_apart_deg: 90.0,
+            approach: ApproachConfig::default(),
             airport_city_clear_m: 300.0,
             airport_base_clear_m: 600.0,
             airport_max_rise_m: 45.0,
@@ -81,6 +118,13 @@ impl Default for SitesConfig {
 
 impl Validate for SitesConfig {
     fn validate(&self) -> Result<(), String> {
+        positive("sites.airport_spacing_m", self.airport_spacing_m)?;
+        positive("sites.later_airport_reach_m", self.later_airport_reach_m)?;
+        positive("sites.later_airport_max_rise_m", self.later_airport_max_rise_m)?;
+        positive("sites.base_reach_m", self.base_reach_m)?;
+        positive("sites.base_max_rise_m", self.base_max_rise_m)?;
+        within("sites.port_coast_apart_deg", self.port_coast_apart_deg, 0.0, 180.0)?;
+        self.approach.validate()?;
         positive("sites.airport_city_clear_m", self.airport_city_clear_m)?;
         positive("sites.airport_base_clear_m", self.airport_base_clear_m)?;
         positive("sites.airport_max_rise_m", self.airport_max_rise_m)?;
@@ -110,6 +154,8 @@ pub enum SiteKind {
     Airport,
     /// The seaport (`seaport-layout`).
     Seaport,
+    /// A military base (`military-base`), one template placed four times.
+    MilitaryBase,
 }
 
 /// One built thing of a site: a kit at a point of the site's frame.
@@ -255,6 +301,10 @@ pub struct SiteTemplate {
     pub lights: SiteLights,
     /// The aircraft parked at its stands.
     pub parked: Vec<ParkedAircraft>,
+    /// Its taxi network's edges, each between two of its `marks` (openspec change `airfield-traffic`): the runway
+    /// ends, entries, edges and holds, the exits, the parallel taxiway and each parked aircraft's stand and push-back
+    /// point (`stand_<i>`, `out_<i>`, `pad_<i>` for a helicopter, `<i>` its index in `parked`).
+    pub taxi_edges: Vec<(String, String)>,
 }
 
 impl SiteTemplate {
@@ -275,6 +325,8 @@ pub struct SiteTemplates {
     pub airport: Option<Arc<SiteTemplate>>,
     /// The seaport, when shipped.
     pub seaport: Option<Arc<SiteTemplate>>,
+    /// The military base, when shipped (`military-base` section 4): without it the bases are block-outs.
+    pub military_base: Option<Arc<SiteTemplate>>,
 }
 
 #[derive(Deserialize)]
@@ -289,6 +341,8 @@ struct SiteJson {
     lights: LightsJson,
     #[serde(default)]
     parked: Vec<ParkedJson>,
+    #[serde(default)]
+    taxi_edges: Vec<[String; 2]>,
 }
 
 #[derive(Deserialize)]
@@ -383,6 +437,7 @@ impl SiteTemplates {
         Ok(Self {
             airport: Some(Arc::new(load_site(dir, "airport", SiteKind::Airport, kits)?)),
             seaport: Some(Arc::new(load_site(dir, "seaport", SiteKind::Seaport, kits)?)),
+            military_base: Some(Arc::new(load_site(dir, "military_base", SiteKind::MilitaryBase, kits)?)),
         })
     }
 }
@@ -484,6 +539,16 @@ fn load_site(dir: &Path, name: &str, kind: SiteKind, kits: &mut Kits) -> Result<
             surfaces: j.ground.surfaces,
             solids,
             materials: j.ground.materials,
+        },
+        taxi_edges: {
+            let mut edges = Vec::with_capacity(j.taxi_edges.len());
+            for [a, b] in &j.taxi_edges {
+                if !marks.contains_key(a) || !marks.contains_key(b) {
+                    return Err(format!("{what}: a taxi edge joins `{a}` and `{b}`, and one is not a mark"));
+                }
+                edges.push((a.clone(), b.clone()));
+            }
+            edges
         },
         marks,
         lights,
@@ -598,9 +663,15 @@ impl PlacedSite {
         Vec3::new(p.x, self.ground_m + local.y, p.y)
     }
 
-    /// The island's lot of its placement `placement`.
-    pub fn lot_of(&self, placement: u32) -> u32 {
-        self.first_lot + placement
+    /// The island's lot of its placement `placement`, or `None` for a ship: a port's ships sail (openspec change
+    /// `ship-traffic`) and are the boats' to draw, so they are no lots.
+    pub fn lot_of(&self, placement: u32) -> Option<u32> {
+        let ps = &self.template.placements;
+        if ps.get(placement as usize).is_none_or(|p| p.ship) {
+            return None;
+        }
+        let ships_before = ps[..placement as usize].iter().filter(|p| p.ship).count() as u32;
+        Some(self.first_lot + placement - ships_before)
     }
 
     /// A world point (x, z) in its frame.
@@ -634,6 +705,24 @@ impl PlacedSite {
             .pads
             .iter()
             .map(|p| (self.rect_to_world(p.lo, p.hi), self.ground_m + p.y_m))
+            .collect()
+    }
+
+    /// Its runways' centre lines in the world (each end, x z), their widths and their surfaces' heights.
+    pub fn runways(&self) -> Vec<(Vec2, Vec2, f32, f32)> {
+        self.template
+            .lights
+            .runways
+            .iter()
+            .map(|r| (self.to_world(r.a), self.to_world(r.b), r.width_m, self.ground_m + r.y_m))
+            .collect()
+    }
+
+    /// Its runways' approach cones, both ends of each.
+    pub fn approaches(&self, cfg: ApproachConfig) -> Vec<Approach> {
+        self.runways()
+            .into_iter()
+            .flat_map(|(a, b, w, y)| Approach::both(a, b, w, y, cfg))
             .collect()
     }
 
@@ -678,15 +767,17 @@ impl PlacedSite {
             .collect()
     }
 
-    /// Its built things as lots on the island, in the template's order.
+    /// Its built things as lots on the island, in the template's order, its ships left out (they sail: `lot_of`).
     pub fn lots(&self, kits: &Kits) -> Vec<Lot> {
         let zone = match self.template.kind {
             SiteKind::Airport => Zone::Airport,
             SiteKind::Seaport => Zone::Seaport,
+            SiteKind::MilitaryBase => Zone::MilitaryBase,
         };
         self.template
             .placements
             .iter()
+            .filter(|p| !p.ship)
             .map(|p| {
                 let k = &kits.kits[p.kit];
                 let heading_rad = self.heading_rad() + f32::from(p.turn) * std::f32::consts::FRAC_PI_2;
@@ -734,6 +825,10 @@ pub struct Clear<'a> {
     pub min_ground_m: f32,
     /// The sea's level.
     pub sea_level_m: f32,
+    /// The sites placed before this one.
+    pub placed: &'a [PlacedSite],
+    /// The buildings of the cities (an airport's approach cones keep above them).
+    pub buildings: &'a [super::layout::Building],
 }
 
 /// Sample points `step_m` apart over `r`, edges included.
@@ -763,6 +858,102 @@ fn clear_of_bases(r: &Rect, bases: &[AirBase], m: f32) -> bool {
     })
 }
 
+/// True when `r` keeps `m` from every site already placed.
+fn clear_of_sites(r: &Rect, placed: &[PlacedSite], m: f32) -> bool {
+    placed.iter().all(|s| {
+        let f = s.footprint();
+        !Rect {
+            min: f.min - Vec2::splat(m),
+            max: f.max + Vec2::splat(m),
+        }
+        .overlaps(r)
+    })
+}
+
+/// True when the airport `site`'s approach cones cover no base's site or runway, no other site, and no building of a
+/// city rising into them.
+fn approaches_clear(site: &PlacedSite, clear: &Clear, cfg: &SitesConfig) -> bool {
+    let step = cfg.sample_m * 2.0;
+    site.approaches(cfg.approach).iter().all(|a| {
+        clear
+            .bases
+            .iter()
+            .all(|b| !a.covers(&b.rect(), step) && !a.covers(&b.runway.rect(), step))
+            && clear.placed.iter().all(|s| !a.covers(&s.footprint(), step))
+            && clear.buildings.iter().all(|b| {
+                let top = clear.cities.get(b.city as usize).map_or(0.0, |c| c.ground_m) + b.height_m;
+                !a.pierced_by(&b.footprint, top, 10.0)
+            })
+    })
+}
+
+/// Its approach cones cover no other site or base, no building rises into them, and its footprint `r` stands under no
+/// earlier runway's cone (`others`).
+fn cones_clear(placed: &PlacedSite, r: &Rect, others: &[Approach], clear: &Clear, cfg: &SitesConfig) -> bool {
+    approaches_clear(placed, clear, cfg) && !others.iter().any(|a| a.covers(r, cfg.sample_m * 2.0))
+}
+
+/// The civil airports, `cfg.airports` of them, the first placed first (`place_airport_counted`), each later one kept
+/// clear of those before it; with the candidates every rule turned down, summed over them all.
+pub fn place_airports(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Clear, cfg: &SitesConfig) -> (Vec<PlacedSite>, Rejections) {
+    place_runway_sites(shape, tpl, clear, cfg, cfg.airports)
+}
+
+/// `count` sites of a template with a runway (the airports, the military bases), each placed by
+/// `place_airport_counted`, clear of every site before it: the airport's rules for any site with a runway, one
+/// implementation (`military-base` section 4).
+pub fn place_runway_sites(
+    shape: &Shape,
+    tpl: &Arc<SiteTemplate>,
+    clear: &Clear,
+    cfg: &SitesConfig,
+    count: usize,
+) -> (Vec<PlacedSite>, Rejections) {
+    let mut out: Vec<PlacedSite> = Vec::new();
+    let mut why: Rejections = [0; 6];
+    for _ in 0..count {
+        let all: Vec<PlacedSite> = clear.placed.iter().cloned().chain(out.iter().cloned()).collect();
+        let c = Clear { placed: &all, ..*clear };
+        let (site, w) = place_airport_counted(shape, tpl, &c, cfg);
+        for (a, b) in why.iter_mut().zip(w) {
+            *a += b;
+        }
+        match site {
+            Some(s) => out.push(s),
+            None => break,
+        }
+    }
+    (out, why)
+}
+
+/// The seaports, `cfg.seaports` of them: each placed by `place_seaport`, clear of every site before it, a later one on
+/// a coast whose way out turns at least `port_coast_apart_deg` from every earlier port's, beside the city farthest
+/// from them.
+pub fn place_seaports(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Clear, cfg: &SitesConfig) -> Vec<PlacedSite> {
+    let mut out: Vec<PlacedSite> = Vec::new();
+    for _ in 0..cfg.seaports {
+        let all: Vec<PlacedSite> = clear.placed.iter().cloned().chain(out.iter().cloned()).collect();
+        let ports: Vec<&PlacedSite> = out.iter().collect();
+        let mut cities: Vec<City> = clear.cities.to_vec();
+        if !ports.is_empty() {
+            let far = |c: &City| ports.iter().map(|p| p.origin.distance(c.centre)).fold(f32::INFINITY, f32::min);
+            cities.sort_by(|a, b| far(b).total_cmp(&far(a)));
+        }
+        let c = Clear {
+            placed: &all,
+            cities: &cities,
+            ..*clear
+        };
+        let apart = cfg.port_coast_apart_deg.to_radians().cos();
+        let ok = |s: &PlacedSite| ports.iter().all(|p| p.out().dot(s.out()) <= apart + 1e-4);
+        match place_seaport_where(shape, tpl, &c, cfg, &ok) {
+            Some(s) => out.push(s),
+            None => break,
+        }
+    }
+    out
+}
+
 /// The civil airport: beside the largest city it fits by, its middle tried on rings round each city in turn, out from
 /// the square in `airport_step_m` steps to `airport_reach_m`, a step apart round each ring, every quarter turn; on dry
 /// land flat enough to level, clear of the cities, the bases, the highways and the lakes (`Clear::water_near`). Its ground is the mean of the land under it.
@@ -784,10 +975,36 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
         courses: &[],
         ..*clear.keep
     };
-    for city in clear.cities {
+    // A later airport goes beside the city farthest from the airports already down (stable: ties keep the cities'
+    // order), so the two serve opposite ends of the island.
+    let earlier: Vec<Vec2> = clear
+        .placed
+        .iter()
+        .filter(|s| s.template.kind == tpl.kind)
+        .map(|s| s.footprint().centre())
+        .collect();
+    let mut order: Vec<&City> = clear.cities.iter().collect();
+    if !earlier.is_empty() {
+        let far = |c: &City| earlier.iter().map(|e| e.distance(c.centre)).fold(f32::INFINITY, f32::min);
+        order.sort_by(|a, b| far(b).total_cmp(&far(a)));
+    }
+    let others: Vec<Approach> = clear.placed.iter().flat_map(|s| s.approaches(cfg.approach)).collect();
+    let first = earlier.is_empty();
+    let (reach, max_rise) = if tpl.kind == SiteKind::MilitaryBase {
+        (cfg.base_reach_m, cfg.base_max_rise_m)
+    } else if first {
+        (cfg.airport_reach_m, cfg.airport_max_rise_m)
+    } else {
+        (cfg.later_airport_reach_m, cfg.later_airport_max_rise_m)
+    };
+    // A later airport: every fitting candidate, its rise beside it, the flattest taken (ties keep the search's order).
+    let mut pool: Vec<(f32, PlacedSite)> = Vec::new();
+    // The rings round neighbouring cities cross: a spot is tried once (its middle to the step, and its turn).
+    let mut tried: std::collections::BTreeSet<(i32, i32, u8)> = std::collections::BTreeSet::new();
+    for city in order {
         let half = city.rect().size().max_element() * 0.5;
         let mut ring = half + cfg.airport_city_clear_m + half_diag * 0.5;
-        while ring <= half + cfg.airport_reach_m {
+        while ring <= half + reach {
             let around = ((ring * std::f32::consts::TAU / cfg.airport_step_m).ceil() as usize).max(8);
             for b in 0..around {
                 let ang = b as f32 / around as f32 * std::f32::consts::TAU;
@@ -795,15 +1012,48 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
                 for turn in 0..4u8 {
                     let site = PlacedSite::new(tpl.clone(), c - turn_by(mid, turn), turn, 0.0, city.id);
                     let r = site.footprint();
+                    if !first
+                        && !tried.insert((
+                            (c.x / cfg.airport_step_m).round() as i32,
+                            (c.y / cfg.airport_step_m).round() as i32,
+                            turn,
+                        ))
+                    {
+                        continue;
+                    }
                     let grow = |x: Rect, m: f32| Rect {
                         min: x.min - Vec2::splat(m),
                         max: x.max + Vec2::splat(m),
                     };
+                    // Nine points first (the corners, the edges' middles and the middle): off dry land or too steep
+                    // there is too steep everywhere, at a fiftieth of the cost.
+                    let nine = samples(&r, r.size().max_element());
+                    let coarse: Vec<f32> = nine.iter().map(|p| shape.height(*p)).collect();
+                    let spread =
+                        coarse.iter().fold(f32::NEG_INFINITY, |m, h| m.max(*h)) - coarse.iter().fold(f32::INFINITY, |m, h| m.min(*h));
+                    if nine
+                        .iter()
+                        .zip(&coarse)
+                        .any(|(p, h)| shape.past_land_edge_m(*p) >= 0.0 || *h < clear.min_ground_m)
+                    {
+                        why[2] += 1;
+                        continue;
+                    }
+                    if spread > max_rise {
+                        why[3] += 1;
+                        continue;
+                    }
                     if clear.cities.iter().any(|k| grow(k.rect(), cfg.airport_city_clear_m).overlaps(&r)) {
                         why[0] += 1;
                         continue;
                     }
-                    if !clear_of_bases(&r, clear.bases, cfg.airport_base_clear_m) {
+                    if !clear_of_bases(&r, clear.bases, cfg.airport_base_clear_m)
+                        || !clear_of_sites(&r, clear.placed, cfg.airport_base_clear_m)
+                    {
+                        why[1] += 1;
+                        continue;
+                    }
+                    if earlier.iter().any(|e| e.distance(r.centre()) < cfg.airport_spacing_m) {
                         why[1] += 1;
                         continue;
                     }
@@ -823,7 +1073,7 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
                     let (a, z) = hs
                         .iter()
                         .fold((f32::INFINITY, f32::NEG_INFINITY), |(a, b), h| (a.min(*h), b.max(*h)));
-                    if z - a > cfg.airport_max_rise_m {
+                    if z - a > max_rise {
                         why[3] += 1;
                         continue;
                     }
@@ -839,26 +1089,49 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
                     // The pad levels the ground to its height in the frame, so y = 0 sits that much over the mean.
                     let pad_y = tpl.pads.first().map_or(0.0, |p| p.y_m);
                     let placed = PlacedSite::new(tpl.clone(), site.origin, turn, mean.max(clear.min_ground_m) - pad_y, city.id);
+                    if !first {
+                        pool.push((z - a, placed));
+                        continue;
+                    }
+                    if !cones_clear(&placed, &r, &others, clear, cfg) {
+                        why[1] += 1;
+                        continue;
+                    }
                     return (Some(placed), why);
                 }
             }
             ring += cfg.airport_step_m;
         }
     }
+    pool.sort_by(|a, b| a.0.total_cmp(&b.0));
+    for (_, placed) in pool {
+        let r = placed.footprint();
+        if cones_clear(&placed, &r, &others, clear, cfg) {
+            return (Some(placed), why);
+        }
+        why[1] += 1;
+    }
     (None, why)
 }
 
 /// The seaport: on the coast of the largest city with a fitting shore (cities in their order), its frame's z = 0 on
 /// the shoreline and its +z out to sea, turned the quarter turn nearest the way out, slid along the shore; the one whose
-/// land is most land and whose basin most sea. Its ground (y = 0) is the sea's level. `airport` is kept clear of.
-pub fn place_seaport(
+/// land is most land and whose basin most sea. Its ground (y = 0) is the sea's level. The sites placed before it
+/// (`Clear::placed`) and their approach cones are kept clear of.
+pub fn place_seaport(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Clear, cfg: &SitesConfig) -> Option<PlacedSite> {
+    place_seaport_where(shape, tpl, clear, cfg, &|_| true)
+}
+
+/// `place_seaport`, taking only a port `ok` accepts.
+fn place_seaport_where(
     shape: &Shape,
     tpl: &Arc<SiteTemplate>,
     clear: &Clear,
-    airport: Option<&Rect>,
     cfg: &SitesConfig,
+    ok: &dyn Fn(&PlacedSite) -> bool,
 ) -> Option<PlacedSite> {
     let sea = clear.sea_level_m;
+    let cones: Vec<Approach> = clear.placed.iter().flat_map(|s| s.approaches(cfg.approach)).collect();
     for city in clear.cities {
         let mut best: Option<(f32, PlacedSite)> = None;
         let half = city.rect().size().max_element() * 0.5;
@@ -891,7 +1164,9 @@ pub fn place_seaport(
                 };
                 if clear.cities.iter().any(|k| grow(k.rect(), cfg.port_city_clear_m).overlaps(&r))
                     || !clear_of_bases(&r, clear.bases, cfg.airport_base_clear_m)
-                    || airport.is_some_and(|a| grow(*a, 200.0).overlaps(&r))
+                    || clear.placed.iter().any(|a| grow(a.footprint(), 200.0).overlaps(&r))
+                    || cones.iter().any(|a| a.covers(&r, cfg.sample_m * 2.0))
+                    || !ok(&site)
                 {
                     continue;
                 }

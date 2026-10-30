@@ -8,19 +8,25 @@
 //! `Standing`; `crate::civil_standing` charges them to the career (survey W34). Pure and seeded.
 
 pub mod config;
+pub mod fields;
 pub mod flight;
+pub mod model;
 pub mod shape;
 #[cfg(test)]
 mod tests;
 
 pub use config::{AirTrafficConfig, AircraftModel, AircraftSpec, Engine, EngineSound, Role};
-pub use flight::{Air, Aircraft, Flight, FlightStep, Phase, Strip, Zone, departure_strip, in_zone, landing_strip, rest_m};
+pub use fields::{CIVIL_FIELD_ID, Field};
+pub use flight::{
+    Air, Aircraft, Flight, FlightStep, HitOutcome, Phase, Strip, Then, Zone, departure_strip, in_zone, landing_strip, rest_m,
+    rest_pitch_rad,
+};
 
 use crate::rng::SimRng;
 use crate::world::{AirBase, City};
 use config::NearConfig;
 use glam::{Vec2, Vec3};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Where the pilot is and looks: traffic appears only where this cannot see it appear.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -49,8 +55,10 @@ pub fn hidden(w: &Watcher, p: Vec3, near: &NearConfig) -> bool {
 pub struct Island<'a> {
     /// Ground height under a point (x, z).
     pub ground: &'a dyn Fn(f32, f32) -> f32,
-    /// The air bases.
+    /// Every runway traffic flies to: the airfields' bases (`Field::base`), civil airports and military bases.
     pub bases: &'a [AirBase],
+    /// The airfields, for traffic on the ground (none: aircraft only fly, as before airfield-traffic).
+    pub fields: &'a [Field],
     /// The cities.
     pub cities: &'a [City],
     /// Fights to keep clear of.
@@ -162,12 +170,220 @@ impl Traffic {
             }
         }
         self.list.retain(|a| !leave.contains(&a.id));
+        self.ground(cfg, island);
         self.since_check_s += dt_s;
         if self.since_check_s >= cfg.near.check_s {
             self.since_check_s = 0.0;
             self.spawn(cfg, w, island);
+            self.fill_stands(cfg, w, island);
         }
         events
+    }
+
+    /// The stands held, by (field, stand): whoever stands at one or taxis to or from it.
+    pub fn stands_held(&self) -> BTreeMap<(u32, usize), u32> {
+        self.list.iter().filter_map(|a| Some((a.stand?, a.id))).collect()
+    }
+
+    /// The pilot steals aircraft `id` (`fly-stolen-aircraft`): only one standing still on the ground and whole. It leaves
+    /// the traffic's care, its stand freed: from now its place is the pilot's flight model's (`fly`). True when taken.
+    pub fn steal(&mut self, id: u32) -> bool {
+        let Some(a) = self.get_mut(id) else { return false };
+        if a.stolen {
+            return true;
+        }
+        let still = matches!(a.phase, Phase::Stand { .. } | Phase::Parked { .. } | Phase::Hold { .. })
+            || (matches!(a.phase, Phase::Taxi { .. }) && a.speed_m_s < 1.0);
+        if !still || a.downed() {
+            return false;
+        }
+        a.stolen = true;
+        a.stand = None;
+        a.field = None;
+        a.taxi.clear();
+        a.departure = None;
+        a.speed_m_s = 0.0;
+        a.vel = Vec3::ZERO;
+        a.phase = Phase::Piloted { wheels: true };
+        true
+    }
+
+    /// Where the pilot's flight model has a stolen aircraft this step: its centre, velocity and attitude, and whether it
+    /// is on its wheels. Ignored for any aircraft not stolen, or downed.
+    #[allow(clippy::too_many_arguments)]
+    pub fn fly(&mut self, id: u32, pos: Vec3, vel: Vec3, heading_rad: f32, pitch_rad: f32, bank_rad: f32, wheels: bool) {
+        let Some(a) = self.get_mut(id) else { return };
+        if !a.stolen || a.downed() {
+            return;
+        }
+        a.pos = pos;
+        a.vel = vel;
+        a.speed_m_s = vel.length();
+        a.heading_rad = heading_rad;
+        a.pitch_rad = pitch_rad;
+        a.bank_rad = bank_rad;
+        a.phase = Phase::Piloted { wheels };
+    }
+
+    /// A stolen aircraft flown into the ground: it comes down (and crashes as any downed one does).
+    pub fn crash(&mut self, id: u32) {
+        if let Some(a) = self.get_mut(id)
+            && !a.downed()
+        {
+            a.hp = 0.0;
+            a.phase = Phase::Falling;
+        }
+    }
+
+    /// A military field's alarm (owner's plan answer, 2026-10-30: "Patrol, scramble if hostile"): every fighter and
+    /// gunship standing at field `field` leaves at once to patrol over `over` (x, z), and every one already on patrol
+    /// from it turns to circle there instead. How many answered.
+    pub fn scramble(&mut self, cfg: &AirTrafficConfig, field: u32, over: Vec2) -> usize {
+        let mut n = 0;
+        for a in &mut self.list {
+            let Some(spec) = cfg.kinds.get(&a.kind) else { continue };
+            if !matches!(spec.role, Role::Fighter | Role::Gunship) {
+                continue;
+            }
+            match (&mut a.flight, a.phase) {
+                (_, Phase::Stand { .. }) if a.field == Some(field) => {
+                    a.phase = Phase::Stand { t_s: spec.turn_s };
+                    a.scramble = Some(over);
+                    a.hostile = true;
+                    n += 1;
+                }
+                (Flight::Patrol { home, centre, left_s, .. }, _) if *home == field => {
+                    *centre = over;
+                    *left_s = left_s.max(cfg.routes.patrol_s * 0.5);
+                    a.hostile = true;
+                    n += 1;
+                }
+                _ => {}
+            }
+        }
+        n
+    }
+
+    /// The scrambled aircraft now circling over the pilot: they leave the traffic, to be flown and fired by the
+    /// invasion's units (design F2: "using the existing unit weapons"). In id order.
+    pub fn take_attackers(&mut self) -> Vec<Aircraft> {
+        let ready = |a: &Aircraft| a.hostile && !a.downed() && a.phase == Phase::Orbit && matches!(a.flight, Flight::Patrol { .. });
+        let out: Vec<Aircraft> = self.list.iter().filter(|a| ready(a)).cloned().collect();
+        self.list.retain(|a| !ready(a));
+        out
+    }
+
+    /// The fields whose runway is in use: an aircraft lining up or rolling on it, or one on final or rolling out.
+    fn runways_busy(&self) -> BTreeSet<u32> {
+        let mut busy = BTreeSet::new();
+        for a in &self.list {
+            let lining_up = matches!(a.phase, Phase::Taxi { then: Then::Roll, .. } | Phase::Roll { .. });
+            if lining_up && let Some(f) = a.field {
+                busy.insert(f);
+            }
+            if let (Phase::Final | Phase::Rollout { .. }, Flight::Route { to, .. }) = (a.phase, &a.flight) {
+                busy.insert(*to);
+            }
+        }
+        busy
+    }
+
+    /// The traffic's decisions on the ground (openspec change `airfield-traffic`): an aircraft whose turnaround is
+    /// over leaves its stand, one at its holding point is cleared onto a free runway, and one that has landed taxis
+    /// to a free stand of its size. In id order, each decision seen by the next.
+    fn ground(&mut self, cfg: &AirTrafficConfig, island: &Island) {
+        if island.fields.is_empty() {
+            return;
+        }
+        let r = &cfg.routes;
+        let mut held = self.stands_held();
+        let mut busy = self.runways_busy();
+        for i in 0..self.list.len() {
+            let a = &self.list[i];
+            let Some(spec) = cfg.kinds.get(&a.kind) else { continue };
+            match a.phase {
+                Phase::Stand { t_s } if t_s >= spec.turn_s => {
+                    let Some(field) = a.field.and_then(|f| island.fields.iter().find(|x| x.id == f)) else {
+                        continue;
+                    };
+                    let mut rng = self.rng.fork(&format!("depart {} {}", a.id, self.checks));
+                    depart(&mut self.list[i], spec, field, island, r, &mut rng);
+                }
+                Phase::Hold { t_s } if t_s >= r.hold_s => {
+                    let (Some(f), Some(strip)) = (a.field, a.departure) else { continue };
+                    if busy.contains(&f) {
+                        continue;
+                    }
+                    let a = &mut self.list[i];
+                    a.taxi = vec![a.xz(), strip.start];
+                    a.phase = Phase::Taxi {
+                        s_m: 0.0,
+                        push_m: 0.0,
+                        then: Then::Roll,
+                    };
+                    // its stand is free for the next arrival once it rolls
+                    if !spec.role.rotorcraft() {
+                        a.stand = None;
+                    }
+                    busy.insert(f);
+                }
+                Phase::Parked { .. } => {
+                    let Flight::Route { to, strip, .. } = a.flight else { continue };
+                    let Some(field) = island.fields.iter().find(|x| x.id == to) else {
+                        continue;
+                    };
+                    let (here, dir) = (a.xz(), strip.dir());
+                    let Some(exit) = field.exit_for(here, dir) else { continue };
+                    let Some(k) = free_stand(field, &a.kind, &held) else { continue };
+                    let Some(route) = field.taxi.route(exit, field.stands[k].node) else {
+                        continue;
+                    };
+                    let a = &mut self.list[i];
+                    let mut line = vec![here];
+                    line.extend(field.taxi.line(&route));
+                    a.taxi = line;
+                    a.phase = Phase::Taxi {
+                        s_m: 0.0,
+                        push_m: 0.0,
+                        then: Then::Stand,
+                    };
+                    a.stand = Some((field.id, k));
+                    a.stand_heading = field.stands[k].heading_rad;
+                    a.field = Some(field.id);
+                    a.departure = None;
+                    held.insert((field.id, k), a.id);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Every check: the empty stands of each field near the pilot that the pilot cannot see fill, three in four, with
+    /// the kind the stand is for, part way through its turnaround (so they leave in turn, not all at once).
+    fn fill_stands(&mut self, cfg: &AirTrafficConfig, w: &Watcher, island: &Island) {
+        let held = self.stands_held();
+        let eye = Vec2::new(w.eye.x, w.eye.z);
+        let mut rng = self.rng.fork(&format!("stands {}", self.checks));
+        for f in island.fields {
+            if f.base.centre.distance(eye) >= cfg.routes.stand_fill_m {
+                continue;
+            }
+            for (k, st) in f.stands.iter().enumerate() {
+                let Some(spec) = cfg.kinds.get(&st.kind) else { continue };
+                let p = f.taxi.points[st.node];
+                let at = Vec3::new(p.x, (island.ground)(p.x, p.y), p.y);
+                let roll = rng.chance(0.75);
+                let t_s = rng.range_f32(0.0, spec.turn_s);
+                // the first check fills them in sight as well: the world is still loading
+                let unseen = self.checks <= 1 || hidden(w, at, &cfg.near);
+                if held.contains_key(&(f.id, k)) || !unseen || !roll {
+                    continue;
+                }
+                let id = self.take_id();
+                self.list
+                    .push(Aircraft::standing(id, &st.kind, spec, f.id, k, at, st.heading_rad, t_s));
+            }
+        }
     }
 
     /// The career loop's hook (survey: "bought mechs air dropped near the player by a cargo aircraft"):
@@ -196,6 +412,10 @@ impl Traffic {
         let mut rng = self.rng.fork(&format!("check {}", self.checks));
         self.checks += 1;
         for (name, spec) in &cfg.kinds {
+            // a military base's fighters and gunships live on its stands only
+            if spec.role.military() && !spec.role.flies_routes() {
+                continue;
+            }
             let have = self.list.iter().filter(|a| &a.kind == name).count() as u32;
             if have >= spec.max_near {
                 continue;
@@ -212,6 +432,113 @@ impl Traffic {
             }
         }
     }
+}
+
+/// The runways a kind flies between: a military kind the bases', a civil one the civil airports' (when the island has
+/// two; before it did, every runway).
+fn route_bases<'b>(island: &Island<'b>, spec: &AircraftSpec) -> Vec<&'b AirBase> {
+    let side: Vec<&AirBase> = island
+        .bases
+        .iter()
+        .filter(|b| (b.id >= CIVIL_FIELD_ID) != spec.role.military())
+        .collect();
+    if side.len() >= 2 { side } else { island.bases.iter().collect() }
+}
+
+/// A free stand at `field` for `kind`: one made for it, else (for a fixed wing) any free stand that is no pad.
+fn free_stand(field: &Field, kind: &str, held: &BTreeMap<(u32, usize), u32>) -> Option<usize> {
+    let free = |k: &usize| !held.contains_key(&(field.id, *k));
+    let ks = 0..field.stands.len();
+    ks.clone()
+        .filter(free)
+        .find(|&k| field.stands[k].kind == kind)
+        .or_else(|| ks.filter(free).find(|&k| !field.stands[k].pad))
+}
+
+/// Sends `a` off its stand at `field`: a rotorcraft lifts off for a patrol (over a city, or over its base) and keeps
+/// its pad to settle back on; a fighter taxis out for a patrol over its base; anything else taxis out for a route to
+/// another field of its side. Pushed back first where its stand's way out is behind it.
+fn depart(a: &mut Aircraft, spec: &AircraftSpec, field: &Field, island: &Island, r: &config::RouteConfig, rng: &mut SimRng) {
+    let Some((_, k)) = a.stand else { return };
+    let Some(stand) = field.stands.get(k) else { return };
+    let here = a.xz();
+    let dir = if rng.chance(0.5) { 1.0 } else { -1.0 };
+    if spec.role.rotorcraft() {
+        let (centre, radius_m) = if let Some(p) = a.scramble.take() {
+            (p, spec.orbit_radius_m[0])
+        } else if field.civil {
+            let c = island
+                .cities
+                .iter()
+                .min_by(|x, y| x.centre.distance(here).total_cmp(&y.centre.distance(here)).then(x.id.cmp(&y.id)));
+            (
+                c.map_or(field.base.centre, |c| c.centre),
+                rng.range_f32(spec.orbit_radius_m[0], spec.orbit_radius_m[1]),
+            )
+        } else {
+            (field.base.centre, r.patrol_radius_m)
+        };
+        a.flight = Flight::Patrol {
+            home: field.id,
+            centre,
+            radius_m,
+            dir,
+            left_s: r.patrol_s,
+            pad: Some(here),
+        };
+        a.phase = Phase::Lift;
+        return;
+    }
+    let (toward, flight) = if spec.role == Role::Fighter {
+        let scrambled = a.scramble.take();
+        let centre = scrambled.unwrap_or(field.base.centre);
+        let flight = Flight::Patrol {
+            home: field.id,
+            centre,
+            radius_m: if scrambled.is_some() {
+                spec.orbit_radius_m[0]
+            } else {
+                r.patrol_radius_m
+            },
+            dir,
+            left_s: r.patrol_s,
+            pad: None,
+        };
+        (centre + (centre - here).normalize_or(Vec2::X) * r.patrol_radius_m, flight)
+    } else {
+        let others: Vec<&AirBase> = route_bases(island, spec).into_iter().filter(|b| b.id != field.id).collect();
+        let Some(to) = pick(others, rng) else {
+            a.phase = Phase::Stand { t_s: 0.0 };
+            return;
+        };
+        let flight = Flight::Route {
+            to: to.id,
+            strip: landing_strip(to, r, field.base.centre),
+            via: Vec::new(),
+            next_via: 0,
+        };
+        (to.centre, flight)
+    };
+    let strip = departure_strip(&field.base, r, toward);
+    let entry = field.entry_for(strip.start);
+    let way_out = stand.out.unwrap_or(stand.node);
+    let Some(route) = field.taxi.route(way_out, entry) else {
+        a.phase = Phase::Stand { t_s: 0.0 };
+        return;
+    };
+    let out_p = field.taxi.points[way_out];
+    let behind = (out_p - here).dot(a.fwd2()) < 0.0;
+    let mut line = vec![here];
+    line.extend(field.taxi.line(&route));
+    line.dedup_by(|x, y| x.distance(*y) < 0.5);
+    a.taxi = line;
+    a.phase = Phase::Taxi {
+        s_m: 0.0,
+        push_m: if behind { here.distance(out_p) } else { 0.0 },
+        then: Then::Hold,
+    };
+    a.flight = flight;
+    a.departure = Some(strip);
 }
 
 /// Room for a spawn: unseen, not about to be removed, not in a fight.
@@ -237,7 +564,10 @@ fn route_spawn(
     island: &Island,
     rng: &mut SimRng,
 ) -> Option<Aircraft> {
-    let open: Vec<&AirBase> = island.bases.iter().filter(|b| !in_zone(b.centre, island.zones, 0.0)).collect();
+    let open: Vec<&AirBase> = route_bases(island, spec)
+        .into_iter()
+        .filter(|b| !in_zone(b.centre, island.zones, 0.0))
+        .collect();
     if open.len() < 2 {
         return None;
     }

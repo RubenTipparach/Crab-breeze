@@ -1,0 +1,649 @@
+{
+  "_": "One of the military base's aircraft (openspec change military-base), built by tools/blender/build_military_aircraft.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage centre line half way along; the ground is at y = -rest_m. Meshes are <part>.L<level> under ZONE_* nodes or RIG_* pivots; level 0 carries the interior (int_*). EYE_pilot is the pilot's eye, DOOR_* where a pilot on foot climbs in.",
+  "blender": "4.4.3",
+  "bounds_m": {
+    "x": [
+      -6.51,
+      6.51
+    ],
+    "y": [
+      -1.95,
+      3.768
+    ],
+    "z": [
+      -9.7,
+      10.15
+    ]
+  },
+  "bytes": 1436408,
+  "csg_steps": 10,
+  "file": "fighter.glb",
+  "generator": "tools/blender/build_military_aircraft.py",
+  "hp": 90.0,
+  "id": "fighter",
+  "interior": [
+    "int_hud",
+    "int_panel",
+    "int_seat",
+    "int_stick"
+  ],
+  "lamps": [
+    {
+      "at": [
+        -6.15,
+        -0.041,
+        3.1319
+      ],
+      "colour": "red",
+      "node": "LAMP_nav_left",
+      "pattern": "steady",
+      "zone": "wing_inner_l"
+    },
+    {
+      "at": [
+        6.15,
+        -0.041,
+        3.1319
+      ],
+      "colour": "green",
+      "node": "LAMP_nav_right",
+      "pattern": "steady",
+      "zone": "wing_inner_r"
+    },
+    {
+      "at": [
+        0.0,
+        0.05,
+        9.25
+      ],
+      "colour": "white",
+      "node": "LAMP_nav_tail",
+      "pattern": "steady",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        0.0,
+        -0.78,
+        0.5
+      ],
+      "colour": "red",
+      "node": "LAMP_beacon_bottom",
+      "pattern": "beacon",
+      "zone": "centre"
+    },
+    {
+      "at": [
+        -1.98,
+        3.66,
+        7.4
+      ],
+      "colour": "white",
+      "node": "LAMP_strobe_tail_l",
+      "pattern": "strobe",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        1.98,
+        3.66,
+        7.4
+      ],
+      "colour": "white",
+      "node": "LAMP_strobe_tail_r",
+      "pattern": "strobe",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        0.0,
+        -0.95,
+        -6.0
+      ],
+      "colour": "white",
+      "node": "LAMP_landing",
+      "pattern": "landing",
+      "zone": "nose"
+    },
+    {
+      "at": [
+        0.0,
+        0.6,
+        0.0
+      ],
+      "colour": "green",
+      "node": "LAMP_formation",
+      "pattern": "steady",
+      "zone": "centre"
+    }
+  ],
+  "light_patterns": {
+    "beacon": {
+      "on_s": 0.1,
+      "period_s": 1.0
+    },
+    "landing": {
+      "below_agl_m": 600
+    },
+    "steady": {},
+    "strobe": {
+      "flashes": 2,
+      "gap_s": 0.15,
+      "on_s": 0.05,
+      "period_s": 1.2
+    }
+  },
+  "lods": [
+    {
+      "budget_triangles": 18000,
+      "lod": 0,
+      "triangles": 5062,
+      "within_m": 250
+    },
+    {
+      "budget_triangles": 5000,
+      "lod": 1,
+      "triangles": 2756,
+      "within_m": 1500
+    },
+    {
+      "budget_triangles": 1500,
+      "lod": 2,
+      "triangles": 1234,
+      "within_m": null
+    }
+  ],
+  "marks": {
+    "DOOR_ladder": [
+      -1.1,
+      -1.95,
+      -5.0
+    ],
+    "EYE_pilot": [
+      0.0,
+      1.02,
+      -4.8
+    ],
+    "FX_afterburner_1": [
+      -0.72,
+      0.0,
+      10.15
+    ],
+    "FX_afterburner_2": [
+      0.72,
+      0.0,
+      10.15
+    ]
+  },
+  "materials": [
+    "fighter_top",
+    "fighter_belly",
+    "fighter_trim",
+    "fighter_metal",
+    "fighter_dark",
+    "fighter_rubber",
+    "fighter_glass",
+    "fighter_torn",
+    "fighter_panel",
+    "fighter_seat",
+    "fighter_floor",
+    "fighter_hazard",
+    "fighter_nav_red",
+    "fighter_nav_green",
+    "fighter_nav_white",
+    "fighter_beacon",
+    "fighter_strobe",
+    "fighter_landing",
+    "fighter_formation"
+  ],
+  "measured_m": {
+    "ground_clearance": -0.0,
+    "height_at_rest": 5.718,
+    "length": 19.85,
+    "span": 13.019
+  },
+  "rest_m": 1.95,
+  "rest_pitch_deg": 0.0,
+  "rig": [
+    {
+      "angle_deg": 48.0,
+      "at": [
+        0.0,
+        0.92,
+        -2.85
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_canopy",
+      "role": "canopy",
+      "seq": "canopy",
+      "zone": "nose"
+    },
+    {
+      "at": [
+        -4.55,
+        -0.0445,
+        3.8061
+      ],
+      "axis": [
+        -0.98951,
+        -0.02969,
+        0.1414
+      ],
+      "node": "RIG_aileron_l",
+      "range_deg": 20.0,
+      "role": "aileron",
+      "zone": "wing_inner_l"
+    },
+    {
+      "at": [
+        4.55,
+        -0.0445,
+        3.8061
+      ],
+      "axis": [
+        0.98951,
+        -0.02969,
+        0.1414
+      ],
+      "node": "RIG_aileron_r",
+      "range_deg": 20.0,
+      "role": "aileron",
+      "zone": "wing_inner_r"
+    },
+    {
+      "at": [
+        -1.59,
+        2.2621,
+        7.4625
+      ],
+      "axis": [
+        -0.24181,
+        0.90246,
+        0.3565
+      ],
+      "node": "RIG_rudder_l",
+      "range_deg": 25.0,
+      "role": "rudder",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        1.59,
+        2.2621,
+        7.4625
+      ],
+      "axis": [
+        0.24181,
+        0.90246,
+        0.3565
+      ],
+      "node": "RIG_rudder_r",
+      "range_deg": 25.0,
+      "role": "rudder",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        -1.85,
+        0.0,
+        6.9
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "node": "RIG_stab_l",
+      "range_deg": 18.0,
+      "role": "elevator",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        1.85,
+        0.0,
+        6.9
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "node": "RIG_stab_r",
+      "range_deg": 18.0,
+      "role": "elevator",
+      "zone": "tail"
+    },
+    {
+      "angle_deg": -100.0,
+      "at": [
+        0.0,
+        -0.45,
+        -6.2
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.15,
+          0.0
+        ],
+        [
+          0.85,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_nose",
+      "role": "gear_leg",
+      "seq": "gear",
+      "zone": "nose"
+    },
+    {
+      "angle_deg": -95.0,
+      "at": [
+        -1.25,
+        -0.55,
+        1.4
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.15,
+          0.0
+        ],
+        [
+          0.85,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_main_l",
+      "role": "gear_leg",
+      "seq": "gear",
+      "zone": "centre"
+    },
+    {
+      "angle_deg": -95.0,
+      "at": [
+        1.25,
+        -0.55,
+        1.4
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.15,
+          0.0
+        ],
+        [
+          0.85,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_main_r",
+      "role": "gear_leg",
+      "seq": "gear",
+      "zone": "centre"
+    }
+  ],
+  "sequences_s": {
+    "canopy": 4.0,
+    "gear": 8.0,
+    "ramp": 10.0
+  },
+  "sha256": "6e2928c6563a3b035ce1f8bb363ad3c78147c4a80219836f14c396123e45bb99",
+  "size_m": {
+    "height": 5.6,
+    "length": 19.4,
+    "span": 13.0
+  },
+  "zones": [
+    {
+      "capsules": [
+        {
+          "a": [
+            -0.0,
+            -1.368,
+            2.381
+          ],
+          "b": [
+            -0.0,
+            -0.416,
+            -3.984
+          ],
+          "radius_m": 2.085
+        }
+      ],
+      "name": "centre",
+      "node": "ZONE_centre",
+      "parent": null,
+      "share": 0.3
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            0.0,
+            0.196,
+            -4.11
+          ],
+          "b": [
+            -0.0,
+            -0.766,
+            -8.029
+          ],
+          "radius_m": 1.433
+        }
+      ],
+      "name": "nose",
+      "node": "ZONE_nose",
+      "parent": "centre",
+      "share": 0.12
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            -2.434,
+            1.379,
+            6.803
+          ],
+          "b": [
+            2.432,
+            1.379,
+            6.8
+          ],
+          "radius_m": 2.767
+        }
+      ],
+      "name": "tail",
+      "node": "ZONE_tail",
+      "parent": "centre",
+      "share": 0.16
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            -2.561,
+            0.046,
+            -1.136
+          ],
+          "b": [
+            -6.661,
+            -0.177,
+            5.264
+          ],
+          "radius_m": 0.848
+        },
+        {
+          "a": [
+            -1.168,
+            -0.075,
+            -0.077
+          ],
+          "b": [
+            -5.148,
+            -0.292,
+            6.136
+          ],
+          "radius_m": 0.855
+        },
+        {
+          "a": [
+            -2.242,
+            -0.176,
+            4.855
+          ],
+          "b": [
+            -2.552,
+            -0.193,
+            5.34
+          ],
+          "radius_m": 0.947
+        }
+      ],
+      "name": "wing_inner_l",
+      "node": "ZONE_wing_inner_l",
+      "parent": "centre",
+      "share": 0.14
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            2.561,
+            0.046,
+            -1.136
+          ],
+          "b": [
+            6.661,
+            -0.177,
+            5.264
+          ],
+          "radius_m": 0.848
+        },
+        {
+          "a": [
+            1.168,
+            -0.075,
+            -0.077
+          ],
+          "b": [
+            5.148,
+            -0.292,
+            6.136
+          ],
+          "radius_m": 0.855
+        },
+        {
+          "a": [
+            2.242,
+            -0.176,
+            4.855
+          ],
+          "b": [
+            2.552,
+            -0.193,
+            5.34
+          ],
+          "radius_m": 0.947
+        }
+      ],
+      "name": "wing_inner_r",
+      "node": "ZONE_wing_inner_r",
+      "parent": "centre",
+      "share": 0.14
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            -0.72,
+            0.0,
+            9.0
+          ],
+          "b": [
+            -0.72,
+            -0.0,
+            9.55
+          ],
+          "radius_m": 0.6
+        }
+      ],
+      "name": "engine_1",
+      "node": "ZONE_engine_1",
+      "parent": "tail",
+      "share": 0.07
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            0.72,
+            0.0,
+            9.0
+          ],
+          "b": [
+            0.72,
+            -0.0,
+            9.55
+          ],
+          "radius_m": 0.6
+        }
+      ],
+      "name": "engine_2",
+      "node": "ZONE_engine_2",
+      "parent": "tail",
+      "share": 0.07
+    }
+  ]
+}

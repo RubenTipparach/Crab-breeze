@@ -12,6 +12,7 @@ pub mod audio;
 pub mod bases;
 pub mod battle_fx;
 pub mod boarding;
+pub mod bounds;
 pub mod car;
 pub mod career;
 pub mod civil_standing;
@@ -19,6 +20,7 @@ pub mod civilians;
 pub mod cockpit;
 pub mod data;
 pub mod day_night;
+pub mod flight_model;
 pub mod fortress;
 pub mod fx;
 pub mod grass;
@@ -103,6 +105,8 @@ pub struct GameData {
     pub units: units::UnitsConfig,
     /// `data/world/air_traffic.ron`: civil aircraft (`civil-air-traffic`).
     pub air_traffic: air_traffic::AirTrafficConfig,
+    /// `data/aircraft/flight.ron`: how each aircraft the pilot can steal flies (`fly-stolen-aircraft`).
+    pub flight: flight_model::FlightConfig,
     /// `data/enemies/skins.ron`.
     pub skins: skins::Skins,
     /// `data/missions/fortress.ron` and `fortress_shape.ron`.
@@ -147,12 +151,36 @@ impl GameData {
         world.small_kits = std::sync::Arc::new(kits);
         // The aircraft the airport parks at its stands are the civil traffic's kinds.
         let air_path = root.join("world/air_traffic.ron");
-        let air_traffic: air_traffic::AirTrafficConfig = data::load_ron(&air_path)?;
+        let mut air_traffic: air_traffic::AirTrafficConfig = data::load_ron(&air_path)?;
+        // Each modelled kind's manifest beside its glb: its rest, its damage zones, its rig and lamps (airliner-models).
+        air_traffic.load_models(&root.join("../assets")).map_err(|reason| data::DataError {
+            path: air_path.clone(),
+            reason,
+        })?;
         for t in [&world.site_templates.airport, &world.site_templates.seaport].into_iter().flatten() {
             if let Some(a) = t.parked.iter().find(|a| !air_traffic.kinds.contains_key(&a.kind)) {
                 return Err(data::DataError {
                     path: sites_dir.clone(),
                     reason: format!("{} parks a `{}`, which is not a kind in {}", t.folder, a.kind, air_path.display()),
+                });
+            }
+        }
+        // every kind the pilot can fly is a kind of the traffic, flown as what it is
+        let flight_path = root.join("aircraft/flight.ron");
+        let flight: flight_model::FlightConfig = data::load_ron(&flight_path)?;
+        for k in flight.planes.keys().chain(flight.rotors.keys()) {
+            let ok = air_traffic
+                .kinds
+                .get(k)
+                .map(|s| s.role.rotorcraft() == flight.rotors.contains_key(k));
+            if ok != Some(true) {
+                return Err(data::DataError {
+                    path: flight_path.clone(),
+                    reason: format!(
+                        "`{k}` is no {} kind in {}",
+                        if ok.is_some() { "matching" } else { "air traffic" },
+                        air_path.display()
+                    ),
                 });
             }
         }
@@ -207,6 +235,17 @@ impl GameData {
             .validate_with(&world)
             .map_err(|reason| data::DataError { path: grass_path, reason })?;
         let units: units::UnitsConfig = data::load_ron(&root.join("world/units.ron"))?;
+        // a unit drawn as an aircraft draws one the traffic has a model for
+        for (k, u) in &units.units {
+            if let Some(look) = &u.look
+                && air_traffic.kinds.get(look).and_then(|s| s.model.as_ref()).is_none()
+            {
+                return Err(data::DataError {
+                    path: root.join("world/units.ron"),
+                    reason: format!("units.{k}.look `{look}` is no modelled kind in {}", air_path.display()),
+                });
+            }
+        }
         // The gunboat is a vehicle in a fight and a boat when it sinks: one size in both files.
         if let (Some(u), Some(b)) = (units.units.get(ships::GUNBOAT), ships.kinds.get(ships::GUNBOAT))
             && (u.size_m != b.size_m || u.draft_m != b.draft_m)
@@ -242,6 +281,7 @@ impl GameData {
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units,
             air_traffic,
+            flight,
             skins,
             fortress,
             missions: data::load_ron(&root.join("missions/mail.ron"))?,

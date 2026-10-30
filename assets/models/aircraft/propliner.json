@@ -1,0 +1,1130 @@
+{
+  "_": "One of the three airliners (openspec change airliner-models), built by tools/blender/build_airliners.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage's centre line half way along it. Meshes are <part>.L<level> under ZONE_* nodes or RIG_* pivots; level 0 carries the interior (int_*).",
+  "after": "Douglas DC-3",
+  "blender": "4.4.3",
+  "blueprint": "docs/reference/airliner-blueprints/douglas-c47-dc3.png",
+  "bounds_m": {
+    "x": [
+      -14.575,
+      14.575
+    ],
+    "y": [
+      -3.38,
+      2.45
+    ],
+    "z": [
+      -9.85,
+      10.002
+    ]
+  },
+  "bytes": 1720792,
+  "cabin_lights": [
+    [
+      0.0,
+      1.5,
+      -4.084
+    ],
+    [
+      0.0,
+      1.5,
+      -2.02
+    ],
+    [
+      0.0,
+      1.5,
+      0.044
+    ]
+  ],
+  "cabin_view": {
+    "aisle": [
+      0.23,
+      0.865,
+      1.46
+    ],
+    "aisle_look": [
+      0.23,
+      0.615,
+      -7.6
+    ],
+    "deck": [
+      -0.5,
+      0.9,
+      -7.15
+    ],
+    "deck_look": [
+      -0.5,
+      1.0,
+      -19.15
+    ]
+  },
+  "csg_steps": 113,
+  "file": "propliner.glb",
+  "gear_sequence_s": 8.0,
+  "generator": "tools/blender/build_airliners.py",
+  "id": "propliner",
+  "interior": [
+    "int_aft_wall_cabin_aft.L0",
+    "int_deck_frames_nose.L0",
+    "int_deck_panel_nose.L0",
+    "int_deck_seats_nose.L0",
+    "int_deck_wall_centre.L0",
+    "int_galleys_cabin_aft.L0",
+    "int_galleys_centre.L0",
+    "int_seat_frames_cabin_aft.L0",
+    "int_seat_frames_centre.L0",
+    "int_seats_cabin_aft.L0",
+    "int_seats_centre.L0"
+  ],
+  "lamps": [
+    {
+      "at": [
+        -14.45,
+        0.1517,
+        0.0254
+      ],
+      "colour": "red",
+      "node": "LAMP_nav_left",
+      "pattern": "steady",
+      "zone": "wing_outer_l"
+    },
+    {
+      "at": [
+        14.45,
+        0.1517,
+        0.0254
+      ],
+      "colour": "green",
+      "node": "LAMP_nav_right",
+      "pattern": "steady",
+      "zone": "wing_outer_r"
+    },
+    {
+      "at": [
+        -14.45,
+        0.1517,
+        0.6871
+      ],
+      "colour": "white",
+      "node": "LAMP_strobe_left",
+      "pattern": "strobe",
+      "zone": "wing_outer_l"
+    },
+    {
+      "at": [
+        14.45,
+        0.1517,
+        0.6871
+      ],
+      "colour": "white",
+      "node": "LAMP_strobe_right",
+      "pattern": "strobe",
+      "zone": "wing_outer_r"
+    },
+    {
+      "at": [
+        0.0,
+        0.5161,
+        9.9
+      ],
+      "colour": "white",
+      "node": "LAMP_nav_tail",
+      "pattern": "steady",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        0.0,
+        1.375,
+        -2.12
+      ],
+      "colour": "red",
+      "node": "LAMP_beacon_top",
+      "pattern": "beacon",
+      "zone": "centre"
+    },
+    {
+      "at": [
+        0.0,
+        -1.375,
+        -0.12
+      ],
+      "colour": "red",
+      "node": "LAMP_beacon_bottom",
+      "pattern": "beacon",
+      "zone": "centre"
+    },
+    {
+      "at": [
+        -5.2,
+        -0.6532,
+        -2.7395
+      ],
+      "colour": "white",
+      "node": "LAMP_landing_l",
+      "pattern": "landing",
+      "zone": "wing_inner_l"
+    },
+    {
+      "at": [
+        5.2,
+        -0.6532,
+        -2.7395
+      ],
+      "colour": "white",
+      "node": "LAMP_landing_r",
+      "pattern": "landing",
+      "zone": "wing_inner_r"
+    }
+  ],
+  "light_patterns": {
+    "beacon": {
+      "on_s": 0.1,
+      "period_s": 1.0
+    },
+    "landing": {
+      "below_agl_m": 600
+    },
+    "steady": {},
+    "strobe": {
+      "flashes": 2,
+      "gap_s": 0.15,
+      "on_s": 0.05,
+      "period_s": 1.2
+    }
+  },
+  "livery_seat": [
+    0.027,
+    0.073,
+    0.263
+  ],
+  "lods": [
+    {
+      "budget_triangles": 30000,
+      "lod": 0,
+      "triangles": 9807,
+      "within_m": 250
+    },
+    {
+      "budget_triangles": 6000,
+      "lod": 1,
+      "triangles": 3700,
+      "within_m": 1500
+    },
+    {
+      "budget_triangles": 2000,
+      "lod": 2,
+      "triangles": 1552,
+      "within_m": null
+    }
+  ],
+  "materials": [
+    "propliner_crown",
+    "propliner_line",
+    "propliner_belly",
+    "propliner_wing",
+    "propliner_fin",
+    "propliner_nacelle",
+    "propliner_metal",
+    "propliner_dark",
+    "propliner_rubber",
+    "propliner_glass",
+    "propliner_torn",
+    "propliner_cabin_wall",
+    "propliner_seat",
+    "propliner_carpet",
+    "propliner_trim",
+    "propliner_panel",
+    "propliner_nav_red",
+    "propliner_nav_green",
+    "propliner_nav_white",
+    "propliner_beacon",
+    "propliner_strobe",
+    "propliner_landing"
+  ],
+  "measured_m": {
+    "height_at_rest": 5.534,
+    "length": 19.852,
+    "span": 29.15
+  },
+  "rest_m": 2.569,
+  "rest_pitch_deg": 13.69,
+  "rig": [
+    {
+      "at": [
+        -11.3,
+        -0.1195,
+        0.3459
+      ],
+      "axis": [
+        0.99076,
+        -0.08668,
+        -0.10433
+      ],
+      "node": "RIG_aileron_l",
+      "range_deg": 20.0,
+      "role": "aileron",
+      "zone": "wing_outer_l"
+    },
+    {
+      "at": [
+        -4.7495,
+        -0.616,
+        -0.4125
+      ],
+      "axis": [
+        0.99194,
+        -0.06538,
+        -0.10849
+      ],
+      "detents_deg": [
+        0.0,
+        15.0,
+        30.0
+      ],
+      "node": "RIG_flap_l",
+      "role": "flap",
+      "zone": "wing_inner_l"
+    },
+    {
+      "at": [
+        11.3,
+        -0.1195,
+        0.3459
+      ],
+      "axis": [
+        0.99076,
+        0.08668,
+        0.10433
+      ],
+      "node": "RIG_aileron_r",
+      "range_deg": 20.0,
+      "role": "aileron",
+      "zone": "wing_outer_r"
+    },
+    {
+      "at": [
+        4.7495,
+        -0.616,
+        -0.4125
+      ],
+      "axis": [
+        0.99194,
+        0.06538,
+        0.10849
+      ],
+      "detents_deg": [
+        0.0,
+        15.0,
+        30.0
+      ],
+      "node": "RIG_flap_r",
+      "role": "flap",
+      "zone": "wing_inner_r"
+    },
+    {
+      "at": [
+        0.0,
+        1.6857,
+        8.8749
+      ],
+      "axis": [
+        0.0,
+        0.99389,
+        0.11041
+      ],
+      "node": "RIG_rudder",
+      "range_deg": 25.0,
+      "role": "rudder",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        -2.1036,
+        0.6472,
+        8.4911
+      ],
+      "axis": [
+        0.99996,
+        -0.0,
+        0.00896
+      ],
+      "node": "RIG_elevator_l",
+      "range_deg": 20.0,
+      "role": "elevator",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        2.1036,
+        0.6472,
+        8.4911
+      ],
+      "axis": [
+        0.99996,
+        0.0,
+        -0.00896
+      ],
+      "node": "RIG_elevator_r",
+      "range_deg": 20.0,
+      "role": "elevator",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        -2.85,
+        -0.8,
+        -6.0408
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "node": "RIG_prop_1",
+      "role": "prop",
+      "rpm": 1200.0,
+      "zone": "engine_1"
+    },
+    {
+      "at": [
+        2.85,
+        -0.8,
+        -6.0408
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "node": "RIG_prop_2",
+      "role": "prop",
+      "rpm": 1200.0,
+      "zone": "engine_2"
+    },
+    {
+      "angle_deg": 90.0,
+      "at": [
+        -2.85,
+        -1.25,
+        -3.0208
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.12,
+          0.0
+        ],
+        [
+          0.8,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_main_l",
+      "role": "gear_leg",
+      "zone": "engine_1"
+    },
+    {
+      "angle_deg": 90.0,
+      "at": [
+        2.85,
+        -1.25,
+        -3.0208
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.12,
+          0.0
+        ],
+        [
+          0.8,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_main_r",
+      "role": "gear_leg",
+      "zone": "engine_2"
+    },
+    {
+      "at": [
+        -11.3,
+        -0.1195,
+        0.3459
+      ],
+      "axis": [
+        0.99076,
+        -0.08668,
+        -0.10433
+      ],
+      "node": "RIG_aileron_l",
+      "range_deg": 20.0,
+      "role": "aileron",
+      "zone": "wing_outer_l"
+    },
+    {
+      "at": [
+        -4.7495,
+        -0.616,
+        -0.4125
+      ],
+      "axis": [
+        0.99194,
+        -0.06538,
+        -0.10849
+      ],
+      "detents_deg": [
+        0.0,
+        15.0,
+        30.0
+      ],
+      "node": "RIG_flap_l",
+      "role": "flap",
+      "zone": "wing_inner_l"
+    },
+    {
+      "at": [
+        11.3,
+        -0.1195,
+        0.3459
+      ],
+      "axis": [
+        0.99076,
+        0.08668,
+        0.10433
+      ],
+      "node": "RIG_aileron_r",
+      "range_deg": 20.0,
+      "role": "aileron",
+      "zone": "wing_outer_r"
+    },
+    {
+      "at": [
+        4.7495,
+        -0.616,
+        -0.4125
+      ],
+      "axis": [
+        0.99194,
+        0.06538,
+        0.10849
+      ],
+      "detents_deg": [
+        0.0,
+        15.0,
+        30.0
+      ],
+      "node": "RIG_flap_r",
+      "role": "flap",
+      "zone": "wing_inner_r"
+    },
+    {
+      "at": [
+        0.0,
+        1.6857,
+        8.8749
+      ],
+      "axis": [
+        0.0,
+        0.99389,
+        0.11041
+      ],
+      "node": "RIG_rudder",
+      "range_deg": 25.0,
+      "role": "rudder",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        -2.1036,
+        0.6472,
+        8.4911
+      ],
+      "axis": [
+        0.99996,
+        -0.0,
+        0.00896
+      ],
+      "node": "RIG_elevator_l",
+      "range_deg": 20.0,
+      "role": "elevator",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        2.1036,
+        0.6472,
+        8.4911
+      ],
+      "axis": [
+        0.99996,
+        0.0,
+        -0.00896
+      ],
+      "node": "RIG_elevator_r",
+      "range_deg": 20.0,
+      "role": "elevator",
+      "zone": "tail"
+    },
+    {
+      "at": [
+        -2.85,
+        -0.8,
+        -6.0408
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "node": "RIG_prop_1",
+      "role": "prop",
+      "rpm": 1200.0,
+      "zone": "engine_1"
+    },
+    {
+      "at": [
+        2.85,
+        -0.8,
+        -6.0408
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "node": "RIG_prop_2",
+      "role": "prop",
+      "rpm": 1200.0,
+      "zone": "engine_2"
+    },
+    {
+      "angle_deg": 90.0,
+      "at": [
+        -2.85,
+        -1.25,
+        -3.0208
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.12,
+          0.0
+        ],
+        [
+          0.8,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_main_l",
+      "role": "gear_leg",
+      "zone": "engine_1"
+    },
+    {
+      "angle_deg": 90.0,
+      "at": [
+        2.85,
+        -1.25,
+        -3.0208
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.12,
+          0.0
+        ],
+        [
+          0.8,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_main_r",
+      "role": "gear_leg",
+      "zone": "engine_2"
+    },
+    {
+      "at": [
+        -2.85,
+        -0.8,
+        -6.0408
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "node": "RIG_prop_1",
+      "role": "prop",
+      "rpm": 1200.0,
+      "zone": "engine_1"
+    },
+    {
+      "at": [
+        2.85,
+        -0.8,
+        -6.0408
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "node": "RIG_prop_2",
+      "role": "prop",
+      "rpm": 1200.0,
+      "zone": "engine_2"
+    },
+    {
+      "angle_deg": 90.0,
+      "at": [
+        -2.85,
+        -1.25,
+        -3.0208
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.12,
+          0.0
+        ],
+        [
+          0.8,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_main_l",
+      "role": "gear_leg",
+      "zone": "engine_1"
+    },
+    {
+      "angle_deg": 90.0,
+      "at": [
+        2.85,
+        -1.25,
+        -3.0208
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "keys": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.12,
+          0.0
+        ],
+        [
+          0.8,
+          1.0
+        ],
+        [
+          1.0,
+          1.0
+        ]
+      ],
+      "node": "RIG_gear_main_r",
+      "role": "gear_leg",
+      "zone": "engine_2"
+    }
+  ],
+  "seats": 21,
+  "sha256": "c24a50cd56ac288f24ce0aaf1b1aef7620b8acdce8d7e730bb7b96728016c235",
+  "size_m": {
+    "fuselage": 2.35,
+    "height": 5.16,
+    "length": 19.7,
+    "span": 29.0
+  },
+  "zones": [
+    {
+      "capsules": [
+        {
+          "a": [
+            -0.0,
+            0.176,
+            -4.839
+          ],
+          "b": [
+            -0.0,
+            -0.037,
+            -1.03
+          ],
+          "radius_m": 1.417
+        }
+      ],
+      "name": "centre",
+      "node": "ZONE_centre",
+      "parent": null,
+      "share": 0.3
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            0.002,
+            -0.169,
+            -8.619
+          ],
+          "b": [
+            0.003,
+            -0.06,
+            -7.324
+          ],
+          "radius_m": 1.229
+        }
+      ],
+      "name": "nose",
+      "node": "ZONE_nose",
+      "parent": "centre",
+      "share": 0.1
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            -0.002,
+            -0.118,
+            0.899
+          ],
+          "b": [
+            -0.005,
+            -0.128,
+            2.087
+          ],
+          "radius_m": 1.319
+        }
+      ],
+      "name": "cabin_aft",
+      "node": "ZONE_cabin_aft",
+      "parent": "centre",
+      "share": 0.15
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            1.974,
+            0.084,
+            5.466
+          ],
+          "b": [
+            1.975,
+            0.479,
+            7.759
+          ],
+          "radius_m": 2.224
+        },
+        {
+          "a": [
+            -1.977,
+            0.019,
+            5.438
+          ],
+          "b": [
+            -1.975,
+            0.426,
+            7.8
+          ],
+          "radius_m": 2.178
+        }
+      ],
+      "name": "tail",
+      "node": "ZONE_tail",
+      "parent": "cabin_aft",
+      "share": 0.12
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            -7.51,
+            -0.425,
+            1.205
+          ],
+          "b": [
+            -1.362,
+            -0.844,
+            -0.24
+          ],
+          "radius_m": 0.663
+        },
+        {
+          "a": [
+            -8.094,
+            -0.366,
+            -0.066
+          ],
+          "b": [
+            -1.495,
+            -0.816,
+            -1.618
+          ],
+          "radius_m": 0.677
+        },
+        {
+          "a": [
+            -8.037,
+            -0.405,
+            -1.489
+          ],
+          "b": [
+            -1.339,
+            -0.862,
+            -3.064
+          ],
+          "radius_m": 0.66
+        }
+      ],
+      "name": "wing_inner_l",
+      "node": "ZONE_wing_inner_l",
+      "parent": "centre",
+      "share": 0.14
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            -14.086,
+            0.119,
+            0.994
+          ],
+          "b": [
+            -8.992,
+            -0.309,
+            0.358
+          ],
+          "radius_m": 0.421
+        },
+        {
+          "a": [
+            -14.248,
+            0.189,
+            0.131
+          ],
+          "b": [
+            -8.885,
+            -0.262,
+            -0.538
+          ],
+          "radius_m": 0.302
+        },
+        {
+          "a": [
+            -14.12,
+            0.118,
+            -0.769
+          ],
+          "b": [
+            -8.976,
+            -0.314,
+            -1.411
+          ],
+          "radius_m": 0.433
+        }
+      ],
+      "name": "wing_outer_l",
+      "node": "ZONE_wing_outer_l",
+      "parent": "wing_inner_l",
+      "share": 0.08
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            7.51,
+            -0.425,
+            1.205
+          ],
+          "b": [
+            1.362,
+            -0.844,
+            -0.24
+          ],
+          "radius_m": 0.663
+        },
+        {
+          "a": [
+            8.094,
+            -0.366,
+            -0.066
+          ],
+          "b": [
+            1.495,
+            -0.816,
+            -1.618
+          ],
+          "radius_m": 0.677
+        },
+        {
+          "a": [
+            8.032,
+            -0.407,
+            -1.49
+          ],
+          "b": [
+            1.344,
+            -0.863,
+            -3.062
+          ],
+          "radius_m": 0.665
+        }
+      ],
+      "name": "wing_inner_r",
+      "node": "ZONE_wing_inner_r",
+      "parent": "centre",
+      "share": 0.14
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            14.101,
+            0.119,
+            0.958
+          ],
+          "b": [
+            8.982,
+            -0.307,
+            0.354
+          ],
+          "radius_m": 0.41
+        },
+        {
+          "a": [
+            14.301,
+            0.191,
+            0.1
+          ],
+          "b": [
+            8.848,
+            -0.263,
+            -0.544
+          ],
+          "radius_m": 0.265
+        },
+        {
+          "a": [
+            14.12,
+            0.131,
+            -0.806
+          ],
+          "b": [
+            8.978,
+            -0.297,
+            -1.413
+          ],
+          "radius_m": 0.434
+        }
+      ],
+      "name": "wing_outer_r",
+      "node": "ZONE_wing_outer_r",
+      "parent": "wing_inner_r",
+      "share": 0.08
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            -2.85,
+            -1.967,
+            -1.667
+          ],
+          "b": [
+            -2.85,
+            -1.14,
+            -5.021
+          ],
+          "radius_m": 1.611
+        }
+      ],
+      "name": "engine_1",
+      "node": "ZONE_engine_1",
+      "parent": "wing_inner_l",
+      "share": 0.06
+    },
+    {
+      "capsules": [
+        {
+          "a": [
+            2.85,
+            -1.967,
+            -1.667
+          ],
+          "b": [
+            2.85,
+            -1.14,
+            -5.021
+          ],
+          "radius_m": 1.611
+        }
+      ],
+      "name": "engine_2",
+      "node": "ZONE_engine_2",
+      "parent": "wing_inner_r",
+      "share": 0.06
+    }
+  ]
+}

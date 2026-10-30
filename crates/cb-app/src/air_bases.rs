@@ -105,6 +105,26 @@ fn spawn_bases(
     let roof_tone = [0.5, 0.52, 0.54, 1.0];
     let pad_tone = [0.95, 0.75, 0.15, 1.0];
     for b in &plan.0.bases {
+        // A base built as its page's site (military-base section 4): the site draws it, kits and ground and lights;
+        // only its terminals are the game's own, one in each bay's mouth facing out of it.
+        if let (Some(_), Some(bays)) = (b.site, b.bays) {
+            let mut post = MeshBuilder::tiled(4.0, 4.0);
+            let mut glass = MeshBuilder::default();
+            terminal_post(&mut post, &mut glass, Vec2::ZERO, 0.0, roof_tone);
+            let (post, glass) = (meshes.add(post.build_with_tangents()), meshes.add(glass.build()));
+            let facing = Quat::from_rotation_y(cb_core::units::heading_of(Vec3::new(bays.mouth.x, 0.0, bays.mouth.y)));
+            for t in b.terminals(cfg) {
+                let at = Transform::from_xyz(t.at.x, plan.0.terrain.height_at(t.at.x, t.at.y), t.at.y).with_rotation(facing);
+                commands.spawn((
+                    Name::new(format!("air base {} terminal {}", b.id, t.bay)),
+                    Mesh3d(post.clone()),
+                    MeshMaterial3d(concrete.clone()),
+                    at,
+                ));
+                commands.spawn((Mesh3d(glass.clone()), MeshMaterial3d(screen.clone()), at));
+            }
+            continue;
+        }
         let mut slab = MeshBuilder::tiled(4.0, 4.0);
         let mut marks = MeshBuilder::default();
         let mut screens = MeshBuilder::default();
@@ -223,23 +243,7 @@ fn spawn_bases(
         );
         // A terminal inside each bay's mouth: a post with a lit screen facing the apron.
         for t in b.terminals(cfg) {
-            let (x, z) = (t.at.x, t.at.y);
-            slab.block(Vec3::new(x - 0.6, g, z - 0.3), Vec3::new(x + 0.6, g + 1.1, z + 0.3), roof_tone);
-            slab.block(
-                Vec3::new(x - 0.8, g + 1.1, z - 0.15),
-                Vec3::new(x + 0.8, g + 2.2, z + 0.35),
-                roof_tone,
-            );
-            let y0 = g + 1.2;
-            screens.quad(
-                [
-                    Vec3::new(x - 0.7, y0, z - 0.17),
-                    Vec3::new(x + 0.7, y0, z - 0.17),
-                    Vec3::new(x + 0.7, y0 + 0.9, z - 0.17),
-                    Vec3::new(x - 0.7, y0 + 0.9, z - 0.17),
-                ],
-                [1.0, 1.0, 1.0, 1.0],
-            );
+            terminal_post(&mut slab, &mut screens, t.at, g, roof_tone);
         }
         commands.spawn((
             Name::new(format!("air base {} terminal screens", b.id)),
@@ -267,6 +271,24 @@ fn spawn_bases(
         ));
     }
     info!("air bases: {} drawn", plan.0.bases.len());
+}
+
+/// A terminal at `at` (x, z) on ground `g`: a post and its screen, the screen facing -z. The one shape for a block-out
+/// base's terminals and a site-built base's (turned to its bays).
+fn terminal_post(slab: &mut MeshBuilder, screens: &mut MeshBuilder, at: Vec2, g: f32, tone: [f32; 4]) {
+    let (x, z) = (at.x, at.y);
+    slab.block(Vec3::new(x - 0.6, g, z - 0.3), Vec3::new(x + 0.6, g + 1.1, z + 0.3), tone);
+    slab.block(Vec3::new(x - 0.8, g + 1.1, z - 0.15), Vec3::new(x + 0.8, g + 2.2, z + 0.35), tone);
+    let y0 = g + 1.2;
+    screens.quad(
+        [
+            Vec3::new(x - 0.7, y0, z - 0.17),
+            Vec3::new(x + 0.7, y0, z - 0.17),
+            Vec3::new(x + 0.7, y0 + 0.9, z - 0.17),
+            Vec3::new(x - 0.7, y0 + 0.9, z - 0.17),
+        ],
+        [1.0, 1.0, 1.0, 1.0],
+    );
 }
 
 /// A piloted mech that stops inside a hangar bay is repaired (every part not lost back to full) and

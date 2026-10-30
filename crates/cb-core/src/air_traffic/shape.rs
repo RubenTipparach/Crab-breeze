@@ -49,7 +49,14 @@ fn b(name: &'static str, centre: [f32; 3], size: [f32; 3], dark: bool) -> Block 
 pub fn blockout(spec: &AircraftSpec) -> Vec<Block> {
     let (l, s, h, f) = (spec.length_m, spec.span_m, spec.height_m, spec.fuselage_m);
     let top = h - rest_m(spec);
-    match spec.role {
+    // a military kind is drawn as its model; its stand-in is the civil shape nearest it
+    let role = match spec.role {
+        Role::Fighter => Role::Airliner,
+        Role::Transport => Role::Freighter,
+        Role::Gunship => Role::Helicopter,
+        r => r,
+    };
+    match role {
         Role::Airliner => {
             let fin_h = top - f * 0.5;
             let pod = f * 0.45;
@@ -130,6 +137,7 @@ pub fn blockout(spec: &AircraftSpec) -> Vec<Block> {
                 b("skid R", [f * 0.55, -rest + 0.06, -l * 0.18], [0.12, 0.12, l * 0.35], true),
             ]
         }
+        Role::Fighter | Role::Transport | Role::Gunship => Vec::new(),
     }
 }
 
@@ -138,9 +146,23 @@ pub fn attitude(a: &Aircraft) -> Quat {
     Quat::from_rotation_y(a.heading_rad) * Quat::from_rotation_x(a.pitch_rad) * Quat::from_rotation_z(a.bank_rad)
 }
 
-/// A hit capsule: from `a` to `b`, `radius_m` round the line, world metres.
+/// How it sits in the world, its kind considered: on its wheels a taildragger sits nose up on its tail wheel (the
+/// propliner's `rest_pitch_deg`); in the air, `attitude`.
+pub fn attitude_for(a: &Aircraft, spec: &AircraftSpec) -> Quat {
+    if a.on_ground() {
+        let rest = super::flight::rest_pitch_rad(spec);
+        if rest != 0.0 {
+            return Quat::from_rotation_y(a.heading_rad) * Quat::from_rotation_x(a.pitch_rad + rest) * Quat::from_rotation_z(a.bank_rad);
+        }
+    }
+    attitude(a)
+}
+
+/// A hit capsule: from `a` to `b`, `radius_m` round the line, world metres, on part `part`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Capsule {
+    /// The part it belongs to: a modelled airliner's damage zone, else 0 (the aircraft as a whole).
+    pub part: usize,
     /// One end.
     pub a: Vec3,
     /// The other end.
@@ -149,12 +171,31 @@ pub struct Capsule {
     pub radius_m: f32,
 }
 
-/// Its hit shapes: the fuselage, and the wing for a plane (a rotor is not hit).
+/// Its hit shapes: a modelled airliner's damage zones' capsules (measured off the model by its build), each on its
+/// zone, the zones that have broken away left out; otherwise the fuselage, and the wing for a plane (a rotor is not
+/// hit).
 pub fn capsules(a: &Aircraft, spec: &AircraftSpec) -> Vec<Capsule> {
-    let q = attitude(a);
+    let q = attitude_for(a, spec);
+    let zones = spec.zones();
+    if !zones.is_empty() {
+        return zones
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !a.broken.get(*i).copied().unwrap_or(false))
+            .flat_map(|(i, z)| {
+                z.capsules.iter().map(move |&(ca, cb, r)| Capsule {
+                    part: i,
+                    a: a.pos + q * ca,
+                    b: a.pos + q * cb,
+                    radius_m: r,
+                })
+            })
+            .collect();
+    }
     let r = spec.fuselage_m * 0.5;
     let half = (spec.length_m * 0.5 - r).max(0.0);
     let mut out = vec![Capsule {
+        part: 0,
         a: a.pos + q * Vec3::new(0.0, 0.0, -half),
         b: a.pos + q * Vec3::new(0.0, 0.0, half),
         radius_m: if spec.role == Role::Helicopter { r * 1.2 } else { r },
@@ -165,6 +206,7 @@ pub fn capsules(a: &Aircraft, spec: &AircraftSpec) -> Vec<Capsule> {
             let rw = (w.size.z * 0.3).max(0.3);
             let half_span = (w.size.x * 0.5 - rw).max(0.0);
             out.push(Capsule {
+                part: 0,
                 a: a.pos + q * (w.centre - Vec3::X * half_span),
                 b: a.pos + q * (w.centre + Vec3::X * half_span),
                 radius_m: rw,

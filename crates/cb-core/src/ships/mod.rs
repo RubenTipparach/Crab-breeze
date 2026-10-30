@@ -212,6 +212,11 @@ pub struct TrafficConfig {
     pub work_radius_m: f32,
     /// A ferry runs to an islet when the world has one.
     pub ferry: bool,
+    /// A seaport's ship lies at its berth this long, least and most, seconds (openspec change `ship-traffic`: every
+    /// ship in a port sails in and out).
+    pub port_dwell_s: (f32, f32),
+    /// ... and waits out at the anchorage this long between calls, least and most, seconds.
+    pub port_away_s: (f32, f32),
 }
 
 impl Default for TrafficConfig {
@@ -231,6 +236,8 @@ impl Default for TrafficConfig {
             work_m_s: 1.5,
             work_radius_m: 300.0,
             ferry: true,
+            port_dwell_s: (300.0, 600.0),
+            port_away_s: (120.0, 300.0),
         }
     }
 }

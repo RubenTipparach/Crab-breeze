@@ -52,6 +52,8 @@ impl Fixture {
                 0.0,
                 &crate::world::BasesConfig::default(),
             ),
+            site: None,
+            bays: None,
         };
         Self {
             cfg,

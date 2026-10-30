@@ -262,11 +262,25 @@ impl PilotMode {
     }
 }
 
-/// The car nearest the pilot this step, or the one they are in, in the world (car-driving).
+/// What kind of vehicle a `CarAccess` is: the pilot gets into and out of each the same way (openspec change
+/// `fly-stolen-aircraft`, design section 1), and each kind is driven or flown by its own simulation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Vehicle {
+    /// A car of the street traffic (`car-driving`).
+    #[default]
+    Car,
+    /// An aircraft of the air traffic, stolen from its stand (`fly-stolen-aircraft`).
+    Aircraft,
+}
+
+/// The vehicle nearest the pilot this step, or the one they are in, in the world (car-driving; an aircraft too since
+/// `fly-stolen-aircraft`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CarAccess {
-    /// Its id in the traffic.
+    /// Its id in its traffic (the street's or the air's, by `vehicle`).
     pub id: u32,
+    /// What it is.
+    pub vehicle: Vehicle,
     /// `DOOR_driver`: where a person stands to open the driver's door, on the ground.
     pub door: Vec3,
     /// `EYE_driver`: the driver's eyes.
@@ -852,6 +866,7 @@ mod car_tests {
     fn sedan(speed_m_s: f32) -> CarAccess {
         CarAccess {
             id: 3,
+            vehicle: Vehicle::Car,
             door: Vec3::new(-1.35, 0.0, 0.15),
             eye: Vec3::new(-0.37, 1.12, 0.15),
             centre: Vec3::ZERO,

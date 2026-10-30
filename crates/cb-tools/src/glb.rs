@@ -398,30 +398,67 @@ pub fn check_aircraft(d: &cb_core::air_traffic::AirTrafficConfig, assets: &Path)
                 continue;
             }
         };
-        for n in ["LOD0", "LOD1", "LOD2", "GEAR_0", "GEAR_1", "GEAR_2"] {
-            if t.at(n).is_none() {
-                out.push(format!("aircraft `{name}`: {} has no node `{n}`", m.scene));
-            }
-        }
-        match t.bounds_under("LOD0") {
-            Some((lo, hi)) => {
-                let size = hi - lo;
-                let rest = cb_core::air_traffic::rest_m(k);
-                for (what, got, want) in [
-                    ("length", size.z, k.length_m),
-                    ("span", size.x, k.span_m),
-                    ("height", size.y, k.height_m),
-                    ("ground under its gear", -lo.y, rest),
-                ] {
-                    if (got - want).abs() > 0.5 {
-                        out.push(format!(
-                            "aircraft `{name}`: its {what} is {got:.2} m in {} but {want:.2} m in its data; rebuild it",
-                            m.scene
-                        ));
-                    }
+        // An airliner built of damage zones (airliner-models): every zone, pivot and lamp its manifest names is a node,
+        // and its size, standing on its gear, is its data's.
+        if let Some(l) = m.loaded.as_ref().filter(|l| !l.zones.is_empty()) {
+            let man = &l.manifest;
+            let nodes = man
+                .zones
+                .iter()
+                .map(|z| &z.node)
+                .chain(man.rig.iter().map(|r| &r.node))
+                .chain(man.lamps.iter().map(|l| &l.node));
+            for n in nodes {
+                if t.at(n).is_none() {
+                    out.push(format!("aircraft `{name}`: {} has no node `{n}` its manifest names", m.scene));
                 }
             }
-            None => out.push(format!("aircraft `{name}`: {} has no mesh under LOD0", m.scene)),
+            match t.bounds_under(name) {
+                Some((lo, hi)) => {
+                    let size = hi - lo;
+                    let level = man.rest_pitch_deg == 0.0;
+                    let mut checks = vec![("length", size.z, k.length_m), ("span", size.x, k.span_m)];
+                    if level {
+                        checks.push(("height", size.y, k.height_m));
+                        checks.push(("ground under its gear", -lo.y, cb_core::air_traffic::rest_m(k)));
+                    }
+                    for (what, got, want) in checks {
+                        if (got - want).abs() > 0.5 {
+                            out.push(format!(
+                                "aircraft `{name}`: its {what} is {got:.2} m in {} but {want:.2} m in its data; rebuild it",
+                                m.scene
+                            ));
+                        }
+                    }
+                }
+                None => out.push(format!("aircraft `{name}`: {} has no mesh under its root `{name}`", m.scene)),
+            }
+        } else {
+            for n in ["LOD0", "LOD1", "LOD2", "GEAR_0", "GEAR_1", "GEAR_2"] {
+                if t.at(n).is_none() {
+                    out.push(format!("aircraft `{name}`: {} has no node `{n}`", m.scene));
+                }
+            }
+            match t.bounds_under("LOD0") {
+                Some((lo, hi)) => {
+                    let size = hi - lo;
+                    let rest = cb_core::air_traffic::rest_m(k);
+                    for (what, got, want) in [
+                        ("length", size.z, k.length_m),
+                        ("span", size.x, k.span_m),
+                        ("height", size.y, k.height_m),
+                        ("ground under its gear", -lo.y, rest),
+                    ] {
+                        if (got - want).abs() > 0.5 {
+                            out.push(format!(
+                                "aircraft `{name}`: its {what} is {got:.2} m in {} but {want:.2} m in its data; rebuild it",
+                                m.scene
+                            ));
+                        }
+                    }
+                }
+                None => out.push(format!("aircraft `{name}`: {} has no mesh under LOD0", m.scene)),
+            }
         }
         if let Some(sling) = &m.sling {
             match t.at("SLING_hook") {

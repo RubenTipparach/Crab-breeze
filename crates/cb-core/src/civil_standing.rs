@@ -130,6 +130,8 @@ mod tests {
                     0.0,
                     &crate::world::BasesConfig::default(),
                 ),
+                site: None,
+                bays: None,
             })
             .collect()
     }

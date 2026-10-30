@@ -1,0 +1,681 @@
+<title>Crab Breeze Military Airfield</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Source of docs/mockups/military-base.html: python3 tools/mockups/gen_military_base.py inlines the site kits, the
+     building engine, the planes table (the four aircraft's manifests as tools/blender/build_military_aircraft.py wrote them, their
+     models beside the page as glTF JSON) and the Foreman yardstick. Presents openspec/changes/military-base for
+     approval before any game code is written (owner, 2026-10-30: "Work on military base mockup. Vehicles: helicopter, cargo
+     plane, fighter jets. Facility: dealers choice, but we need same fidelity as civilian airport"). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #4f7a12; --accent-soft: #e3efd2; --warn: #a3271f; --stage: #1a2230;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1440px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 80ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 7ch; }
+.bar .stat { font: 12px var(--mono); color: var(--muted); }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 12px; cursor: pointer; min-height: 38px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; }
+@media (max-width: 600px) { canvas { aspect-ratio: 1 / 1.15; } }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 500 11px var(--mono);
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 2px 6px; white-space: nowrap; }
+.tag.standin { border-color: #c9a03a; color: #ffe2a0; }
+.tag.today { border-color: #ff8f80; color: #ffd2cc; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font: 700 22px/1 var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 0; }
+.card p { margin: 0; font-size: 14px; }
+.pill { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 3px;
+  border: 1px solid var(--warn); color: var(--warn); justify-self: start; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td.n { font-family: var(--mono); white-space: nowrap; }
+#ready { display: none; }
+</style>
+
+
+<header>
+  <span class="eyebrow">openspec/changes/military-base &middot; mockup for approval</span>
+  <h1>Crab Breeze military airfield</h1>
+  <p class="lede">One of the island's four military bases, at the civil airport's detail and at true size beside the 24 m
+    Foreman and a 1.8 m pilot. A 2.4 km runway and its parallel taxiway, hardened shelters for the fighters and an alert
+    pair at the runway's end, a cargo apron and hangar, a helicopter line, the mech hangars, the tower, the fire station, a
+    fuel farm, munitions bunkers behind earth berms, the living blocks, a radar and two missile sites inside the fence.
+    The fighter, the cargo plane and both helicopters are the models built for the game. Traffic shows how they move.
+    Nothing here is in the game yet.</p>
+</header>
+
+<div class="wrap">
+  <main>
+    <div class="bar"><span class="lbl">Time</span>
+      <button data-time="day" aria-pressed="true">Day</button><button data-time="night">Night, 22:00</button>
+    </div>
+    <div class="bar"><span class="lbl">Traffic</span>
+      <button data-traffic="on" aria-pressed="true">Moving</button><button data-traffic="off">Still</button>
+      <button id="paths" aria-pressed="true">Paths and approach cones</button>
+    </div>
+    <div class="bar"><span class="lbl">View</span>
+      <button data-view="overview">Overview</button><button data-view="final">On final 27</button>
+      <button data-view="alert">Alert pair</button><button data-view="shelters">Shelters</button>
+      <button data-view="cargo">Cargo</button><button data-view="ramp">Open ramp</button><button data-view="helis">Helicopters</button>
+      <button data-view="mech">Mech hangars</button><button data-view="lineup">Line-up</button>
+      <button data-view="munitions">Munitions</button><button data-view="sam">Missile site</button>
+      <button data-view="tower">Tower cab</button><button data-view="chase">Follow the fighter</button>
+      <button data-view="foot">On foot</button>
+    </div>
+    <div class="bar"><span class="lbl">Fire</span>
+      <button data-gun="cannon">Autocannon</button><button data-gun="shell" aria-pressed="true">120 mm shell</button><button data-gun="missile">Missile</button><button data-gun="demo">Demolition</button>
+      <button id="repair">Repair all</button><span class="stat" id="shotstat"></span>
+    </div>
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="Orbitable 3D view of the military airfield"></canvas>
+      <div id="tags"></div>
+    </div>
+    <p class="hint">Drag to orbit, right-drag to pan, scroll or pinch to zoom; arrow keys orbit and + and - zoom. Click a
+      building to fire at it; Repair all puts everything back. Cyan lines are the taxi routes the traffic follows; the
+      green wedges are the approach cones nothing may stand in.</p>
+    <span id="ready">ready</span>
+  </main>
+  <aside>
+    <div class="card">
+      <span class="pill">Awaiting approval</span>
+      <h2>What moves</h2>
+      <p>A fighter pair leaves the alert apron, taxis to the holding point, lines up, rolls and climbs out with its gear
+        coming up; a gunship lifts off its pad, circles the base and settles again; a cargo plane lowers its ramp and raises
+        it. In the game every aircraft here does this on its own timetable (openspec/changes/airfield-traffic), and the
+        base scrambles its alert pair and a gunship at a mech that attacks it.</p>
+    </div>
+    <div class="card">
+      <h2>Pieces</h2>
+      <div class="tbl"><table id="pieces"><thead><tr><th>Piece</th><th>Size</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Aircraft</h2>
+      <div class="tbl"><table id="planes"><thead><tr><th>Kind</th><th>Size</th><th>Triangles</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Provisional</h2>
+      <p><b>B1</b> The fighter has a fixed wing and twin fins. <b>B2</b> No roundels yet: the island's own mark waits on its
+        colours. <b>B3</b> The runway is 2.4 km here; where a base cannot fit it, the longest that fits down to 2 km.</p>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script>
+__KIT__
+</script>
+<script>
+__ENGINE__
+</script>
+<script>
+__SITE_BUILDINGS__
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+__LOADER__
+</script>
+<script>
+const PLANES = __PLANES__;
+const YARD = __YARDSTICK__;
+const T = THREE;
+const lin = hex => new T.Color(hex).convertSRGBToLinear();
+const PI = Math.PI;
+
+// Metres. x east, y up, z south. The runway lies along x through the origin; the base stands north of it (-z), along
+// its parallel taxiway, with the fence round the lot and the gate on the access road to the north.
+const MAIN = { a: [-1200, 0], b: [1200, 0], w: 45 };
+const TAXI_Z = -180, TAXI_W = 23;
+const HANGAR = { w: 44, h: 34, d: 50 };                                  // the mech hangars (cb_core::world::bases)
+const FOREMAN = [905, -250];
+
+// ---------------------------------------------------------------- renderer
+const canvas = document.getElementById("view");
+const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = T.sRGBEncoding;
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+const scene = new T.Scene();
+scene.background = lin(0xbfcdd9);
+scene.fog = new T.Fog(lin(0xbfcdd9), 2500, 9000);
+const camera = new T.PerspectiveCamera(40, 1.6, 0.3, 30000);
+const controls = new T.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+Object.assign(controls, { minDistance: 3, maxDistance: 7000, maxPolarAngle: PI * 0.495 });
+const hemi = new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.85); scene.add(hemi);
+const sun = new T.DirectionalLight(0xffe8cc, 2.2);
+sun.position.set(-700, 1200, 500); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -1400, right: 1400, top: 1400, bottom: -1400, near: 10, far: 4000 });
+sun.shadow.bias = -0.0004;
+scene.add(sun);
+const grass = new T.Mesh(new T.PlaneGeometry(16000, 16000), new T.MeshStandardMaterial({ color: lin(0x5e6b3c), roughness: 1 }));
+grass.rotation.x = -PI / 2; grass.position.y = -0.3; grass.receiveShadow = true; scene.add(grass);
+
+// ---------------------------------------------------------------- materials and shapes
+const mat = (hex, o = {}) => new T.MeshStandardMaterial(Object.assign({ color: lin(hex), roughness: 0.9 }, o));
+const M = {
+  apron: mat(0x55554e), mil: mat(0x45453f), asphalt: mat(0x242424), taxi: mat(0x2b2b2b), road: mat(0x303030),
+  white: mat(0xe8e8e2, { roughness: 0.7 }), yellow: mat(0xf2c02a, { roughness: 0.7 }), red: mat(0xb8160f), orange: mat(0xf06a12),
+  fence: mat(0x8a8f92, { roughness: 0.6 }), dark: mat(0x2a2d31), earth: mat(0x6b5a3e), sand: mat(0xa89a74),
+  dome: mat(0xe8e6de, { roughness: 0.5 }), olive: mat(0x4a5338, { roughness: 0.7 }), concrete: mat(0xb0aca2),
+  lamp: new T.MeshStandardMaterial({ color: 0xffffff, emissive: lin(0xfff2cc), emissiveIntensity: 2 }),
+  lampRed: new T.MeshStandardMaterial({ color: 0x661010, emissive: lin(0xff2a1a), emissiveIntensity: 2 }),
+  pilot: mat(0x2f6fd0), pad: mat(0x5c5c56),
+  path: new T.LineBasicMaterial({ color: 0x3ff0ff }), cone: new T.MeshBasicMaterial({ color: 0x5cff7a, transparent: true, opacity: 0.12, side: T.DoubleSide, depthWrite: false }),
+};
+__SITE_KIT__
+// Every building is the small-buildings kit's, as at the civil airport: drawn by docs/mockups/site_buildings_kit.js on
+// the kit's Builder and broken by the one engine the street uses (docs/mockups/building_engine.js).
+const S = window.SiteBuildings;
+const E = BuildingEngine({ THREE: T, K: window.SmallBuildings, scene, ground: () => 0.05 });
+// One building of the site kit at (x, z), turned by quarter turns (1: its front, +z, to +x), standing at y. The game's
+// site export (tools/buildings/export_sites.cjs) takes each building here, as the airport's.
+function put(name, draw, x = 0, z = 0, turn = 0, y = 0, info = {}) {
+  const B = new SmallBuildings.Builder(); draw(B);
+  if (window.SITE_EXPORT) return window.SITE_EXPORT.put(name, B, { x, y, z, turn }, Object.assign({ base: y }, info));
+  const id = E.building(Object.assign({ name, base: y }, info)); E.add(B, { x, y, z, turn, bld: id }); return id;
+}
+let spinners = [];
+function spinOn(id, obj, rate) { spinners.push({ id, obj, rate, pid: null }); }
+function seatSpinners() {
+  if (window.SITE_EXPORT) return;
+  for (const s of spinners) {
+    if (s.id == null) continue;
+    const p = s.obj.position; let best = null;
+    for (const pid of E.BLD[s.id].pieces) { const P = E.PIECES[pid];
+      if (p.x >= P.lo[0] - 0.5 && p.x <= P.hi[0] + 0.5 && p.z >= P.lo[2] - 0.5 && p.z <= P.hi[2] + 0.5 && P.hi[1] <= p.y + 0.5 && (!best || P.hi[1] > E.PIECES[best].hi[1])) best = pid; }
+    s.pid = best;
+  }
+}
+__AIRFIELD_KIT__
+
+// ---------------------------------------------------------------- the aircraft: the game's own models
+const loader = gltfJsonLoader(T);
+let pending = 1;
+const loaded = () => { if (--pending <= 0) document.getElementById("ready").style.display = "inline"; };
+const KIND = id => PLANES.find(p => p.id === id);
+const MODELS = {};          // kind -> Promise of its loaded scene
+function model(kind) {
+  if (!MODELS[kind]) { pending++; MODELS[kind] = loader.loadAsync(KIND(kind).url).then(g => { loaded(); return g.scene; }, e => { console.error(e); loaded(); return null; }); }
+  return MODELS[kind];
+}
+// One aircraft: a group standing on the ground at (x, z) with its nose along n ([x, z], unit), its wheels on y = 0.12;
+// level 0 only, its rig driven by `pose` (gear 0 down to 1 up, canopy and ramp 0 shut to 1 open, rotors and props turning).
+const CRAFT = [];
+function aircraft(g, kind, c, n, opts = {}) {
+  const k = KIND(kind); if (!k) return null;
+  if (window.SITE_EXPORT) { (window.SITE_EXPORT.parked = window.SITE_EXPORT.parked || []).push({ kind, x: c[0], y: 0.12, z: c[1], heading: Math.atan2(-n[0], -n[1]) }); return null; }
+  const root = new T.Group();
+  root.position.set(c[0], 0.12 + k.manifest.rest_m, c[1]); root.rotation.y = Math.atan2(-n[0], -n[1]); g.add(root);
+  const craft = { kind, k, root, pose: { gear: 0, canopy: 0, ramp: 0, spin: !!opts.spin }, rig: [], lamps: [] };
+  model(kind).then(src => {
+    if (!src) return;
+    const s = src.clone(true);
+    // level 0 only: three.js drops the dot from a node's name ("wing.L1" is "wingL1", its parts "wingL1_1")
+    s.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; if (/L[12](_\d+)?$/.test(o.name)) o.visible = false; });
+    for (const r of k.manifest.rig) { const node = s.getObjectByName(r.node); if (node) craft.rig.push({ r, node, spin: 0 }); }
+    s.traverse(o => { if (o.isMesh && o.material && /_(beacon|strobe)$/.test(o.material.name)) {
+      o.material = o.material.clone(); craft.lamps.push({ o, kind: o.material.name.endsWith("beacon") ? "beacon" : "strobe" }); } });
+    root.add(s);
+  });
+  CRAFT.push(craft);
+  return craft;
+}
+const keyed = (keys, t) => { if (!keys) return t; for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) { const [a, va] = keys[i - 1], [b, vb] = keys[i]; return va + (vb - va) * (t - a) / Math.max(b - a, 1e-6); } return keys[keys.length - 1][1]; };
+// The rig as the game will move it: each pivot turns about its manifest axis; gear, canopy and ramp by their sequence.
+function poseRig(craft, dt, tSec) {
+  const q = new T.Quaternion(), ax = new T.Vector3();
+  for (const R of craft.rig) {
+    const r = R.r; ax.set(...r.axis);
+    let ang = 0;
+    if (r.rpm) { if (craft.pose.spin) R.spin = (R.spin + dt * r.rpm / 60 * 2 * PI) % (2 * PI); ang = R.spin; }
+    else if (r.seq) ang = (r.angle_deg || 0) * PI / 180 * keyed(r.keys, craft.pose[r.seq] || 0);
+    q.setFromAxisAngle(ax, ang); R.node.quaternion.copy(q);
+  }
+  const lit = night;
+  for (const L of craft.lamps) {
+    const on = L.kind === "beacon" ? (tSec % 1.0) < 0.1 : ((tSec % 1.2) < 0.05 || ((tSec % 1.2) > 0.15 && (tSec % 1.2) < 0.2));
+    L.o.material.emissiveIntensity = lit ? (on ? 3 : 0.05) : (on ? 1 : 0.05);
+  }
+}
+
+// ---------------------------------------------------------------- dressing that is not a building
+function berm(g, c, w, d, h) {   // an earth bank, a long ridge
+  const geo = new T.CylinderGeometry(h * 0.35, h * 1.6, w, 4, 1);
+  const m = new T.Mesh(new T.BoxGeometry(w, h, d), M.earth); m.position.set(c[0], h / 2 - 0.3, c[1]); m.castShadow = m.receiveShadow = true;
+  geo.dispose(); g.add(m);
+  // sloped faces either side
+  for (const s of [-1, 1]) { const shape = new T.Shape([new T.Vector2(0, 0), new T.Vector2(h * 1.2, 0), new T.Vector2(0, h)]);
+    const wedge = new T.Mesh(new T.ExtrudeGeometry(shape, { depth: w, bevelEnabled: false }), M.earth);
+    wedge.rotation.y = s > 0 ? -PI / 2 : PI / 2; wedge.position.set(c[0] + (s > 0 ? -w / 2 : w / 2), -0.3, c[1] + s * d / 2);
+    wedge.castShadow = wedge.receiveShadow = true; g.add(wedge); }
+}
+function samSite(g, c, labels, name) {
+  // a ring of sandbags, four launchers on their rails, a fire-control radar on a trailer
+  const ring = new T.Mesh(new T.TorusGeometry(26, 1.1, 6, 40), M.sand); ring.rotation.x = PI / 2; ring.position.set(c[0], 0.6, c[1]); ring.castShadow = true; g.add(ring);
+  slab(g, rect(c[0] - 24, c[1] - 24, c[0] + 24, c[1] + 24), -0.5, 0.06, M.mil);
+  for (let k = 0; k < 4; k++) {
+    const a = PI / 4 + k * PI / 2, p = [c[0] + Math.cos(a) * 14, c[1] + Math.sin(a) * 14];
+    box(g, [p[0] - 2, 0, p[1] - 3], [p[0] + 2, 1.4, p[1] + 3], M.olive);
+    const rail = new T.Group(); rail.position.set(p[0], 1.6, p[1]); rail.rotation.y = -a + PI / 2; rail.rotation.x = -0.6; g.add(rail);
+    for (const s of [-0.5, 0.5]) { const t = new T.Mesh(new T.CylinderGeometry(0.28, 0.28, 6, 10), M.white); t.rotation.x = PI / 2; t.position.set(s, 0.4, 0); t.castShadow = true; rail.add(t); }
+  }
+  box(g, [c[0] - 2, 0, c[1] - 4], [c[0] + 2, 2.4, c[1] + 4], M.olive);
+  const dish = new T.Mesh(new T.CylinderGeometry(1.8, 1.8, 0.4, 16), M.white); dish.rotation.x = PI / 2.5; dish.position.set(c[0], 4, c[1]); g.add(dish);
+  labels.push([name, c, 9]);
+}
+function radarDome(g, c, labels) {
+  box(g, [c[0] - 8, 0, c[1] - 8], [c[0] + 8, 10, c[1] + 8], M.concrete);
+  const dome = new T.Mesh(new T.SphereGeometry(9, 24, 16, 0, 2 * PI, 0, PI * 0.62), M.dome); dome.position.set(c[0], 13, c[1]); dome.castShadow = true; g.add(dome);
+  labels.push(["Radar dome", c, 26]);
+}
+function fence(g, F) {
+  const posts = [];
+  for (let i = 0; i < F.length; i++) { const p = F[i], q = F[(i + 1) % F.length], n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 10);
+    for (let k = 0; k < n; k++) posts.push([p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n]);
+    for (const yy of [1, 2.3, 2.9]) box(g, [Math.min(p[0], q[0]) - 0.03, yy, Math.min(p[1], q[1]) - 0.03], [Math.max(p[0], q[0]) + 0.03, yy + 0.06, Math.max(p[1], q[1]) + 0.03], M.fence, false); }
+  const inst = new T.InstancedMesh(new T.BoxGeometry(0.12, 3.0, 0.12), M.fence, posts.length), m4 = new T.Matrix4();
+  posts.forEach((p, i) => { m4.makeTranslation(p[0], 1.5, p[1]); inst.setMatrixAt(i, m4); }); g.add(inst);
+}
+
+// ---------------------------------------------------------------- the base
+const SHELTERS = [-900, -780, -660, -540, -420, -300];          // their centres' x, doors to the taxiway
+const SHELTER = { w: 26, d: 36, wallH: 2.5, rise: 9, z: -300 };
+const ALERT = [-1150, -1100];                                    // the alert pair's shelters, at the 09 end
+const PADS = [520, 575, 630, 685, 740, 795];
+const PADZ = -255;
+const ROUTES = [];   // taxi routes for the traffic and the drawn paths: [[x, z], ...]
+
+function buildBase(g, labels) {
+  if (window.SITE_EXPORT) window.SITE_EXPORT.pads = [[-1360, -700, 1420, 260, -0.3]];
+  const main = runway(MAIN);
+  beam(g, [MAIN.a[0] - 90, TOP.stripMain - 0.15, 0], [MAIN.b[0] + 90, TOP.stripMain - 0.15, 0], 150, 0.3, mat(0x6a7046), false);
+  drawRunway(g, main, true, TOP.main);
+  labels.push([`Runway ${String(main.des[0]).padStart(2, "0")}/${main.des[1]}, 2.4 km`, main.at(BLAST + 60, 0), 4]);
+  labels.push(["Approach lights", main.at(-150, 0), 4]); labels.push(["PAPI", main.at(BLAST + AIM, -main.w2 - 28), 3]);
+  // the parallel taxiway north of the runway, four links with holding points
+  taxi(g, [-1188, TAXI_Z], [1188, TAXI_Z]);
+  const tEdge = TAXI_Z + TAXI_W / 2;
+  for (const x of [-1176, -400, 400, 1176]) { link(g, [x, -main.w2], [x, tEdge], [1, 0], [1, 0], TAXI_W, Math.abs(x) > 1000 ? 12 : 25); hold(g, [x, -main.w2 - 50], [0, -1]); }
+  labels.push(["Parallel taxiway", [100, TAXI_Z], 4]); labels.push(["Holding point", [-400, -main.w2 - 50], 3]);
+  for (const x of [-1080, 1080]) { stroke(g, [x, -main.w2], [x, main.w2], 0.4, TOP.main + 0.09, M.dark);
+    for (const s of [-1, 1]) box(g, [x - 2, 0, s * (main.w2 + 6) - 1.5], [x + 2, 1.8, s * (main.w2 + 6) + 1.5], M.yellow); }
+  labels.push(["Arrester gear", [1080, main.w2 + 6], 4]);
+  windsock(g, [-1000, 70], main.d); windsock(g, [1000, 70], main.d); labels.push(["Windsock", [-1000, 70], 10]);
+
+  // ---- the alert apron at the 09 end: two shelters, the scramble pair in front of them, a link straight onto the runway
+  slab(g, rect(-1185, -335, -1065, -191), -0.5, TOP.apron, M.mil);
+  for (const x of ALERT) put("Alert shelter", B => S.archHangar(B, E.M, SHELTER), x, -300);
+  labels.push(["Alert apron, the scramble pair", [-1125, -250], 14]);
+  // ---- the hardened shelters, each on its own stub to the taxiway
+  for (const x of SHELTERS) {
+    put("Hardened aircraft shelter", B => S.archHangar(B, E.M, SHELTER), x, SHELTER.z);
+    slab(g, rect(x - 16, SHELTER.z + SHELTER.d / 2, x + 16, SHELTER.z + SHELTER.d / 2 + 24), -0.5, TOP.apron, M.mil);
+    taxi(g, [x, SHELTER.z + SHELTER.d / 2 + 12], [x, TAXI_Z - TAXI_W / 2 + 2], 15);
+  }
+  labels.push(["Hardened aircraft shelters", [-600, SHELTER.z], 16]);
+  // fighters: the alert pair out front, four at their shelters' doors, two inside
+  const alertJets = ALERT.map(x => aircraft(g, "fighter", [x, -258], [0, 1]));
+  SHELTERS.forEach((x, i) => { if (i < 4) aircraft(g, "fighter", [x, -265], [0, 1]); else aircraft(g, "fighter", [x, -300], [0, 1]); });
+  labels.push(["fighter", [-780, -265], 8]);
+  // ---- the tower and the fire station, midfield
+  put("Control tower", B => S.tower(B, E.M, { h: 32 }), -150, -290); labels.push(["Control tower", [-150, -290], 50]);
+  put("Fire station", B => S.fireStation(B, E.M), 20, -260, 0); labels.push(["Fire station", [20, -260], 14]);
+  slab(g, rect(-40, -240, 60, -191), -0.5, TOP.apron, M.apron);
+  // ---- the cargo apron, its hangar and two transports
+  slab(g, rect(120, -420, 440, -191), -0.5, TOP.apron, M.apron);
+  put("Cargo hangar", B => S.archHangar(B, E.M, { w: 90, d: 70, wallH: 12, rise: 12 }), 280, -455);
+  labels.push(["Cargo hangar", [280, -455], 30]);
+  const cargoA = aircraft(g, "military_cargo", [190, -300], [0, 1]);
+  aircraft(g, "military_cargo", [370, -300], [0, 1]);
+  labels.push(["cargo plane", [190, -300], 14]);
+  for (const x of [190, 370]) { stroke(g, [x, -345], [x, -200], 0.3, PAINT, M.yellow); outlineRect(g, rect(x - 24, -320, x + 24, -280), 0.25, PAINT_LOW, M.red); }
+  // ---- the helicopter line: six pads, a maintenance hangar behind
+  slab(g, rect(490, -395, 830, -191), -0.5, TOP.apron, M.apron);
+  PADS.forEach((x, i) => helipad(g, [x, PADZ], labels, i === 2 ? "Helicopter line" : null));
+  const helis = PADS.map((x, i) => (i % 3 !== 2 ? aircraft(g, "military_helicopter", [x, PADZ], [0, 1]) : null));
+  put("Helicopter hangar", B => S.cargoShed(B, E.M, { w: 100, d: 42, h: 10, doorH: 8, use: "shop", name: "ROTARY WING" }), 655, -362);
+  labels.push(["Helicopter hangar", [655, -362], 13]);
+  // ---- the mech hangars, as the game's bases have them, and the line-up beside the Foreman
+  slab(g, rect(860, -470, 1200, -191), -0.5, TOP.apron, M.mil);
+  for (const x of [930, 1030, 1130]) put("Mech hangar", B => S.mechHangar(B, E.M, { w: HANGAR.w, d: HANGAR.d, h: 0.12 + HANGAR.h }), x, -440);
+  labels.push(["Mech hangars", [1030, -440], 40]);
+  aircraft(g, "fighter", [950, -250], [0, 1]); aircraft(g, "military_helicopter", [995, -250], [0, 1]);
+  aircraft(g, "civil_helicopter", [1030, -250], [0, 1]); aircraft(g, "military_cargo", [1100, -265], [0, 1]);
+  labels.push(["Line-up: fighter, gunship, civil helicopter, cargo plane", [1020, -250], 18]);
+  // ---- the fuel farm, bunded
+  outlineRect(g, rect(1240, -400, 1370, -290), 1.2, 0.8, M.concrete);
+  for (const [x, z] of [[1270, -370], [1340, -370], [1270, -320], [1340, -320]]) put("Fuel tank", B => S.tank(B, { r: 11, h: 12 }), x, z);
+  labels.push(["Fuel farm", [1305, -345], 16]);
+  // ---- the munitions area: six bunkers, an earth berm between each pair
+  for (let i = 0; i < 6; i++) {
+    const x = -1080 + i * 70;
+    put("Munitions bunker", B => S.archHangar(B, E.M, { w: 14, d: 20, wallH: 1.2, rise: 4.5 }), x, -580);
+    berm(g, [x + 35, -580], 22, 10, 6);
+  }
+  berm(g, [-1080 - 35, -580], 22, 10, 6);
+  taxi(g, [-1120, -555], [-680, -555], 10);
+  labels.push(["Munitions bunkers behind earth berms", [-900, -580], 12]);
+  // ---- the living and working blocks, the gate and the access road
+  put("Headquarters", B => S.hut(B, E.M, { w: 60, d: 22, h: 8.3 }), -250, -470); labels.push(["Headquarters", [-250, -470], 14]);
+  for (const [x, z] of [[-120, -470], [-120, -520], [10, -470], [10, -520]]) put("Barracks", B => S.hut(B, E.M, { w: 50, d: 16, h: 8.3, tint: 0xd8cfb8 }), x, z);
+  labels.push(["Barracks", [-55, -495], 12]);
+  put("Mess hall", B => S.hut(B, E.M, { w: 40, d: 24, tint: 0xc9c2ad }), 140, -500); labels.push(["Mess hall", [140, -500], 8]);
+  pave(g, [0, -560], [0, -760], 12, M.road); stroke(g, [0, -560], [0, -760], 0.25, PAINT, M.white);
+  pave(g, [-300, -560], [300, -560], 10, M.road);
+  put("Gate house", B => S.hut(B, E.M, { w: 8, d: 6 }), 14, -655); labels.push(["Main gate", [0, -660], 8]);
+  box(g, [-6, 0.12, -651], [6, 1.2, -650.6], M.red);
+  // ---- radar and missile sites
+  radarDome(g, [-1250, -450], labels);
+  const radarId = put("Radar", B => S.radarMast(B), 560, -560);
+  const radar = new T.Group(); radar.position.set(560, 23.6, -560); g.add(radar);
+  const ant = new T.Mesh(new T.BoxGeometry(14, 4, 1), M.white); ant.position.y = 2; ant.castShadow = true; radar.add(ant);
+  spinOn(radarId, radar, 1.2); labels.push(["Surveillance radar", [560, -560], 28]);
+  samSite(g, [-1300, -160], labels, "Missile site west"); samSite(g, [1320, -160], labels, "Missile site east");
+  // ---- the fence
+  fence(g, [[-1360, -700], [1420, -700], [1420, 250], [-1360, 250]]);
+  // ---- the taxi routes the traffic follows (airfield-traffic's taxi graph, drawn)
+  ROUTES.length = 0;
+  ROUTES.push([[-1150, -258], [-1150, -200], [-1150, TAXI_Z], [-1176, TAXI_Z], [-1176, -main.w2 - 50], [-1176, 0], [-1188, 0]]);   // alert to the 09 end
+  for (const x of SHELTERS) ROUTES.push([[x, -265], [x, TAXI_Z], [-1176, TAXI_Z]]);
+  ROUTES.push([[190, -300], [190, TAXI_Z], [-1176, TAXI_Z]]);
+  ROUTES.push([[400, 0], [400, TAXI_Z], [370, TAXI_Z], [370, -300]]);   // a landing transport vacates to its stand
+  if (window.SITE_EXPORT) taxiNetwork(main);
+  return { alertJets, cargoA, helis };
+}
+
+// The taxi graph the game's traffic follows (openspec change airfield-traffic), exported as marks and edges, as the
+// airport's is: the runway's ends; each link onto the runway an entry on its centre line, its edge and its holding
+// point; the parallel taxiway as one chain; every parked aircraft's stand, a helicopter's as a pad, a fixed wing's with
+// its way out straight ahead onto the taxiway; and the mech hangars' bays (cb_core::world::bases).
+function taxiNetwork(main) {
+  const X = window.SITE_EXPORT, marks = {}, edges = [], r1 = v => Math.round(v * 10) / 10;
+  const mark = (name, x, z) => { marks[name] = [r1(x), r1(z)]; return name; };
+  const edge = (a, b) => edges.push([a, b]);
+  mark("rwy_a", MAIN.a[0], MAIN.a[1]); mark("rwy_b", MAIN.b[0], MAIN.b[1]);
+  const chain = [];   // [x, node name] along the parallel taxiway
+  [["w", -1176], ["mw", -400], ["me", 400], ["e", 1176]].forEach(([k, x]) => {
+    mark(`entry_${k}`, x, 0); mark(`edge_${k}`, x, -main.w2); mark(`hold_${k}`, x, -main.w2 - 50);
+    edge(`entry_${k}`, `edge_${k}`); edge(`edge_${k}`, `hold_${k}`);
+    chain.push([x, mark(`taxi_${k}`, x, TAXI_Z)]); edge(`hold_${k}`, `taxi_${k}`);
+  });
+  (X.parked || []).forEach((a, i) => {
+    mark(`stand_${i}`, a.x, a.z);
+    if (/helicopter/.test(a.kind)) { mark(`pad_${i}`, a.x, a.z); return; }
+    chain.push([a.x, mark(`out_${i}`, a.x, TAXI_Z)]); edge(`stand_${i}`, `out_${i}`);
+  });
+  chain.sort((p, q) => p[0] - q[0] || (p[1] < q[1] ? -1 : 1));
+  for (let i = 1; i < chain.length; i++) if (chain[i][0] - chain[i - 1][0] > 0.05) edge(chain[i - 1][1], chain[i][1]);
+  // two stands on one point of the taxiway share it
+  for (let i = 1; i < chain.length; i++) if (chain[i][0] - chain[i - 1][0] <= 0.05) edge(chain[i - 1][1], chain[i][1]);
+  [930, 1030, 1130].forEach((x, i) => mark(`bay_${i}`, x, -440));
+  X.marks = marks; X.taxi_edges = edges;
+}
+
+// ---------------------------------------------------------------- paths and approach cones
+const pathG = new T.Group(); scene.add(pathG);
+function buildPaths() {
+  for (const o of [...pathG.children]) { pathG.remove(o); if (o.geometry) o.geometry.dispose(); }
+  for (const r of ROUTES) { const geo = new T.BufferGeometry().setFromPoints(r.map(p => new T.Vector3(p[0], 0.6, p[1]))); pathG.add(new T.Line(geo, M.path)); }
+  // a cone off each end: 3000 m, the runway's width at the threshold opening to 600 m, rising at 3 degrees
+  for (const end of [-1, 1]) {
+    const x0 = end * 1200, x1 = end * 4200, rise = Math.tan(3 * PI / 180) * 3000;
+    const P = [[x0, 0, -22.5], [x0, 0, 22.5], [x1, rise, 300], [x1, rise, -300]];
+    const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute([...P[0], ...P[1], ...P[2], ...P[0], ...P[2], ...P[3]], 3));
+    pathG.add(new T.Mesh(geo, M.cone));
+  }
+}
+
+// ---------------------------------------------------------------- traffic, as airfield-traffic will run it
+// A fighter from the alert apron: taxi, hold, line up, roll, rotate, climb out with the gear coming up; then it is back
+// at its spot and goes again. A gunship lifts off its pad, climbs, circles the base and settles. A transport's ramp
+// opens and shuts. Speeds: taxi 8 m/s, take-off roll to 75 m/s, climb 12 degrees.
+let traffic = true, trafficT = 0, actors = null;
+const along = (pts, d) => { for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (d <= L) { const t = d / L; return { p: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], dir: [(b[0] - a[0]) / L, (b[1] - a[1]) / L] }; } d -= L; }
+  const a = pts[pts.length - 2], b = pts[pts.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]); return { p: b, dir: [(b[0] - a[0]) / L, (b[1] - a[1]) / L], done: true }; };
+const pathLen = pts => pts.slice(1).reduce((s, b, i) => s + Math.hypot(b[0] - pts[i][0], b[1] - pts[i][1]), 0);
+function stepTraffic(dt) {
+  if (!actors) return;
+  if (traffic) trafficT += dt;
+  const t = trafficT;
+  // the fighter: 0 to taxiEnd taxiing, a 6 s hold, the roll and the climb; 110 s a loop
+  const jet = actors.alertJets[0];
+  if (jet && jet.k) {
+    const route = ROUTES[0].slice(0, 6), taxiLen = pathLen(route), taxiT = taxiLen / 8, loop = taxiT + 6 + 60, u = t % loop;
+    const rest = jet.k.manifest.rest_m;
+    if (u < taxiT) { const s = along(route, u * 8); jet.root.position.set(s.p[0], 0.12 + rest, s.p[1]); jet.root.rotation.set(0, Math.atan2(-s.dir[0], -s.dir[1]), 0); jet.pose.gear = 0; jet.pose.canopy = 0; }
+    else if (u < taxiT + 6) { const s = along(route, taxiLen); jet.root.position.set(s.p[0], 0.12 + rest, s.p[1]); jet.root.rotation.set(0, -PI / 2, 0); }
+    else {
+      const r = u - taxiT - 6, x = -1176 + 0.5 * 4.5 * Math.min(r, 16.7) ** 2 + Math.max(0, r - 16.7) * 75;
+      const airborne = Math.max(0, x - (-1176 + 620));
+      const climb = Math.min(airborne * Math.tan(12 * PI / 180), 2500);
+      jet.root.position.set(x, 0.12 + rest + climb, 0);
+      jet.root.rotation.set(0, -PI / 2, 0); jet.root.rotateX(airborne > 0 ? Math.min(airborne / 200, 1) * 12 * PI / 180 : 0);
+      jet.pose.gear = Math.min(1, Math.max(0, (airborne - 60) / 400));
+    }
+  }
+  // the gunship: lift, climb, a 300 m circle north of the helicopter line, back down; 80 s a loop
+  const h = actors.helis[1];
+  if (h && h.k) {
+    const u = t % 80, home = [PADS[1], PADZ], rest = h.k.manifest.rest_m;
+    h.pose.spin = true;
+    let p = [...home], y = 0, yaw = 0;
+    if (u < 8) y = 0;
+    else if (u < 18) y = (u - 8) / 10 * 60;
+    else if (u < 62) { const a = (u - 18) / 44 * 2 * PI;   // a 300 m circle north of the pad, starting over it
+      p = [home[0] + 300 * Math.sin(a), home[1] + 300 * (Math.cos(a) - 1)]; y = 60 + 40 * Math.sin(a / 2); yaw = Math.atan2(-Math.cos(a), Math.sin(a)); }
+    else if (u < 72) y = (72 - u) / 10 * 60;
+    h.root.position.set(p[0], 0.12 + rest + y, p[1]); h.root.rotation.set(0, yaw, 0);
+  }
+  // the transport's ramp: open for 20 s of every 40
+  const c = actors.cargoA;
+  if (c) { const u = t % 40; c.pose.ramp = u < 10 ? 0 : u < 20 ? (u - 10) / 10 : u < 30 ? 1 : 1 - (u - 30) / 10; }
+}
+
+// ---------------------------------------------------------------- night
+const GLOWS = [];
+const nightG = new T.Group(); scene.add(nightG);
+let night = false;
+function nightLights() {
+  const L = { masts: [], dots: [], runways: [{ a: MAIN.a, b: MAIN.b, w: MAIN.w, y: TOP.main }] };
+  const dot = (x, y, z, col) => L.dots.push([x, y, z, col]);
+  const mast = (at, h, aim, power) => { L.masts.push({ x: at[0], z: at[1], base: 0, h, aim: [aim[0], 0, aim[1]], power, range: h * 3.2, cone: 0.95, col: "halide", pole: true }); dot(at[0], h, at[1], "halide"); };
+  const main = runway(MAIN);
+  for (const end of [0, 1]) {
+    const from = end === 0 ? main.a : main.b, d = end === 0 ? main.d : [-main.d[0], -main.d[1]], right = [-d[1], d[0]];
+    const at = (u, v) => [from[0] + d[0] * u + right[0] * v, from[1] + d[1] * u + right[1] * v];
+    for (let i = 1; i <= 10; i++) { const half = i % 3 === 0 ? 9 : 6; for (let k = 0; k < 5; k++) { const q = at(-i * 30, -half + k * half / 2); dot(q[0], 1.6, q[1], "white"); } }
+    for (let k = 0; k < 4; k++) { const q = at(BLAST + AIM, -main.w2 - 15 - k * 9); dot(q[0], 1.15, q[1], k < 2 ? "white" : "red"); }
+  }
+  for (let x = -1188; x <= 1188; x += 30) for (const z of [TAXI_Z - TAXI_W / 2 - 1.5, TAXI_Z + TAXI_W / 2 + 1.5]) dot(x, 0.5, z, "blue");
+  for (const x of [-1176, -400, 400, 1176]) for (let z = -main.w2 - 20; z > TAXI_Z + TAXI_W / 2; z -= 30) for (const s of [-1, 1]) dot(x + s * (TAXI_W / 2 + 1.5), 0.5, z, "blue");
+  // apron masts: the alert apron, the shelter stubs, the cargo apron, the helicopter line, the mech apron
+  mast([-1125, -205], 20, [-1125, -260], 1.4);
+  for (const x of SHELTERS) mast([x + 16, -270], 12, [x, -270], 0.8);
+  for (const x of [150, 280, 410]) mast([x, -200], 25, [x, -300], 1.6);
+  for (const x of [540, 660, 780]) mast([x, -205], 18, [x, -255], 1.2);
+  for (const x of [900, 1050, 1180]) mast([x, -205], 25, [x, -300], 1.6);
+  // the fence's security lights every 120 m, the gate brighter
+  for (let x = -1360; x <= 1420; x += 120) dot(x, 6, -700, "sodium");
+  mast([20, -650], 10, [0, -660], 1.0);
+  return L;
+}
+function buildNight() {
+  for (const o of [...nightG.children]) { nightG.remove(o); if (o.geometry) o.geometry.dispose(); }
+  const L = nightLights();
+  if (window.SITE_EXPORT) { window.SITE_EXPORT.lights = L; return; }
+  const dots = L.dots.slice();
+  for (const rw of L.runways) runwayDots(rw, (x, y, z, c) => dots.push([x, y, z, c]));
+  for (const m of L.masts) {
+    const pole = new T.Mesh(new T.BoxGeometry(0.6, m.h, 0.6), M.fence); pole.position.set(m.x, m.h / 2, m.z); nightG.add(pole);
+    const head = new T.Mesh(new T.BoxGeometry(3, 0.6, 1.2), M.lamp); head.position.set(m.x, m.h, m.z); nightG.add(head);
+    const sp = new T.SpotLight(DOT[m.col], m.power, m.range, m.cone, 0.7, 1.2);
+    sp.position.set(m.x, m.h - 0.4, m.z); sp.target.position.set(...m.aim); nightG.add(sp, sp.target);
+  }
+  const geo = new T.BufferGeometry(), P = [], C = [];
+  for (const [x, y, z, c] of dots) { P.push(x, y, z); const col = new T.Color(DOT[c]); C.push(col.r, col.g, col.b); }
+  geo.setAttribute("position", new T.Float32BufferAttribute(P, 3)); geo.setAttribute("color", new T.Float32BufferAttribute(C, 3));
+  nightG.add(new T.Points(geo, dotMat));
+}
+const INSIDE = ["plaster", "floorTile", "carpet", "laminate", "wallTile", "counter", "fabric"];
+function setNight(on) {
+  night = on;
+  scene.background = lin(on ? 0x070b16 : 0xbfcdd9); scene.fog.color = lin(on ? 0x0a1222 : 0xbfcdd9);
+  hemi.intensity = on ? 0.1 : 0.85; hemi.color.set(on ? 0x2a3a66 : 0xbfd4ee);
+  sun.intensity = on ? 0.18 : 2.2; sun.color.set(on ? 0x8899cc : 0xffe8cc); sun.castShadow = !on;
+  renderer.toneMappingExposure = on ? 1.35 : 1;
+  for (const [m, day, , nite] of E.glows) m.emissiveIntensity = on ? nite : day;
+  for (const k of INSIDE) { const m = E.materials[k]; if (m) { m.emissive = new T.Color(on ? 0xffc98a : 0x000000); m.emissiveIntensity = on ? 0.32 : 0; } }
+  nightG.visible = on;
+  document.querySelectorAll("[data-time]").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.time === "night") === on)));
+}
+
+// ---------------------------------------------------------------- yardsticks: the Foreman and a pilot
+const yardG = new T.Group(); scene.add(yardG);
+pending++;
+// exported for the game (tools/buildings/export_sites.cjs) there is no yardstick to load
+if (!window.SITE_EXPORT) loader.loadAsync(YARD.url).then(gltf => {
+  gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+  gltf.scene.position.set(FOREMAN[0], 0.12, FOREMAN[1]);
+  yardG.add(gltf.scene); loaded();
+}, e => { console.error(e); loaded(); });
+box(yardG, [FOREMAN[0] - 18.5, 0.12, FOREMAN[1] - 0.25], [FOREMAN[0] - 18, 1.92, FOREMAN[1] + 0.25], M.pilot);
+
+// ---------------------------------------------------------------- scene state, labels, views
+let built = null, labels = [], labelReach = null, gun = "shell", follow = false;
+const statEl = document.getElementById("shotstat");
+controls.addEventListener("start", () => { labelReach = null; follow = false; });
+const tagsEl = document.getElementById("tags");
+function rebuild() {
+  if (built) { scene.remove(built); built.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+  built = new T.Group(); scene.add(built); labels = []; spinners = []; CRAFT.length = 0; tagsEl.innerHTML = "";
+  E.clear(); statEl.textContent = "";
+  actors = buildBase(built, labels);
+  E.finish(); seatSpinners(); buildNight(); buildPaths(); setNight(night);
+  labels.push(["Foreman, 24 m", FOREMAN, 26]); labels.push(["pilot, 1.8 m", [FOREMAN[0] - 18, FOREMAN[1]], 4]);
+  for (const l of labels) { const el = document.createElement("div"); el.className = "tag " + (l[3] || ""); el.textContent = l[0]; tagsEl.appendChild(el); l.el = el; }
+}
+const V = (x, y, z) => new T.Vector3(x, y, z);
+function view(name) {
+  labelReach = null; follow = false;
+  const set = (eye, look) => { camera.position.copy(eye); controls.target.copy(look); controls.update(); };
+  ({
+    overview: () => set(V(-1250, 620, 620), V(-150, 0, -250)),
+    final: () => { labelReach = 0; set(V(2900, 105, 0), V(0, 0, 0)); },
+    alert: () => set(V(-1060, 30, -150), V(-1135, 4, -280)),
+    shelters: () => set(V(-560, 60, -150), V(-660, 4, -300)),
+    cargo: () => set(V(110, 45, -170), V(250, 6, -320)),
+    ramp: () => set(V(212, 9, -352), V(190, 2, -312)),
+    helis: () => set(V(560, 40, -160), V(650, 3, -270)),
+    mech: () => set(V(980, 50, -170), V(1030, 10, -400)),
+    lineup: () => set(V(1000, 18, -200), V(1010, 4, -255)),
+    munitions: () => set(V(-760, 80, -440), V(-900, 0, -580)),
+    sam: () => set(V(-1250, 30, -110), V(-1300, 2, -160)),
+    tower: () => { labelReach = 1500; set(V(-150, 35, -280), V(-500, 0, -150)); },
+    chase: () => { follow = true; },
+    foot: () => set(V(FOREMAN[0] - 19, 1.7, FOREMAN[1] + 2), V(950, 3, -255)),
+  })[name]();
+}
+document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.dataset.view));
+document.querySelectorAll("[data-time]").forEach(b => b.onclick = () => setNight(b.dataset.time === "night"));
+document.querySelectorAll("[data-traffic]").forEach(b => b.onclick = () => { traffic = b.dataset.traffic === "on";
+  document.querySelectorAll("[data-traffic]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
+const pathsBtn = document.getElementById("paths");
+pathsBtn.onclick = () => { pathG.visible = !pathG.visible; pathsBtn.setAttribute("aria-pressed", String(pathG.visible)); };
+document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = b.dataset.gun;
+  document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
+document.getElementById("repair").onclick = () => { E.reset(); statEl.textContent = ""; };
+E.bindFire(canvas, camera, () => gun);
+window.MOCKUP = { view, setNight, setTime: s => { trafficT = s; }, still: () => { traffic = false; }, engine: E,
+  blast: (x, y, z, w = "shell") => E.blast(V(x, y, z), w), repair: () => E.reset(), unheld: () => E.unheld(),
+  buildings: () => E.BLD.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.pieces.filter(p => E.PIECES[p].alive).length, collapsed: B.collapsed })) };
+canvas.addEventListener("keydown", e => {
+  const s = 0.05, sph = new T.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  if (e.key === "ArrowLeft") sph.theta -= s; else if (e.key === "ArrowRight") sph.theta += s;
+  else if (e.key === "ArrowUp") sph.phi = Math.max(0.05, sph.phi - s); else if (e.key === "ArrowDown") sph.phi = Math.min(PI * 0.495, sph.phi + s);
+  else if (e.key === "+" || e.key === "=") sph.radius *= 0.85; else if (e.key === "-") sph.radius /= 0.85; else return;
+  e.preventDefault(); camera.position.copy(controls.target).add(new T.Vector3().setFromSpherical(sph));
+});
+document.querySelector("#pieces tbody").innerHTML = [
+  ["Runway 09/27", "2400 x 45 m, full markings, PAPI, approach lights, arrester gear"],
+  ["Parallel taxiway", "2.4 km x 23 m, 4 links, holding points"],
+  ["Hardened shelters", "6 + 2 alert, 26 x 36 m, 11.5 m high"], ["Alert apron", "the scramble pair at the 09 end"],
+  ["Cargo apron, hangar", "320 x 230 m; hangar 90 x 70 x 24 m"], ["Helicopter line", "6 pads, a 100 x 42 m hangar"],
+  ["Mech hangars", "3, the game's 44 x 50 x 34 m"], ["Control tower, fire station", "tower 32 m to the cab"],
+  ["Fuel farm", "4 tanks in a bund"], ["Munitions", "6 bunkers between earth berms"],
+  ["HQ, barracks, mess", "6 blocks, two storeys"], ["Radar, missiles", "a dome, a surveillance radar, 2 missile sites"],
+  ["Perimeter", "2.8 x 0.95 km fence, the gate and its road"],
+].map(r => `<tr><td>${r[0]}</td><td class="n">${r[1]}</td></tr>`).join("");
+document.querySelector("#planes tbody").innerHTML = PLANES.map(p => { const m = p.manifest.measured_m, l = p.manifest.lods;
+  return `<tr><td>${p.id.replace(/_/g, " ")}</td><td class="n">${m.length.toFixed(1)} x ${m.span.toFixed(1)} x ${m.height_at_rest.toFixed(1)} m</td><td class="n">${l.map(x => x.triangles).join(" / ")}</td></tr>`; }).join("");
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) {
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    dotMat.uniforms.scale.value = h * renderer.getPixelRatio() / (2 * Math.tan(camera.fov * PI / 360)); }
+}
+const tmp = new T.Vector3();
+let last = 0, clock = 0;
+function frame(ms) {
+  const dt = Math.min(0.05, (ms - last) / 1000 || 0); last = ms; clock += dt;
+  for (const s of spinners) { s.obj.rotation.y += dt * s.rate; if (s.pid != null) s.obj.visible = E.PIECES[s.pid].alive; }
+  stepTraffic(dt);
+  for (const c of CRAFT) poseRig(c, traffic ? dt : 0, clock);
+  if (follow && actors && actors.alertJets[0]) { const p = actors.alertJets[0].root.position;
+    const back = new T.Vector3(0, 0, 1).applyQuaternion(actors.alertJets[0].root.quaternion).multiplyScalar(40);
+    camera.position.copy(p).add(back).add(V(0, 12, 0)); controls.target.copy(p); camera.lookAt(p); }
+  E.step(dt);
+  if (E.FALLING.length || statEl.textContent) { let gone = 0; for (const P of E.PIECES) if (!P.alive) gone++; statEl.textContent = gone ? `${gone} pieces down, ${E.FALLING.length} falling` : ""; }
+  resize(); if (!follow) controls.update(); renderer.render(scene, camera);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const reach = labelReach ?? Math.max(400, 2.2 * camera.position.distanceTo(controls.target));
+  for (const l of labels) {
+    tmp.set(l[1][0], l[2], l[1][1]).project(camera);
+    const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && camera.position.distanceTo(V(l[1][0], l[2], l[1][1])) < reach;
+    l.el.style.display = vis ? "block" : "none";
+    if (vis) { l.el.style.left = ((tmp.x + 1) / 2 * w) + "px"; l.el.style.top = ((1 - tmp.y) / 2 * h) + "px"; }
+  }
+  requestAnimationFrame(frame);
+}
+rebuild();
+const start = (location.hash || "").slice(1);
+view(["overview", "final", "alert", "shelters", "cargo", "ramp", "helis", "mech", "lineup", "munitions", "sam", "tower", "foot"].includes(start) ? start : "overview");
+loaded();
+requestAnimationFrame(frame);
+</script>

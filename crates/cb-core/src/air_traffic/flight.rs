@@ -3,7 +3,8 @@
 //! turning clear of a fight, and the fall after it is shot down. A point with a heading, a speed and a
 //! climb rate, stepped at the fixed step; pure and deterministic.
 
-use super::config::{AirTrafficConfig, AircraftSpec, Role, RouteConfig};
+use super::config::{AirTrafficConfig, AircraftSpec, RouteConfig};
+use super::model::ZoneKind;
 use crate::units::{forward, heading_of, turn_toward, wrap};
 use crate::world::AirBase;
 use glam::{Vec2, Vec3};
@@ -207,6 +208,29 @@ pub enum Flight {
         /// The next of them.
         next_via: usize,
     },
+    /// A military patrol (airfield-traffic): circling over its base for `left_s` more, then home to field `home`
+    /// (a helicopter to its pad at `pad`).
+    Patrol {
+        /// Its home field.
+        home: u32,
+        /// The circle's centre (x, z).
+        centre: Vec2,
+        /// The circle's radius.
+        radius_m: f32,
+        /// +1 circles left, -1 right.
+        dir: f32,
+        /// Seconds of patrol left.
+        left_s: f32,
+        /// A helicopter's pad (x, z): where it settles back.
+        pad: Option<Vec2>,
+    },
+    /// A helicopter flying to a pad at `at` (x, z) on field `field`, to settle on it.
+    ToPad {
+        /// The field.
+        field: u32,
+        /// The pad.
+        at: Vec2,
+    },
     /// Circling a city.
     Orbit {
         /// The city.
@@ -241,6 +265,36 @@ pub enum Phase {
         /// Its deceleration, set so it stops before the strip's end.
         decel_m_s2: f32,
     },
+    /// At a stand or pad between flights for `t_s` (airfield-traffic); the traffic sends it off.
+    Stand {
+        /// Time at the stand.
+        t_s: f32,
+    },
+    /// Taxiing along its taxi line (`Aircraft::taxi`), `s_m` along it; the first `push_m` it is pushed back,
+    /// tail first; at the end it does `then`.
+    Taxi {
+        /// Metres along the line.
+        s_m: f32,
+        /// The push-back's length at its start, metres.
+        push_m: f32,
+        /// What it does at the line's end.
+        then: Then,
+    },
+    /// Waiting at the holding point for `t_s`; the traffic clears it onto the runway.
+    Hold {
+        /// Time waiting.
+        t_s: f32,
+    },
+    /// A helicopter lifting straight up off its pad.
+    Lift,
+    /// A helicopter settling onto its pad.
+    Settle,
+    /// Flown by the pilot, who stole it (`fly-stolen-aircraft`): the pilot's flight model moves it, not the traffic.
+    /// `wheels` when it stands or rolls on them.
+    Piloted {
+        /// On its wheels or skids.
+        wheels: bool,
+    },
     /// Stopped on the apron for `t_s`.
     Parked {
         /// Time stopped.
@@ -254,6 +308,17 @@ pub enum Phase {
     Falling,
     /// On the ground, wrecked.
     Wrecked,
+}
+
+/// What a taxiing aircraft does at the end of its taxi line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Then {
+    /// Waits at the holding point.
+    Hold,
+    /// Turns onto its departure strip and rolls.
+    Roll,
+    /// Stops at its stand, facing `Aircraft::stand_heading`.
+    Stand,
 }
 
 /// A civil aircraft.
@@ -275,8 +340,12 @@ pub struct Aircraft {
     pub bank_rad: f32,
     /// Speed along the heading.
     pub speed_m_s: f32,
-    /// Structure points left.
+    /// Structure points left (a kind with no damage zones).
     pub hp: f32,
+    /// A modelled airliner's damage zones' structure points left, in its zones' order (airliner-models).
+    pub zone_hp: Vec<f32>,
+    /// Which of its zones have broken away.
+    pub broken: Vec<bool>,
     /// Where it is in its flight.
     pub phase: Phase,
     /// Its flight.
@@ -291,6 +360,24 @@ pub struct Aircraft {
     pub sight: Sight,
     /// The base whose approach it has chosen by the ground under it (`best_strip`).
     pub approach_for: Option<u32>,
+    /// Its taxi line on the ground (x, z), while taxiing.
+    pub taxi: Vec<Vec2>,
+    /// The field and stand it holds (standing at it, or taxiing to or from it).
+    pub stand: Option<(u32, usize)>,
+    /// The heading it stands at, at its stand.
+    pub stand_heading: f32,
+    /// The field it is on (on the ground), or flies from.
+    pub field: Option<u32>,
+    /// The strip it takes off along, once cleared to roll.
+    pub departure: Option<Strip>,
+    /// Stolen by the pilot (`fly-stolen-aircraft`): the traffic neither flies it nor sends it anywhere again.
+    pub stolen: bool,
+    /// Scrambled against the pilot and armed: once over them it is handed to the invasion's units to attack
+    /// (`Traffic::take_attackers`).
+    pub hostile: bool,
+    /// Scrambled against a hostile pilot (airfield-traffic): it leaves its stand at once and patrols over this point
+    /// (x, z), not its base.
+    pub scramble: Option<Vec2>,
 }
 
 /// What an aircraft last read of the ground near it.
@@ -332,6 +419,15 @@ pub struct Air<'a> {
     pub cfg: &'a AirTrafficConfig,
 }
 
+/// What a hit on one part did.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct HitOutcome {
+    /// It brought the aircraft down.
+    pub downed: bool,
+    /// The damage zones it broke away (the hit zone and every zone hanging from it), in the zones' order.
+    pub broke: Vec<usize>,
+}
+
 /// What happened to an aircraft this step.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FlightStep {
@@ -347,9 +443,21 @@ pub struct FlightStep {
     pub done: bool,
 }
 
-/// How high the fuselage's centre line sits over the ground on its wheels or skids.
+/// How high the fuselage's centre line sits over the ground on its wheels or skids: its model's own, measured by its
+/// build, when it has one that says (the airliners), else from its size.
 pub fn rest_m(spec: &AircraftSpec) -> f32 {
+    if let Some(r) = spec.model.as_ref().and_then(|m| m.loaded.as_ref()).and_then(|l| l.manifest.rest_m) {
+        return r;
+    }
     spec.fuselage_m * 0.5 + (spec.height_m - spec.fuselage_m) * 0.15
+}
+
+/// Nose up standing on its gear, radians (a taildragger; zero for the rest).
+pub fn rest_pitch_rad(spec: &AircraftSpec) -> f32 {
+    spec.model
+        .as_ref()
+        .and_then(|m| m.loaded.as_ref())
+        .map_or(0.0, |l| l.manifest.rest_pitch_deg.to_radians())
 }
 
 impl Aircraft {
@@ -374,6 +482,8 @@ impl Aircraft {
             bank_rad: 0.0,
             speed_m_s,
             hp: spec.hp,
+            zone_hp: spec.zones().iter().map(|z| z.share * spec.hp).collect(),
+            broken: vec![false; spec.zones().len()],
             phase,
             flight,
             route_floor: (f32::NEG_INFINITY, 0.0),
@@ -381,7 +491,40 @@ impl Aircraft {
             look_due_s: (id % 37) as f32 / 37.0 * ROUTE_LOOK_S,
             sight: Sight::default(),
             approach_for: None,
+            taxi: Vec::new(),
+            stand: None,
+            stand_heading: heading_rad,
+            field: None,
+            departure: None,
+            stolen: false,
+            hostile: false,
+            scramble: None,
         }
+    }
+
+    /// Standing at `stand` of field `field` at `at` (its wheels' ground under it), facing `heading_rad`, `t_s` into its
+    /// turnaround (airfield-traffic).
+    #[allow(clippy::too_many_arguments)]
+    pub fn standing(id: u32, kind: &str, spec: &AircraftSpec, field: u32, stand: usize, at: Vec3, heading_rad: f32, t_s: f32) -> Self {
+        let mut a = Self::new(
+            id,
+            kind,
+            spec,
+            at + Vec3::Y * rest_m(spec),
+            heading_rad,
+            0.0,
+            Phase::Stand { t_s },
+            Flight::Orbit {
+                city: 0,
+                centre: Vec2::new(at.x, at.z),
+                radius_m: 1.0,
+                dir: 1.0,
+            },
+        );
+        a.stand = Some((field, stand));
+        a.stand_heading = heading_rad;
+        a.field = Some(field);
+        a
     }
 
     /// Ready to roll from the start of `from` (a departure strip) for base `to`.
@@ -418,7 +561,40 @@ impl Aircraft {
 
     /// True while it is on its wheels.
     pub fn on_ground(&self) -> bool {
-        matches!(self.phase, Phase::Roll { .. } | Phase::Rollout { .. } | Phase::Parked { .. })
+        matches!(
+            self.phase,
+            Phase::Roll { .. }
+                | Phase::Rollout { .. }
+                | Phase::Parked { .. }
+                | Phase::Stand { .. }
+                | Phase::Taxi { .. }
+                | Phase::Hold { .. }
+                | Phase::Piloted { wheels: true }
+        )
+    }
+
+    /// Where along its taxi line `s_m` is: the point and the line's direction there.
+    pub fn taxi_at(&self, s_m: f32) -> (Vec2, Vec2) {
+        let mut left = s_m.max(0.0);
+        for w in self.taxi.windows(2) {
+            let d = w[0].distance(w[1]);
+            if left <= d && d > 1e-3 {
+                return (w[0].lerp(w[1], left / d), (w[1] - w[0]) / d);
+            }
+            left -= d;
+        }
+        let n = self.taxi.len();
+        let dir = if n >= 2 {
+            (self.taxi[n - 1] - self.taxi[n - 2]).normalize_or(Vec2::X)
+        } else {
+            self.fwd2()
+        };
+        (self.taxi.last().copied().unwrap_or_else(|| self.xz()), dir)
+    }
+
+    /// Its taxi line's length, metres.
+    pub fn taxi_len(&self) -> f32 {
+        self.taxi.windows(2).map(|w| w[0].distance(w[1])).sum()
     }
 
     /// Takes a hit through the one armour rule (`units::armour_hit`). True when this hit downed it.
@@ -433,8 +609,68 @@ impl Aircraft {
         false
     }
 
+    /// Takes a hit on part `part` (a damage zone's index; a kind with no zones takes it as a whole) through the one
+    /// armour rule. A zone at zero breaks away with every zone hanging from it (design section 5); losing any zone but
+    /// an engine, or every engine, brings it down.
+    pub fn hit_part(&mut self, spec: &AircraftSpec, part: usize, penetration_mm: f32, damage: f32) -> HitOutcome {
+        let zones = spec.zones();
+        if zones.is_empty() || part >= zones.len() || self.zone_hp.len() != zones.len() {
+            return HitOutcome {
+                downed: self.hit(penetration_mm, damage, spec.armour_mm),
+                broke: Vec::new(),
+            };
+        }
+        let mut out = HitOutcome::default();
+        if self.downed() || self.broken[part] {
+            return out;
+        }
+        if !crate::units::armour_hit(&mut self.zone_hp[part], penetration_mm, damage, spec.armour_mm) {
+            return out;
+        }
+        for z in super::model::falls_with(zones, part) {
+            if !self.broken[z] {
+                self.broken[z] = true;
+                out.broke.push(z);
+            }
+        }
+        let engines = zones.iter().filter(|z| z.kind == ZoneKind::Engine).count();
+        let all_engines = engines > 0 && self.engines_lost(spec) >= engines;
+        if out.broke.iter().any(|&z| zones[z].kind.downs()) || all_engines {
+            self.phase = Phase::Falling;
+            out.downed = true;
+        }
+        out
+    }
+
+    /// How many of its engines it has lost.
+    pub fn engines_lost(&self, spec: &AircraftSpec) -> usize {
+        spec.zones()
+            .iter()
+            .zip(&self.broken)
+            .filter(|(z, b)| **b && z.kind == ZoneKind::Engine)
+            .count()
+    }
+
+    /// The share of its engines' thrust it has lost (0 to 1).
+    pub fn thrust_lost(&self, spec: &AircraftSpec) -> f32 {
+        let engines = spec.zones().iter().filter(|z| z.kind == ZoneKind::Engine).count();
+        if engines == 0 {
+            return 0.0;
+        }
+        self.engines_lost(spec) as f32 / engines as f32
+    }
+
     /// One fixed step of `dt_s`.
     pub fn step(&mut self, spec: &AircraftSpec, air: &Air, dt_s: f32) -> FlightStep {
+        // an engine shot away: it flies on, slower, climbing less, on the ones it has left
+        let lost = self.thrust_lost(spec);
+        let slowed;
+        let spec = if lost > 0.0 {
+            slowed = spec.with_thrust_lost(lost);
+            &slowed
+        } else {
+            spec
+        };
         let mut out = FlightStep::default();
         if !(dt_s > 0.0 && dt_s.is_finite()) {
             return out;
@@ -446,7 +682,7 @@ impl Aircraft {
         let mut vy = self.vel.y;
         let mut want_heading = self.heading_rad;
         match self.phase {
-            Phase::Wrecked => return out,
+            Phase::Wrecked | Phase::Piloted { .. } => return out,
             Phase::Falling => {
                 self.fall(spec, air, dt_s, &mut out);
                 return out;
@@ -457,6 +693,122 @@ impl Aircraft {
                 self.speed_m_s = 0.0;
                 self.vel = Vec3::ZERO;
                 out.done = t >= r.park_s;
+                return out;
+            }
+            Phase::Stand { t_s } | Phase::Hold { t_s } => {
+                let t = t_s + dt_s;
+                self.phase = if matches!(self.phase, Phase::Stand { .. }) {
+                    Phase::Stand { t_s: t }
+                } else {
+                    Phase::Hold { t_s: t }
+                };
+                self.speed_m_s = 0.0;
+                self.vel = Vec3::ZERO;
+                return out;
+            }
+            Phase::Taxi { s_m, push_m, then } => {
+                let pushing = s_m < push_m;
+                let v = if pushing { r.pushback_m_s } else { r.taxi_m_s };
+                let s = s_m + v * dt_s;
+                let len = self.taxi_len();
+                let (p, dir) = self.taxi_at(s.min(len));
+                let g = (air.ground)(p.x, p.y);
+                self.pos = Vec3::new(p.x, g + rest, p.y);
+                self.speed_m_s = v;
+                self.vel = Vec3::new(dir.x, 0.0, dir.y) * if pushing { -v } else { v };
+                // pushed back it keeps facing the stand's way; taxiing it faces where it goes
+                if !pushing && s < len {
+                    self.heading_rad = wrap(turn_toward(
+                        self.heading_rad,
+                        heading_of(Vec3::new(dir.x, 0.0, dir.y)),
+                        turn_max * 3.0,
+                    ));
+                }
+                self.phase = Phase::Taxi { s_m: s, push_m, then };
+                // at the line's end it turns where it stands onto the runway, or onto its stand, before it stops
+                let face = match then {
+                    Then::Roll => self.departure.map(|d| d.heading()),
+                    Then::Stand => Some(self.stand_heading),
+                    Then::Hold => None,
+                };
+                if s >= len
+                    && let Some(face) = face
+                    && wrap(self.heading_rad - face).abs() > 0.02
+                {
+                    self.heading_rad = wrap(turn_toward(self.heading_rad, face, turn_max * 3.0));
+                    self.speed_m_s = 0.0;
+                    self.vel = Vec3::ZERO;
+                    self.bank_rad = 0.0;
+                    self.pitch_rad = 0.0;
+                    return out;
+                }
+                if s >= len {
+                    self.speed_m_s = 0.0;
+                    self.vel = Vec3::ZERO;
+                    self.phase = match then {
+                        Then::Hold => Phase::Hold { t_s: 0.0 },
+                        Then::Stand => {
+                            self.heading_rad = self.stand_heading;
+                            Phase::Stand { t_s: 0.0 }
+                        }
+                        Then::Roll => match self.departure {
+                            Some(strip) => {
+                                self.heading_rad = strip.heading();
+                                let left = (strip.len() - (self.xz() - strip.start).dot(strip.dir())).max(300.0);
+                                Phase::Roll {
+                                    accel_m_s2: spec.approach_m_s * spec.approach_m_s / (2.0 * left * 0.9),
+                                }
+                            }
+                            None => Phase::Hold { t_s: 0.0 },
+                        },
+                    };
+                }
+                self.bank_rad = 0.0;
+                self.pitch_rad = 0.0;
+                return out;
+            }
+            Phase::Lift => {
+                self.speed_m_s = 0.0;
+                let here = (air.ground)(self.pos.x, self.pos.z);
+                self.pos.y += r.lift_m_s * dt_s;
+                self.vel = Vec3::Y * r.lift_m_s;
+                if self.pos.y - here - rest >= r.lift_m {
+                    self.phase = if matches!(self.flight, Flight::Route { .. }) {
+                        Phase::Climb
+                    } else {
+                        Phase::Orbit
+                    };
+                }
+                return out;
+            }
+            Phase::Settle => {
+                let Flight::ToPad { at, .. } = self.flight else {
+                    self.phase = Phase::Orbit;
+                    return out;
+                };
+                let here = self.xz();
+                let to = at - here;
+                let d = to.length();
+                let v = d.min(8.0);
+                let step = if d > 1e-3 { to / d * (v * dt_s).min(d) } else { Vec2::ZERO };
+                self.speed_m_s = v;
+                if d > 1.0 {
+                    self.heading_rad = wrap(turn_toward(self.heading_rad, heading_of(Vec3::new(to.x, 0.0, to.y)), turn_max));
+                }
+                let ground = (air.ground)(at.x, at.y) + rest;
+                let down = if d < 20.0 { r.lift_m_s } else { 0.0 };
+                self.pos = Vec3::new(here.x + step.x, (self.pos.y - down * dt_s).max(ground), here.y + step.y);
+                self.vel = Vec3::new(step.x / dt_s, -down, step.y / dt_s);
+                self.bank_rad = 0.0;
+                self.pitch_rad = 0.0;
+                if self.pos.y <= ground + 0.05 && d < 1.0 {
+                    self.pos = Vec3::new(at.x, ground, at.y);
+                    self.speed_m_s = 0.0;
+                    self.vel = Vec3::ZERO;
+                    self.heading_rad = self.stand_heading;
+                    self.phase = Phase::Stand { t_s: 0.0 };
+                    out.landed = true;
+                }
                 return out;
             }
             Phase::Roll { accel_m_s2 } => {
@@ -473,10 +825,20 @@ impl Aircraft {
                 let fwd = self.fwd2();
                 let sight = self.look(air, [fwd, fwd], spec, r);
                 if self.pos.y - sight.here_m >= r.climb_out_m {
-                    self.phase = Phase::Enroute;
+                    self.phase = if matches!(self.flight, Flight::Patrol { .. }) {
+                        Phase::Orbit
+                    } else {
+                        Phase::Enroute
+                    };
                 }
             }
             Phase::Enroute => {
+                if let Flight::ToPad { at, .. } = self.flight
+                    && self.xz().distance(at) < 150.0
+                {
+                    self.phase = Phase::Settle;
+                    return out;
+                }
                 self.divert_if_needed(air, &mut out);
                 let (target, via) = self.route_target(r, spec);
                 let pos2 = self.xz();
@@ -492,7 +854,8 @@ impl Aircraft {
                             *next_via += 1;
                         }
                     }
-                    None if d < capture && !high => self.phase = Phase::Intercept,
+                    None if d < capture && !high && matches!(self.flight, Flight::Route { .. }) => self.phase = Phase::Intercept,
+                    None if matches!(self.flight, Flight::Patrol { .. }) && d < capture => self.phase = Phase::Orbit,
                     _ => {}
                 }
                 let mut want = steer_clear(pos2, (target - pos2).normalize_or(self.fwd2()), air.zones);
@@ -594,7 +957,32 @@ impl Aircraft {
             Phase::Orbit | Phase::Leaving => {
                 let pos2 = self.xz();
                 let mut want = self.fwd2();
-                if let (Phase::Orbit, Flight::Orbit { centre, radius_m, dir, .. }) = (self.phase, &self.flight) {
+                // a patrol's time over its base runs out: home, a helicopter to its pad, an aircraft to the runway
+                if let Flight::Patrol { home, left_s, pad, .. } = &mut self.flight {
+                    *left_s -= dt_s;
+                    if *left_s <= 0.0 {
+                        let (home, pad) = (*home, *pad);
+                        if let Some(at) = pad {
+                            self.flight = Flight::ToPad { field: home, at };
+                        } else if let Some(b) = air.bases.iter().find(|b| b.id == home) {
+                            self.flight = Flight::Route {
+                                to: home,
+                                strip: landing_strip(b, r, pos2),
+                                via: Vec::new(),
+                                next_via: 0,
+                            };
+                        }
+                        self.phase = Phase::Enroute;
+                    }
+                }
+                let circling = match &self.flight {
+                    Flight::Orbit { centre, radius_m, dir, .. } | Flight::Patrol { centre, radius_m, dir, .. } => {
+                        Some((*centre, *radius_m, *dir))
+                    }
+                    _ => None,
+                };
+                if let (Phase::Orbit, Some((centre, radius_m, dir))) = (self.phase, circling) {
+                    let (centre, radius_m, dir) = (&centre, &radius_m, &dir);
                     if in_zone(*centre, air.zones, *radius_m) {
                         // Its city is in a fight: it leaves, away from the nearest one.
                         self.phase = Phase::Leaving;
@@ -625,7 +1013,7 @@ impl Aircraft {
         let before = self.heading_rad;
         self.heading_rad = wrap(turn_toward(self.heading_rad, want_heading, turn_max));
         let rate = wrap(self.heading_rad - before) / (spec.turn_deg_s.to_radians() * dt_s);
-        let max_bank = if spec.role == Role::Helicopter {
+        let max_bank = if spec.role.rotorcraft() {
             MAX_BANK_RAD * 0.66
         } else {
             MAX_BANK_RAD
@@ -645,7 +1033,7 @@ impl Aircraft {
     fn fall(&mut self, spec: &AircraftSpec, air: &Air, dt_s: f32, out: &mut FlightStep) {
         let f = &air.cfg.fall;
         let keep = (-f.drag_per_s * dt_s).exp();
-        let spin = if spec.role == Role::Helicopter { 3.0 } else { 1.0 } * f.spin_deg_s.to_radians();
+        let spin = if spec.role.rotorcraft() { 3.0 } else { 1.0 } * f.spin_deg_s.to_radians();
         self.vel.x *= keep;
         self.vel.z *= keep;
         self.vel.y -= G_M_S2 * dt_s;
@@ -720,7 +1108,8 @@ impl Aircraft {
                 Some(p) => (*p, Some(*next_via)),
                 None => (strip.fix(approach_m(r, spec)), None),
             },
-            Flight::Orbit { centre, .. } => (*centre, None),
+            Flight::Orbit { centre, .. } | Flight::Patrol { centre, .. } => (*centre, None),
+            Flight::ToPad { at, .. } => (*at, None),
         }
     }
 
@@ -748,12 +1137,35 @@ impl Aircraft {
         }
     }
 
+    /// Where a pilot on foot climbs in (on the ground beside it) and where their eye ends up in its seat, in the world,
+    /// as it stands (`fly-stolen-aircraft`): its model's `DOOR_*` (the first by name) and `EYE_pilot`; a kind without
+    /// them (a block-out) has a door on its left a third of the way back and the eye ahead of it, by its size.
+    pub fn boarding(&self, spec: &AircraftSpec) -> (Vec3, Vec3) {
+        let rest = rest_m(spec);
+        let marks = spec.model.as_ref().and_then(|m| m.loaded.as_ref()).map(|l| &l.manifest.marks);
+        let door = marks
+            .and_then(|m| m.iter().find(|(k, _)| k.starts_with("DOOR_")))
+            .map(|(_, v)| Vec3::from_array(*v))
+            .unwrap_or(Vec3::new(-(spec.fuselage_m * 0.5 + 1.2), -rest, -spec.length_m * 0.2));
+        let eye = marks
+            .and_then(|m| m.get("EYE_pilot"))
+            .map(|v| Vec3::from_array(*v))
+            .unwrap_or(Vec3::new(-spec.fuselage_m * 0.2, spec.fuselage_m * 0.25, -spec.length_m * 0.35));
+        let rot = glam::Quat::from_rotation_y(self.heading_rad);
+        // the door's foot on the ground, a little out from the hull so the pilot stands clear of it
+        let mut door_w = self.pos + rot * door;
+        door_w.y = self.pos.y - rest;
+        let side = rot * Vec3::new(door.x.signum(), 0.0, 0.0);
+        (door_w + side * 0.8, self.pos + rot * eye)
+    }
+
     /// Its position (x, z).
     pub fn xz(&self) -> Vec2 {
         Vec2::new(self.pos.x, self.pos.z)
     }
 
-    fn fwd2(&self) -> Vec2 {
+    /// Its heading as a unit vector (x, z).
+    pub fn fwd2(&self) -> Vec2 {
         let f = forward(self.heading_rad);
         Vec2::new(f.x, f.z)
     }

@@ -126,9 +126,18 @@ mod tests {
             let zone = match s.template.kind {
                 crate::world::sites::SiteKind::Airport => Zone::Airport,
                 crate::world::sites::SiteKind::Seaport => Zone::Seaport,
+                crate::world::sites::SiteKind::MilitaryBase => Zone::MilitaryBase,
             };
+            // every site of its kind (two airports, two seaports: island-sites-layout), each building but a port's
+            // ships (they sail: ship-traffic)
             let n = plan.small.lots.iter().filter(|l| l.zone == zone).count();
-            assert_eq!(n, s.template.placements.len(), "{:?}'s lots", s.template.kind);
+            let built: usize = plan
+                .sites
+                .iter()
+                .filter(|o| o.template.kind == s.template.kind)
+                .map(|o| o.template.placements.iter().filter(|p| !p.ship).count())
+                .sum();
+            assert_eq!(n, built, "{:?}'s lots", s.template.kind);
             // The ground is shaped to every pad: flat at its height a cell inside its edges.
             for (r, y) in s.pads() {
                 let m = Vec2::splat(30.0);
