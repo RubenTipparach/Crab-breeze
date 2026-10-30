@@ -97,9 +97,11 @@ fn explode(
         }
         // Buildings within reach lose the cells the blast reaches (building-destruction).
         let s_buildings = crate::perf_hud::section("explode: buildings");
+        let (mut hit_buildings, mut hit_houses, chunks_before) = (0, 0, live.new_chunks.len());
         for b in plan.collision.candidates(xz, r * 1.5) {
             let (broke, chunks) = live.structures.break_sphere(b, e.at, r * 1.3);
             if broke > 0 {
+                hit_buildings += 1;
                 live.dirty_buildings.push(b);
                 live.new_chunks.extend(chunks);
             }
@@ -107,11 +109,19 @@ fn explode(
         for lot in plan.small.candidates(xz, r * 1.5) {
             let b = live.structures.houses.break_sphere(&plan.small, lot, e.at, r * 1.3);
             if !b.pieces.is_empty() {
+                hit_houses += 1;
                 live.dirty_houses.push(lot);
                 live.new_chunks.extend(b.chunks);
             }
         }
         drop(s_buildings);
+        crate::probe_event!(
+            "blast {:.1} MJ at ({:.0}, {:.0}): {hit_buildings} buildings and {hit_houses} houses broken, {} chunks",
+            e.energy_mj,
+            e.at.x,
+            e.at.z,
+            live.new_chunks.len() - chunks_before
+        );
         // Mechs nearby take splash on the part nearest the blast; armour stops most of it.
         for (mut sim, spec) in &mut mechs {
             let d = sim.curr.pos.distance(e.at - Vec3::Y * 4.0);

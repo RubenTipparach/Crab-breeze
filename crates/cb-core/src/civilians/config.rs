@@ -88,6 +88,9 @@ pub struct DrawConfig {
     pub near_m: f32,
     /// ... and at most this many of them (the first in list order past it take the crowd level).
     pub near_max: usize,
+    /// Only people within this of the eye cast the sun's shadow (owner, 2026-10-28: "I wouldnt even bother giving
+    /// them shadows more than 20m awway"); at most `near_m`.
+    pub shadow_m: f32,
     /// A change of clip fades from the old one over this.
     pub crossfade_s: f32,
     /// A greeting waves this long, then talks.
@@ -205,6 +208,7 @@ impl Default for DrawConfig {
         Self {
             near_m: 60.0,
             near_max: 200,
+            shadow_m: 20.0,
             crossfade_s: 0.25,
             wave_s: 2.0,
             cadence: [0.5, 1.8],
@@ -293,6 +297,13 @@ impl Validate for PeopleConfig {
         within("greet_cone_deg", self.greet_cone_deg, 1.0, 180.0)?;
         positive("greet_hold_s", self.greet_hold_s)?;
         positive("draw.near_m", self.draw.near_m)?;
+        positive("draw.shadow_m", self.draw.shadow_m)?;
+        if self.draw.shadow_m > self.draw.near_m {
+            return Err(format!(
+                "draw.shadow_m ({}) must be at most draw.near_m ({})",
+                self.draw.shadow_m, self.draw.near_m
+            ));
+        }
         positive("draw.crossfade_s", self.draw.crossfade_s)?;
         positive("draw.wave_s", self.draw.wave_s)?;
         positive_range("draw.cadence", self.draw.cadence)?;

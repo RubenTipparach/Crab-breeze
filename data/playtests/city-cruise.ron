@@ -1,0 +1,27 @@
+// The city without a fight, for performance (owner, 2026-10-27: "Optimize city, goal is to get to90 fps with no dips"):
+// free roam starts on a street of the capital beside the mech. Board, look round the densest blocks from the cockpit
+// for 30 s, then skate the capital's west side and back in to its centre. Every frame goes to
+// output/perf/city-cruise-frames.csv.
+//
+//   CB_UNCAPPED=1 ./target/release/crab-breeze --playtest city-cruise > output/perf/city-cruise.log 2>&1
+(
+    name: "city-cruise",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                WalkToMech(6.0),
+                Board,
+                Wait(2.0),
+                LookAround(30.0),
+                SkateTo(-8050.0, -5300.0),
+                SkateTo(-7950.0, -4250.0),
+                SkateTo(-8150.0, -3350.0),
+                SkateTo(-7496.0, -3575.0),
+                LookAround(20.0),
+            ],
+        ),
+    ],
+)

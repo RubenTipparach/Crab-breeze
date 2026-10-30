@@ -10,3 +10,4 @@
 - [x] 3.2 `SwapMech`: the mech swapped in place through `spawn_mech_entity`; the save records it
   (`Saving.mech`, and Continue reads the save's mech); not yet seen in a playtest
 - [ ] 4.1 Playtest: menu, free roam, swap the mech, quit to menu, start a career, quit; one window throughout
+- [x] 3.3 Leaving the menu shows the loading panel on its own camera before the world spawns (owner, 2026-10-29: "also need loading screen going from main menu into game world"; `loading::show_from_the_menu`)

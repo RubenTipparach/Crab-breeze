@@ -289,7 +289,10 @@ said out loud and kept in check, never guessed.
 - **Targets** until the owner sets others: on the owner's most powerful machine at 1920 x 1080,
   p95 within 8.3 ms and p99 within 16.7 ms, in the cockpit, in the densest scene. **The target
   hardware is a high-end PC with an RTX 3070** (owner, 2026-10-24): triangle counts in the hundreds
-  of thousands and 4096 px map sets are fine; budgets still exist and are still measured.
+  of thousands are fine; budgets still exist and are still measured. **No texture over 2048 px**
+  (owner, 2026-10-28: "No 4k textures 2k only. Compress all 4k"): the 3070 has 8 GB of video memory,
+  and the game spilled into system memory beside the desktop's other programs
+  (`docs/benchmarks/2026-10-28-city/report.md`). Every map, baked or generated, is 2048 px or less.
 - **Every frame above 60 fps in every perf run** (owner, 2026-10-26: "Let's focus on getting no frames
   under 60fps, then we'll focus on 90", "ensure that when you run perf, everything is always above 60
   fps"). After the loading screen's `GAME_READY`, no frame of a release build may take longer than
@@ -354,6 +357,10 @@ said out loud and kept in check, never guessed.
 - **End every reply with the artifact links** (owner rule in every repository): each artifact made
   or changed since the owner's last message, with one line on what is new, or one line saying
   there were none.
+- **Every published artifact is checked into the repo** (owner, 2026-10-28: "all published artifacts are
+  to be checked into the repo"). Its page source and the data it shows go in `docs/artifacts/<name>/`
+  with a `README.md` giving its link, what it shows and what made it, committed on the session's branch
+  in the same step as the publish, and again whenever it is republished.
 - **Every pushed branch has a pull request** (owner, 2026-10-25: "there must always be a pr for every
   branch"). The session that first pushes a branch opens its PR in the same step, with a body saying
   which session owns it and what it holds, so the owner can tell whose a branch is from the PR list.
@@ -418,7 +425,8 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
 - **Every custom texture is a full PBR set** (owner, 2026-10-24: "normal maps, speculat maps and ao
   for all our custom textures"): base colour, a tangent-space normal map, an ORM map packed the glTF
   way (R occlusion, G roughness, B metal; Bevy reads it as `occlusion_texture` and
-  `metallic_roughness_texture`) and emission where it glows. A colour map alone is not done.
+  `metallic_roughness_texture`) and emission where it glows. A colour map alone is not done. Every
+  map is 2048 px or less (section 7).
   `tools/blender/pbr.py` is the one place a Blender material is wired to these maps for export.
 - **Meshes are files built by committed generators** (star-crew-64, Undercity, Star Crew): a Blender
   script writes the source deterministically and exports a byte-reproducible glb with a manifest.

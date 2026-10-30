@@ -52,3 +52,4 @@ where the owner chose real moon phases. Building from 2026-10-28.
   cockpit, and from 1,500 m; a contact sheet looked at
 - [ ] 6.2 Measured on the owner's machine: a city at midnight against the same take at noon, p50, p95 and p99
 - [ ] 6.3 Playtest: a full 48-minute cycle on the streaming route, recorded, on Drive
+- [x] 6.4 Night's flat ambient raised to 16 % of the day's and the sky's light to 9 % (were 10 and 6; owner, 2026-10-29: "we need to bump up ambient color a bit, at night its too dark")

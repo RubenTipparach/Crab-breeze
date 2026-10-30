@@ -96,7 +96,10 @@ fn count_assets(
             .map(|(m, n)| (m.0.id(), n.map_or("unnamed", |n| n.as_str())))
             .collect();
         for id in sent {
-            let Some(bytes) = assets.get(id).and_then(mesh_bytes) else {
+            if let Some(m) = assets.get(id) {
+                crate::perf_probe::note_mesh(id, m);
+            }
+            let Some(bytes) = assets.get(id).and_then(crate::perf_probe::mesh_bytes) else {
                 continue;
             };
             let kb = (bytes / 1024) as u32;
@@ -113,18 +116,6 @@ fn count_assets(
             _ => {}
         }
     }
-}
-
-/// A mesh's vertex and index bytes, as the render world uploads them; `None` once its data has gone to the render
-/// world.
-fn mesh_bytes(m: &bevy::prelude::Mesh) -> Option<usize> {
-    let vertices: usize = m.try_attributes().ok()?.map(|(_, v)| v.get_bytes().len()).sum();
-    let indices = match m.try_indices_option().ok()? {
-        Some(bevy::mesh::Indices::U16(i)) => i.len() * 2,
-        Some(bevy::mesh::Indices::U32(i)) => i.len() * 4,
-        None => 0,
-    };
-    Some(vertices + indices)
 }
 
 /// The layer `LogPlugin::custom_layer` adds.

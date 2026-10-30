@@ -88,7 +88,8 @@ should be a rope dangling down for me the player to climb up"):
   hangs straight with a slow sway of under half a degree (`cb-app::rope`, 4 cm thick).
 - **Its foot** (`MechAccess::ladder_base`) is on the ground 1.2 m out in front of the sill, at the
   mech's own ground height, so the climbing pilot is just outside the rope.
-- **The climb:** Use within reach of the rope's foot carries the eyes to the foot, straight up the
+- **The climb:** Use within 2 m of the rope's foot (`board_reach_m`; owner, 2026-10-29: "e to step into cockpit must
+  only be with in 2 meter radius of the end of the ropw"; it was 25 m) carries the eyes to the foot, straight up the
   rope to the sill's height, onto the sill (`HATCH_entry`), and settles them at `EYE_pilot` facing
   out of the bay, at the climbing speed in the pilot data (7 m/s: about 2 s up the rope, as if
   winched). Climbing out runs the same path backwards and stands the pilot at the rope's foot. The sequence then

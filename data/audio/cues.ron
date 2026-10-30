@@ -2,7 +2,7 @@
 // muffled and far copies sit beside it (sfx/muffled/, sfx/far/), rendered by
 // tools/audio/render_sfx.sh. Every sound effect is placed in 3D (owner, 2026-10-25): `Placed` at
 // a node or point the game gives, `Cockpit("<speaker>")` at a speaker inside the cabin. Only
-// ambience (ambience.ron) and music (music.ron) are unplaced.
+// ambience (ambience.ron), music (music.ron) and the menus' sounds (`Ui`) are unplaced.
 (
     ear_gap_m: 0.2,
     speed_of_sound_m_s: 343.0,
@@ -70,6 +70,10 @@
         "radio_squelch": (files: ["audio/sfx/radio_squelch.ogg"], space: Cockpit("radio"), max_voices: 1),
         "radar_ping": (files: ["audio/sfx/radar_ping.ogg"], volume_db: -6.0, space: Cockpit("warning"), max_voices: 1),
         "systems_boot": (files: ["audio/sfx/systems_boot.ogg"], space: Cockpit("warning"), max_voices: 1),
+        // the menus, unplaced (owner, 2026-10-29: "also need hover/click feedback from ui buttons, please implement sfx
+        // for those too"): the console's click, a quiet high tick under the pointer and the click itself on a press
+        "ui_hover": (files: ["audio/sfx/mfd_click.ogg"], volume_db: -16.0, space: Ui, pitch: (1.6, 1.6)),
+        "ui_click": (files: ["audio/sfx/mfd_click.ogg"], volume_db: -6.0, space: Ui, pitch: (0.9, 0.9)),
     },
     // The effects the game already announces (cb-core fx::RECIPES), and the sound each makes: the
     // effect and its sound come from one message, so they cannot disagree.

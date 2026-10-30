@@ -51,6 +51,8 @@ impl Plugin for PilotPlugin {
         .init_resource::<Shake>()
         .add_world_spawn((cpu_light_clustering, spawn_camera))
         .add_game_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
+        .add_message::<ShakeKick>()
+        .add_game_systems(FixedUpdate, body_kicks.after(SimSet::Mech))
         .add_world_spawn(spawn_prompt)
         .add_game_systems(
             Update,
@@ -294,28 +296,115 @@ fn view(yaw: f32, pitch: f32) -> Quat {
     Quat::from_rotation_y(yaw) * Quat::from_rotation_x(pitch)
 }
 
-/// The view's shake from blasts nearby, 0..1, and its clock.
+/// The view's shake (openspec change `cockpit-shake`): the trauma kicked by blasts and the mech's own body (0..1), the
+/// rumble of its jets and skates (0..1), the eye's jolt, the clock, and the player's strength setting.
 #[derive(Resource, Default)]
-struct Shake {
+pub(crate) struct Shake {
     trauma: f32,
+    rumble: f32,
+    /// The firing rumble is held until this clock time, seconds.
+    fire_until_s: f32,
+    jolt: cb_core::fx::Jolt,
     t_s: f32,
+    strength: f32,
 }
 
-/// Blasts this frame kick the shake by how near and big they are; it dies away by itself.
+impl Shake {
+    /// How far the eye is dipped this frame, metres (the cockpit camera takes the same dip).
+    pub(crate) fn dip_m(&self) -> f32 {
+        self.jolt.y * self.strength
+    }
+}
+
+/// A kick to the view from the pilot's own mech (a landing, a ram, a hit, a punch, its guns, its jets lighting).
+#[derive(Message, Clone, Copy, Debug)]
+pub struct ShakeKick(pub cb_core::fx::Kick);
+
+/// Kicks the shake from blasts by how near and big they are, from the mech's body (`ShakeKick`) and from hits on the
+/// piloted mech; eases the rumble toward what the jets and skates ask; springs the jolt back. It all dies away by
+/// itself.
+#[allow(clippy::too_many_arguments)]
 fn shake_on_blasts(
     mut blasts: MessageReader<crate::blast::Explosion>,
+    mut kicks: MessageReader<ShakeKick>,
+    mut hits: MessageReader<crate::battle_fx::MechHit>,
     data: Res<Data>,
     time: Res<Time>,
     camera: Single<&Transform, With<PilotCamera>>,
+    piloted: Query<(&crate::mech::MechSim, &crate::mech::MechId), With<crate::mech::Piloted>>,
+    (pilot, plan, settings): (Res<PilotSim>, Res<Plan>, Option<Res<crate::settings::Settings>>),
     mut shake: ResMut<Shake>,
 ) {
     let cfg = &data.0.fx.shake;
     let dt = time.delta_secs();
     shake.t_s += dt;
-    shake.trauma = (shake.trauma - dt / cfg.decay_s).max(0.0);
+    shake.strength = settings.map_or(1.0, |s| s.0.camera_shake);
+    shake.trauma = cfg.decay(shake.trauma, dt);
+    let add = |k: cb_core::fx::Kick, shake: &mut Shake| {
+        shake.trauma = (shake.trauma + k.trauma).min(1.0);
+        shake.jolt.kick(k.jolt_m_s);
+        if k.fire_s > 0.0 {
+            shake.fire_until_s = shake.fire_until_s.max(shake.t_s + k.fire_s);
+        }
+    };
     for b in blasts.read() {
         let kick = cfg.kick(b.energy_mj, b.at.distance(camera.translation));
         shake.trauma = (shake.trauma + kick).min(1.0);
+    }
+    let seated = pilot.curr.mode == PilotMode::Seated;
+    let me = piloted.iter().next();
+    for k in kicks.read() {
+        if seated {
+            add(k.0, &mut shake);
+        }
+    }
+    for h in hits.read() {
+        if seated && me.is_some_and(|(_, id)| id.0 == h.mech) {
+            add(cfg.hit(h.penetration_mm, h.blast_mj), &mut shake);
+        }
+    }
+    // The rumble the body asks for, eased so it swells and fades.
+    let want = match me {
+        Some((sim, _)) if seated => {
+            let s = &sim.curr;
+            let paved = plan.0.surface_at(Vec2::new(s.pos.x, s.pos.z)) == cb_core::world::Surface::Concrete;
+            cfg.rumble(s.boosting, s.skates_on && !s.in_air, s.speed_m_s, paved)
+        }
+        _ => 0.0,
+    };
+    // Firing holds the rumble at least at `fire_rumble` (owner: "firing guns should also cause some vibrations").
+    let want = if shake.t_s < shake.fire_until_s {
+        want.max(cfg.fire_rumble)
+    } else {
+        want
+    };
+    shake.rumble = cfg.ease_rumble(shake.rumble, want, dt);
+    let jolt_cfg = cfg.clone();
+    shake.jolt.step(&jolt_cfg, dt);
+}
+
+/// The pilot's own mech kicks the view in the step it lands, rams, or lights its jets (openspec change
+/// `cockpit-shake`): read from its state before and after the step, so no event is missed between frames.
+fn body_kicks(data: Res<Data>, piloted: Query<&crate::mech::MechSim, With<crate::mech::Piloted>>, mut kicks: MessageWriter<ShakeKick>) {
+    let cfg = &data.0.fx.shake;
+    let Some(sim) = piloted.iter().next() else { return };
+    let (a, b) = (&sim.prev, &sim.curr);
+    if a.in_air && !b.in_air {
+        let k = cfg.landing(-a.vel_y_m_s);
+        if k.trauma > 0.0 {
+            kicks.write(ShakeKick(k));
+        }
+    }
+    // Speed lost in one step beyond any brake: the mech hit something.
+    let lost = (a.vel - b.vel).length();
+    if !b.in_air && b.vel.length() < a.vel.length() {
+        let k = cfg.ram(lost);
+        if k.trauma > 0.0 {
+            kicks.write(ShakeKick(k));
+        }
+    }
+    if b.boosting && !a.boosting {
+        kicks.write(ShakeKick(cfg.ignite()));
     }
 }
 
@@ -430,14 +519,19 @@ fn place_camera(
         // pilot's own look from its nose with the mouse not yet stepped. Turning only once a fixed
         // step while the cockpit glided between steps, it jittered against the cabin (owner,
         // 2026-10-25: "the motion of the mech turning vs mouselook ... it jitters alot").
+        // The look from the nose is blended between steps as the nose is (`cb_core::pilot::seated_yaw`): taken from
+        // the last step alone, the view fell a step's turn behind and snapped on while the mech turned (owner,
+        // 2026-10-28: "make sure it is smoothly rotating").
         PilotMode::Seated => match sims.iter().next() {
             Some(sim) => {
                 let pitch_limit = cfg.pitch_limit_deg.to_radians();
-                let (from, to) = (sim.prev.heading_rad, sim.curr.heading_rad);
-                let turned = (to - from + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-                let heading = from + turned * alpha;
+                let yaw = cb_core::pilot::seated_yaw(
+                    [sim.prev.heading_rad, sim.curr.heading_rad],
+                    [prev.seated_rel_rad, curr.seated_rel_rad],
+                    alpha,
+                );
                 view(
-                    heading + curr.seated_rel_rad - pending.x.to_radians(),
+                    yaw - pending.x.to_radians(),
                     (curr.pitch_rad + pending.y.to_radians()).clamp(-pitch_limit, pitch_limit),
                 )
             }
@@ -486,17 +580,38 @@ fn place_camera(
     // The shake rides on top of the player's view and is never written into their aim: the look
     // they steer is unchanged (CLAUDE.md section 8). Felt as the square of the trauma, so small
     // blasts barely register; three unrelated sines so it never settles into a rhythm.
-    let amp = data.0.fx.shake.max_deg.to_radians() * shake.trauma * shake.trauma;
+    let sc = &data.0.fx.shake;
+    let amp = sc.max_deg.to_radians() * shake.trauma * shake.trauma * shake.strength;
     let t = shake.t_s;
+    // The jets' and skates' rumble: a finer, faster buzz (openspec change `cockpit-shake`).
+    let buzz = sc.rumble_deg.to_radians() * shake.rumble * shake.strength;
+    let w = std::f32::consts::TAU * sc.rumble_hz;
+    let seated = curr.mode == PilotMode::Seated;
+    // The jolt: the eye dips and springs back on a footstep, a landing, a ram or a punch, seated only.
+    let eye = if seated { eye - Vec3::Y * shake.dip_m() } else { eye };
     let shake = Quat::from_euler(
         EulerRot::YXZ,
-        amp * (t * 37.0).sin() * (t * 5.3).cos(),
-        amp * (t * 41.0 + 1.3).sin(),
-        amp * 0.5 * (t * 29.0 + 2.1).sin(),
+        amp * (t * 37.0).sin() * (t * 5.3).cos() + buzz * (t * w).sin(),
+        amp * (t * 41.0 + 1.3).sin() + buzz * (t * w * 1.37 + 0.7).sin(),
+        amp * 0.5 * (t * 29.0 + 2.1).sin() + buzz * 0.5 * (t * w * 0.71 + 1.9).sin(),
     );
-    // No footstep motion on the view, ever: the foot-strike jolt is not applied to the camera (owner,
-    // 2026-10-25: "I would remove the footstep motion forom the cokcpit entirely").
+    // The stride's bob and sway stay off the view (owner, 2026-10-25); a footstep reaches it only as a kick to this
+    // shake (owner, 2026-10-29: "similar to the landing shake, but like 50% that strength").
     **camera = Transform::from_translation(eye).with_rotation(rotation * shake);
+    // Measurement instrument (`cockpit-local-space` section 3): each frame's drawn yaw and the mech's drawn heading,
+    // degrees, with the step fraction, for `tools/perf/view_trace.py` to find a saw-tooth in.
+    if crate::cli::switched_off("CB_VIEW_TRACE") && curr.mode == PilotMode::Seated {
+        let (yaw, _, _) = rotation.to_euler(EulerRot::YXZ);
+        let heading = sims.iter().next().map_or(f32::NAN, |s| {
+            cb_core::pilot::blend_rad(s.prev.heading_rad, s.curr.heading_rad, alpha)
+        });
+        info!(
+            "VIEW_TRACE t={:.4} yaw={:.4} heading={:.4} alpha={alpha:.3}",
+            time.elapsed_secs_f64(),
+            yaw.to_degrees(),
+            heading.to_degrees()
+        );
+    }
 }
 
 /// The step-in prompt.

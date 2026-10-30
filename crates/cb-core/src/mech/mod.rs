@@ -17,6 +17,6 @@ pub use damage::{Damage, Hit, PartKind, PartSpec, default_parts};
 pub use gait::{LegPose, LegRest, MechPose, RigRest, foot_strikes, pose, solve_leg, stance_lead_m};
 pub use knockdown::{KnockPhase, KnockPose, Knockdown, Stance, StanceHit};
 pub use locomotion::{Budget, BudgetUse, LocomotionMode, MechControls, MechState, OnWater, forward};
-pub use melee::{CloseCombat, MeleeConfig, Strikes};
+pub use melee::{MeleeConfig, Strikes};
 pub use melee_moves::{MeleeMove, MeleeMoves, MovePose};
 pub use rig::RestFrames;

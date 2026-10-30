@@ -17,3 +17,4 @@
 - [x] 2.7 Kneel as far as the legs can (the mockup's pose, from the generator) and climb a rope to the hatch (test: `boarding_climbs_straight_up_the_rope`)
 - [ ] 2.5 Measure the all-view screen's cost in the cockpit (perf-measure)
 - [ ] 2.6 Playtest: walk up, board, seal, power up, disembark, recorded and on Drive
+- [x] 2.8 The mech kneels and opens from 25 m again (`pilot.kneel_reach_m`); Use boards only once the rope hangs all the way down and within 2 m of its foot (`MechAccess::rope_down`, from the drawn crane; owner, 2026-10-29: "mech should still open up and kneel using the old distance trigger value, press E to board is simply when the rope comes down"; test `use_does_nothing_until_the_rope_is_down_then_boards`)

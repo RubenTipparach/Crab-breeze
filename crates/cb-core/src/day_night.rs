@@ -52,6 +52,11 @@ pub struct DayNightConfig {
     pub night_sky_light_share: f32,
     /// How bright a full moon's light is on screen, a share of the sun's at noon.
     pub moon_full_share: f32,
+    /// The moon's shadow cascades (openspec change `night-frame`, NF2): a low moon's cascade boxes run far back toward
+    /// it and take in every caster along the way, so it casts in fewer and nearer than the sun.
+    pub moon_cascades: u32,
+    /// ...out to this far from the eye, metres.
+    pub moon_shadow_far_m: f32,
     /// A body's direct light fades in over this many degrees above the horizon (the disc rising
     /// and the air thinning toward it), degrees.
     pub horizon_fade_deg: f32,
@@ -153,6 +158,8 @@ impl Default for DayNightConfig {
             night_ambient_share: 0.10,
             night_sky_light_share: 0.06,
             moon_full_share: 0.35,
+            moon_cascades: 2,
+            moon_shadow_far_m: 250.0,
             horizon_fade_deg: 2.5,
             star_brightness: 0.8,
             stars_deg: [-14.0, -4.0],
@@ -177,6 +184,8 @@ impl Validate for DayNightConfig {
         within("night_ambient_share", self.night_ambient_share, 0.0, 1.0)?;
         within("night_sky_light_share", self.night_sky_light_share, 0.0, 1.0)?;
         within("moon_full_share", self.moon_full_share, 0.0, 1.0)?;
+        within("moon_cascades", self.moon_cascades as f32, 1.0, 4.0)?;
+        within("moon_shadow_far_m", self.moon_shadow_far_m, 10.0, 5000.0)?;
         within("horizon_fade_deg", self.horizon_fade_deg, 0.01, 20.0)?;
         within("star_brightness", self.star_brightness, 0.0, 10.0)?;
         within("moon_disc_deg", self.moon_disc_deg, 0.05, 10.0)?;

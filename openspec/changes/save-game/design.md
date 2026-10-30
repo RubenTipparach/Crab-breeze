@@ -19,7 +19,8 @@ in the log.
 
 A system in `Update` builds a `Place` from the pilot and the piloted mech and writes it every 30 s of real time, when
 the pause menu opens and on `AppExit`. It saves only in a player's free roam or career (`--play`), never in a
-scripted take. A career's `Place` goes into the career and is written with it, through the career's one writer.
+scripted take: a playtest script that plays a `--play` mode may continue a save but never writes one (`Saving.write`;
+2026-10-29, the night perf runs, `city-stand` in free roam, wrote over the owner's free-roam save). A career's `Place` goes into the career and is written with it, through the career's one writer.
 Nothing is saved while the pilot is mid-boarding or climbing out (the save waits for the next moment on foot or
 seated).
 

@@ -125,6 +125,7 @@ fn frame_start(time: Res<Time<Real>>, mut span: ResMut<MainSpan>, mut threshold:
     let mut all = FRAME.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default();
     let mut counts = COUNTS.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default();
     span.frame += 1;
+    crate::perf_probe::record(span.frame - 1, ms, main_ms, &all, &counts);
     // With pipelined rendering a main-world spike shows in the next frame's length (the render world sends the
     // time), so a frame is logged when either is over the line: its length, or its main world.
     let line = *threshold.get_or_insert_with(hitch_ms);

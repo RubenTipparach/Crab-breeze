@@ -89,10 +89,11 @@ fn restart_clock(data: Res<Data>, mut clock: ResMut<Clock>) {
     clock.0 = WorldClock::start(&data.0.day_night);
 }
 
-/// The moon: a directional light like the sun's, with the same cascades, unshadowed until the sun
-/// sets. No disc of Bevy's: the fog pass draws it with its phase.
+/// The moon: a directional light like the sun's, unshadowed until the sun sets, casting in its own fewer and nearer
+/// cascades (`day_night.moon_cascades`, `moon_shadow_far_m`). No disc of Bevy's: the fog pass draws it with its phase.
 fn spawn_moon(mut commands: Commands, data: Res<Data>) {
     let shade = &data.0.world.sun_shade;
+    let d = &data.0.day_night;
     commands.spawn((
         Name::new("moon"),
         Moon,
@@ -105,9 +106,9 @@ fn spawn_moon(mut commands: Commands, data: Res<Data>) {
         },
         Transform::default(),
         CascadeShadowConfigBuilder {
-            num_cascades: shade.live_cascades as usize,
-            first_cascade_far_bound: shade.live_first_cascade_m,
-            maximum_distance: shade.live_far_m,
+            num_cascades: d.moon_cascades as usize,
+            first_cascade_far_bound: shade.live_first_cascade_m.min(d.moon_shadow_far_m * 0.5),
+            maximum_distance: d.moon_shadow_far_m,
             ..default()
         }
         .build(),

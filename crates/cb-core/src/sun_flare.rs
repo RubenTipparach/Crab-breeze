@@ -332,14 +332,15 @@ pub fn occlusion_taps(radius_h: f32) -> [(Vec2, f32); OCCLUSION_TAPS] {
 }
 
 /// The taps as the shader reads them, for the sun at `ndc` in a view `aspect` wide: xy the tap's uv
-/// (0..1, y down), z its weight, w 1 when it falls on screen (an off-screen tap counts as clear).
+/// (0..1, y down), z its weight, w 1 (every tap is read). A tap past the screen's edge reads the nearest edge pixel:
+/// counted clear, a sun at the edge behind a wall flared at full through it, most of its taps off screen (owner,
+/// 2026-10-29: "lensflare depth test not working when it shows on edge of screen").
 pub fn tap_uvs(ndc: Vec2, aspect: f32, radius_h: f32) -> [Vec4; OCCLUSION_TAPS] {
     occlusion_taps(radius_h).map(|(offset, weight)| {
         let x = ndc.x + offset.x * 2.0 / aspect.max(1.0e-3);
         let y = ndc.y + offset.y * 2.0;
-        let uv = Vec2::new(x * 0.5 + 0.5, 0.5 - y * 0.5);
-        let inside = (0.0..=1.0).contains(&uv.x) && (0.0..=1.0).contains(&uv.y);
-        Vec4::new(uv.x, uv.y, weight, if inside { 1.0 } else { 0.0 })
+        let uv = Vec2::new(x * 0.5 + 0.5, 0.5 - y * 0.5).clamp(Vec2::ZERO, Vec2::ONE);
+        Vec4::new(uv.x, uv.y, weight, 1.0)
     })
 }
 
@@ -524,7 +525,7 @@ mod tests {
     }
 
     #[test]
-    fn tap_uvs_centre_on_the_sun_and_mark_the_ones_off_screen() {
+    fn tap_uvs_centre_on_the_sun_and_read_the_edge_for_the_ones_off_screen() {
         let taps = tap_uvs(Vec2::ZERO, 16.0 / 9.0, 0.01);
         assert!(taps.iter().all(|t| t.w == 1.0 && t.z == 1.0));
         // The taps sit within 0.01 screen heights of the centre: 0.01 of the height in uv.
@@ -533,8 +534,13 @@ mod tests {
             assert!(h.length() <= 0.01 + 1.0e-5, "{h}");
         }
         assert!(taps.iter().any(|t| Vec2::new((t.x - 0.5) * 16.0 / 9.0, t.y - 0.5).length() > 0.009));
+        // A sun on the right edge: the taps past it read the edge column, none counted clear unread.
         let edge = tap_uvs(Vec2::new(1.0, 0.0), 1.5, 0.01);
-        assert!(edge.iter().any(|t| t.w == 0.0) && edge.iter().any(|t| t.w == 1.0));
+        assert!(edge.iter().all(|t| t.w == 1.0 && t.x <= 1.0));
+        assert!(edge.iter().any(|t| t.x == 1.0));
+        // A sun already past the edge (the flare lingers there) reads the edge too.
+        let past = tap_uvs(Vec2::new(1.05, 0.0), 1.5, 0.01);
+        assert!(past.iter().all(|t| t.x == 1.0));
     }
 
     #[test]

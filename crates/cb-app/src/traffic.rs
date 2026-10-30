@@ -21,7 +21,7 @@ use bevy::world_serialization::{WorldAsset, WorldAssetRoot};
 use cb_core::car::{CarSpec, Drive, Obstacle};
 use cb_core::civilians::Doors;
 use cb_core::pilot::{CarAccess, PilotEvent, PilotMode};
-use cb_core::traffic::{CarState, Harm, MechNear, Traffic, TrafficView};
+use cb_core::traffic::{CarState, Harm, MechNear, Traffic, TrafficView, in_cone, sight_blocked, view_half_rad};
 use cb_core::world::lanes::LaneGraph;
 use cb_core::world::{Ground, OnRoads, Scene as WorldScene};
 use std::collections::BTreeMap;
@@ -34,23 +34,20 @@ pub const CAR_ID_BASE: u32 = 2_000_000;
 #[derive(Resource)]
 pub struct Roads(pub LaneGraph);
 
-/// The traffic, and every car's place at the step before, for drawing between steps.
+/// The traffic.
 #[derive(Resource)]
 pub struct TrafficSim {
     /// The cars.
     pub traffic: Traffic,
-    /// Each car's ground point and heading at the step before.
-    pub prev: BTreeMap<u32, (Vec3, f32)>,
     filled: bool,
 }
 
 impl TrafficSim {
     /// Car `c` as it is drawn between fixed steps at `alpha` (0..1 past the last step): its ground point and
-    /// heading, eased from the step before. The cars' models and the chase camera both place by it.
+    /// heading, eased between its own steps (`Car::drawn`: a far car is stepped every few fixed steps). The cars'
+    /// models and the chase camera both place by it.
     pub fn drawn_pose(&self, c: &cb_core::traffic::Car, alpha: f32) -> (Vec3, f32) {
-        let (p0, h0) = self.prev.get(&c.id).copied().unwrap_or((c.pos, c.heading_rad));
-        let turned = (c.heading_rad - h0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-        (p0.lerp(c.pos, alpha), h0 + turned * alpha)
+        c.drawn(alpha)
     }
 }
 
@@ -126,7 +123,6 @@ impl Plugin for TrafficPlugin {
         app.insert_resource(Roads(graph))
             .insert_resource(TrafficSim {
                 traffic: Traffic::new(plan.seed),
-                prev: BTreeMap::new(),
                 filled: false,
             })
             .init_resource::<CarAccessNow>()
@@ -141,6 +137,8 @@ impl Plugin for TrafficPlugin {
                     find_dash,
                     turn_dash,
                     find_wheels,
+                    range_car_parts,
+                    car_shadows,
                     spin_wheels,
                     // drivers on foot are people (`people_vat`); the capsule only when people are left out
                     draw_runners.run_if(not(resource_exists::<crate::people_vat::PeopleDraw>)),
@@ -186,18 +184,6 @@ pub fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut
     };
 }
 
-/// True when the point is inside the view cone from `eye` along `fwd` (half-angle `half_rad`).
-fn in_cone(eye: Vec3, fwd: Vec3, half_rad: f32, p: Vec3) -> bool {
-    let d = p - eye;
-    d.length_squared() < 1.0 || d.normalize().dot(fwd) > half_rad.cos()
-}
-
-/// True when a building or the ground stands between `eye` and `p`.
-fn covered(plan: &cb_core::world::WorldPlan, eye: Vec3, p: Vec3) -> bool {
-    let n = (eye.distance(p) / 10.0).ceil().max(1.0) as usize;
-    (1..n).any(|k| plan.solid_at(eye.lerp(p, k as f32 / n as f32)))
-}
-
 #[allow(clippy::too_many_arguments)]
 fn step_traffic(
     mut sim: ResMut<TrafficSim>,
@@ -217,7 +203,7 @@ fn step_traffic(
     mut toll: ResMut<CivilianToll>,
     (time, doors): (Res<Time<Fixed>>, Option<Res<crate::street_doors::RefugeDoors>>),
 ) {
-    let _t = crate::perf_hud::slow("step_traffic");
+    let _t = crate::perf_hud::slow("car_traffic");
     let d = &data.0.traffic;
     let sim = &mut *sim;
     let scene = WorldScene {
@@ -312,7 +298,6 @@ fn step_traffic(
         steer: a.move_xy.x,
         handbrake: a.lift_axis > 0.0,
     });
-    sim.prev = sim.traffic.cars.iter().map(|c| (c.id, (c.pos, c.heading_rad))).collect();
     let view = TrafficView {
         graph: &roads.0,
         data: d,
@@ -325,17 +310,16 @@ fn step_traffic(
     sim.traffic.step(&view, eye, time.delta_secs());
     // fill the lanes near the eye: everything at once behind the loading screen, then a few a step out of sight
     let fwd = Quat::from_rotation_y(pilot.curr.yaw_rad) * Quat::from_rotation_x(pilot.curr.pitch_rad) * Vec3::NEG_Z;
-    let half = {
-        // the view's half diagonal at a 16:9 screen
-        let v = (data.0.pilot.view_fov_deg.to_radians() * 0.5).tan();
-        (v * (1.0f32 + (16.0f32 / 9.0).powi(2)).sqrt()).atan() + 0.1
-    };
+    let half = view_half_rad(data.0.pilot.view_fov_deg);
     let initial = !sim.filled || !ready.0;
     let seen = |p: Vec3| !initial && in_cone(eye, fwd, half, p);
-    let behind = |p: Vec3| covered(&plan, eye, p);
-    let budget = if initial { u32::MAX } else { d.cfg.spawn_per_step };
+    let behind = |p: Vec3| sight_blocked(&plan, eye, p);
     let mech_bodies: Vec<(Vec2, f32)> = near.iter().map(|m| (m.at, m.radius_m)).collect();
-    sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies, budget);
+    if initial {
+        sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies, u32::MAX);
+    } else {
+        sim.traffic.refill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies);
+    }
     sim.filled = true;
     for h in sim.traffic.take_harms() {
         toll.all += 1;
@@ -519,6 +503,101 @@ fn turn_dash(sim: Res<TrafficSim>, data: Res<Data>, dashes: Query<(&CarDraw, &Da
     }
 }
 
+/// A car whose parts have their draw ranges (`range_car_parts`).
+#[derive(Component)]
+struct PartsRanged;
+
+/// A car's body and cabin, the parts that cast the sun's shadow, and whether they cast it now (`car_shadows`).
+#[derive(Component)]
+struct Casters {
+    parts: Vec<Entity>,
+    casting: bool,
+}
+
+/// Once a car's scene has spawned, gives each part its draw range (`CarDetail`, dithered out by `lod_fade`) and lets
+/// only the body and cabin cast the sun's shadow: 16 meshes and casters a car became 2 casters, and 2 meshes past the
+/// wheels' range (city-frame: the capital's 1 100 cars were most of its 20 000 meshes in view). The body and cabin
+/// start casting nothing; `car_shadows` lets them cast within `shadow_m`.
+fn range_car_parts(
+    mut commands: Commands,
+    data: Res<Data>,
+    cars: Query<Entity, (With<CarDraw>, Without<PartsRanged>)>,
+    children: Query<&Children>,
+    meshes: Query<(), With<Mesh3d>>,
+    names: Query<&Name>,
+    parents: Query<&ChildOf>,
+) {
+    let d = &data.0.traffic.cfg.detail;
+    for root in &cars {
+        let mut any = false;
+        let mut casters = Vec::new();
+        for e in children.iter_descendants(root) {
+            if meshes.get(e).is_err() {
+                continue;
+            }
+            any = true;
+            // A part is its glTF node: the mesh entity's own name before its material (`dashboard.DASH`), or its
+            // parent's.
+            let name = names
+                .get(e)
+                .ok()
+                .or_else(|| parents.get(e).ok().and_then(|p| names.get(p.parent()).ok()))
+                .map_or("", |n| n.as_str());
+            let part = name.split('.').next().unwrap_or("");
+            let far_m = match part {
+                "dashboard" | "NEEDLE_speed" | "speedo_dial" | "STEER_wheel" => Some(d.interior_m),
+                p if p.starts_with("headlamp") || p.starts_with("taillamp") || p.starts_with("bumper") => Some(d.trim_m),
+                p if p.starts_with("WHEEL_") => Some(d.wheels_m),
+                _ => None,
+            };
+            if let Some(far_m) = far_m {
+                commands
+                    .entity(e)
+                    .insert((crate::lod_fade::out_to(far_m, d.fade_share), bevy::light::NotShadowCaster));
+            } else {
+                commands.entity(e).insert(bevy::light::NotShadowCaster);
+                casters.push(e);
+            }
+        }
+        if any {
+            commands.entity(root).insert((
+                PartsRanged,
+                Casters {
+                    parts: casters,
+                    casting: false,
+                },
+            ));
+        }
+    }
+}
+
+/// Lets a car's body and cabin cast the sun's shadow within `CarDetail::shadow_m` of the eye, and not beyond (owner,
+/// 2026-10-28: "cars and people dont need shadows at a distance", "I wouldnt even bother giving them shadows more than
+/// 20m awway"): the capital's thousand cars had cast into all three cascades.
+fn car_shadows(
+    mut commands: Commands,
+    data: Res<Data>,
+    eye: Single<&GlobalTransform, With<crate::pilot::PilotCamera>>,
+    mut cars: Query<(&GlobalTransform, &mut Casters)>,
+) {
+    let r2 = data.0.traffic.cfg.detail.shadow_m.powi(2);
+    let eye = eye.translation();
+    for (at, mut c) in &mut cars {
+        let want = at.translation().distance_squared(eye) <= r2;
+        if want == c.casting {
+            continue;
+        }
+        c.casting = want;
+        for &e in &c.parts {
+            if want {
+                commands.entity(e).try_remove::<bevy::light::NotShadowCaster>();
+            } else {
+                commands.entity(e).try_insert(bevy::light::NotShadowCaster);
+            }
+        }
+    }
+}
+
 /// Finds each car's `WHEEL_*` nodes once its scene has spawned.
 fn find_wheels(
     mut commands: Commands,
@@ -663,13 +742,6 @@ fn draw_runners(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_point_straight_ahead_is_in_view_and_one_behind_is_not() {
-        let eye = Vec3::ZERO;
-        assert!(in_cone(eye, Vec3::NEG_Z, 0.8, Vec3::new(0.0, 0.0, -100.0)));
-        assert!(!in_cone(eye, Vec3::NEG_Z, 0.8, Vec3::new(0.0, 0.0, 100.0)));
-    }
 
     #[test]
     fn car_ids_sit_above_every_other_hit_id() {

@@ -40,6 +40,10 @@ pub struct Settings {
     /// Music, a share of its level in the data, 0-1 (1 if the file has none).
     #[serde(default = "full")]
     pub music_volume: f32,
+    /// How much the view shakes, a share of the data's shake, 0-1 (1 if the file has none; openspec change
+    /// `cockpit-shake`, CS2).
+    #[serde(default = "full")]
+    pub camera_shake: f32,
 }
 
 impl Settings {
@@ -54,6 +58,7 @@ impl Settings {
             fullscreen: false,
             sfx_volume: 1.0,
             music_volume: 1.0,
+            camera_shake: 1.0,
         }
     }
 
@@ -75,6 +80,11 @@ impl Settings {
     /// Music volume up or down by the page's step, kept within 0-1.
     pub fn nudge_music(&mut self, steps: i32) {
         self.music_volume = nudge(self.music_volume, steps, VOLUME);
+    }
+
+    /// Camera shake up or down by the page's step, kept within 0-1.
+    pub fn nudge_shake(&mut self, steps: i32) {
+        self.camera_shake = nudge(self.camera_shake, steps, VOLUME);
     }
 }
 
@@ -105,12 +115,37 @@ impl Validate for Settings {
         within("mouse_deg_per_px", self.mouse_deg_per_px, MOUSE_DEG_PER_PX.0, MOUSE_DEG_PER_PX.1)?;
         within("fov_deg", self.fov_deg, FOV_DEG.0, FOV_DEG.1)?;
         within("sfx_volume", self.sfx_volume, VOLUME.0, VOLUME.1)?;
-        within("music_volume", self.music_volume, VOLUME.0, VOLUME.1)
+        within("music_volume", self.music_volume, VOLUME.0, VOLUME.1)?;
+        within("camera_shake", self.camera_shake, VOLUME.0, VOLUME.1)
     }
 }
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn camera_shake_steps_within_zero_to_one_and_an_old_file_keeps_it_full() {
+        let mut s = defaults();
+        assert_eq!(s.camera_shake, 1.0);
+        s.nudge_shake(-100);
+        assert_eq!(s.camera_shake, 0.0, "it turns all the way off");
+        s.nudge_shake(1);
+        assert!(s.camera_shake > 0.0 && s.camera_shake <= 1.0);
+        let old = defaults().to_ron().replace("camera_shake", "removed_key_check");
+        assert!(Settings::from_ron(&old).is_err(), "an unknown key is refused");
+        let without: String = defaults()
+            .to_ron()
+            .lines()
+            .filter(|l| !l.contains("camera_shake"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_eq!(
+            Settings::from_ron(&without).unwrap().camera_shake,
+            1.0,
+            "a file from before keeps the full shake"
+        );
+    }
+
     use super::*;
 
     fn defaults() -> Settings {

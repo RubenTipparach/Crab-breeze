@@ -159,9 +159,12 @@ screen pixels with a floor of 2 px, so a city reads as a grid of lights from the
 - **Far facades** gain a night layer: the same rule rendered into an emission map at startup per building type,
   a time-of-day threshold in its alpha so the share lit follows the clock without rebaking.
   - Memory: one 1,024 px RGBA8 layer with mips per type, about 5.6 MB each.
-- **A damaged building goes dark** (owner, 2026-10-28: "buildings also need some sort of cell lighting. If the
-  building is damaged all of its lights turn off"): once any of its elements has fallen, none of its windows
-  lights again.
+- **A wrecked building goes dark** (owner, 2026-10-28: "buildings also need some sort of cell lighting. If the
+  building is damaged all of its lights turn off"; 2026-10-29: "damaged building should stay lit until the player
+  destroys about 30% of the building"): once `structure.lights_out_share` (0.3, data) of its frame's elements have
+  fallen (`Frame::lit`), none of its windows lights again; a building hit less than that keeps its windows. The rule
+  rides the element state the shaders already read: bit 2 of every word of the building's range is set once it is
+  dark (`building_state::standing_words`), bit 1 is still the element's own standing.
 - One implementation: `cb_core::world::windows::lit(building, cell, hour)` is the rule. The glass shader reads
   it as a WESL copy pinned by a test against the core on a table of cases. The far facade bake calls the core.
 

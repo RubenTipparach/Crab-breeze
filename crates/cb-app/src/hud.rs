@@ -95,10 +95,6 @@ const STATION_ROWS: usize = 6;
 #[derive(Component)]
 struct JobMarker;
 
-/// `[MELEE MODE]` under the crosshair while close combat is on.
-#[derive(Component)]
-struct MeleeSign;
-
 /// The selected weapon's name under the crosshair: what the left mouse fires.
 #[derive(Component)]
 struct WeaponSign;
@@ -281,9 +277,10 @@ fn spawn_hud(mut commands: Commands) {
                 Visibility::Hidden,
                 EdgeArrow,
             ));
-            // Under the crosshair: the weapon the left mouse fires, and [MELEE MODE] in close combat
-            // (owner, 2026-10-25: "MELEE MODE on the main screen, not mfd").
-            for (top, size, colour, melee) in [(36.0, 20.0, GREEN, false), (62.0, 28.0, AMBER, true)] {
+            // Under the crosshair: the weapon the left mouse fires (no melee mode to show: Z and V punch at any
+            // time, owner 2026-10-29).
+            {
+                let (top, size, colour) = (36.0, 20.0, GREEN);
                 let mut sign = root.spawn((
                     Node {
                         position_type: PositionType::Absolute,
@@ -299,11 +296,7 @@ fn spawn_hud(mut commands: Commands) {
                 sign.with_children(|s| {
                     s.spawn((Text::new(""), TextFont::from_font_size(size), TextColor(colour)));
                 });
-                if melee {
-                    sign.insert(MeleeSign);
-                } else {
-                    sign.insert(WeaponSign);
-                }
+                sign.insert(WeaponSign);
             }
             // The accepted job's site (draw_job).
             root.spawn((
@@ -1137,35 +1130,24 @@ fn update_hud(
 
 /// The climb-out ring: hidden until Use is held in the seat, then lit dot by dot as the hold fills,
 /// from the pilot's own hold clock (`cb_core::pilot`), so the ring and the exit agree.
-/// The signs under the crosshair, seated only: the selected weapon (with its rounds when it has a
-/// limit), and `[MELEE MODE]` while close combat is on, with the punch keys.
-#[allow(clippy::type_complexity)]
+/// The sign under the crosshair, seated only: the selected weapon, with its rounds when it has a limit.
 fn draw_signs(
     pilot: Res<PilotSim>,
-    data: Res<crate::sim::Data>,
     me: Query<(&MechSim, &MechSpec), With<Piloted>>,
-    mut signs: Query<(&Children, &mut Visibility, Has<MeleeSign>), Or<(With<MeleeSign>, With<WeaponSign>)>>,
+    mut signs: Query<(&Children, &mut Visibility), With<WeaponSign>>,
     mut texts: Query<&mut Text>,
 ) {
     let seated = pilot.curr.mode == PilotMode::Seated;
     let mech = me.iter().next().filter(|_| seated);
-    for (children, mut vis, melee) in &mut signs {
+    for (children, mut vis) in &mut signs {
         let line = mech.and_then(|(sim, spec)| {
-            if melee {
-                sim.close.on.then(|| {
-                    let keys = |names: &[String]| names.iter().map(|k| cb_core::input::key_label(k)).collect::<Vec<_>>().join("/");
-                    let b = &data.0.bindings;
-                    format!("[MELEE MODE]  {} {} punch", keys(&b.strike_left), keys(&b.strike_right))
-                })
-            } else {
-                spec.weapons.get(sim.selected).map(|w| {
-                    let rounds = sim.guns.rounds_left.get(sim.selected).copied().unwrap_or(w.rounds);
-                    match rounds {
-                        Some(n) => format!("{} x{n}", w.name.to_uppercase()),
-                        None => w.name.to_uppercase(),
-                    }
-                })
-            }
+            spec.weapons.get(sim.selected).map(|w| {
+                let rounds = sim.guns.rounds_left.get(sim.selected).copied().unwrap_or(w.rounds);
+                match rounds {
+                    Some(n) => format!("{} x{n}", w.name.to_uppercase()),
+                    None => w.name.to_uppercase(),
+                }
+            })
         });
         *vis = if line.is_some() {
             Visibility::Inherited

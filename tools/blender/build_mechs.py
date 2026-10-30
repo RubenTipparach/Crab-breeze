@@ -1624,8 +1624,10 @@ def sapper(k):
     pod = k.g(elb, 3.8, -4.0, -0.8, -PI / 2, 0, 0)
     k.sock("MUZZLE_L", K.Node(hand.joint, k.world[hand.joint].inverted() @ k.world[elb.joint] @ pod.M), 0, 0, 4.1, PI / 2)
     k.pl(7.4, 1.2, 8.4, M["armor2"], sh_, 1.2, 5.2, 0)
-    # the shoulder cannon: a breech on the back, the barrel over the right shoulder
-    g = k.g(cp, -2.2 * U, 3.6 * U, -3.0 * U)
+    # the shoulder cannon: a breech on the back, the barrel over the right shoulder. Its own joint, GUN_cannon_R, so its
+    # meshes are not merged into the cockpit's hull: the seat hides the hull and shows the weapons (owner, 2026-10-29: "I
+    # still cant see mech body from cockpit", "some mechs have cannons on their shoulders").
+    g = k.J("GUN_cannon_R", cp, -2.2 * U, 3.6 * U, -3.0 * U)
     k.pl(4.2, 4.0, 7, M["armor"], g, 0, 0, 0)
     k.cyl(1.0, 1.1, 30, M["metal"], g, 0, 1.6, 15, PI / 2 - 0.05, seg=14)
     k.cyl(1.7, 1.7, 9, M["dark"], g, 0, 1.4, 4.9, PI / 2 - 0.05, seg=14)

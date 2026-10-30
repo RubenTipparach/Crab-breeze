@@ -153,10 +153,11 @@ impl Validate for AudioConfig {
                 Space::Cockpit(s) if !self.speakers.contains_key(s) => {
                     return Err(format!("`{}` names speaker `{s}`, which `speakers` lacks", field("space")));
                 }
-                // Sound effects are placed (owner, 2026-10-25); the unplaced kinds have their own files.
-                Space::Ambience | Space::Music | Space::Ui => {
+                // Sound effects are placed (owner, 2026-10-25), menu sounds excepted (`Ui`, `ui_feedback`); ambience
+                // and music have their own files.
+                Space::Ambience | Space::Music => {
                     return Err(format!(
-                        "`{}`: a sound effect must be placed (Placed or Cockpit); ambience and music have their own files",
+                        "`{}`: a sound effect must be placed (Placed, Cockpit or a menu's Ui); ambience and music have their own files",
                         field("space")
                     ));
                 }
@@ -1232,7 +1233,8 @@ mod tests {
     fn the_shipped_cue_file_loads() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/audio");
         let cues: AudioConfig = crate::data::load_ron(&root.join("cues.ron")).expect("cues.ron");
-        assert!(cues.cues.values().all(|c| c.space.is_placed()));
+        // Every sound effect is placed; only the menus' own sounds are not.
+        assert!(cues.cues.values().all(|c| c.space.is_placed() || c.space == Space::Ui));
         let _: MusicConfig = crate::data::load_ron(&root.join("music.ron")).expect("music.ron");
         let _: AmbienceConfig = crate::data::load_ron(&root.join("ambience.ron")).expect("ambience.ron");
     }

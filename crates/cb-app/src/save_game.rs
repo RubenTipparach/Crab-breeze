@@ -23,6 +23,9 @@ pub struct Saving {
     pub restore: bool,
     /// The piloted mech's data file, written with a free-roam save and checked on restore.
     pub mech: String,
+    /// The save is written. Off for a scripted run, which may continue a save but never writes over the player's
+    /// (2026-10-29: the night perf runs played free roam and overwrote the owner's free-roam save).
+    pub write: bool,
 }
 
 /// The save is restored (or there was none to restore): saving may begin, so a fresh start never
@@ -76,6 +79,9 @@ fn write(path: &std::path::Path, text: &str) {
 
 /// Saves the game: a free-roam save file, or the career's place written with its books.
 fn save(saving: &Saving, seed: u64, place: Place, career: Option<&mut crate::career::CareerRun>) {
+    if !saving.write {
+        return;
+    }
     if saving.free_roam {
         let s = FreeRoamSave {
             version: VERSION,

@@ -31,34 +31,50 @@ pub struct LoadingPlugin;
 impl Plugin for LoadingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameReady>()
+            .add_systems(OnEnter(crate::state::GameState::Loading), show_from_the_menu)
             .add_world_spawn(show)
             .add_game_systems(Update, watch);
     }
 }
 
+/// Leaving the main menu, the same panel on a camera of its own, up before the world starts to spawn (owner,
+/// 2026-10-29: "also need loading screen going from main menu into game world"): the menu's camera goes with the
+/// menu, and the world's spawn is one long frame, so without it the window held the menu or went blank. The world's
+/// own panel (`show`) takes over once it spawns.
+fn show_from_the_menu(mut commands: Commands) {
+    let gone = DespawnOnExit(crate::state::GameState::Loading);
+    commands.spawn((Name::new("loading camera"), Camera2d, gone.clone()));
+    panel(&mut commands).insert(gone);
+}
+
 fn show(mut commands: Commands) {
-    commands
-        .spawn((
-            LoadingScreen,
-            Node {
-                width: percent(100.0),
-                height: percent(100.0),
-                position_type: PositionType::Absolute,
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgb(0.05, 0.06, 0.07)),
-            GlobalZIndex(1000),
-        ))
-        .with_children(|p| {
-            p.spawn((
-                Text::new("CRAB BREEZE\nloading"),
-                TextFont::from_font_size(36.0),
-                TextColor(Color::srgb(0.55, 0.95, 0.6)),
-                TextLayout::justify(Justify::Center),
-            ));
-        });
+    panel(&mut commands);
+}
+
+/// The loading panel: full screen, over everything.
+fn panel<'a>(commands: &'a mut Commands) -> EntityCommands<'a> {
+    let mut e = commands.spawn((
+        LoadingScreen,
+        Node {
+            width: percent(100.0),
+            height: percent(100.0),
+            position_type: PositionType::Absolute,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BackgroundColor(Color::srgb(0.05, 0.06, 0.07)),
+        GlobalZIndex(1000),
+    ));
+    e.with_children(|p| {
+        p.spawn((
+            Text::new("CRAB BREEZE\nloading"),
+            TextFont::from_font_size(36.0),
+            TextColor(Color::srgb(0.55, 0.95, 0.6)),
+            TextLayout::justify(Justify::Center),
+        ));
+    });
+    e
 }
 
 fn watch(

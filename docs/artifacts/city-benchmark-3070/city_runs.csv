@@ -1,0 +1,9 @@
+run,scene,build,p50_ms,p95_ms,p99_ms,max_ms,over_16_7_pct
+stand-old1,Standing in the capital,Before,201.2,261.9,280.0,311.2,100
+stand-old2,Standing in the capital,Before,245.2,301.6,314.3,317.8,100
+stand-new1,Standing in the capital,After,27.0,32.8,37.0,106.6,99.5
+stand-new2,Standing in the capital,After,41.8,98.2,121.4,126.8,99.9
+cruise-old1,Skating through the capital,Before,201.1,327.2,350.7,433.6,100
+cruise-old2,Skating through the capital,Before,227.4,366.1,377.3,385.5,100
+cruise-new1,Skating through the capital,After,72.1,160.8,195.8,251.8,100
+cruise-new2,Skating through the capital,After,40.3,80.5,86.9,225.7,99.9

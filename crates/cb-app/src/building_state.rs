@@ -150,9 +150,16 @@ pub fn slot(base: u32, id: u32) -> f32 {
     (base + id + 1) as f32
 }
 
-/// The standing words of a frame, as the shaders read them.
-pub fn standing_words(f: &Frame) -> Vec<u32> {
-    f.elements.iter().map(|e| u32::from(e.alive)).collect()
+/// The standing bit of an element's word (`building_slot.wesl`): set while it stands.
+pub const STANDING: u32 = 1;
+/// The dark bit of an element's word: set on every word of a building whose windows have gone out.
+pub const DARK: u32 = 2;
+
+/// The words of a frame, as the shaders read them: each element's standing bit, and the dark bit on every word once
+/// the building's windows are out (`Frame::lit`).
+pub fn standing_words(f: &Frame, lights_out_share: f32) -> Vec<u32> {
+    let dark = if f.lit(lights_out_share) { 0 } else { DARK };
+    f.elements.iter().map(|e| if e.alive { STANDING } else { 0 } | dark).collect()
 }
 
 /// Every damaged building's element words in one buffer, a range each, with the writes of this

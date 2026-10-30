@@ -5,7 +5,7 @@
 //! below `collapse_wall_share` of its whole collapses above its floor. What breaks becomes chunks for
 //! `debris-physics`. Only damaged buildings have a state; every other one is whole.
 
-use super::kit::{Chunking, Kit};
+use super::kit::Kit;
 use super::lots::Lots;
 use crate::world::destruct::Chunk;
 use glam::{Affine3A, Vec3};
@@ -14,10 +14,36 @@ use std::collections::{BTreeMap, VecDeque};
 /// A chunk's `building` for a house: this plus the lot id (city building ids stay below it).
 pub const HOUSE_CHUNK_BASE: u32 = 1 << 30;
 
-/// Chunks of a broken box are about this across...
-const CHUNK_M: f32 = 1.5;
-/// ...and about this in a collapse.
-const COLLAPSE_CHUNK_M: f32 = 2.2;
+/// How a broken house's pieces become chunks (`structure:` in `data/world/world.ron`: `house_chunk_m`,
+/// `house_collapse_chunk_m`, `house_dust_m3`). Every chunk is a physics body near the pilot.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Chunking {
+    /// A broken box is cut into chunks about this across, metres...
+    pub chunk_m: f32,
+    /// ...and about this in a collapse.
+    pub collapse_chunk_m: f32,
+    /// A piece of less volume than this turns to dust, cubic metres.
+    pub dust_m3: f32,
+}
+
+impl Default for Chunking {
+    fn default() -> Self {
+        let c = crate::world::structure::StructureConfig::default();
+        Self::of(&c)
+    }
+}
+
+impl Chunking {
+    /// The structure tuning's.
+    pub fn of(c: &crate::world::structure::StructureConfig) -> Self {
+        Self {
+            chunk_m: c.house_chunk_m,
+            collapse_chunk_m: c.house_collapse_chunk_m,
+            dust_m3: c.house_dust_m3,
+        }
+    }
+}
+
 /// A piece thinner than this turns to dust.
 const DUST_M: f32 = 0.06;
 /// A piece resting on the ground (its foot at or below this, in the building's frame).
@@ -155,11 +181,12 @@ pub fn standing_pieces(pieces: &[super::kit::Piece], max_side_steps: u32, alive:
 }
 
 /// The chunks a piece of `kit` becomes, `pose` taking its frame to the world (its lot's or its ship's, with a sinking
-/// ship's motion), `collapse` making them coarser.
-fn chunks_of(kit: &Kit, piece: usize, pose: Affine3A, building: u32, collapse: bool) -> Vec<Chunk> {
+/// ship's motion), `collapse` making them coarser, `sizes` how coarse.
+fn chunks_of(kit: &Kit, piece: usize, pose: Affine3A, building: u32, collapse: bool, sizes: &Chunking) -> Vec<Chunk> {
+    use super::kit::Chunking as Kind;
     let p = &kit.pieces[piece];
     let size = p.hi - p.lo;
-    if size.min_element() < DUST_M {
+    if size.min_element() < DUST_M || size.x * size.y * size.z < sizes.dust_m3 {
         return Vec::new();
     }
     // The world size of a box turned by the pose (its bounds).
@@ -167,8 +194,8 @@ fn chunks_of(kit: &Kit, piece: usize, pose: Affine3A, building: u32, collapse: b
     let turned = |s: Vec3| -> Vec3 { (m.x_axis.abs() * s.x + m.y_axis.abs() * s.y + m.z_axis.abs() * s.z).into() };
 
     match &p.chunking {
-        Chunking::Box { .. } => {
-            let step = if collapse { COLLAPSE_CHUNK_M } else { CHUNK_M };
+        Kind::Box { .. } => {
+            let step = if collapse { sizes.collapse_chunk_m } else { sizes.chunk_m };
             let n = (size / step).ceil().max(Vec3::ONE);
             let (nx, ny, nz) = (n.x as u32, n.y as u32, n.z as u32);
             let cell = size / n;
@@ -187,7 +214,7 @@ fn chunks_of(kit: &Kit, piece: usize, pose: Affine3A, building: u32, collapse: b
             }
             out
         }
-        Chunking::Panel { .. } | Chunking::Whole => vec![Chunk {
+        Kind::Panel { .. } | Kind::Whole => vec![Chunk {
             building,
             centre: pose.transform_point3((p.lo + p.hi) * 0.5),
             size: turned(size.min(Vec3::splat(4.0))),
@@ -208,6 +235,8 @@ pub struct Breakable<'a> {
     pub parity: u32,
     /// Its chunks' `building`.
     pub building: u32,
+    /// How its broken pieces become chunks.
+    pub sizes: Chunking,
 }
 
 impl Breakable<'_> {
@@ -310,7 +339,7 @@ impl Breakable<'_> {
         let pose = self.pose_now(Some(state));
         let chunks = gone
             .iter()
-            .flat_map(|&i| chunks_of(kit, i as usize, pose, self.building, collapsed))
+            .flat_map(|&i| chunks_of(kit, i as usize, pose, self.building, collapsed, &self.sizes))
             .collect();
         Broken {
             pieces: gone,
@@ -397,6 +426,8 @@ pub fn lot_pose(l: &super::lots::Lot) -> Affine3A {
 pub struct Houses {
     /// By lot id.
     pub states: BTreeMap<u32, HouseState>,
+    /// How broken pieces become chunks.
+    pub chunking: Chunking,
 }
 
 impl Houses {
@@ -411,12 +442,13 @@ impl Houses {
     }
 
     /// `lot` as a breakable kit.
-    fn breakable<'a>(lots: &'a Lots, lot: u32) -> Breakable<'a> {
+    fn breakable<'a>(lots: &'a Lots, lot: u32, sizes: Chunking) -> Breakable<'a> {
         Breakable {
             kit: lots.kit(lot),
             pose: lot_pose(&lots.lots[lot as usize]),
             parity: lot,
             building: HOUSE_CHUNK_BASE + lot,
+            sizes,
         }
     }
 
@@ -430,9 +462,10 @@ impl Houses {
     /// (`Breakable::step_sinking`). Returns the lots that moved, and of them those just gone.
     pub fn step_sinking(&mut self, lots: &Lots, dt: f32, seabed: &dyn Fn(glam::Vec2) -> f32) -> (Vec<u32>, Vec<u32>) {
         let (mut moved, mut gone) = (Vec::new(), Vec::new());
+        let sizes = self.chunking;
         for (&lot, st) in self.states.iter_mut() {
             let was = st.alive.iter().any(|a| *a);
-            if Self::breakable(lots, lot).step_sinking(st, seabed(lots.lots[lot as usize].centre), dt) {
+            if Self::breakable(lots, lot, sizes).step_sinking(st, seabed(lots.lots[lot as usize].centre), dt) {
                 moved.push(lot);
                 if was && st.alive.iter().all(|a| !a) {
                     gone.push(lot);
@@ -445,7 +478,7 @@ impl Houses {
     /// The standing piece of `lot` that holds world point `p`, if any.
     pub fn solid_at(&self, lots: &Lots, lot: u32, p: Vec3) -> Option<u32> {
         lots.lots.get(lot as usize)?;
-        Self::breakable(lots, lot).solid_at(self.states.get(&lot), p)
+        Self::breakable(lots, lot, self.chunking).solid_at(self.states.get(&lot), p)
     }
 
     /// Breaks every standing piece of `lot` within `radius_m` of world point `centre` (`Breakable::break_sphere`).
@@ -454,7 +487,7 @@ impl Houses {
             return Broken::default();
         }
         let mut slot = self.states.remove(&lot);
-        let b = Self::breakable(lots, lot).break_sphere(&mut slot, centre, radius_m);
+        let b = Self::breakable(lots, lot, self.chunking).break_sphere(&mut slot, centre, radius_m);
         if let Some(st) = slot {
             self.states.insert(lot, st);
         }
@@ -464,7 +497,7 @@ impl Houses {
     /// Removes `pieces` of `lot` and settles it (`Breakable::remove`).
     pub fn remove(&mut self, lots: &Lots, lot: u32, pieces: &[usize]) -> Broken {
         let mut slot = self.states.remove(&lot);
-        let b = Self::breakable(lots, lot).remove(&mut slot, pieces);
+        let b = Self::breakable(lots, lot, self.chunking).remove(&mut slot, pieces);
         if let Some(st) = slot {
             self.states.insert(lot, st);
         }
@@ -577,5 +610,45 @@ mod tests {
         let inside = l.point_to_world((p.0 + p.1) * 0.5);
         assert!(h.solid_at(&lots, 0, inside).is_some());
         assert_eq!(h.solid_at(&lots, 0, l.point_to_world(Vec3::new(0.0, 30.0, 0.0))), None);
+    }
+
+    /// Measurement instrument (`city-frame` section 6): the chunks each shipped type gives when it is brought down
+    /// whole (every load-bearing wall removed), for a few chunk sizes and dust volumes, and in all.
+    /// `cargo test -p cb-core chunk_census -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn chunk_census() {
+        let ids: Vec<String> = shipped().kits.iter().map(|k| k.id.clone()).collect();
+        for collapse_chunk_m in [2.2, 3.0, 4.0] {
+            for dust_m3 in [0.0, 0.05, 0.1, 0.25, 0.5] {
+                let sizes = Chunking {
+                    chunk_m: 1.5,
+                    collapse_chunk_m,
+                    dust_m3,
+                };
+                let mut counts = Vec::new();
+                for id in &ids {
+                    let lots = one(id);
+                    let kit = lots.kit(0).clone();
+                    let walls: Vec<usize> = (0..kit.pieces.len()).filter(|&i| kit.pieces[i].wall_area_m2 > 0.0).collect();
+                    let mut h = Houses {
+                        chunking: sizes,
+                        ..Default::default()
+                    };
+                    let b = h.remove(&lots, 0, &walls);
+                    if b.collapsed {
+                        counts.push(b.chunks.len());
+                    }
+                }
+                let total: usize = counts.iter().sum();
+                eprintln!(
+                    "collapse {collapse_chunk_m} m, dust {dust_m3} m3: {} types, {} chunks a house on average, {} to {}",
+                    counts.len(),
+                    total / counts.len().max(1),
+                    counts.iter().min().unwrap_or(&0),
+                    counts.iter().max().unwrap_or(&0)
+                );
+            }
+        }
     }
 }

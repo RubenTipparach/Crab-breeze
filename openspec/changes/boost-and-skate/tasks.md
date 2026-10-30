@@ -11,3 +11,4 @@
   mech's file sets its own `jet:` and `skate:` from `gen_mech_data.py`'s `MOBILITY` table (design, "Per mech");
   tests `every_roster_mech_has_rockets_and_skates_of_its_own`, `each_mech_skates_and_flies_on_its_own_budgets`
 - [ ] 3.2 Playtest on the owner's machine: skate and fly the Picket, the Mule and the Ironhorse, read the gauges
+- [x] 3.3 The skates puff a small smoke, half a rocket launch's, beside their vapour trail (owner, 2026-10-29: "skate also needs particle fx for smoke, juist a smaller puff than rockets", "skate should leave a small trail"; `skate_dirt`, `skate_grit` in `data/fx/fx.ron`)

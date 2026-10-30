@@ -1,0 +1,8 @@
+run,build,start,p50_ms,p95_ms,over_16_7_pct,above_800m_p50_ms
+new A,After,Straight after another run,8.9,15.2,4,8.3
+new B,After,Straight after another run,22.0,63.5,100,23.4
+new 1,After,Card memory back at idle,13.6,40.1,33,14.7
+new 2,After,Card memory back at idle,9.2,22.9,9,8.8
+new 3,After,Card memory back at idle,16.9,53.7,52,17.7
+old 1,Before,Card memory back at idle,26.1,72.9,100,29.4
+old 2,Before,Card memory back at idle,13.8,47.5,36,16.2
