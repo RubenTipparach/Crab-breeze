@@ -1,7 +1,7 @@
 # Tasks: offshore-limit
 
 ## 1. Write-up
-- [ ] 1.1 Proposal, design, spec; `openspec validate --all`
+- [x] 1.1 Proposal, design, spec; `openspec validate --all`
 
 ## 2. Core
 - [ ] 2.1 `cb_core::bounds::offshore` and `data/world/bounds.ron`, tests at several bearings and at the edge

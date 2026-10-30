@@ -11,8 +11,8 @@ aircraft; military units are box placeholders.
 
 ## What changes
 
-- **A military airfield site template** at the civil airport's fidelity (Blender, CSG, PBR, night lamps, LODs, a
-  site manifest with marks), replacing the block-out base. It keeps the base's mech hangar bays and terminals.
+- **A military airfield site template** at the civil airport's fidelity, built the airport's way (a site page on the
+  small-buildings kit, exported to breakable kits; night lights as data), replacing the block-out base. It keeps the base's mech hangar bays and terminals.
 - **Four aircraft** on the airliner pipeline (`aircraft_kit.py`: zones, rig, lamps, LODs, manifest), original 1980s
   industrial designs, no real type's name or markings:
   - `fighter`: a twin-engine, twin-tail air superiority fighter;
@@ -24,6 +24,6 @@ aircraft; military units are box placeholders.
 
 ## Impact
 
-- New `tools/blender/build_military_base.py`, `tools/blender/build_military_aircraft.py`,
-  `assets/models/sites/military_base/`, `assets/models/aircraft/{fighter,military_cargo,military_helicopter,
+- New `tools/blender/build_military_aircraft.py`, `tools/mockups/military_base_src.html`,
+  `tools/mockups/airfield_kit.js` (the airport page's airfield functions, shared), `assets/models/sites/military_base/`, `assets/models/aircraft/{fighter,military_cargo,military_helicopter,
   civil_helicopter}.*`, the mockup generator and page. Game code is `airfield-traffic`.

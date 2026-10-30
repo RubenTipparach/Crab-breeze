@@ -180,6 +180,22 @@ fn main() -> ExitCode {
                     s.template.placements.len()
                 );
             }
+            // The air bases, their sites and runways (for the island-sites-layout mockup).
+            for b in &plan.bases {
+                println!(
+                    "AirBase {}: centre ({:.0}, {:.0}), half ({:.0}, {:.0}), runway ({:.0}, {:.0}) to ({:.0}, {:.0}), {:.0} m wide",
+                    b.id,
+                    b.centre.x,
+                    b.centre.y,
+                    b.half_m.x,
+                    b.half_m.y,
+                    b.runway.a.x,
+                    b.runway.a.y,
+                    b.runway.b.x,
+                    b.runway.b.y,
+                    b.runway.width_m
+                );
+            }
             // How far each stands from the free roam start, and which way (0 degrees north, +z; 90 east, +x).
             let start = plan.start.mech_xz;
             println!("start: ({:.0}, {:.0})", start.x, start.y);

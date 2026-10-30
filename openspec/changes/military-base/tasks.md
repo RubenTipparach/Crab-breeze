@@ -1,19 +1,20 @@
 # Tasks: military-base
 
 ## 1. Write-up
-- [ ] 1.1 Proposal, design, spec; `openspec validate --all`
+- [x] 1.1 Proposal, design, spec; `openspec validate --all`
 
 ## 2. Aircraft (`tools/blender/build_military_aircraft.py`)
-- [ ] 2.1 Fighter
-- [ ] 2.2 Military cargo plane
-- [ ] 2.3 Military helicopter
-- [ ] 2.4 Civil helicopter
-- [ ] 2.5 Zones, rigs, lamps, interiors, LODs, manifests
+- [x] 2.1 Fighter
+- [x] 2.2 Military cargo plane
+- [x] 2.3 Military helicopter
+- [x] 2.4 Civil helicopter
+- [x] 2.5 Zones, rigs, lamps, interiors, LODs, manifests
 
-## 3. Site (`tools/blender/build_military_base.py`)
-- [ ] 3.1 Runway, taxiway, shelters, aprons, hangars, pads
-- [ ] 3.2 Tower, fuel farm, bunkers, HQ, barracks, radar, SAM, perimeter
-- [ ] 3.3 PBR sets, lamps, marks, LODs, manifest
+## 3. Site (the airport's way)
+- [x] 3.1 `airfield_kit.js`: the airport page's runway, taxiway, hangar, tower and light functions shared; the airport's layout unchanged
+- [x] 3.2 Runway, taxiway, shelters, alert apron, cargo apron and hangar, helicopter line, mech hangars, tower, fire station, fuel farm, bunkers, HQ, barracks, radar, missile sites, perimeter
+- [x] 3.3 Night lights as data
+- [ ] 3.4 `export_sites.cjs`: the base's kits, ground and site table for the game
 
 ## 4. Mockup
-- [ ] 4.1 `docs/mockups/military-base.html`, published, checked in
+- [x] 4.1 `docs/mockups/military-base.html`, published, checked in

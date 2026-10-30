@@ -1,6 +1,6 @@
 # Design: military-base
 
-## 1. The site (about 3,000 x 1,100 m)
+## 1. The site (2,780 x 950 m inside the fence)
 
 Laid along its runway, with the mech area kept from the current base:
 
@@ -8,7 +8,7 @@ Laid along its runway, with the mech area kept from the current base:
 | --- | --- | --- |
 | Main runway | 2,400 x 45 m | Two thresholds, edge, centre and approach lights, arrester cable at each end |
 | Parallel taxiway | 2,400 x 23 m | 180 m from the runway centre line, four links |
-| Hardened aircraft shelters | 6, each 38 x 28 x 11 m | Concrete arches, blast doors, one fighter each |
+| Hardened aircraft shelters | 6, each 26 x 36 x 11.5 m | Concrete arches, blast doors, one fighter each |
 | Alert apron | 2 shelters at the runway's departure end | The scramble pair |
 | Cargo apron and hangar | 300 x 160 m, hangar 90 x 70 x 24 m | Two cargo stands |
 | Helicopter line | 6 pads, 25 m each, and a maintenance hangar | |
@@ -20,9 +20,14 @@ Laid along its runway, with the mech area kept from the current base:
 | Radar dome, SAM sites | 1 radar, 2 SAM sites | Rotating radar |
 | Perimeter | Fence, lights, a gate with a guard post on the access road | |
 
-Built the CSG way (`blender-csg-levels`, `blender-hard-surface`): concrete, asphalt and painted markings as PBR sets
-of 2048 px or less, lamps as `LAMP_*` empties with patterns as the airport's. Marks for the taxi graph
-(`airfield-traffic`). Budget: LOD0 of the whole site 400,000 triangles, LOD1 120,000, LOD2 30,000.
+Built the civil airport's way, so the two are at one fidelity and break by one rule: a three.js site page
+(`tools/mockups/military_base_src.html`) lays the site out from the airport's own runway, taxiway, hangar, tower and
+light functions (`tools/mockups/airfield_kit.js`, moved out of the airport page so both pages share them) and the
+small-buildings kit's buildings (`docs/mockups/site_buildings_kit.js`), and `tools/buildings/export_sites.cjs` turns
+the page into game kits, every building a breakable kit through the one kit writer, as it does the airport's. Night
+lights are data in the page (masts, glow dots, the runway's lights by `runwayDots`), exported with the site. The
+mech hangars are the game's own (`mechHangar`, 44 x 50 x 34 m). Marks for the taxi graph (`airfield-traffic`) are
+the routes the page draws.
 
 ## 2. The aircraft
 
@@ -40,7 +45,7 @@ green camouflage for the military with the island's own roundel, a white and col
 
 ## 3. The mockup page
 
-From `tools/mockups/gen_military_base.py`, on the airliner page's pattern: glTF JSON files beside the page, orbit and
+From `tools/mockups/gen_military_base.py`, on the airport page's pattern, the models loaded as on the airliner page: glTF JSON files beside the page, orbit and
 zoom, the pilot and the Foreman as yardsticks, toggles per exhibit, gear and rotor and ramp controls, a day/night
 switch with the lamps, the taxi graph and approach cones drawn. Published and checked in under
 `docs/artifacts/military-base/`.

@@ -1,7 +1,7 @@
 # Tasks: fly-stolen-aircraft
 
 ## 1. Write-up
-- [ ] 1.1 Proposal, design, spec; `openspec validate --all`
+- [x] 1.1 Proposal, design, spec; `openspec validate --all`
 - [ ] 1.2 CLAUDE.md law, sections 8 and 9: the aircraft chase-camera exception
 
 ## 2. One vehicle flow

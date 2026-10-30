@@ -1,7 +1,7 @@
 # Tasks: airfield-traffic
 
 ## 1. Write-up
-- [ ] 1.1 Proposal, design, spec; `openspec validate --all`
+- [x] 1.1 Proposal, design, spec; `openspec validate --all`
 
 ## 2. Sites
 - [ ] 2.1 Stand, taxi, hold, runway, pad and service marks in the airport and base templates

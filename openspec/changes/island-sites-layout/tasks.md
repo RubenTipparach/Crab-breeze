@@ -1,8 +1,8 @@
 # Tasks: island-sites-layout
 
 ## 1. Write-up and mockup
-- [ ] 1.1 Proposal, design, spec; `openspec validate --all`
-- [ ] 1.2 Island map mockup (`docs/mockups/island-sites.html`), published and checked in under `docs/artifacts/`
+- [x] 1.1 Proposal, design, spec; `openspec validate --all`
+- [x] 1.2 Island map mockup (`docs/mockups/island-sites.html`), published and checked in under `docs/artifacts/`
 
 ## 2. Placement (`cb_core::world`)
 - [ ] 2.1 `sites.airports`, `sites.seaports`, `airport_spacing_m`, `port_coast_apart_deg` in `SitesConfig` and data

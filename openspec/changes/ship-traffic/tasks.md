@@ -1,7 +1,7 @@
 # Tasks: ship-traffic
 
 ## 1. Write-up and mockup
-- [ ] 1.1 Proposal, design, spec; `openspec validate --all`
+- [x] 1.1 Proposal, design, spec; `openspec validate --all`
 - [ ] 1.2 Port mockup page: ships arriving, mooring and leaving on the timetable
 
 ## 2. Core
