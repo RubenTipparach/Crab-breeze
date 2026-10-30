@@ -421,25 +421,33 @@ fn run_script(
     if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_SUN") {
         let path = script.dir.join("sun.png");
         if script.beat >= 2 {
-            // A software renderer's frames take seconds: wait for the file itself (up to 120 s).
-            if in_beat > 2.0 && (path.exists() || in_beat > 120.0) {
+            // A software renderer's frames take seconds, and its readback of the image takes minutes while shaders
+            // still compile: wait for the file itself (up to 15 minutes).
+            if in_beat > 2.0 && (path.exists() || in_beat > 900.0) {
                 exit.write(AppExit::Success);
             }
             return;
         }
-        // Held every frame until the shot, so nothing turns the view off the sun in between.
+        // Held every frame until the shot, so nothing turns the view off the sun in between. `CB_STILLS_SUN=night`
+        // turns away from the sun instead and looks 26 degrees up, at the night sky and its stars (owner, 2026-10-30:
+        // "make night sky darker and have stars out").
+        let night = std::env::var("CB_STILLS_SUN").is_ok_and(|v| v == "night");
         if let Some(sun) = suns.iter().next() {
             let to_sun = sun.back();
             let mut st = pilot.curr.clone();
             st.mode = PilotMode::OnFoot;
-            st.yaw_rad = (-to_sun.x).atan2(-to_sun.z);
-            st.pitch_rad = 0.05;
+            st.yaw_rad = if night {
+                to_sun.x.atan2(to_sun.z)
+            } else {
+                (-to_sun.x).atan2(-to_sun.z)
+            };
+            st.pitch_rad = if night { 0.45 } else { 0.05 };
             pilot.prev = st.clone();
             pilot.curr = st;
         }
         // Into the offscreen image (`offscreen_for_buildings`): a window's screenshot is never saved under a virtual
-        // display. After 20 s, so the ground, trees and houses round the pilot have streamed in.
-        if in_beat > 20.0 {
+        // display. After 60 s, so the ground, trees and houses round the pilot have streamed in and the shaders compiled.
+        if in_beat > 60.0 {
             shoot_image(&mut commands, &script, "sun.png");
             script.beat += 1;
             script.beat_started_s = now;

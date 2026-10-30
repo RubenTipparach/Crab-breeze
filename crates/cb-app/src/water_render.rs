@@ -507,7 +507,8 @@ struct FogLook {
     /// fog is under the clouds' shade now (`storm_dim` times the shade), zw unused.
     sky: Vec4,
     /// The night sky (`day_night`): x the stars' brightness on screen now, y the moon's lit face on
-    /// screen now, zw unused.
+    /// screen now, z the sky's brightness now (1 by day, `night_sky_dim` once the stars are out), w the share of the
+    /// sky's cells holding a star.
     night: Vec4,
     /// xyz toward the moon; w its disc's angular radius, radians.
     moon: Vec4,
@@ -605,8 +606,9 @@ fn extract_water_eye(
                 dn.star_brightness * hour.stars,
                 // Pale by day, as the moon is in a blue sky.
                 dn.moon_disc_brightness * (0.25 + 0.75 * (1.0 - hour.day)),
-                0.0,
-                0.0,
+                // The sky's brightness now: its own by day, `night_sky_dim` of it once the stars are out.
+                1.0 - (1.0 - dn.night_sky_dim) * hour.stars,
+                dn.star_share,
             ),
             moon: hour.moon_dir.extend((dn.moon_disc_deg * 0.5).to_radians()),
             sun_body: hour.sun_dir.extend(0.0),
