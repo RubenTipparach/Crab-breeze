@@ -107,14 +107,15 @@ What the code does now, and where it differs from the plan above.
   kind); `GameData::load` refuses a kind that is not a traffic kind or is flown as the wrong one, and the tests check
   every model's `rest_m` against its manifest.
 - **Input.** The movement keys are the stick (forward pushes the nose down), turn is the rudder or pedals, lift and
-  throttle walk the throttle or collective up and down and it stays where it is left, full stop is the brakes. The gear
-  and flaps are automatic for now: down (flaps half) below 150 m over the ground, up above it. The assists are all on;
+  throttle walk the throttle or collective up and down and it stays where it is left, full stop is the brakes. The skate
+  toggle (Shift) raises and lowers the gear (never while standing on it), and the weapon wheel steps the flaps through
+  up, take-off (half) and landing (full); the readout line shows both. The assists are all on;
   the settings to turn them off are not built.
 - **Camera.** The car's chase camera, generalised: `chase_view` follows a car or the stolen aircraft by the access's
   `vehicle`, at a distance from its length. CLAUDE.md's law, sections 8 and 9 carry the exception.
 - **HUD.** The speed readout under the view shows airspeed, height over the ground, climb, throttle and the stall
   warning while flying, the step's own numbers.
-- **Not built yet:** a stolen fighter's weapons (P1), bailing out (P2), gear and flap keys, the assist settings, a
+- **Not built yet:** a stolen fighter's weapons (P1), bailing out (P2), the assist settings, a
   cockpit view (it is flown from the chase camera only), the scripted pilot's flight beats, and the response to a theft
   at a civil airport (F1 of `airfield-traffic`). A theft at a base scrambles it only if the pilot then fires on its
   aircraft. Cost: one flight step per fixed step for the one aircraft flown; not measured.

@@ -48,11 +48,10 @@ impl FlownAircraft {
     }
 }
 
-/// How the pilot's actions fly an aircraft: rates and the gear's and flaps' heights, kept with the flight data.
+/// How fast lift and throttle walk the throttle or collective, a share a second.
 const THROTTLE_PER_S: f32 = 0.4;
-/// Below this over the ground the gear comes down (and the flaps half), above it they go up: an assist the pilot does
-/// not need to think about yet (the gear and flap keys are open: design section 5).
-const GEAR_BELOW_M: f32 = 150.0;
+/// The flaps' settings the weapon wheel steps through: up, take-off, landing.
+const FLAP_STEPS: [f32; 3] = [0.0, 0.5, 1.0];
 /// Coming down faster than this onto the wheels, or banked past this, is a crash, not a landing.
 const CRASH_SINK_M_S: f32 = 7.0;
 const CRASH_BANK_RAD: f32 = 0.6;
@@ -129,17 +128,24 @@ pub fn find_aircraft(
 
 /// The controls this step from the pilot's actions: the stick on the movement keys (forward pushes the nose down), the
 /// rudder or pedals on turn, the throttle or collective walked up and down by lift and throttle and kept where it is
-/// left, the brakes on full stop.
-fn controls(held: Controls, a: &Actions, agl_m: f32, dt_s: f32) -> Controls {
+/// left, the brakes on full stop. The skate toggle (Shift) raises and lowers the gear, which will not come up while the
+/// aircraft stands on it; the weapon wheel steps the flaps up and down through `FLAP_STEPS`.
+fn controls(held: Controls, a: &Actions, on_wheels: bool, dt_s: f32) -> Controls {
     let throttle = (held.throttle + (a.lift_axis + a.throttle_axis) * THROTTLE_PER_S * dt_s).clamp(0.0, 1.0);
-    let low = agl_m < GEAR_BELOW_M;
+    let gear_down = if a.skate_toggle && !(held.gear_down && on_wheels) {
+        !held.gear_down
+    } else {
+        held.gear_down
+    };
+    let now = FLAP_STEPS.iter().position(|f| (f - held.flaps).abs() < 1e-3).unwrap_or(0) as i32;
+    let step = (now + a.weapon_cycle.signum()).clamp(0, FLAP_STEPS.len() as i32 - 1);
     Controls {
         pitch: -a.move_xy.y,
         roll: a.move_xy.x,
         yaw: -a.turn_axis,
         throttle,
-        flaps: if low { 0.5 } else { 0.0 },
-        gear_down: low,
+        flaps: FLAP_STEPS[step as usize],
+        gear_down,
         brake: if a.full_stop { 1.0 } else { 0.0 },
     }
 }
@@ -233,8 +239,7 @@ pub fn fly(
     let dmg = damage(a, spec);
     let dt = time.delta_secs();
     let ground = |x: f32, z: f32| plan.terrain.height_at(x, z);
-    let agl = f.readout.agl_m;
-    let c = controls(f.controls, &actions.0, agl, dt);
+    let c = controls(f.controls, &actions.0, f.body.on_ground, dt);
     let (heading, _, _) = f.body.attitude();
     f.prev = (f.body.pos, heading);
     let before = f.body.vel;
@@ -268,12 +273,45 @@ pub fn fly(
 /// The cockpit's numbers as one line: airspeed, height over the ground, climb, the throttle, and the stall warning.
 pub fn readout_line(f: &FlownAircraft) -> String {
     let r = &f.readout;
+    let c = &f.controls;
     format!(
-        "{:.0} M/S   {:.0} M   {:+.1} M/S   THR {:.0}%{}",
+        "{:.0} M/S   {:.0} M   {:+.1} M/S   THR {:.0}%   FLAPS {:.0}%   GEAR {}{}",
         r.airspeed_m_s,
         r.agl_m.max(0.0),
         r.climb_m_s,
-        f.controls.throttle * 100.0,
+        c.throttle * 100.0,
+        c.flaps * 100.0,
+        if c.gear_down { "DOWN" } else { "UP" },
         if r.stall_warning { "   STALL" } else { "" }
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shift_raises_the_gear_in_the_air_but_never_on_the_ground_and_the_wheel_steps_the_flaps() {
+        let down = Controls {
+            gear_down: true,
+            ..default()
+        };
+        let shift = Actions {
+            skate_toggle: true,
+            ..default()
+        };
+        assert!(controls(down, &shift, true, 0.1).gear_down, "it stands on its gear");
+        assert!(!controls(down, &shift, false, 0.1).gear_down, "in the air it comes up");
+        let up = controls(down, &shift, false, 0.1);
+        assert!(controls(up, &shift, false, 0.1).gear_down, "and down again");
+        let wheel = |n: i32| Actions {
+            weapon_cycle: n,
+            ..default()
+        };
+        let half = controls(down, &wheel(1), true, 0.1);
+        assert_eq!(half.flaps, 0.5);
+        assert_eq!(controls(half, &wheel(3), true, 0.1).flaps, 1.0, "one step a turn of the wheel");
+        assert_eq!(controls(half, &wheel(-1), true, 0.1).flaps, 0.0);
+        assert_eq!(controls(down, &wheel(-1), true, 0.1).flaps, 0.0, "never below up");
+    }
 }
