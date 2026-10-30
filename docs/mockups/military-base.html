@@ -3769,7 +3769,8 @@ function setNight(on) {
 // ---------------------------------------------------------------- yardsticks: the Foreman and a pilot
 const yardG = new T.Group(); scene.add(yardG);
 pending++;
-loader.loadAsync(YARD.url).then(gltf => {
+// exported for the game (tools/buildings/export_sites.cjs) there is no yardstick to load
+if (!window.SITE_EXPORT) loader.loadAsync(YARD.url).then(gltf => {
   gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
   gltf.scene.position.set(FOREMAN[0], 0.12, FOREMAN[1]);
   yardG.add(gltf.scene); loaded();

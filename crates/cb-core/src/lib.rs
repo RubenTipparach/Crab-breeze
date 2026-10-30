@@ -20,6 +20,7 @@ pub mod civilians;
 pub mod cockpit;
 pub mod data;
 pub mod day_night;
+pub mod flight_model;
 pub mod fortress;
 pub mod fx;
 pub mod grass;
@@ -101,6 +102,8 @@ pub struct GameData {
     pub units: units::UnitsConfig,
     /// `data/world/air_traffic.ron`: civil aircraft (`civil-air-traffic`).
     pub air_traffic: air_traffic::AirTrafficConfig,
+    /// `data/aircraft/flight.ron`: how each aircraft the pilot can steal flies (`fly-stolen-aircraft`).
+    pub flight: flight_model::FlightConfig,
     /// `data/enemies/skins.ron`.
     pub skins: skins::Skins,
     /// `data/missions/fortress.ron` and `fortress_shape.ron`.
@@ -156,6 +159,25 @@ impl GameData {
                 return Err(data::DataError {
                     path: sites_dir.clone(),
                     reason: format!("{} parks a `{}`, which is not a kind in {}", t.folder, a.kind, air_path.display()),
+                });
+            }
+        }
+        // every kind the pilot can fly is a kind of the traffic, flown as what it is
+        let flight_path = root.join("aircraft/flight.ron");
+        let flight: flight_model::FlightConfig = data::load_ron(&flight_path)?;
+        for k in flight.planes.keys().chain(flight.rotors.keys()) {
+            let ok = air_traffic
+                .kinds
+                .get(k)
+                .map(|s| s.role.rotorcraft() == flight.rotors.contains_key(k));
+            if ok != Some(true) {
+                return Err(data::DataError {
+                    path: flight_path.clone(),
+                    reason: format!(
+                        "`{k}` is no {} kind in {}",
+                        if ok.is_some() { "matching" } else { "air traffic" },
+                        air_path.display()
+                    ),
                 });
             }
         }
@@ -244,6 +266,7 @@ impl GameData {
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units,
             air_traffic,
+            flight,
             skins,
             fortress,
             missions: data::load_ron(&root.join("missions/mail.ron"))?,

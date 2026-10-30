@@ -49,7 +49,7 @@ impl Plugin for BoundsPlugin {
     }
 }
 
-/// Where the pilot is (x, z): the mech they sit in, the car they drive, or their feet.
+/// Where the pilot is (x, z): the mech they sit in, the car they drive or the aircraft they fly, or their feet.
 fn pilot_xz(pilot: &PilotState, mech: Option<&MechSim>, car: Option<Vec3>) -> Vec2 {
     let p = match pilot.mode {
         PilotMode::Seated | PilotMode::Boarding(..) | PilotMode::Disembarking(..) => mech.map(|m| m.curr.pos),
@@ -70,13 +70,18 @@ fn watch(
     mut pilot: ResMut<PilotSim>,
     mech: Query<&MechSim, With<Piloted>>,
     traffic: Option<ResMut<crate::traffic::TrafficSim>>,
+    mut flown: ResMut<crate::stolen_aircraft::Flown>,
     free: Option<ResMut<crate::missions::FreeRoamRun>>,
     run: Option<ResMut<crate::defence::DefenceRun>>,
     mut sounds: MessageWriter<Sound>,
 ) {
     let cfg = &data.0.world.bounds;
     let dt = time.delta_secs();
-    let car = traffic.as_ref().and_then(|t| t.traffic.driven().map(|c| c.pos));
+    let car = flown
+        .0
+        .as_ref()
+        .map(|f| f.body.pos)
+        .or_else(|| traffic.as_ref().and_then(|t| t.traffic.driven().map(|c| c.pos)));
     let at = pilot_xz(&pilot.curr, mech.iter().next(), car);
     let left = cb_core::bounds::left_m(plan.terrain.shape(), data.0.world.world_size_m, at, cfg);
     let verdict = off.watch.step(left, dt, cfg);
@@ -119,6 +124,8 @@ fn watch(
             {
                 t.traffic.leave(id);
             }
+            // a stolen aircraft is left where it is, out over the sea
+            flown.0 = None;
             let c = city.centre;
             let feet = Vec3::new(c.x, plan.terrain.height_at(c.x, c.y), c.y);
             let state = PilotState::standing(feet, pilot.curr.yaw_rad);

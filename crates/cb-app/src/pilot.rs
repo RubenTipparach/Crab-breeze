@@ -417,15 +417,15 @@ struct Chase {
     pivot: Vec3,
     /// The car's heading the view turns with, lagging the car's own.
     heading_rad: f32,
-    /// The car it last followed, so a new car starts the lags afresh.
-    car: Option<u32>,
+    /// The vehicle it last followed, so a new one starts the lags afresh.
+    car: Option<(cb_core::pilot::Vehicle, u32)>,
     /// The last chase place, held if the car is lost mid-blend (a wreck cleared), so the view never cuts.
     last: Option<(Vec3, Quat)>,
 }
 
-/// Where the chase camera is this frame, or `None` when no car is in hand: behind and above the car the pilot is
-/// in (or getting into or out of), looking along the player's view from its nose, pulled in out of buildings and the
-/// ground. Rules in `cb_core::pilot::chase`.
+/// Where the chase camera is this frame, or `None` when no vehicle is in hand: behind and above the car or the stolen
+/// aircraft the pilot is in (or getting into or out of), looking along the player's view from its nose, pulled in out
+/// of buildings and the ground. One camera for both (`fly-stolen-aircraft`); rules in `cb_core::pilot::chase`.
 #[allow(clippy::too_many_arguments)]
 fn chase_view(
     chase: &mut Chase,
@@ -434,19 +434,39 @@ fn chase_view(
     pending: Vec2,
     car: Option<&cb_core::pilot::CarAccess>,
     traffic: Option<&crate::traffic::TrafficSim>,
+    flown: Option<&crate::stolen_aircraft::FlownAircraft>,
     data: &Data,
     plan: &Plan,
     alpha: f32,
     dt_s: f32,
 ) -> Option<(Vec3, Quat)> {
+    use cb_core::pilot::Vehicle;
     use cb_core::pilot::chase::{ease, ease_angle, view_rotation};
     let cam = &cfg.car_camera;
-    let c = traffic?.traffic.get(car?.id)?;
-    let (pos, heading) = traffic?.drawn_pose(c, alpha);
-    let spec = &data.0.traffic.kinds[c.kind as usize];
-    let target = cam.pivot(pos, spec.size_m[1]);
-    if chase.car != Some(c.id) {
-        chase.car = Some(c.id);
+    let car = car?;
+    // where the vehicle stands (its middle on the ground, or under it in the air), its heading, length and height
+    let (pos, heading, length_m, height_m) = match car.vehicle {
+        Vehicle::Car => {
+            let c = traffic?.traffic.get(car.id)?;
+            let (pos, heading) = traffic?.drawn_pose(c, alpha);
+            let spec = &data.0.traffic.kinds[c.kind as usize];
+            (pos, heading, spec.size_m[2], spec.size_m[1])
+        }
+        Vehicle::Aircraft => {
+            let f = flown.filter(|f| f.id == car.id)?;
+            let spec = data.0.air_traffic.kinds.get(&f.kind)?;
+            let (pos, heading) = f.drawn(alpha);
+            (
+                pos - Vec3::Y * cb_core::air_traffic::rest_m(spec),
+                heading,
+                spec.length_m,
+                spec.height_m,
+            )
+        }
+    };
+    let target = cam.pivot(pos, height_m);
+    if chase.car != Some((car.vehicle, car.id)) {
+        chase.car = Some((car.vehicle, car.id));
         chase.pivot = target;
         chase.heading_rad = heading;
     }
@@ -455,7 +475,7 @@ fn chase_view(
     // the player's own look from the car's nose, with the mouse not yet stepped (CLAUDE.md section 8)
     let yaw = chase.heading_rad + curr.seated_rel_rad - pending.x.to_radians();
     let pitch = cam.pitch(cam.clamp_player_pitch(curr.pitch_rad + pending.y.to_radians()));
-    let wanted = cam.wanted_eye(chase.pivot, yaw, pitch, cam.distance_for(spec.size_m[2]));
+    let wanted = cam.wanted_eye(chase.pivot, yaw, pitch, cam.distance_for(length_m));
     // out of the ground (with a hand's width to spare) and out of the buildings
     let eye = cam.clip(chase.pivot, wanted, 0.25, |q| plan.solid_at(q - Vec3::Y * 0.3));
     Some((eye, view_rotation(yaw, pitch)))
@@ -473,11 +493,12 @@ fn place_camera(
     transforms: Query<&Transform, Without<PilotCamera>>,
     parents: Query<&ChildOf>,
     mut camera: Single<&mut Transform, With<PilotCamera>>,
-    (car, traffic, plan, time): (
+    (car, traffic, plan, time, flown): (
         Res<crate::traffic::CarAccessNow>,
         Option<Res<crate::traffic::TrafficSim>>,
         Res<Plan>,
         Res<Time>,
+        Res<crate::stolen_aircraft::Flown>,
     ),
     mut chase: Local<Chase>,
 ) {
@@ -549,8 +570,8 @@ fn place_camera(
         }
         _ => walking_view(),
     };
-    // Driving a car, the view is third person (the one exception to THE LAW; owner, 2026-10-26: "also driving
-    // should be in 3rd person"): the chase camera eases out of the pilot's eyes on getting in and back into them
+    // Driving a car or flying a stolen aircraft, the view is third person (the exceptions to THE LAW; owner,
+    // 2026-10-26: "also driving should be in 3rd person", and 2026-10-30 for aircraft): the chase camera eases out of the pilot's eyes on getting in and back into them
     // on getting out, with no cut (openspec change `car-chase-camera`).
     let dt = time.delta_secs();
     chase.blend = cb_core::pilot::fov_blend(chase.blend, curr.mode == PilotMode::Driving, dt, cfg.car_camera.blend_s);
@@ -562,6 +583,7 @@ fn place_camera(
             pending,
             car.0.as_ref(),
             traffic.as_deref(),
+            flown.0.as_ref(),
             &data,
             &plan,
             alpha,

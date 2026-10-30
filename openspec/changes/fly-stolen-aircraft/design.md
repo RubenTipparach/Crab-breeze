@@ -78,3 +78,43 @@ yaws the plane toward it.
 | P1 | Can the mech's weapons be used from a stolen aircraft, or do fighters fire their own? | A stolen fighter fires its own guns and missiles; others are unarmed |
 | P2 | Can the pilot bail out in the air? | Yes: a parachute down, first person |
 | P3 | Fuel | Ignored, as the mech's is (survey M3) |
+
+## As built (2026-10-30)
+
+What the code does now, and where it differs from the plan above.
+
+- **One vehicle flow, kept by its car names.** Rather than renaming the car flow, `CarAccess` gained a `vehicle`
+  (`Vehicle::Car` or `Vehicle::Aircraft`); `PilotMode::{EnteringCar, Driving, ExitingCar}` and `step_car` carry an
+  aircraft unchanged (reach, facing, stopped, the eye path, thrown when wrecked), so the car tests run as they were. The
+  rename can follow once nothing else is in flight on these files.
+- **Which aircraft.** Any aircraft of a kind in `data/aircraft/flight.ron`, standing still on the ground and whole, whose
+  door is nearer the pilot than any car's (`stolen_aircraft::find_aircraft`). The door and the seat's eye are the model's
+  `DOOR_*` and `EYE_pilot` marks (now read into the manifest); the airliners, the freighter and the block-out kinds have
+  no marks yet, so theirs stand on the left a fifth of the way back with the eye ahead, by the kind's size
+  (`Aircraft::boarding`; task 2.3 stays open for those models).
+- **It stays in the air traffic.** `Traffic::steal` takes it off its stand and out of the traffic's care
+  (`Phase::Piloted`); every fixed step the flight model's place is written back (`Traffic::fly`), so it is drawn, hit,
+  broken and crashed by the traffic's own code. Flown onto the ground faster than 7 m/s down or banked past 0.6 rad, it
+  crashes (`Traffic::crash`) and the pilot is thrown clear. Left on the ground, it stays where the pilot left it.
+- **Flight model** (`cb_core::flight_model`): as sections 2 and 3, with these simplifications. The gear is one contact
+  (tyre side grip, rolling resistance, brakes, nose-wheel steering that fades with speed, no roll and no nose below level
+  on the ground), not three spring-dampers. The rotorcraft's cyclic and pedals command rates the airframe reaches through
+  a first-order lag, which is how a stability-augmented helicopter feels; thrust is along the body's up. Pitch, roll and
+  yaw damping are one set for every plane. Control authority is given in plain terms per kind (`elevator_alpha_rad`,
+  `roll_rate_deg_s`, `rudder_beta_rad`) and the coefficients derived from them. A lost engine's thrust arm yaws toward
+  the dead side (`Damage::engine_lost`, the engine's side read from its damage zone's capsules).
+- **Data** is one file, `data/aircraft/flight.ron`, planes and rotors keyed as the traffic's kinds (not a file per
+  kind); `GameData::load` refuses a kind that is not a traffic kind or is flown as the wrong one, and the tests check
+  every model's `rest_m` against its manifest.
+- **Input.** The movement keys are the stick (forward pushes the nose down), turn is the rudder or pedals, lift and
+  throttle walk the throttle or collective up and down and it stays where it is left, full stop is the brakes. The gear
+  and flaps are automatic for now: down (flaps half) below 150 m over the ground, up above it. The assists are all on;
+  the settings to turn them off are not built.
+- **Camera.** The car's chase camera, generalised: `chase_view` follows a car or the stolen aircraft by the access's
+  `vehicle`, at a distance from its length. CLAUDE.md's law, sections 8 and 9 carry the exception.
+- **HUD.** The speed readout under the view shows airspeed, height over the ground, climb, throttle and the stall
+  warning while flying, the step's own numbers.
+- **Not built yet:** a stolen fighter's weapons (P1), bailing out (P2), gear and flap keys, the assist settings, a
+  cockpit view (it is flown from the chase camera only), the scripted pilot's flight beats, and the response to a theft
+  at a civil airport (F1 of `airfield-traffic`). A theft at a base scrambles it only if the pilot then fires on its
+  aircraft. Cost: one flight step per fixed step for the one aircraft flown; not measured.
