@@ -562,7 +562,8 @@ Nothing is an exception until it is listed here with its reason.
   and every change made to it. The ground's grass is ambientCG Grass001
   (`assets/textures/ground/grass001/`). The roads are ambientCG Asphalt027C downtown and on the highways, Asphalt026C on
   the suburb streets and car parks (owner, 2026-10-27: "26c suburban Streets 27c for downtown";
-  `assets/textures/roads/`).
+  `assets/textures/roads/`). The seaport's quays are ambientCG Concrete047A, tinted to the page's own colour (owner, 2026-10-30:
+  "dock platform should use concrete textures"; `assets/textures/ground/concrete047a/`).
 - **The Stratostacean's block-out is exported from its mockup, not built in Blender** (owner, 2026-10-25, on the Stratostacean
   Air Fortress mockup: "looks good, build it in game"). The block-out the owner approved is the three.js page, so
   `tools/mockups/export_fortress_glb.mjs` writes `assets/models/fortress_stratostacean.glb` from it, with its manifest and

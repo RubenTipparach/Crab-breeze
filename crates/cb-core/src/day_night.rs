@@ -64,6 +64,12 @@ pub struct DayNightConfig {
     pub star_brightness: f32,
     /// Sun elevations, degrees, over which the stars come out (fully out at the first).
     pub stars_deg: [f32; 2],
+    /// The share of the sky's cells holding a star, 0..1.
+    pub star_share: f32,
+    /// The sky's own brightness on screen once the stars are fully out, against its brightness as the atmosphere
+    /// draws it at the night's exposure, 0..1: a darker night sky the stars stand out on (owner, 2026-10-30: "make
+    /// night sky darker and have stars out").
+    pub night_sky_dim: f32,
     /// The moon's disc across, degrees (the real moon is 0.52; drawn a little larger to read).
     pub moon_disc_deg: f32,
     /// The lit face of a full moon on screen, against white (1).
@@ -209,6 +215,8 @@ impl Default for DayNightConfig {
             horizon_fade_deg: 2.5,
             star_brightness: 0.8,
             stars_deg: [-14.0, -4.0],
+            star_share: 0.045,
+            night_sky_dim: 1.0,
             moon_disc_deg: 0.8,
             moon_disc_brightness: 1.6,
             lamps: crate::world::lamps::LampConfig::default(),
@@ -235,6 +243,8 @@ impl Validate for DayNightConfig {
         within("moon_shadow_far_m", self.moon_shadow_far_m, 10.0, 5000.0)?;
         within("horizon_fade_deg", self.horizon_fade_deg, 0.01, 20.0)?;
         within("star_brightness", self.star_brightness, 0.0, 10.0)?;
+        within("star_share", self.star_share, 0.0, 1.0)?;
+        within("night_sky_dim", self.night_sky_dim, 0.01, 1.0)?;
         within("moon_disc_deg", self.moon_disc_deg, 0.05, 10.0)?;
         within("moon_disc_brightness", self.moon_disc_brightness, 0.0, 20.0)?;
         self.lamps.validate()?;

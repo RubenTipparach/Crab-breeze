@@ -42,5 +42,8 @@
         (name: "house_wallTile", dir: "houses/wallTile", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.16, metallic: 0.00, surfaces: ["tileWall", "tileRed"], use: "glazed wall tiles, 111 mm"),
         (name: "house_carpet", dir: "houses/carpet", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.95, metallic: 0.00, surfaces: ["carpet"], use: "cut-pile carpet"),
         (name: "house_fabric", dir: "houses/fabric", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 0.5, roughness: 0.90, metallic: 0.00, surfaces: ["fabric"], use: "plain-weave upholstery cloth, 3.9 mm threads"),
+        // The city buildings' skins (openspec change `building-materials`): near white, tinted by each building's colour.
+        (name: "house_cityBrick", dir: "building/skin/brick", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.8, roughness: 0.89, metallic: 0.00, surfaces: ["skin brick"], use: "the city buildings' face brick, 215 x 65 mm in running bond, near white for the building's brick colour"),
+        (name: "house_boardFormed", dir: "building/skin/concrete", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.4, roughness: 0.87, metallic: 0.00, surfaces: ["skin concrete"], use: "board-formed concrete, 150 mm form boards and ties on 600 mm, near white for the building's concrete colour"),
     ],
 )

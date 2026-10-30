@@ -78,6 +78,12 @@ pub struct SitesConfig {
     pub port_city_clear_m: f32,
     /// Ground is sampled this far apart when a site is fitted, metres.
     pub sample_m: f32,
+    /// The sites' ground surfaces drawn with a PBR texture set instead of their page's flat look: surface name (the
+    /// export's `quay`, `asphalt`...) to the set's folder under `assets/` (owner, 2026-10-30: "dock platform should use
+    /// concrete textures", "and not textured").
+    pub ground_textures: BTreeMap<String, String>,
+    /// A ground texture repeats every this many metres.
+    pub ground_texture_m: f32,
 }
 
 impl Default for SitesConfig {
@@ -104,6 +110,8 @@ impl Default for SitesConfig {
             port_slides_m: vec![0.0, -300.0, 300.0, -600.0, 600.0],
             port_city_clear_m: 20.0,
             sample_m: 50.0,
+            ground_textures: BTreeMap::new(),
+            ground_texture_m: 4.0,
         }
     }
 }
@@ -131,6 +139,10 @@ impl Validate for SitesConfig {
         }
         positive("sites.port_city_clear_m", self.port_city_clear_m)?;
         positive("sites.sample_m", self.sample_m)?;
+        positive("sites.ground_texture_m", self.ground_texture_m)?;
+        if self.ground_textures.values().any(|f| f.trim().is_empty()) {
+            return Err("sites.ground_textures: every surface names a texture set's folder".into());
+        }
         Ok(())
     }
 }
@@ -712,6 +724,26 @@ impl PlacedSite {
             .into_iter()
             .flat_map(|(a, b, w, y)| Approach::both(a, b, w, y, cfg))
             .collect()
+    }
+
+    /// The pads the ground is shaped to: under each quay standing up out of the sea, the ground just below its deck
+    /// first, then the template's pads. The nearest pad wins and ties go to the earlier, so the ground under a quay is
+    /// raised although the basin's pad covers it too. Without these the ground fell from the land's height to the
+    /// basin's across the one terrain cell at the quays' landward edge, a strip of open water between the land and
+    /// the quays a mech walked into (owner, 2026-10-30: "theres also a big gap between dock platform and LAND").
+    pub fn shaping_pads(&self) -> Vec<(Rect, f32)> {
+        const UNDER_DECK_M: f32 = 1.0;
+        const MIN_AREA_M2: f32 = 100.0;
+        let under = self.template.ground.solids.iter().filter_map(|(lo, hi)| {
+            let area = (hi.x - lo.x) * (hi.z - lo.z);
+            (lo.y < 0.0 && hi.y > UNDER_DECK_M && area >= MIN_AREA_M2).then(|| {
+                (
+                    self.rect_to_world(Vec2::new(lo.x, lo.z), Vec2::new(hi.x, hi.z)),
+                    self.ground_m + hi.y - UNDER_DECK_M,
+                )
+            })
+        });
+        under.chain(self.pads()).collect()
     }
 
     /// Its footprint in the world.

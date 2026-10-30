@@ -100,24 +100,19 @@ impl Layer {
     }
 }
 
-/// The arrays' sources, in `Layer::index` order: the CC0 surface sets, the generated skin maps
-/// with the roughness their materials had, plain trim, the generated facade.
+/// The arrays' sources, in `Layer::index` order: the CC0 surface sets, the skins' Material Maker sets (openspec change
+/// `building-materials`), plain trim, the generated facade.
 pub fn layer_sources(tex: &crate::textures::Textures) -> Vec<crate::building_arrays::Source> {
     use crate::building_arrays::Source;
-    let b = &tex.building;
-    let gen_ = |p: &crate::textures::Pbr, roughness: f32| Source::Generated {
-        color: p.color.clone(),
-        normal: Some(p.normal.clone()),
-        roughness,
-    };
     Surface::ALL
         .iter()
         .map(|s| Source::Set(format!("textures/building/{}", format!("{s:?}").to_lowercase())))
+        .chain(
+            [Mat::Brick, Mat::Concrete, Mat::Roof, Mat::Wood]
+                .into_iter()
+                .map(|m| Source::Graph(skin_set(m).to_string())),
+        )
         .chain([
-            gen_(&b.brick, 0.9),
-            gen_(&b.concrete, 0.85),
-            gen_(&b.roof, 0.95),
-            gen_(&b.wood, 0.7),
             Source::Flat { roughness: 0.6 },
             Source::Generated {
                 color: tex.facade.clone(),
@@ -126,6 +121,18 @@ pub fn layer_sources(tex: &crate::textures::Textures) -> Vec<crate::building_arr
             },
         ])
         .collect()
+}
+
+/// The Material Maker set a skin material wears, under `assets/` (`data/materials/materials.ron`; its tile is
+/// `tile_m`). The roof and the timber share the houses' gravel roofing and painted door boards.
+fn skin_set(mat: Mat) -> &'static str {
+    match mat {
+        Mat::Brick => "textures/building/skin/brick",
+        Mat::Concrete => "textures/building/skin/concrete",
+        Mat::Roof => "textures/houses/roofing",
+        Mat::Wood => "textures/houses/door",
+        Mat::Trim | Mat::Glass => "",
+    }
 }
 
 /// Metres per texture tile for a surface (`building-surfaces` design section 1).
@@ -589,9 +596,9 @@ fn anchor_slot(f: Option<&Frame>, base: u32, a: Anchor) -> Option<f32> {
 /// Metres per texture tile for a material (its texture's real size).
 fn tile_m(mat: Mat) -> f32 {
     match mat {
-        Mat::Brick | Mat::Concrete => 2.4,
-        Mat::Roof => 2.0,
-        Mat::Wood => 1.0,
+        Mat::Brick => 1.8,
+        Mat::Concrete => 2.4,
+        Mat::Roof | Mat::Wood => 1.0,
         Mat::Trim | Mat::Glass => 4.0,
     }
 }
@@ -1339,6 +1346,30 @@ mod tests {
     use super::*;
     use bevy::mesh::VertexAttributeValues;
     use cb_core::world::StructureConfig;
+
+    #[test]
+    fn every_skin_wears_a_material_maker_set_at_its_listed_tile() {
+        let root = crate::cli::repo_root();
+        let list = std::fs::read_to_string(root.join("data/materials/materials.ron")).unwrap();
+        for mat in [Mat::Brick, Mat::Concrete, Mat::Roof, Mat::Wood] {
+            let dir = skin_set(mat).trim_start_matches("textures/");
+            let row = list
+                .lines()
+                .find(|l| l.contains(&format!("dir: \"{dir}\"")))
+                .unwrap_or_else(|| panic!("{mat:?}: no row for {dir} in materials.ron"));
+            let listed: f32 = row
+                .split("tile_m: ")
+                .nth(1)
+                .and_then(|t| t.split(',').next())
+                .unwrap()
+                .parse()
+                .unwrap();
+            assert_eq!(tile_m(mat), listed, "{mat:?} is laid at its set's own tile");
+            for map in ["albedo.png", "normal.png", "orm.png"] {
+                assert!(root.join("assets").join(skin_set(mat)).join(map).exists(), "{mat:?}: {map}");
+            }
+        }
+    }
 
     /// A one-room storey 3 m up: the room spans x 0..6, z 0..6.
     fn one_room() -> (Site, Vec<StoreyPlan>) {

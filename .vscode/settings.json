@@ -1,0 +1,22 @@
+{
+  // Keep rust-analyzer from stealing frames from the game (owner, 2026-10-29: "how to prevent it from slowing down my game").
+  // No full `cargo check` on every save: that is a compile, as heavy as a build.
+  "rust-analyzer.checkOnSave": false,
+  // Two threads at most, and one while it first reads the workspace, so the game keeps the CPU.
+  "rust-analyzer.numThreads": 2,
+  "rust-analyzer.cachePriming.numThreads": 1,
+  // Its own target folder, so it never locks or rebuilds target/play under the game.
+  "rust-analyzer.cargo.targetDir": true,
+  // The big generated folders are not code: don't read or watch them.
+  "rust-analyzer.files.exclude": ["target", "output", "assets", "docs/screenshots"],
+  "files.watcherExclude": {
+    "**/target/**": true,
+    "**/output/**": true,
+    "**/assets/**": true,
+    "**/docs/screenshots/**": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/output": true
+  }
+}

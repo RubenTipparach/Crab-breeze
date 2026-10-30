@@ -314,7 +314,10 @@ fn offscreen_for_buildings(
     mut images: ResMut<Assets<Image>>,
     mut script: ResMut<Script>,
 ) {
-    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") && !crate::cli::switched_off("CB_STILLS_POSTER") {
+    if !crate::cli::switched_off("CB_STILLS_BUILDINGS")
+        && !crate::cli::switched_off("CB_STILLS_POSTER")
+        && !crate::cli::switched_off("CB_STILLS_SUN")
+    {
         return;
     }
     script.offscreen = Some(draw_offscreen(&mut commands, *camera, *cockpit, &mut images));
@@ -353,12 +356,14 @@ fn run_script(
     enemies: Query<&GlobalTransform, With<crate::mech::Enemy>>,
     // The piloted mech's sim and the data: the boarding clock and its timeline for the shot of the seals venting
     // (`boarding-vents`), the mech's pose for the clouds (`cloud-puffs`).
-    (mechs, data, mut steam_shot): (
+    (mechs, data, mut steam_shot, suns): (
         Query<&MechSim, With<Piloted>>,
         Res<Data>,
         // The steam shot is taken; frames drawn since the cabin sealed (the screens power up over 2.5 s of game,
         // 10 frames at the cap), counting on through the outline shot.
         Local<(bool, u32)>,
+        // `CB_STILLS_SUN`: the sun, to face it.
+        Query<&GlobalTransform, With<crate::world::Sun>>,
     ),
     // `CB_STILLS_MAIL`: where the view points on the MFDs, a career's board (none in free roam), whether the city
     // defence runs (free roam's mail), and how far through taking the offer the script is (its step, frames in it).
@@ -369,9 +374,14 @@ fn run_script(
         Local<(u32, u32)>,
     ),
     time: Res<Time<Real>>,
-    game_time: Res<Time<Virtual>>,
-    mut exit: MessageWriter<AppExit>,
-    mut exit_frames: Local<u32>,
+    mut game_time: ResMut<Time<Virtual>>,
+    (mut exit, mut exit_frames): (MessageWriter<AppExit>, Local<u32>),
+    // `CB_STILLS_MAP`: the menu, the mouse and the route (waypoint-nav).
+    (mut menu, mut cursor, mut route): (
+        ResMut<crate::menu::Menu>,
+        Single<&mut bevy::window::CursorOptions>,
+        ResMut<crate::nav::NavRoute>,
+    ),
 ) {
     // The building variant keeps the game's clock, so its beats keep pace with the fall however
     // slow the frames (a software renderer's frames are longer than the clock's 0.25 s cap).
@@ -406,6 +416,100 @@ fn run_script(
         if next {
             script.beat += 1;
             script.beat_started_s = now;
+        }
+        return;
+    }
+    // The sun variant (`CB_STILLS_SUN=1`, with `CB_HOUR` near dawn or dusk; owner, 2026-10-30: "dusk and dawn shouldnt
+    // be drawing atmosphere infront of everything like this"): on foot where the pilot starts, the view turned onto
+    // the sun's bearing just over the horizon, so the near trees and houses stand against the low sun; one still,
+    // `sun.png`, then out.
+    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_SUN") {
+        let path = script.dir.join("sun.png");
+        if script.beat >= 2 {
+            // A software renderer's frames take seconds, and its readback of the image takes minutes while shaders
+            // still compile: wait for the file itself (up to 15 minutes).
+            if in_beat > 2.0 && (path.exists() || in_beat > 900.0) {
+                exit.write(AppExit::Success);
+            }
+            return;
+        }
+        // Held every frame until the shot, so nothing turns the view off the sun in between. `CB_STILLS_SUN=night`
+        // turns away from the sun instead and looks 26 degrees up, at the night sky and its stars (owner, 2026-10-30:
+        // "make night sky darker and have stars out").
+        let night = std::env::var("CB_STILLS_SUN").is_ok_and(|v| v == "night");
+        if let Some(sun) = suns.iter().next() {
+            let to_sun = sun.back();
+            let mut st = pilot.curr.clone();
+            st.mode = PilotMode::OnFoot;
+            st.yaw_rad = if night {
+                to_sun.x.atan2(to_sun.z)
+            } else {
+                (-to_sun.x).atan2(-to_sun.z)
+            };
+            st.pitch_rad = if night { 0.45 } else { 0.05 };
+            pilot.prev = st.clone();
+            pilot.curr = st;
+        }
+        // Into the offscreen image (`offscreen_for_buildings`): a window's screenshot is never saved under a virtual
+        // display. After 60 s, so the ground, trees and houses round the pilot have streamed in and the shaders compiled.
+        if in_beat > 60.0 {
+            shoot_image(&mut commands, &script, "sun.png");
+            script.beat += 1;
+            script.beat_started_s = now;
+        }
+        return;
+    }
+    // The map variant (`CB_STILLS_MAP=1`, openspec change `waypoint-nav`): after 60 s, so the map is painted and the
+    // ground streamed in, a route to the seaport and on to the airport, the MAP page open over it (`map.png`), then the
+    // menu shut and the view turned toward the first waypoint, its marker over the world (`marker.png`). Window shots:
+    // the menu and the marker are UI, which the offscreen image does not hold.
+    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_MAP") {
+        let shots = [
+            (script.dir.join("map.png"), "map.png"),
+            (script.dir.join("marker.png"), "marker.png"),
+        ];
+        match script.beat {
+            1 if in_beat > 60.0 => {
+                route.0.clear();
+                for kind in [cb_core::world::sites::SiteKind::Seaport, cb_core::world::sites::SiteKind::Airport] {
+                    if let Some(site) = plan.0.sites.iter().find(|s| s.template.kind == kind) {
+                        route.0.add(site.footprint().centre(), data.0.nav.max_waypoints);
+                    }
+                }
+                crate::menu::open(&mut menu, crate::menu::Menu::Map, &mut game_time, &mut cursor);
+                script.beat = 2;
+                script.beat_started_s = now;
+            }
+            2 if in_beat > 15.0 => {
+                shoot(&mut commands, &script.dir, shots[0].1);
+                script.beat = 3;
+                script.beat_started_s = now;
+            }
+            3 if in_beat > 2.0 && (shots[0].0.exists() || in_beat > 600.0) => {
+                crate::menu::open(&mut menu, crate::menu::Menu::Closed, &mut game_time, &mut cursor);
+                script.beat = 4;
+                script.beat_started_s = now;
+            }
+            4 => {
+                // Held every frame until the shot: the view on the first waypoint's bearing, level.
+                if let Some(wp) = route.0.active() {
+                    let mut st = pilot.curr.clone();
+                    let d = wp - plan.0.start.pilot_xz;
+                    st.yaw_rad = (-d.x).atan2(-d.y);
+                    st.pitch_rad = 0.0;
+                    pilot.prev = st.clone();
+                    pilot.curr = st;
+                }
+                if in_beat > 20.0 {
+                    shoot(&mut commands, &script.dir, shots[1].1);
+                    script.beat = 5;
+                    script.beat_started_s = now;
+                }
+            }
+            5 if in_beat > 2.0 && (shots[1].0.exists() || in_beat > 600.0) => {
+                exit.write(AppExit::Success);
+            }
+            _ => {}
         }
         return;
     }
@@ -968,7 +1072,10 @@ fn run_site_tour(
     let now = time.elapsed_secs();
     let Some(home) = access.0.map(|a| a.ladder_base.xz()) else { return };
     if state.is_none() {
-        let harbour = std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "harbour");
+        let fx = std::env::var("CB_STILLS_FX").unwrap_or_default();
+        // `seaport`: the seaport's harbour wherever it is, not the harbour nearest the mech.
+        let seaport = fx == "seaport";
+        let harbour = fx == "harbour" || seaport;
         // The site's centre, and the way it faces (from the land toward the water for a harbour, along the runway for
         // a base).
         let site = if harbour {
@@ -976,6 +1083,7 @@ fn run_site_tour(
                 b.traffic
                     .harbours
                     .iter()
+                    .filter(|h| !seaport || h.port)
                     .min_by(|a, b| a.shore.distance(home).total_cmp(&b.shore.distance(home)))
                     .map(|h| (h.shore, (h.out).normalize_or(Vec2::X)))
             })
@@ -1290,8 +1398,8 @@ fn run_fx_script(
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
                 script.beat = 2;
             }
-            // `CB_STILLS_FX=base` and `=harbour` tour the nearest air base or harbour (`run_site_tour`) alone.
-            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "base" || v == "harbour") {
+            // `CB_STILLS_FX=base`, `=harbour` and `=seaport` tour the nearest site (`run_site_tour`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "base" || v == "harbour" || v == "seaport") {
                 script.beat = usize::MAX - 2;
                 return;
             }

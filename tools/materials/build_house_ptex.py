@@ -74,19 +74,23 @@ def finish(g, label, inputs, body, tile_m, depth_m, ao_radius=16, ao_strength=1.
 # masonry
 # ----------------------------------------------------------------------------
 
-def brick():
-    """Face brick in running bond: 215 x 65 mm bricks with 10 mm joints, 4 across and 12 courses in the 0.9 m tile.
-    Each brick its own shade of red (a few dark flashed and a few salmon), chipped arrises, pits and iron spots; a
-    recessed sandy mortar."""
-    g = Graph("House Brick")
-    ins = [("lo", "f", fbm(g, 4, iterations=4, persistence=0.6)), ("mid", "f", fbm(g, 16, iterations=5, offset=0.3)),
-           ("chip", "f", fbm(g, 64, iterations=4, persistence=0.6, offset=0.6)),
-           ("fine", "f", fbm(g, 256, iterations=3, persistence=0.5, offset=0.1))]
-    body = """
+def brick(title="House Brick", across=4, neutral=False):
+    """Face brick in running bond: 215 x 65 mm bricks with 10 mm joints, `across` bricks and 3 x `across` courses a tile
+    (0.225 m and 0.075 m each, so 0.9 m a tile at 4). Chipped arrises, pits and iron spots; a recessed sandy mortar.
+
+    The house brick (`neutral` false) gives each brick its own shade of red, a few dark flashed and a few salmon. The
+    city buildings' brick (`neutral` true) is the same brick near white, its bricks differing in value only, because the
+    game tints it with each building's brick colour (`dressing.rs` BRICKS)."""
+    g = Graph(title)
+    k = across // 4  # noise scales grow with the tile, so a feature keeps its size in metres
+    ins = [("lo", "f", fbm(g, 4 * k, iterations=4, persistence=0.6)), ("mid", "f", fbm(g, 16 * k, iterations=5, offset=0.3)),
+           ("chip", "f", fbm(g, 64 * k, iterations=4, persistence=0.6, offset=0.6)),
+           ("fine", "f", fbm(g, 256 * k, iterations=3, persistence=0.5, offset=0.1))]
+    cells = """
 vec4 cell_$name(vec2 uv) {
-	float row = floor(uv.y * 12.0);
-	float x = uv.x * 4.0 + 0.5 * mod(row, 2.0);
-	return vec4(fract(x) * 0.225, fract(uv.y * 12.0) * 0.075, mod(floor(x), 4.0), mod(row, 12.0));
+	float row = floor(uv.y * COURSES);
+	float x = uv.x * ACROSS + 0.5 * mod(row, 2.0);
+	return vec4(fract(x) * 0.225, fract(uv.y * COURSES) * 0.075, mod(floor(x), ACROSS), mod(row, COURSES));
 }
 // Metres in from the brick's edge (negative in the joint), the arris broken by noise.
 float edge_$name(vec2 uv) {
@@ -103,23 +107,95 @@ float height_$name(vec2 uv) {
 	float mortar = 0.18 + 0.1 * $fine(uv * 2.0);
 	return mix(mortar, face, smoothstep(-0.0006, 0.0028, d));
 }
-vec3 albedo_$name(vec2 uv) {
-	vec4 c = cell_$name(uv);
-	float r = hs_$name(c.zw + 0.37);
+""".replace("ACROSS", f"{across:.1f}").replace("COURSES", f"{3 * across:.1f}")
+    if neutral:
+        face = """
+	float v = mix(0.70, 0.88, r);
+	if (hs_$name(c.zw + 5.1) > 0.92) { v *= 0.84; }
+	if (hs_$name(c.zw + 9.3) < 0.12) { v = mix(v, 0.94, 0.5); }
+	vec3 b = vec3(v, v * 0.975, v * 0.955);"""
+        mortar = "vec3(0.90, 0.89, 0.86) * (0.86 + 0.2 * $fine(uv * 2.0))"
+    else:
+        face = """
 	vec3 b = mix(vec3(0.52, 0.23, 0.165), vec3(0.69, 0.345, 0.245), r);
 	if (hs_$name(c.zw + 5.1) > 0.86) { b = mix(b, vec3(0.33, 0.16, 0.125), 0.75); }
-	if (hs_$name(c.zw + 9.3) < 0.12) { b = mix(b, vec3(0.76, 0.48, 0.34), 0.6); }
+	if (hs_$name(c.zw + 9.3) < 0.12) { b = mix(b, vec3(0.76, 0.48, 0.34), 0.6); }"""
+        mortar = "vec3(0.70, 0.68, 0.635) * (0.84 + 0.22 * $fine(uv * 2.0))"
+    body = cells + """vec3 albedo_$name(vec2 uv) {
+	vec4 c = cell_$name(uv);
+	float r = hs_$name(c.zw + 0.37);""" + face + """
 	b *= 0.86 + 0.26 * $mid(uv) + 0.08 * ($fine(uv) - 0.5);
 	b *= 1.0 - 0.45 * smoothstep(0.74, 0.82, $fine(uv * 2.0 + vec2(0.31, 0.77)));
 	b = mix(b, b * 0.55, 0.6 * pit_$name(uv));
-	vec3 mortar = vec3(0.70, 0.68, 0.635) * (0.84 + 0.22 * $fine(uv * 2.0));
+	vec3 mortar = """ + mortar + """;
 	vec3 col = mix(mortar, b, smoothstep(-0.0004, 0.0016, edge_$name(uv)));
 	return col * (0.9 + 0.14 * $lo(uv));
 }
 float rough_$name(vec2 uv) { return mix(0.94, 0.84 + 0.08 * $mid(uv), smoothstep(-0.0004, 0.0016, edge_$name(uv))); }
 float metal_$name(vec2 uv) { return 0.0; }
 """
-    return finish(g, "house brick", ins, body, tile_m=0.9, depth_m=0.012, ao_radius=10, ao_strength=1.3)
+    return finish(g, title.lower(), ins, body, tile_m=0.225 * across, depth_m=0.012, ao_radius=10, ao_strength=1.3)
+
+
+def city_brick():
+    """The city buildings' face brick: the house brick's bond near white, 8 bricks and 24 courses in a 1.8 m tile
+    (openspec change `building-materials`)."""
+    return brick("City Brick", across=8, neutral=True)
+
+
+def board_formed():
+    """Board-formed concrete for the city buildings (openspec change `building-materials`): 16 horizontal form boards of
+    150 mm in the 2.4 m tile, each board's grain and knots printed in the face and its own shade of the pour, a thin
+    fin where two boards met, form-tie holes on a 600 mm grid (25 mm cones, 8 mm deep), bug holes and a few rust and
+    water streaks below the ties. Near white so each building's concrete colour (`dressing.rs` CONCRETES) shows true."""
+    g = Graph("Board Formed Concrete")
+    v = vor(g, 48, randomness=1.0)
+    ins = [("lo", "f", fbm(g, 3, iterations=5, persistence=0.6)), ("mid", "f", fbm(g, 12, iterations=5, offset=0.3)),
+           ("grain", "f", g.node("fbm2", noise=2, scale_x=6, scale_y=256, folds=0, iterations=5, persistence=0.6, offset=0.4)),
+           ("knot", "f", fbm(g, 24, iterations=3, offset=0.8)),
+           ("fine", "f", fbm(g, 384, iterations=3, offset=0.2)), ("hole", "f", (v, 0)), ("holec", "rgb", (v, 2)),
+           ("streak", "f", g.node("fbm2", noise=2, scale_x=48, scale_y=2, folds=0, iterations=4, persistence=0.5, offset=0.6))]
+    body = """
+// The board a point is on (0..15), and how far it is from the nearest board edge, m.
+float board_$name(vec2 uv) { return floor(uv.y * 16.0); }
+float seam_$name(vec2 uv) { float y = fract(uv.y * 16.0) * 0.15; return min(y, 0.15 - y); }
+// Form ties: a cone 12.5 mm in radius on a 600 mm grid, each row centred on a board.
+float tie_$name(vec2 uv) {
+	vec2 p = (fract(uv * 4.0 + vec2(0.5, 0.5 - 0.5 / 4.0)) - 0.5) * 0.6;
+	return 1.0 - smoothstep(0.009, 0.0125, length(p));
+}
+// Rust and water run down the wall from each tie. The city buildings' walls take v = -height / tile (`world.rs`
+// MeshBuilder::uv), so up the wall is up the image, unlike the houses, and the runs go toward larger uv.y.
+float run_$name(vec2 uv) {
+	vec2 p = fract(uv * 4.0 + vec2(0.5, 0.5 - 0.5 / 4.0)) - 0.5;
+	float below = smoothstep(0.0, 0.05, p.y) * (1.0 - smoothstep(0.15, 0.45, p.y));
+	return below * (1.0 - smoothstep(0.005, 0.03, abs(p.x * 0.6 + 0.004 * ($streak(uv) - 0.5) * 10.0)));
+}
+float bug_$name(vec2 uv) { return smoothstep(0.08, 0.03, $hole(uv)) * step(0.78, $holec(uv).b); }
+float height_$name(vec2 uv) {
+	float b = hs_$name(vec2(board_$name(uv), 3.7));
+	float face = 0.5 + 0.12 * (b - 0.5) + 0.14 * ($grain(uv + vec2(b, 0.0)) - 0.5) + 0.05 * ($fine(uv) - 0.5);
+	face -= 0.05 * smoothstep(0.55, 0.85, $knot(uv + vec2(b * 0.37, 0.0)));
+	float fin = 1.0 - smoothstep(0.0008, 0.0025, seam_$name(uv));
+	return face + 0.25 * fin - 0.45 * tie_$name(uv) - 0.3 * bug_$name(uv);
+}
+vec3 albedo_$name(vec2 uv) {
+	float b = hs_$name(vec2(board_$name(uv), 1.3));
+	float v = 0.80 + 0.06 * (b - 0.5) + 0.09 * ($grain(uv + vec2(b, 0.0)) - 0.5) + 0.04 * ($mid(uv) - 0.5);
+	v *= 0.93 + 0.1 * $lo(uv);
+	v -= 0.025 * smoothstep(0.55, 0.85, $knot(uv + vec2(b * 0.37, 0.0)));
+	v -= 0.06 * (1.0 - smoothstep(0.0008, 0.003, seam_$name(uv)));
+	v += 0.03 * ($fine(uv) - 0.5);
+	vec3 c = vec3(v, v * 0.99, v * 0.965);
+	c = mix(c, c * vec3(0.78, 0.66, 0.55), 0.55 * run_$name(uv) * smoothstep(0.4, 0.7, $streak(uv)));
+	c = mix(c, c * 0.82, 0.5 * run_$name(uv));
+	c *= 1.0 - 0.55 * tie_$name(uv) - 0.4 * bug_$name(uv);
+	return c;
+}
+float rough_$name(vec2 uv) { return 0.86 + 0.06 * $fine(uv) - 0.04 * $lo(uv) - 0.05 * run_$name(uv); }
+float metal_$name(vec2 uv) { return 0.0; }
+"""
+    return finish(g, "board formed concrete", ins, body, tile_m=2.4, depth_m=0.008, ao_radius=10, ao_strength=1.2)
 
 
 def block():
@@ -941,6 +1017,9 @@ GRAPHS = {
     "wallTile": wall_tile,
     "carpet": carpet,
     "fabric": fabric,
+    # the city buildings (openspec change `building-materials`), not in the kit's table
+    "cityBrick": city_brick,
+    "boardFormed": board_formed,
 }
 
 

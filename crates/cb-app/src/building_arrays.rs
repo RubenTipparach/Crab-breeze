@@ -2,8 +2,9 @@
 //! `building-texture-array`): colour, normal and packed occlusion-roughness-metal, one layer per
 //! look, so a building's opaque parts are one mesh drawn with one material. Built at startup from
 //! the same maps the separate materials used: the CC0 surface sets (`assets/textures/building/`),
-//! the generated skin maps (`textures`), flat layers for the plain trim and facade panels. Every
-//! layer is `SIZE` square with a full mip chain.
+//! the skins' Material Maker sets (`assets/textures/building/skin/`, `assets/textures/houses/`; openspec change
+//! `building-materials`), flat layers for the plain trim, and the generated facade panel (`textures`). Every layer is
+//! `SIZE` square with a full mip chain.
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
@@ -18,6 +19,9 @@ pub const SIZE: u32 = 1024;
 pub enum Source {
     /// A packed CC0 set: `albedo.jpg`, `normal_gl.png`, `orm.png` in this folder under `assets/`.
     Set(String),
+    /// A Material Maker set (`tools/materials/postprocess.py --houses`): `albedo.png`, `normal.png`, `orm.png` in this
+    /// folder under `assets/`.
+    Graph(String),
     /// Generated maps (`textures`): colour, a normal map or none (flat), and one roughness.
     Generated {
         /// The colour map.
@@ -135,6 +139,11 @@ pub fn build_keeping(images: &mut Assets<Image>, sources: &[Source]) -> (Arrays,
             Source::Set(dir) => {
                 albedo.push(from_file(&root, &format!("{dir}/albedo.jpg"), [204; 4]));
                 normal.push(from_file(&root, &format!("{dir}/normal_gl.png"), FLAT_NORMAL));
+                orm.push(from_file(&root, &format!("{dir}/orm.png"), orm_of(0.85)));
+            }
+            Source::Graph(dir) => {
+                albedo.push(from_file(&root, &format!("{dir}/albedo.png"), [204; 4]));
+                normal.push(from_file(&root, &format!("{dir}/normal.png"), FLAT_NORMAL));
                 orm.push(from_file(&root, &format!("{dir}/orm.png"), orm_of(0.85)));
             }
             Source::Generated {

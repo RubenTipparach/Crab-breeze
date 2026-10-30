@@ -677,6 +677,7 @@ fn bind(
     kits.furniture = Arc::new(furniture);
     // Each site's ground: its one mesh's primitives in the look its table gives each surface.
     let mut grounds = Vec::with_capacity(loading.grounds.len());
+    let mut ground_sets: BTreeMap<(String, String), Handle<StandardMaterial>> = BTreeMap::new();
     for (site, h) in plan.sites.iter().zip(&loading.grounds) {
         let Some(g) = gltfs.get(h) else { return };
         let Some(mesh) = g.meshes.first().and_then(|m| gltf_meshes.get(m)) else {
@@ -684,8 +685,23 @@ fn bind(
             continue;
         };
         let mut prims = Vec::with_capacity(mesh.primitives.len());
+        let sites_cfg = &data.0.world.sites;
         for p in &mesh.primitives {
             let surface = surface_of(p);
+            // A surface the data gives a texture set (the quays' concrete, the roads' asphalt) is drawn with it, its
+            // UVs laid again in metres (the page's boxes carry 0..1 a face, one tile stretched over a whole quay).
+            if let Some(folder) = sites_cfg.ground_textures.get(&surface)
+                && let Some(textured) = meshes.get(&p.mesh).map(|m| metre_uvs(m, sites_cfg.ground_texture_m))
+            {
+                // Tinted the page's colour for the surface: the set gives the grain, the page the colour.
+                let colour = site.template.ground.materials.get(&surface).map(|l| l.colour);
+                let m = ground_sets
+                    .entry((folder.clone(), surface.clone()))
+                    .or_insert_with(|| crate::pbr_set::set_material_tinted(&mut images, &mut plain, folder, 0.9, colour))
+                    .clone();
+                prims.push((meshes.add(textured), m));
+                continue;
+            }
             let Some(look) = site.template.ground.materials.get(&surface) else {
                 continue;
             };
@@ -714,7 +730,39 @@ fn bind(
     );
 }
 
-/// Points the state materials at the building state buffer's handle (it changes when the buffer grows).
+/// A copy of a site's ground mesh with its UVs laid in metres, a tile every `tile_m`: each corner projected along the
+/// axis its face looks down (tops and floors on x and z, walls on their own two axes), and tangents for the set's
+/// normal map.
+fn metre_uvs(mesh: &Mesh, tile_m: f32) -> Mesh {
+    let mut m = mesh.clone();
+    let (Some(VertexAttributeValues::Float32x3(pos)), Some(VertexAttributeValues::Float32x3(nrm))) =
+        (m.attribute(Mesh::ATTRIBUTE_POSITION), m.attribute(Mesh::ATTRIBUTE_NORMAL))
+    else {
+        return m;
+    };
+    let uv: Vec<[f32; 2]> = pos
+        .iter()
+        .zip(nrm)
+        .map(|(p, n)| {
+            let (a, b) = (n[0].abs(), n[2].abs());
+            let (u, v) = if n[1].abs() >= a && n[1].abs() >= b {
+                (p[0], p[2])
+            } else if a >= b {
+                (p[2], p[1])
+            } else {
+                (p[0], p[1])
+            };
+            [u / tile_m, v / tile_m]
+        })
+        .collect();
+    m.insert_attribute(Mesh::ATTRIBUTE_UV_0, uv);
+    if let Err(e) = m.generate_tangents() {
+        warn!("small buildings: site ground tangents: {e}");
+    }
+    m
+}
+
+/// Points the state materials at the building state buffer's handle/// Points the state materials at the building state buffer's handle (it changes when the buffer grows).
 fn follow_state(mut kits: ResMut<HouseKits>, states: Res<BuildingStates>, mut materials: ResMut<Assets<BuildingMaterial>>) {
     if kits.standing.as_ref() == Some(&states.handle) {
         return;
