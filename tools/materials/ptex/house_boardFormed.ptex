@@ -1,0 +1,402 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_7",
+   "to_port": 0
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_7",
+   "to_port": 1
+  },
+  {
+   "from": "fbm2_2",
+   "from_port": 0,
+   "to": "shader_7",
+   "to_port": 2
+  },
+  {
+   "from": "fbm2_3",
+   "from_port": 0,
+   "to": "shader_7",
+   "to_port": 3
+  },
+  {
+   "from": "fbm2_4",
+   "from_port": 0,
+   "to": "shader_7",
+   "to_port": 4
+  },
+  {
+   "from": "voronoi_0",
+   "from_port": 0,
+   "to": "shader_7",
+   "to_port": 5
+  },
+  {
+   "from": "voronoi_0",
+   "from_port": 2,
+   "to": "shader_7",
+   "to_port": 6
+  },
+  {
+   "from": "fbm2_5",
+   "from_port": 0,
+   "to": "shader_7",
+   "to_port": 7
+  },
+  {
+   "from": "shader_7",
+   "from_port": 0,
+   "to": "normal_map_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_7",
+   "from_port": 0,
+   "to": "occlusion2_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_7",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_7",
+   "from_port": 3,
+   "to": "Material",
+   "to_port": 1
+  },
+  {
+   "from": "shader_7",
+   "from_port": 2,
+   "to": "Material",
+   "to_port": 2
+  },
+  {
+   "from": "normal_map_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 4
+  },
+  {
+   "from": "occlusion2_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 5
+  },
+  {
+   "from": "shader_7",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 6
+  }
+ ],
+ "label": "Board Formed Concrete",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "voronoi_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "intensity": 1.0,
+    "randomness": 1.0,
+    "scale_x": 48,
+    "scale_y": 48,
+    "stretch_x": 1,
+    "stretch_y": 1
+   },
+   "type": "voronoi"
+  },
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.6,
+    "scale_x": 3,
+    "scale_y": 3
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.3,
+    "persistence": 0.55,
+    "scale_x": 12,
+    "scale_y": 12
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_2",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.4,
+    "persistence": 0.6,
+    "scale_x": 6,
+    "scale_y": 256
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_3",
+   "node_position": {
+    "x": 1100,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 3,
+    "noise": 2,
+    "offset": 0.8,
+    "persistence": 0.55,
+    "scale_x": 24,
+    "scale_y": 24
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_4",
+   "node_position": {
+    "x": 1320,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 3,
+    "noise": 2,
+    "offset": 0.2,
+    "persistence": 0.55,
+    "scale_x": 384,
+    "scale_y": 384
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_5",
+   "node_position": {
+    "x": 1540,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 4,
+    "noise": 2,
+    "offset": 0.6,
+    "persistence": 0.5,
+    "scale_x": 48,
+    "scale_y": 2
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_7",
+   "node_position": {
+    "x": 0,
+    "y": 160
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "lo",
+      "longdesc": "lo",
+      "name": "lo",
+      "shortdesc": "lo",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "mid",
+      "longdesc": "mid",
+      "name": "mid",
+      "shortdesc": "mid",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "grain",
+      "longdesc": "grain",
+      "name": "grain",
+      "shortdesc": "grain",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "knot",
+      "longdesc": "knot",
+      "name": "knot",
+      "shortdesc": "knot",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "fine",
+      "longdesc": "fine",
+      "name": "fine",
+      "shortdesc": "fine",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "hole",
+      "longdesc": "hole",
+      "name": "hole",
+      "shortdesc": "hole",
+      "type": "f"
+     },
+     {
+      "default": "vec3(0.0)",
+      "function": true,
+      "label": "holec",
+      "longdesc": "holec",
+      "name": "holec",
+      "shortdesc": "holec",
+      "type": "rgb"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "streak",
+      "longdesc": "streak",
+      "name": "streak",
+      "shortdesc": "streak",
+      "type": "f"
+     }
+    ],
+    "instance": "\nfloat hs_$name(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\nfloat sat_$name(float x) { return clamp(x, 0.0, 1.0); }\n\n// The board a point is on (0..15), and how far it is from the nearest board edge, m.\nfloat board_$name(vec2 uv) { return floor(uv.y * 16.0); }\nfloat seam_$name(vec2 uv) { float y = fract(uv.y * 16.0) * 0.15; return min(y, 0.15 - y); }\n// Form ties: a cone 12.5 mm in radius on a 600 mm grid, each row centred on a board.\nfloat tie_$name(vec2 uv) {\n\tvec2 p = (fract(uv * 4.0 + vec2(0.5, 0.5 - 0.5 / 4.0)) - 0.5) * 0.6;\n\treturn 1.0 - smoothstep(0.009, 0.0125, length(p));\n}\n// Rust and water run down the wall from each tie. The city buildings' walls take v = -height / tile (`world.rs`\n// MeshBuilder::uv), so up the wall is up the image, unlike the houses, and the runs go toward larger uv.y.\nfloat run_$name(vec2 uv) {\n\tvec2 p = fract(uv * 4.0 + vec2(0.5, 0.5 - 0.5 / 4.0)) - 0.5;\n\tfloat below = smoothstep(0.0, 0.05, p.y) * (1.0 - smoothstep(0.15, 0.45, p.y));\n\treturn below * (1.0 - smoothstep(0.005, 0.03, abs(p.x * 0.6 + 0.004 * ($streak(uv) - 0.5) * 10.0)));\n}\nfloat bug_$name(vec2 uv) { return smoothstep(0.08, 0.03, $hole(uv)) * step(0.78, $holec(uv).b); }\nfloat height_$name(vec2 uv) {\n\tfloat b = hs_$name(vec2(board_$name(uv), 3.7));\n\tfloat face = 0.5 + 0.12 * (b - 0.5) + 0.14 * ($grain(uv + vec2(b, 0.0)) - 0.5) + 0.05 * ($fine(uv) - 0.5);\n\tface -= 0.05 * smoothstep(0.55, 0.85, $knot(uv + vec2(b * 0.37, 0.0)));\n\tfloat fin = 1.0 - smoothstep(0.0008, 0.0025, seam_$name(uv));\n\treturn face + 0.25 * fin - 0.45 * tie_$name(uv) - 0.3 * bug_$name(uv);\n}\nvec3 albedo_$name(vec2 uv) {\n\tfloat b = hs_$name(vec2(board_$name(uv), 1.3));\n\tfloat v = 0.80 + 0.06 * (b - 0.5) + 0.09 * ($grain(uv + vec2(b, 0.0)) - 0.5) + 0.04 * ($mid(uv) - 0.5);\n\tv *= 0.93 + 0.1 * $lo(uv);\n\tv -= 0.025 * smoothstep(0.55, 0.85, $knot(uv + vec2(b * 0.37, 0.0)));\n\tv -= 0.06 * (1.0 - smoothstep(0.0008, 0.003, seam_$name(uv)));\n\tv += 0.03 * ($fine(uv) - 0.5);\n\tvec3 c = vec3(v, v * 0.99, v * 0.965);\n\tc = mix(c, c * vec3(0.78, 0.66, 0.55), 0.55 * run_$name(uv) * smoothstep(0.4, 0.7, $streak(uv)));\n\tc = mix(c, c * 0.82, 0.5 * run_$name(uv));\n\tc *= 1.0 - 0.55 * tie_$name(uv) - 0.4 * bug_$name(uv);\n\treturn c;\n}\nfloat rough_$name(vec2 uv) { return 0.86 + 0.06 * $fine(uv) - 0.04 * $lo(uv) - 0.05 * run_$name(uv); }\nfloat metal_$name(vec2 uv) { return 0.0; }\n",
+    "longdesc": "board formed concrete",
+    "name": "board formed concrete",
+    "outputs": [
+     {
+      "f": "sat_$name(height_$name($uv))",
+      "longdesc": "out0",
+      "shortdesc": "out0",
+      "type": "f"
+     },
+     {
+      "longdesc": "out1",
+      "rgba": "vec4(clamp(albedo_$name($uv), vec3(0.0), vec3(1.0)), 1.0)",
+      "shortdesc": "out1",
+      "type": "rgba"
+     },
+     {
+      "f": "sat_$name(rough_$name($uv))",
+      "longdesc": "out2",
+      "shortdesc": "out2",
+      "type": "f"
+     },
+     {
+      "f": "sat_$name(metal_$name($uv))",
+      "longdesc": "out3",
+      "shortdesc": "out3",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "board formed concrete"
+   },
+   "type": "shader"
+  },
+  {
+   "name": "normal_map_0",
+   "node_position": {
+    "x": 220,
+    "y": 160
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 0.08,
+    "param2": 0,
+    "param4": 1
+   },
+   "type": "normal_map"
+  },
+  {
+   "name": "occlusion2_0",
+   "node_position": {
+    "x": 440,
+    "y": 160
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 10,
+    "param2": 2.64,
+    "param3": 1
+   },
+   "type": "occlusion2"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 660,
+    "y": 160
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": false,
+    "metallic": 1.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}
