@@ -243,7 +243,9 @@ pub fn pose_airliners(
         let seq = man.gear_sequence_s.max(1.0);
         let target = if want_up { 1.0 } else { 0.0 };
         pose.gear_t += (target - pose.gear_t).clamp(-dt / seq, dt / seq);
-        if !pose.parked {
+        // standing at its stand between flights its engines are off, as a parked one's
+        let idle = pose.parked || a.is_some_and(|a| matches!(a.phase, Phase::Stand { .. }));
+        if !idle {
             pose.turn_rad = (pose.turn_rad + dt * std::f32::consts::TAU).rem_euclid(std::f32::consts::TAU * 1000.0);
         }
         for &(e, i, base) in &parts.rig {
@@ -251,7 +253,7 @@ pub fn pose_airliners(
             let angle = match r.role.as_str() {
                 "gear_leg" | "gear_door" => r.angle_deg.to_radians() * r.gear_share(pose.gear_t),
                 // a prop or fan at its rpm: `turn_rad` counts one revolution a second
-                "prop" | "fan" if !pose.parked => pose.turn_rad * r.rpm / 60.0,
+                "prop" | "fan" | "rotor" | "tail_rotor" if !idle => pose.turn_rad * r.rpm / 60.0,
                 "aileron" => {
                     let side = if r.node.ends_with("_l") { 1.0 } else { -1.0 };
                     (bank * 1.2).clamp(-1.0, 1.0) * r.range_deg.to_radians() * side
@@ -271,9 +273,9 @@ pub fn pose_airliners(
         for (meshes, i) in &parts.lamps {
             let l = &man.lamps[*i];
             let lit = match l.pattern.as_str() {
-                "beacon" => !pose.parked && man.light_patterns.beacon.lit(now + offset),
-                "strobe" => !pose.parked && man.light_patterns.strobe.lit(now + offset),
-                "landing" => !pose.parked && pose.gear_t < 0.5,
+                "beacon" => !idle && man.light_patterns.beacon.lit(now + offset),
+                "strobe" => !idle && man.light_patterns.strobe.lit(now + offset),
+                "landing" => !idle && pose.gear_t < 0.5,
                 _ => true,
             };
             let want = if lit { Visibility::Inherited } else { Visibility::Hidden };

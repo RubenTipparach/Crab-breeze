@@ -49,7 +49,14 @@ fn b(name: &'static str, centre: [f32; 3], size: [f32; 3], dark: bool) -> Block 
 pub fn blockout(spec: &AircraftSpec) -> Vec<Block> {
     let (l, s, h, f) = (spec.length_m, spec.span_m, spec.height_m, spec.fuselage_m);
     let top = h - rest_m(spec);
-    match spec.role {
+    // a military kind is drawn as its model; its stand-in is the civil shape nearest it
+    let role = match spec.role {
+        Role::Fighter => Role::Airliner,
+        Role::Transport => Role::Freighter,
+        Role::Gunship => Role::Helicopter,
+        r => r,
+    };
+    match role {
         Role::Airliner => {
             let fin_h = top - f * 0.5;
             let pod = f * 0.45;
@@ -130,6 +137,7 @@ pub fn blockout(spec: &AircraftSpec) -> Vec<Block> {
                 b("skid R", [f * 0.55, -rest + 0.06, -l * 0.18], [0.12, 0.12, l * 0.35], true),
             ]
         }
+        Role::Fighter | Role::Transport | Role::Gunship => Vec::new(),
     }
 }
 

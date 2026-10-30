@@ -277,6 +277,10 @@ pub struct SiteTemplate {
     pub lights: SiteLights,
     /// The aircraft parked at its stands.
     pub parked: Vec<ParkedAircraft>,
+    /// Its taxi network's edges, each between two of its `marks` (openspec change `airfield-traffic`): the runway
+    /// ends, entries, edges and holds, the exits, the parallel taxiway and each parked aircraft's stand and push-back
+    /// point (`stand_<i>`, `out_<i>`, `pad_<i>` for a helicopter, `<i>` its index in `parked`).
+    pub taxi_edges: Vec<(String, String)>,
 }
 
 impl SiteTemplate {
@@ -311,6 +315,8 @@ struct SiteJson {
     lights: LightsJson,
     #[serde(default)]
     parked: Vec<ParkedJson>,
+    #[serde(default)]
+    taxi_edges: Vec<[String; 2]>,
 }
 
 #[derive(Deserialize)]
@@ -506,6 +512,16 @@ fn load_site(dir: &Path, name: &str, kind: SiteKind, kits: &mut Kits) -> Result<
             surfaces: j.ground.surfaces,
             solids,
             materials: j.ground.materials,
+        },
+        taxi_edges: {
+            let mut edges = Vec::with_capacity(j.taxi_edges.len());
+            for [a, b] in &j.taxi_edges {
+                if !marks.contains_key(a) || !marks.contains_key(b) {
+                    return Err(format!("{what}: a taxi edge joins `{a}` and `{b}`, and one is not a mark"));
+                }
+                edges.push((a.clone(), b.clone()));
+            }
+            edges
         },
         marks,
         lights,

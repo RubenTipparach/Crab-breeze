@@ -407,6 +407,11 @@ function buildProposed(g, labels) {
   labels.push(["Operational readiness platform", [935, -85], 5]);
   put("Fire station", B => S.fireStation(B, E.M), -22, -145);
   link(g, [-20, -main.w2], [-20, -125], [1, 0], null, 18); labels.push(["Fire station", [-20, -145], 12]);
+  // ---- the taxi network the game's traffic follows (openspec change airfield-traffic): written into the site's table as
+  // marks and edges when the page is exported. Runway ends, the three links with their holds, the rapid exits, the
+  // parallel taxiway, and for every parked aircraft its stand and the point it pushes back to; a helicopter's stand is
+  // a pad, which it leaves straight up.
+  if (window.SITE_EXPORT) taxiNetwork(main);
   // ---- the fence, outside the landside road kept clear
   const F = [[-1150, -840], [1150, -840], [1150, 508], [-1150, 508]], posts = [];
   for (let i = 0; i < 4; i++) { const p = F[i], q = F[(i + 1) % 4], n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 10);
@@ -414,6 +419,45 @@ function buildProposed(g, labels) {
     for (const yy of [1, 2.3]) box(g, [Math.min(p[0], q[0]) - 0.03, yy, Math.min(p[1], q[1]) - 0.03], [Math.max(p[0], q[0]) + 0.03, yy + 0.06, Math.max(p[1], q[1]) + 0.03], M.fence, false); }
   const inst = new T.InstancedMesh(new T.BoxGeometry(0.12, 2.4, 0.12), M.fence, posts.length), m4 = new T.Matrix4();
   posts.forEach((p, i) => { m4.makeTranslation(p[0], 1.2, p[1]); inst.setMatrixAt(i, m4); }); g.add(inst);
+}
+
+function taxiNetwork(main) {
+  const X = window.SITE_EXPORT, marks = {}, edges = [], r1 = v => Math.round(v * 10) / 10;
+  const mark = (name, x, z) => { marks[name] = [r1(x), r1(z)]; return name; };
+  const edge = (a, b) => edges.push([a, b]);
+  mark("rwy_a", MAIN.a[0], MAIN.a[1]); mark("rwy_b", MAIN.b[0], MAIN.b[1]);
+  const tEdge = TAXI_Z - TAXI_W / 2, junctions = [];   // [x, name] along the parallel taxiway
+  [["w", -976], ["m", 0], ["e", 976]].forEach(([k, x]) => {
+    mark(`entry_${k}`, x, 0); mark(`hold_${k}`, x, main.w2 + 50); mark(`edge_${k}`, x, main.w2);
+    edge(`entry_${k}`, `edge_${k}`); edge(`edge_${k}`, `hold_${k}`);
+    junctions.push([x, `hold_${k}`]);
+  });
+  // the rapid exits, 30 degrees off the runway: from where they leave it to where they meet the taxiway
+  [["xw", -560, -305], ["xe", 560, 305]].forEach(([k, x0, x1]) => {
+    const f = (tEdge - main.w2) / (TAXI_Z - main.w2);
+    mark(`${k}_rwy`, x0, 0); mark(`${k}_edge`, x0, main.w2);
+    edge(`${k}_rwy`, `${k}_edge`);
+    junctions.push([x0 + (x1 - x0) * f, `${k}_edge`]);
+  });
+  (X.parked || []).forEach((p, i) => {
+    const k = KIND(p.kind); if (!k) return;
+    const n = [-Math.sin(p.heading), -Math.cos(p.heading)];   // its nose
+    mark(`stand_${i}`, p.x, p.z);
+    if (k.role === "Helicopter") { mark(`pad_${i}`, p.x, p.z); return; }
+    const back = k.length_m / 2 + 30, out = [p.x - n[0] * back, p.z - n[1] * back];
+    mark(`out_${i}`, out[0], out[1]); edge(`stand_${i}`, `out_${i}`);
+    junctions.push([out[0], `out_${i}`]);
+  });
+  // the parallel taxiway: a node where each link, exit and stand lane meets it, joined in order along x
+  junctions.sort((a, b) => a[0] - b[0]);
+  let last = null;
+  junctions.forEach(([x, from], i) => {
+    const t = mark(`taxi_${i}`, x, TAXI_Z);
+    edge(from, t);
+    if (last) edge(last, t);
+    last = t;
+  });
+  X.marks = marks; X.taxi_edges = edges;
 }
 
 function buildToday(g, labels) {

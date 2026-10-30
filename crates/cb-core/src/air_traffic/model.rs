@@ -26,6 +26,8 @@ pub enum ZoneKind {
     WingOuter,
     /// An engine (and, on the propliner, the main gear in its nacelle).
     Engine,
+    /// A helicopter's main or tail rotor: losing either brings it down.
+    Rotor,
 }
 
 impl ZoneKind {
@@ -39,6 +41,7 @@ impl ZoneKind {
             n if n.starts_with("wing_inner_") => Self::WingInner,
             n if n.starts_with("wing_outer_") => Self::WingOuter,
             n if n.starts_with("engine_") => Self::Engine,
+            "rotor" | "tail_rotor" => Self::Rotor,
             _ => return None,
         })
     }
@@ -203,6 +206,9 @@ pub struct ModelManifest {
     /// The gear's sequence, seconds from down to up.
     #[serde(default)]
     pub gear_sequence_s: f32,
+    /// Named points in the model's frame: `EYE_pilot` (the pilot's eye) and the `DOOR_*` a pilot on foot climbs in by.
+    #[serde(default)]
+    pub marks: std::collections::BTreeMap<String, [f32; 3]>,
 }
 
 /// One damage zone as the simulation keeps it.

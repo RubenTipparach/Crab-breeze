@@ -18,12 +18,28 @@ pub enum Role {
     LightPlane,
     /// Circles a city; a cabin, a tail boom and a rotor.
     Helicopter,
+    /// A military base's fighter (openspec change `airfield-traffic`): patrols a circuit over its base and lands.
+    Fighter,
+    /// A military base's transport: flies supply runs between the bases.
+    Transport,
+    /// A military base's gunship: patrols over its base and settles back on its pad.
+    Gunship,
 }
 
 impl Role {
     /// True for the kinds that fly between bases; the rest circle cities.
     pub fn flies_routes(self) -> bool {
-        matches!(self, Role::Airliner | Role::Freighter)
+        matches!(self, Role::Airliner | Role::Freighter | Role::Transport)
+    }
+
+    /// True for the kinds that hover and land on pads.
+    pub fn rotorcraft(self) -> bool {
+        matches!(self, Role::Helicopter | Role::Gunship)
+    }
+
+    /// True for a military base's kinds: they fly from and to the bases only.
+    pub fn military(self) -> bool {
+        matches!(self, Role::Fighter | Role::Transport | Role::Gunship)
     }
 }
 
@@ -72,6 +88,13 @@ pub struct AircraftSpec {
     pub model: Option<AircraftModel>,
     /// Livery colour, sRGB 0..1.
     pub tint: [f32; 3],
+    /// It stands this long at a stand or pad between flights, seconds (airfield-traffic: its turnaround).
+    #[serde(default = "turn_s_default")]
+    pub turn_s: f32,
+}
+
+fn turn_s_default() -> f32 {
+    900.0
 }
 
 /// Where traffic lives: only near the pilot.
@@ -176,8 +199,24 @@ pub struct RouteConfig {
     /// The strip flown is the base's runway (survey W45) less this much at each end: where the take-off roll starts
     /// and where a landing touches down, metres.
     pub strip_margin_m: f32,
-    /// After stopping it waits this long on the apron, then leaves the world, seconds.
+    /// After stopping it waits this long on the apron, then leaves the world, seconds (when no stand is free).
     pub park_s: f32,
+    /// It taxis at this speed, metres a second (airfield-traffic).
+    pub taxi_m_s: f32,
+    /// ... and is pushed back at this, metres a second.
+    pub pushback_m_s: f32,
+    /// It waits at the holding point at least this long, seconds; a runway takes one aircraft at a time.
+    pub hold_s: f32,
+    /// A field's stands are kept filled within this of the pilot, metres.
+    pub stand_fill_m: f32,
+    /// A patrol flies this long over its base before landing, seconds.
+    pub patrol_s: f32,
+    /// ... on a circle this wide, metres (radius).
+    pub patrol_radius_m: f32,
+    /// A helicopter lifts straight up this high off its pad before it flies on, metres.
+    pub lift_m: f32,
+    /// ... and lifts or settles at this, metres a second.
+    pub lift_m_s: f32,
 }
 
 impl Default for RouteConfig {
@@ -189,6 +228,14 @@ impl Default for RouteConfig {
             min_clear_m: 120.0,
             strip_margin_m: 40.0,
             park_s: 30.0,
+            taxi_m_s: 8.0,
+            pushback_m_s: 1.5,
+            hold_s: 10.0,
+            stand_fill_m: 6_000.0,
+            patrol_s: 1_200.0,
+            patrol_radius_m: 5_000.0,
+            lift_m: 60.0,
+            lift_m_s: 3.0,
         }
     }
 }
@@ -292,6 +339,7 @@ impl Validate for AirTrafficConfig {
                 ("cruise_agl_m", k.cruise_agl_m),
                 ("hp", k.hp),
                 ("crash_mj", k.crash_mj),
+                ("turn_s", k.turn_s),
             ] {
                 positive(&f(field), v)?;
             }
@@ -345,6 +393,14 @@ impl Validate for AirTrafficConfig {
         positive("routes.min_clear_m", r.min_clear_m)?;
         positive("routes.strip_margin_m", r.strip_margin_m)?;
         positive("routes.park_s", r.park_s)?;
+        positive("routes.taxi_m_s", r.taxi_m_s)?;
+        positive("routes.pushback_m_s", r.pushback_m_s)?;
+        positive("routes.hold_s", r.hold_s)?;
+        positive("routes.stand_fill_m", r.stand_fill_m)?;
+        positive("routes.patrol_s", r.patrol_s)?;
+        positive("routes.patrol_radius_m", r.patrol_radius_m)?;
+        positive("routes.lift_m", r.lift_m)?;
+        positive("routes.lift_m_s", r.lift_m_s)?;
         positive("avoid.keep_clear_m", self.avoid.keep_clear_m)?;
         positive("fall.drag_per_s", self.fall.drag_per_s)?;
         positive("fall.spin_deg_s", self.fall.spin_deg_s)?;

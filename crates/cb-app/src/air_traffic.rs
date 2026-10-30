@@ -4,8 +4,9 @@
 //! tallied per base and sent as `CivilAirHit` for the career loop. A kind with a model (the freighter, survey D8) is
 //! drawn from its glb, its three levels of detail switched by distance and its gear shown only near the ground; the
 //! others as labelled block-out stand-ins at true size (`cb_core::air_traffic::shape`). Each plays its engine loop.
-//! `Neutrals` lists them for targeting and the cockpit, which show them as neutral. The aircraft the airport's page
-//! parks at its stands stand there in the same models (`park_aircraft`).
+//! `Neutrals` lists them for targeting and the cockpit, which show them as neutral. Nothing stands at an airfield as
+//! scenery: every aircraft on a stand is traffic, filled out of sight and sent off in turn (`airfield-traffic`), and the
+//! airfields it uses are `cb_core::air_traffic::fields`, laid out once from the plan (`AirFields`).
 
 use crate::audio::{Ear, Loop, SoundAt};
 use crate::blast::Explosion;
@@ -177,7 +178,6 @@ impl Plugin for AirTrafficPlugin {
             .add_message::<crate::airliners::AirlinerBroke>()
             .add_message::<crate::airliners::AirlinerCrashed>()
             .add_world_spawn(start)
-            .add_world_spawn(park_aircraft)
             .add_game_systems(FixedUpdate, list_neutrals.in_set(SimSet::Input).after(crate::units::list_hostiles))
             .add_game_systems(
                 FixedUpdate,
@@ -187,6 +187,7 @@ impl Plugin for AirTrafficPlugin {
                     .before(crate::combat::fly_shots),
             )
             .add_game_systems(FixedUpdate, tally_hits.in_set(SimSet::Mech).after(crate::combat::fly_shots))
+            .add_game_systems(FixedUpdate, scramble_on_attack.in_set(SimSet::Mech).after(crate::combat::fly_shots))
             .add_game_systems(
                 Update,
                 (
@@ -205,44 +206,24 @@ impl Plugin for AirTrafficPlugin {
 
 fn start(mut commands: Commands, plan: Res<Plan>) {
     commands.insert_resource(AirTraffic(Traffic::new(plan.seed)));
+    let fields = cb_core::air_traffic::fields::fields(&plan.0);
+    let bases = fields.iter().map(|f| f.base).collect();
+    info!(
+        "air traffic: {} airfields, {} stands",
+        fields.len(),
+        fields.iter().map(|f| f.stands.len()).sum::<usize>()
+    );
+    commands.insert_resource(AirFields { fields, bases });
 }
 
-/// Parks the aircraft each site's page parks at its stands (airport-layout: "parked aircraft are the civil traffic's own
-/// models in the game"): each kind's model, its wheels on the apron, its nose as the page turns it.
-fn park_aircraft(
-    mut commands: Commands,
-    plan: Res<Plan>,
-    data: Res<Data>,
-    assets: Res<AssetServer>,
-    mut looks: ResMut<KindLooks>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    for site in &plan.sites {
-        for a in &site.template.parked {
-            // `GameData::load` has checked every parked kind is one.
-            let Some(spec) = data.0.air_traffic.kinds.get(&a.kind) else {
-                continue;
-            };
-            let at = site.point_to_world(a.at) + Vec3::Y * rest_m(spec);
-            let root = spawn_aircraft(
-                &mut commands,
-                &mut looks,
-                &mut meshes,
-                &mut materials,
-                &assets,
-                &a.kind,
-                spec,
-                format!("parked {}", a.kind),
-                Transform::from_translation(at).with_rotation(
-                    Quat::from_rotation_y(a.heading_rad + site.heading_rad())
-                        * Quat::from_rotation_x(cb_core::air_traffic::rest_pitch_rad(spec)),
-                ),
-                true,
-            );
-            commands.entity(root).insert(Parked);
-        }
-    }
+/// The airfields the traffic uses on the ground, laid out once from the plan: every civil airport and military base,
+/// and each one's runway as the flight code knows it.
+#[derive(Resource)]
+pub struct AirFields {
+    /// The fields.
+    pub fields: Vec<cb_core::air_traffic::Field>,
+    /// Their runways (`Field::base`), the places routes fly between.
+    pub bases: Vec<cb_core::world::AirBase>,
 }
 
 /// The civil aircraft in the air, for targeting and the cockpit.
@@ -279,10 +260,11 @@ fn zones(hostiles: &Hostiles, keep_clear_m: f32) -> Vec<Zone> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn step_traffic(
+pub(crate) fn step_traffic(
     mut air: ResMut<AirTraffic>,
     data: Res<Data>,
     plan: Res<Plan>,
+    fields: Res<AirFields>,
     pilot: Res<PilotSim>,
     me: Query<&MechSim, With<Piloted>>,
     hostiles: Res<Hostiles>,
@@ -306,7 +288,8 @@ fn step_traffic(
     let ground = |x: f32, z: f32| plan.height_at(x, z);
     let island = Island {
         ground: &ground,
-        bases: &plan.bases,
+        bases: &fields.bases,
+        fields: &fields.fields,
         cities: &plan.cities,
         zones: &zones,
     };
@@ -343,6 +326,38 @@ fn step_traffic(
             Happened::Diverted => info!("air traffic: {} {} diverted from a fight", e.kind, e.id),
             Happened::Landed | Happened::Passed(_) => {}
         }
+    }
+}
+
+/// The pilot fires on a military base's aircraft: the base scrambles its fighters and gunships to circle over where the
+/// pilot is (owner's plan answer, 2026-10-30: "Patrol, scramble if hostile").
+fn scramble_on_attack(
+    mut hits: MessageReader<CivilAirHit>,
+    air: Option<ResMut<AirTraffic>>,
+    data: Res<Data>,
+    pilot: Res<PilotSim>,
+    me: Query<&MechSim, With<Piloted>>,
+) {
+    let Some(mut air) = air else {
+        hits.clear();
+        return;
+    };
+    let cfg = &data.0.air_traffic;
+    for h in hits.read().filter(|h| h.by_pilot) {
+        let Some(a) = air.0.get(h.aircraft - CIVIL_ID_BASE) else { continue };
+        let military = cfg.kinds.get(&a.kind).is_some_and(|k| k.role.military());
+        let home = a.field.or(match a.flight {
+            cb_core::air_traffic::Flight::Patrol { home, .. } => Some(home),
+            _ => None,
+        });
+        let (true, Some(field)) = (military, home) else { continue };
+        let p = me
+            .iter()
+            .next()
+            .filter(|_| pilot.curr.mode == PilotMode::Seated)
+            .map_or(pilot.curr.feet, |m| m.curr.pos);
+        let n = air.0.scramble(cfg, field, Vec2::new(p.x, p.z));
+        warn!("air base {field} scrambles {n} aircraft against the pilot");
     }
 }
 
@@ -421,10 +436,6 @@ pub fn spawn_aircraft(
     root
 }
 
-/// An aircraft parked at a stand: its gear down, its engines stopped, its beacons off.
-#[derive(Component)]
-pub struct Parked;
-
 /// A modelled aircraft whose scene is still to be bound: where its levels of detail switch, and whether its gear may
 /// show.
 #[derive(Component)]
@@ -445,7 +456,7 @@ pub struct GearNodes(pub Vec<Entity>);
 #[allow(clippy::too_many_arguments)]
 pub fn bind_models(
     mut commands: Commands,
-    todo: Query<(Entity, &ModelToBind, Has<Parked>)>,
+    todo: Query<(Entity, &ModelToBind)>,
     children: Query<&Children>,
     parents: Query<&ChildOf>,
     names: Query<&Name>,
@@ -454,7 +465,7 @@ pub fn bind_models(
     mut vis: Query<&mut Visibility>,
 ) {
     use bevy::camera::visibility::VisibilityRange;
-    for (root, m, parked) in &todo {
+    for (root, m) in &todo {
         // an airliner built of damage zones (airliner-models): its own binding
         if let Some(l) = m.loaded.as_ref().filter(|l| !l.zones.is_empty()) {
             if crate::airliners::bind(
@@ -462,7 +473,7 @@ pub fn bind_models(
                 root,
                 l,
                 m.lod_m,
-                parked,
+                false,
                 &children,
                 &parents,
                 &names,
