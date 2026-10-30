@@ -636,21 +636,48 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         )
     });
     let mut placed_sites: Vec<sites::PlacedSite> = airports.into_iter().chain(seaports).collect();
-    let site_rects: Vec<layout::Rect> = placed_sites.iter().map(|s| s.footprint()).collect();
-    let site_cones: Vec<approach::Approach> = placed_sites.iter().flat_map(|s| s.approaches(cfg.sites.approach)).collect();
-    let base_clear = bases::KeepClear {
-        sites: &site_rects,
-        cones: &site_cones,
-        ..clear
+    // The military bases (military-base section 4): the base page's site, placed by the airports' rules clear of
+    // every site and cone before it, each one's base record read off its marks; a block-out base where the page is not
+    // shipped.
+    let bases = match &cfg.site_templates.military_base {
+        Some(t) => {
+            let (built, _) = sites::place_runway_sites(
+                &shape,
+                t,
+                &sites::Clear {
+                    placed: &placed_sites,
+                    ..site_clear
+                },
+                &cfg.sites,
+                cfg.bases.count,
+            );
+            let first = placed_sites.len() as u32;
+            let bases: Vec<bases::AirBase> = built
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| bases::AirBase::of_site(i as u32, first + i as u32, s, &cfg.bases))
+                .collect();
+            placed_sites.extend(built);
+            bases
+        }
+        None => {
+            let site_rects: Vec<layout::Rect> = placed_sites.iter().map(|s| s.footprint()).collect();
+            let site_cones: Vec<approach::Approach> = placed_sites.iter().flat_map(|s| s.approaches(cfg.sites.approach)).collect();
+            let base_clear = bases::KeepClear {
+                sites: &site_rects,
+                cones: &site_cones,
+                ..clear
+            };
+            bases::place_bases(
+                &shape,
+                &cities,
+                &base_clear,
+                start_xz,
+                &cfg.bases,
+                sea_level_m + cfg.water.city_freeboard_m,
+            )
+        }
     };
-    let bases = bases::place_bases(
-        &shape,
-        &cities,
-        &base_clear,
-        start_xz,
-        &cfg.bases,
-        sea_level_m + cfg.water.city_freeboard_m,
-    );
     // Every site's access road, from its city's edge to its gate (the footprint's point nearest the city), graded as
     // a highway and joined to the streets by the lane graph, so cars reach every site (island-sites-layout).
     for s in &placed_sites {
@@ -669,13 +696,15 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
             highways.push(road);
         }
     }
+    // a block-out base is levelled here; a site-built one by its site's pads
+    let block_outs = || bases.iter().filter(|b| b.site.is_none());
     let plateaus: Vec<(layout::Rect, f32)> = cities
         .iter()
         .map(|c| (c.rect(), c.ground_m))
-        .chain(bases.iter().map(|b| (b.rect(), b.ground_m)))
+        .chain(block_outs().map(|b| (b.rect(), b.ground_m)))
         // each base's runway and taxiway, flattened to its site's ground (survey W45)
-        .chain(bases.iter().map(|b| (b.runway.rect(), b.ground_m)))
-        .chain(bases.iter().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
+        .chain(block_outs().map(|b| (b.runway.rect(), b.ground_m)))
+        .chain(block_outs().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
         .collect();
     let keep_out: Vec<layout::Rect> = plateaus
         .iter()

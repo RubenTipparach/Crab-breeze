@@ -432,7 +432,8 @@ pub fn place_dots(plan: &WorldPlan, cfg: &LampConfig) -> Vec<GlowDot> {
             lot: d.lot.and_then(|p| site.lot_of(p)),
         }));
     }
-    for base in &plan.bases {
+    // a site-built base's runway is lit with its site's lights, above
+    for base in plan.bases.iter().filter(|b| b.site.is_none()) {
         let r = &base.runway;
         runway_dots(r.a, r.b, r.width_m, &cfg.runway, &mut |p, h, colour| {
             dots.push(GlowDot {

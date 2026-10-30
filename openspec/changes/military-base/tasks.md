@@ -15,7 +15,7 @@
 - [x] 3.2 Runway, taxiway, shelters, alert apron, cargo apron and hangar, helicopter line, mech hangars, tower, fire station, fuel farm, bunkers, HQ, barracks, radar, missile sites, perimeter
 - [x] 3.3 Night lights as data
 - [x] 3.4 `export_sites.cjs`: the base's kits, ground and site table for the game (`assets/models/sites/military_base/`)
-- [ ] 3.5 The bases placed in the world from that table in place of today's block-out bases, at the 2,780 x 950 m footprint (`island-sites-layout`), with its taxi marks for `airfield-traffic`
+- [x] 3.5 The bases placed in the world from that table in place of today's block-out bases, at the 2,780 x 950 m footprint (`island-sites-layout`), with its taxi marks for `airfield-traffic`
 
 ## 4. Mockup
 - [x] 4.1 `docs/mockups/military-base.html`, published, checked in

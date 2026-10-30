@@ -159,14 +159,22 @@ pub fn fields(plan: &WorldPlan) -> Vec<Field> {
     let airports = plan.sites.iter().filter(|s| s.template.kind == SiteKind::Airport);
     let mut out: Vec<Field> = airports
         .enumerate()
-        .filter_map(|(i, s)| civil_field(CIVIL_FIELD_ID + i as u32, s))
+        .filter_map(|(i, s)| site_field(CIVIL_FIELD_ID + i as u32, s, None))
         .collect();
-    out.extend(plan.bases.iter().map(base_field));
+    // a base built as its page's site takes its network from it; a block-out base has one laid out
+    out.extend(plan.bases.iter().map(|b| {
+        b.site
+            .and_then(|i| plan.sites.get(i as usize))
+            .and_then(|s| site_field(b.id, s, Some(*b)))
+            .unwrap_or_else(|| base_field(b))
+    }));
     out
 }
 
 /// A civil airport as a field: its page's taxi network and stands, its main runway.
-fn civil_field(id: u32, site: &PlacedSite) -> Option<Field> {
+/// A site's field from its page's taxi network and stands, its main runway. `base` is the military base the site is
+/// built as (its own record); none for a civil airport, which gets a stand-in.
+fn site_field(id: u32, site: &PlacedSite, base: Option<AirBase>) -> Option<Field> {
     let t = &site.template;
     if t.taxi_edges.is_empty() {
         return None;
@@ -187,12 +195,13 @@ fn civil_field(id: u32, site: &PlacedSite) -> Option<Field> {
         });
     }
     let entries = [taxi.index("entry_w")?, taxi.index("entry_e")?];
-    let exits: Vec<usize> = ["entry_w", "entry_m", "entry_e", "xw_rwy", "xe_rwy"]
-        .iter()
-        .filter_map(|n| taxi.index(n))
+    // every link onto the runway, and the airport's rapid exits, in the network's order
+    let exits: Vec<usize> = (0..taxi.names.len())
+        .filter(|&i| taxi.names[i].starts_with("entry_") || taxi.names[i].ends_with("_rwy"))
         .collect();
+    let civil = base.is_none();
     let f = site.footprint();
-    let base = AirBase {
+    let base = base.unwrap_or(AirBase {
         id,
         centre: f.centre(),
         half_m: f.size() * 0.5,
@@ -204,10 +213,12 @@ fn civil_field(id: u32, site: &PlacedSite) -> Option<Field> {
             width_m,
             side: RunwaySide::Front,
         },
-    };
+        site: None,
+        bays: None,
+    });
     Some(Field {
         id,
-        civil: true,
+        civil,
         base,
         taxi,
         stands,
@@ -338,6 +349,8 @@ mod tests {
             ground_m: 40.0,
             highway: 0,
             runway: Runway::beside(c, cfg.half_m, RunwaySide::Front, 2000.0, 0.0, &cfg),
+            site: None,
+            bays: None,
         };
         let f = base_field(&b);
         assert_eq!(f.stands.len(), BASE_STANDS.len());

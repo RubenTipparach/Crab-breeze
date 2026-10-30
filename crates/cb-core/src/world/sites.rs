@@ -44,6 +44,12 @@ pub struct SitesConfig {
     /// A later airport takes the flattest fitting ground, whose natural rise across it may be up to this (it is
     /// levelled), metres: on seed 42 the only ground within `airport_max_rise_m` is beside the first airport.
     pub later_airport_max_rise_m: f32,
+    /// A military base's middle is tried out to this far past a city's square, metres (military-base section 4: a base
+    /// stands out in the country more than an airport, and four of its 2,780 x 960 m footprint do not fit within an
+    /// airport's reach on seed 42).
+    pub base_reach_m: f32,
+    /// The natural rise a military base's ground may have across it (its pads level it), metres.
+    pub base_max_rise_m: f32,
     /// A later seaport's way out to sea turns at least this far from every earlier port's, degrees (another coast).
     pub port_coast_apart_deg: f32,
     /// Every runway's approach cones.
@@ -82,6 +88,8 @@ impl Default for SitesConfig {
             airport_spacing_m: 8000.0,
             later_airport_reach_m: 16000.0,
             later_airport_max_rise_m: 90.0,
+            base_reach_m: 20000.0,
+            base_max_rise_m: 150.0,
             port_coast_apart_deg: 90.0,
             approach: ApproachConfig::default(),
             airport_city_clear_m: 300.0,
@@ -105,6 +113,8 @@ impl Validate for SitesConfig {
         positive("sites.airport_spacing_m", self.airport_spacing_m)?;
         positive("sites.later_airport_reach_m", self.later_airport_reach_m)?;
         positive("sites.later_airport_max_rise_m", self.later_airport_max_rise_m)?;
+        positive("sites.base_reach_m", self.base_reach_m)?;
+        positive("sites.base_max_rise_m", self.base_max_rise_m)?;
         within("sites.port_coast_apart_deg", self.port_coast_apart_deg, 0.0, 180.0)?;
         self.approach.validate()?;
         positive("sites.airport_city_clear_m", self.airport_city_clear_m)?;
@@ -132,6 +142,8 @@ pub enum SiteKind {
     Airport,
     /// The seaport (`seaport-layout`).
     Seaport,
+    /// A military base (`military-base`), one template placed four times.
+    MilitaryBase,
 }
 
 /// One built thing of a site: a kit at a point of the site's frame.
@@ -301,6 +313,8 @@ pub struct SiteTemplates {
     pub airport: Option<Arc<SiteTemplate>>,
     /// The seaport, when shipped.
     pub seaport: Option<Arc<SiteTemplate>>,
+    /// The military base, when shipped (`military-base` section 4): without it the bases are block-outs.
+    pub military_base: Option<Arc<SiteTemplate>>,
 }
 
 #[derive(Deserialize)]
@@ -411,6 +425,7 @@ impl SiteTemplates {
         Ok(Self {
             airport: Some(Arc::new(load_site(dir, "airport", SiteKind::Airport, kits)?)),
             seaport: Some(Arc::new(load_site(dir, "seaport", SiteKind::Seaport, kits)?)),
+            military_base: Some(Arc::new(load_site(dir, "military_base", SiteKind::MilitaryBase, kits)?)),
         })
     }
 }
@@ -725,6 +740,7 @@ impl PlacedSite {
         let zone = match self.template.kind {
             SiteKind::Airport => Zone::Airport,
             SiteKind::Seaport => Zone::Seaport,
+            SiteKind::MilitaryBase => Zone::MilitaryBase,
         };
         self.template
             .placements
@@ -848,9 +864,22 @@ fn cones_clear(placed: &PlacedSite, r: &Rect, others: &[Approach], clear: &Clear
 /// The civil airports, `cfg.airports` of them, the first placed first (`place_airport_counted`), each later one kept
 /// clear of those before it; with the candidates every rule turned down, summed over them all.
 pub fn place_airports(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Clear, cfg: &SitesConfig) -> (Vec<PlacedSite>, Rejections) {
+    place_runway_sites(shape, tpl, clear, cfg, cfg.airports)
+}
+
+/// `count` sites of a template with a runway (the airports, the military bases), each placed by
+/// `place_airport_counted`, clear of every site before it: the airport's rules for any site with a runway, one
+/// implementation (`military-base` section 4).
+pub fn place_runway_sites(
+    shape: &Shape,
+    tpl: &Arc<SiteTemplate>,
+    clear: &Clear,
+    cfg: &SitesConfig,
+    count: usize,
+) -> (Vec<PlacedSite>, Rejections) {
     let mut out: Vec<PlacedSite> = Vec::new();
     let mut why: Rejections = [0; 6];
-    for _ in 0..cfg.airports {
+    for _ in 0..count {
         let all: Vec<PlacedSite> = clear.placed.iter().cloned().chain(out.iter().cloned()).collect();
         let c = Clear { placed: &all, ..*clear };
         let (site, w) = place_airport_counted(shape, tpl, &c, cfg);
@@ -919,7 +948,7 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
     let earlier: Vec<Vec2> = clear
         .placed
         .iter()
-        .filter(|s| s.template.kind == SiteKind::Airport)
+        .filter(|s| s.template.kind == tpl.kind)
         .map(|s| s.footprint().centre())
         .collect();
     let mut order: Vec<&City> = clear.cities.iter().collect();
@@ -929,7 +958,9 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
     }
     let others: Vec<Approach> = clear.placed.iter().flat_map(|s| s.approaches(cfg.approach)).collect();
     let first = earlier.is_empty();
-    let (reach, max_rise) = if first {
+    let (reach, max_rise) = if tpl.kind == SiteKind::MilitaryBase {
+        (cfg.base_reach_m, cfg.base_max_rise_m)
+    } else if first {
         (cfg.airport_reach_m, cfg.airport_max_rise_m)
     } else {
         (cfg.later_airport_reach_m, cfg.later_airport_max_rise_m)

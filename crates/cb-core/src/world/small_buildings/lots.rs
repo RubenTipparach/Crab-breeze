@@ -246,6 +246,8 @@ pub enum Zone {
     Airport,
     /// The seaport's (`sites`).
     Seaport,
+    /// A military base's (`sites`, `military-base`).
+    MilitaryBase,
 }
 
 impl Zone {

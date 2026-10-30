@@ -126,6 +126,7 @@ mod tests {
             let zone = match s.template.kind {
                 crate::world::sites::SiteKind::Airport => Zone::Airport,
                 crate::world::sites::SiteKind::Seaport => Zone::Seaport,
+                crate::world::sites::SiteKind::MilitaryBase => Zone::MilitaryBase,
             };
             // every site of its kind (two airports, two seaports: island-sites-layout), each building but a port's
             // ships (they sail: ship-traffic)

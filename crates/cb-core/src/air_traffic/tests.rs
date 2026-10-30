@@ -33,6 +33,8 @@ fn base(id: u32, x: f32, z: f32) -> AirBase {
             0.0,
             &crate::world::BasesConfig::default(),
         ),
+        site: None,
+        bays: None,
     }
 }
 

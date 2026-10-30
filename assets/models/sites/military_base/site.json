@@ -3,8 +3,394 @@
  "generator": "tools/buildings/export_sites.cjs",
  "page": "docs/mockups/military-base.html",
  "units": "metres; the site frame as the page draws it (x east, z south, y up from still water or the airfield ground); a kit stands on y = 0 at (x, base, z), turned by quarter turns (1: its front, +z, to +x)",
- "marks": {},
- "taxi_edges": [],
+ "marks": {
+  "rwy_a": [
+   -1200,
+   0
+  ],
+  "rwy_b": [
+   1200,
+   0
+  ],
+  "entry_w": [
+   -1176,
+   0
+  ],
+  "edge_w": [
+   -1176,
+   -22.5
+  ],
+  "hold_w": [
+   -1176,
+   -72.5
+  ],
+  "taxi_w": [
+   -1176,
+   -180
+  ],
+  "entry_mw": [
+   -400,
+   0
+  ],
+  "edge_mw": [
+   -400,
+   -22.5
+  ],
+  "hold_mw": [
+   -400,
+   -72.5
+  ],
+  "taxi_mw": [
+   -400,
+   -180
+  ],
+  "entry_me": [
+   400,
+   0
+  ],
+  "edge_me": [
+   400,
+   -22.5
+  ],
+  "hold_me": [
+   400,
+   -72.5
+  ],
+  "taxi_me": [
+   400,
+   -180
+  ],
+  "entry_e": [
+   1176,
+   0
+  ],
+  "edge_e": [
+   1176,
+   -22.5
+  ],
+  "hold_e": [
+   1176,
+   -72.5
+  ],
+  "taxi_e": [
+   1176,
+   -180
+  ],
+  "stand_0": [
+   -1150,
+   -258
+  ],
+  "out_0": [
+   -1150,
+   -180
+  ],
+  "stand_1": [
+   -1100,
+   -258
+  ],
+  "out_1": [
+   -1100,
+   -180
+  ],
+  "stand_2": [
+   -900,
+   -265
+  ],
+  "out_2": [
+   -900,
+   -180
+  ],
+  "stand_3": [
+   -780,
+   -265
+  ],
+  "out_3": [
+   -780,
+   -180
+  ],
+  "stand_4": [
+   -660,
+   -265
+  ],
+  "out_4": [
+   -660,
+   -180
+  ],
+  "stand_5": [
+   -540,
+   -265
+  ],
+  "out_5": [
+   -540,
+   -180
+  ],
+  "stand_6": [
+   -420,
+   -300
+  ],
+  "out_6": [
+   -420,
+   -180
+  ],
+  "stand_7": [
+   -300,
+   -300
+  ],
+  "out_7": [
+   -300,
+   -180
+  ],
+  "stand_8": [
+   190,
+   -300
+  ],
+  "out_8": [
+   190,
+   -180
+  ],
+  "stand_9": [
+   370,
+   -300
+  ],
+  "out_9": [
+   370,
+   -180
+  ],
+  "stand_10": [
+   520,
+   -255
+  ],
+  "pad_10": [
+   520,
+   -255
+  ],
+  "stand_11": [
+   575,
+   -255
+  ],
+  "pad_11": [
+   575,
+   -255
+  ],
+  "stand_12": [
+   685,
+   -255
+  ],
+  "pad_12": [
+   685,
+   -255
+  ],
+  "stand_13": [
+   740,
+   -255
+  ],
+  "pad_13": [
+   740,
+   -255
+  ],
+  "stand_14": [
+   950,
+   -250
+  ],
+  "out_14": [
+   950,
+   -180
+  ],
+  "stand_15": [
+   995,
+   -250
+  ],
+  "pad_15": [
+   995,
+   -250
+  ],
+  "stand_16": [
+   1030,
+   -250
+  ],
+  "pad_16": [
+   1030,
+   -250
+  ],
+  "stand_17": [
+   1100,
+   -265
+  ],
+  "out_17": [
+   1100,
+   -180
+  ],
+  "bay_0": [
+   930,
+   -440
+  ],
+  "bay_1": [
+   1030,
+   -440
+  ],
+  "bay_2": [
+   1130,
+   -440
+  ]
+ },
+ "taxi_edges": [
+  [
+   "entry_w",
+   "edge_w"
+  ],
+  [
+   "edge_w",
+   "hold_w"
+  ],
+  [
+   "hold_w",
+   "taxi_w"
+  ],
+  [
+   "entry_mw",
+   "edge_mw"
+  ],
+  [
+   "edge_mw",
+   "hold_mw"
+  ],
+  [
+   "hold_mw",
+   "taxi_mw"
+  ],
+  [
+   "entry_me",
+   "edge_me"
+  ],
+  [
+   "edge_me",
+   "hold_me"
+  ],
+  [
+   "hold_me",
+   "taxi_me"
+  ],
+  [
+   "entry_e",
+   "edge_e"
+  ],
+  [
+   "edge_e",
+   "hold_e"
+  ],
+  [
+   "hold_e",
+   "taxi_e"
+  ],
+  [
+   "stand_0",
+   "out_0"
+  ],
+  [
+   "stand_1",
+   "out_1"
+  ],
+  [
+   "stand_2",
+   "out_2"
+  ],
+  [
+   "stand_3",
+   "out_3"
+  ],
+  [
+   "stand_4",
+   "out_4"
+  ],
+  [
+   "stand_5",
+   "out_5"
+  ],
+  [
+   "stand_6",
+   "out_6"
+  ],
+  [
+   "stand_7",
+   "out_7"
+  ],
+  [
+   "stand_8",
+   "out_8"
+  ],
+  [
+   "stand_9",
+   "out_9"
+  ],
+  [
+   "stand_14",
+   "out_14"
+  ],
+  [
+   "stand_17",
+   "out_17"
+  ],
+  [
+   "taxi_w",
+   "out_0"
+  ],
+  [
+   "out_0",
+   "out_1"
+  ],
+  [
+   "out_1",
+   "out_2"
+  ],
+  [
+   "out_2",
+   "out_3"
+  ],
+  [
+   "out_3",
+   "out_4"
+  ],
+  [
+   "out_4",
+   "out_5"
+  ],
+  [
+   "out_5",
+   "out_6"
+  ],
+  [
+   "out_6",
+   "taxi_mw"
+  ],
+  [
+   "taxi_mw",
+   "out_7"
+  ],
+  [
+   "out_7",
+   "out_8"
+  ],
+  [
+   "out_8",
+   "out_9"
+  ],
+  [
+   "out_9",
+   "taxi_me"
+  ],
+  [
+   "taxi_me",
+   "out_14"
+  ],
+  [
+   "out_14",
+   "out_17"
+  ],
+  [
+   "out_17",
+   "taxi_e"
+  ]
+ ],
  "pads": [
   {
    "lo": [

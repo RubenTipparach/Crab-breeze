@@ -414,7 +414,36 @@ function buildBase(g, labels) {
   for (const x of SHELTERS) ROUTES.push([[x, -265], [x, TAXI_Z], [-1176, TAXI_Z]]);
   ROUTES.push([[190, -300], [190, TAXI_Z], [-1176, TAXI_Z]]);
   ROUTES.push([[400, 0], [400, TAXI_Z], [370, TAXI_Z], [370, -300]]);   // a landing transport vacates to its stand
+  if (window.SITE_EXPORT) taxiNetwork(main);
   return { alertJets, cargoA, helis };
+}
+
+// The taxi graph the game's traffic follows (openspec change airfield-traffic), exported as marks and edges, as the
+// airport's is: the runway's ends; each link onto the runway an entry on its centre line, its edge and its holding
+// point; the parallel taxiway as one chain; every parked aircraft's stand, a helicopter's as a pad, a fixed wing's with
+// its way out straight ahead onto the taxiway; and the mech hangars' bays (cb_core::world::bases).
+function taxiNetwork(main) {
+  const X = window.SITE_EXPORT, marks = {}, edges = [], r1 = v => Math.round(v * 10) / 10;
+  const mark = (name, x, z) => { marks[name] = [r1(x), r1(z)]; return name; };
+  const edge = (a, b) => edges.push([a, b]);
+  mark("rwy_a", MAIN.a[0], MAIN.a[1]); mark("rwy_b", MAIN.b[0], MAIN.b[1]);
+  const chain = [];   // [x, node name] along the parallel taxiway
+  [["w", -1176], ["mw", -400], ["me", 400], ["e", 1176]].forEach(([k, x]) => {
+    mark(`entry_${k}`, x, 0); mark(`edge_${k}`, x, -main.w2); mark(`hold_${k}`, x, -main.w2 - 50);
+    edge(`entry_${k}`, `edge_${k}`); edge(`edge_${k}`, `hold_${k}`);
+    chain.push([x, mark(`taxi_${k}`, x, TAXI_Z)]); edge(`hold_${k}`, `taxi_${k}`);
+  });
+  (X.parked || []).forEach((a, i) => {
+    mark(`stand_${i}`, a.x, a.z);
+    if (/helicopter/.test(a.kind)) { mark(`pad_${i}`, a.x, a.z); return; }
+    chain.push([a.x, mark(`out_${i}`, a.x, TAXI_Z)]); edge(`stand_${i}`, `out_${i}`);
+  });
+  chain.sort((p, q) => p[0] - q[0] || (p[1] < q[1] ? -1 : 1));
+  for (let i = 1; i < chain.length; i++) if (chain[i][0] - chain[i - 1][0] > 0.05) edge(chain[i - 1][1], chain[i][1]);
+  // two stands on one point of the taxiway share it
+  for (let i = 1; i < chain.length; i++) if (chain[i][0] - chain[i - 1][0] <= 0.05) edge(chain[i - 1][1], chain[i][1]);
+  [930, 1030, 1130].forEach((x, i) => mark(`bay_${i}`, x, -440));
+  X.marks = marks; X.taxi_edges = edges;
 }
 
 // ---------------------------------------------------------------- paths and approach cones

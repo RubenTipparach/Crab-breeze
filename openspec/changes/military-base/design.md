@@ -80,6 +80,23 @@ is one base's. To be measured on the owner's machine with the airport's.
 airports, two seaports and the cities is measured first (`cb-tools sites 42`); if they do not, the question goes to the
 survey (fewer bases, or a smaller variant of the page).
 
+### As built (2026-10-30)
+
+- `SiteKind::MilitaryBase` loads `assets/models/sites/military_base/`; the base page exports its runway ends, its taxi
+  network (four links onto the runway, the parallel taxiway, every stand and pad) and its three bays as marks.
+- `sites::place_runway_sites` places it four times by the airports' own search, clear of every earlier site and cone.
+  Four did not fit within an airport's reach and rise on seed 42 (one did), so a base has its own limits in
+  `SitesConfig`: `base_reach_m` 20 km past a city's square and `base_max_rise_m` 150 m of natural rise, levelled by its
+  pads. On seed 42 all four fit, turned a quarter (north-south runways); two stand at 384 m and 444 m.
+- `AirBase::of_site` reads the base off its site: footprint, first runway, bays (`bay_0` to `bay_2`, a `hangar_m` inside
+  each, mouths toward the page's -z), tower; `hangars`, `terminals` and `tower` read them, so their readers are unchanged.
+  A block-out base (no template shipped) is as before.
+- The traffic reads a site-built base's field from its page's network (`fields::site_field`, shared with the airports);
+  the generated base layout stays only for block-outs.
+- `air_bases.rs` draws only a site-built base's terminals, turned to its bays; the site draws everything else. Its runway
+  is lit by its site's lights.
+- Not yet measured on the owner's machine: four bases add about 130 placements and 65,000 ground triangles.
+
 ## Open questions
 
 | # | Question | Provisional answer |
@@ -87,4 +104,4 @@ survey (fewer bases, or a smaller variant of the page).
 | B1 | Fighter: fixed wing or swing wing? | Fixed, twin tail |
 | B2 | The island's roundel colours | Rust red and bone white |
 | B3 | Should the base's runway be the 2.4 km of this design, or keep today's 1.5 to 2 km fit? | 2.4 km: a placed template has one runway (section 4) |
-| B4 | If four 2,780 x 950 m bases do not fit the island, fewer bases or a smaller page? | Measure first (section 4) |
+| B4 | If four 2,780 x 950 m bases do not fit the island, fewer bases or a smaller page? | They fit, with a base's own reach and rise limits (as built) |
