@@ -1339,8 +1339,8 @@ fn run_fx_script(
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
                 script.beat = 2;
             }
-            // `CB_STILLS_FX=base` and `=harbour` tour the nearest air base or harbour (`run_site_tour`) alone.
-            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "base" || v == "harbour") {
+            // `CB_STILLS_FX=base`, `=harbour` and `=seaport` tour the nearest site (`run_site_tour`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "base" || v == "harbour" || v == "seaport") {
                 script.beat = usize::MAX - 2;
                 return;
             }
