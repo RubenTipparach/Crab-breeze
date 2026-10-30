@@ -89,8 +89,8 @@ What the code does now, and where it differs from the plan above.
   rename can follow once nothing else is in flight on these files.
 - **Which aircraft.** Any aircraft of a kind in `data/aircraft/flight.ron`, standing still on the ground and whole, whose
   door is nearer the pilot than any car's (`stolen_aircraft::find_aircraft`). The door and the seat's eye are the model's
-  `DOOR_*` and `EYE_pilot` marks (now read into the manifest); the airliners, the freighter and the block-out kinds have
-  no marks yet, so theirs stand on the left a fifth of the way back with the eye ahead, by the kind's size
+  `DOOR_*` and `EYE_pilot` marks (now read into the manifest); the airliners carry them in their manifests (`boarding_marks`); the
+  freighter and the block-out kinds have none, so theirs stand on the left a fifth of the way back with the eye ahead, by the kind's size
   (`Aircraft::boarding`; task 2.3 stays open for those models).
 - **It stays in the air traffic.** `Traffic::steal` takes it off its stand and out of the traffic's care
   (`Phase::Piloted`); every fixed step the flight model's place is written back (`Traffic::fly`), so it is drawn, hit,

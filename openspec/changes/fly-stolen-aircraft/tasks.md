@@ -7,7 +7,7 @@
 ## 2. One vehicle flow
 - [x] 2.1 `CarAccess::vehicle` through the car's pilot modes and `step_car`; car tests unchanged
 - [x] 2.2 `chase_view` follows a car or an aircraft; `place_camera` on `Driving`
-- [ ] 2.3 `EYE_pilot` and door marks on every aircraft model (the military and civil helicopter models have them; the airliners and freighter not yet)
+- [x] 2.3 `EYE_pilot` and door marks on every aircraft model (the freighter, built by another Blender version, keeps the size-based stand-in)
 
 ## 3. Flight model (`cb_core::flight_model`)
 - [x] 3.1 Atmosphere, fixed-wing forces and moments, gear contact

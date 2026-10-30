@@ -233,6 +233,18 @@
       "within_m": null
     }
   ],
+  "marks": {
+    "DOOR_fwd_l": [
+      -2.439,
+      -3.571,
+      -14.8
+    ],
+    "EYE_pilot": [
+      -0.45,
+      0.8,
+      -17.8
+    ]
+  },
   "materials": [
     "airliner_crown",
     "airliner_line",
