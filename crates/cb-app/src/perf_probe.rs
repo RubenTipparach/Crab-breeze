@@ -126,6 +126,8 @@ pub(crate) fn mesh_bytes(m: &bevy::prelude::Mesh) -> Option<usize> {
 static NOTED_BYTES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Notes a mesh's triangles while its data is still in the main world.
+// Called by `hitch_spans`, so unused in a build with `perf_probe` alone.
+#[cfg_attr(not(feature = "hitch_spans"), allow(dead_code))]
 pub(crate) fn note_mesh(id: AssetId<Mesh>, mesh: &Mesh) {
     if !on() {
         return;

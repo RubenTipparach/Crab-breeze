@@ -181,7 +181,7 @@ pub fn standing_pieces(pieces: &[super::kit::Piece], max_side_steps: u32, alive:
 }
 
 /// The chunks a piece of `kit` becomes, `pose` taking its frame to the world (its lot's or its ship's, with a sinking
-/// ship's motion), `collapse` making them coarser, `sizes` saying how coarse.
+/// ship's motion), `collapse` making them coarser, `sizes` how coarse.
 fn chunks_of(kit: &Kit, piece: usize, pose: Affine3A, building: u32, collapse: bool, sizes: &Chunking) -> Vec<Chunk> {
     use super::kit::Chunking as Kind;
     let p = &kit.pieces[piece];
@@ -236,7 +236,7 @@ pub struct Breakable<'a> {
     /// Its chunks' `building`.
     pub building: u32,
     /// How its broken pieces become chunks.
-    pub chunking: Chunking,
+    pub sizes: Chunking,
 }
 
 impl Breakable<'_> {
@@ -339,7 +339,7 @@ impl Breakable<'_> {
         let pose = self.pose_now(Some(state));
         let chunks = gone
             .iter()
-            .flat_map(|&i| chunks_of(kit, i as usize, pose, self.building, collapsed, &self.chunking))
+            .flat_map(|&i| chunks_of(kit, i as usize, pose, self.building, collapsed, &self.sizes))
             .collect();
         Broken {
             pieces: gone,
@@ -442,13 +442,13 @@ impl Houses {
     }
 
     /// `lot` as a breakable kit.
-    fn breakable(lots: &Lots, lot: u32, chunking: Chunking) -> Breakable<'_> {
+    fn breakable<'a>(lots: &'a Lots, lot: u32, sizes: Chunking) -> Breakable<'a> {
         Breakable {
             kit: lots.kit(lot),
             pose: lot_pose(&lots.lots[lot as usize]),
             parity: lot,
             building: HOUSE_CHUNK_BASE + lot,
-            chunking,
+            sizes,
         }
     }
 
@@ -462,10 +462,10 @@ impl Houses {
     /// (`Breakable::step_sinking`). Returns the lots that moved, and of them those just gone.
     pub fn step_sinking(&mut self, lots: &Lots, dt: f32, seabed: &dyn Fn(glam::Vec2) -> f32) -> (Vec<u32>, Vec<u32>) {
         let (mut moved, mut gone) = (Vec::new(), Vec::new());
-        let chunking = self.chunking;
+        let sizes = self.chunking;
         for (&lot, st) in self.states.iter_mut() {
             let was = st.alive.iter().any(|a| *a);
-            if Self::breakable(lots, lot, chunking).step_sinking(st, seabed(lots.lots[lot as usize].centre), dt) {
+            if Self::breakable(lots, lot, sizes).step_sinking(st, seabed(lots.lots[lot as usize].centre), dt) {
                 moved.push(lot);
                 if was && st.alive.iter().all(|a| !a) {
                     gone.push(lot);
