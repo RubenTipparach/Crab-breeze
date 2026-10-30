@@ -646,7 +646,36 @@ fn dressing_meshes(
         light_rooms(&mut skin, &plans, site, lights);
         light_rooms(&mut rooms, &plans, site, lights);
     }
-    vec![(Look::Skin, skin), (Look::Glass, glass.build()), (Look::Rooms, rooms)]
+    let mut glass = glass.build();
+    let hi = c.origin + c.size * Vec3::new(c.n[0] as f32, c.n[1] as f32, c.n[2] as f32);
+    mark_glass_inner(&mut glass, c.origin, hi);
+    vec![(Look::Skin, skin), (Look::Glass, glass), (Look::Rooms, rooms)]
+}
+
+/// Marks the inner faces of a building's window panes, the faces turned toward its middle, with -1 in their second
+/// UV's `y` (as `small_buildings::light_glass_sides` marks a house's): `building_surface.wesl` draws them clear and
+/// unlit, so from inside the windows show the street, not the sky's reflection (owner, 2026-10-29: "interior windows
+/// i think shouldnt have been shaded with reflection probe"). Their outer faces stay mirror glass. `lo` and `hi` are
+/// the building's box.
+fn mark_glass_inner(mesh: &mut Mesh, lo: Vec3, hi: Vec3) {
+    use bevy::mesh::VertexAttributeValues as V;
+    let (Some(V::Float32x3(pos)), Some(V::Float32x3(nor))) =
+        (mesh.attribute(Mesh::ATTRIBUTE_POSITION), mesh.attribute(Mesh::ATTRIBUTE_NORMAL))
+    else {
+        return;
+    };
+    let mid = (lo + hi) * 0.5;
+    let uv1: Vec<[f32; 2]> = pos
+        .iter()
+        .zip(nor)
+        .map(|(p, n)| {
+            let (p, n) = (Vec3::from(*p), Vec3::from(*n));
+            let flat = Vec3::new(n.x, 0.0, n.z);
+            let inner = flat.length_squared() > 0.5 && flat.dot(mid - p) > 0.0;
+            [0.0, if inner { -1.0 } else { 0.0 }]
+        })
+        .collect();
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_1, uv1);
 }
 
 /// How far in front of a surface its room is looked for, metres: past a partition's half-thickness, so
@@ -1280,13 +1309,16 @@ fn light_windows(
         m.extension.room_colour = colour;
     }
     let alpha = data.0.day_night.rooms.glass_alpha(data.0.sky_light.glass.alpha, night);
+    // A pane's inner face lets `glass_alpha_inside` through (`mark_glass_inner`, `building_surface.wesl`).
+    let inside = data.0.day_night.rooms.glass_alpha_inside;
     if let Some(handle) = shared.glass.as_ref()
         && glasses
             .get(handle)
-            .is_some_and(|m| (m.base.base_color.alpha() - alpha).abs() > 1e-3)
+            .is_some_and(|m| (m.base.base_color.alpha() - alpha).abs() > 1e-3 || m.extension.windows.z != inside)
         && let Some(mut m) = glasses.get_mut(handle)
     {
         m.base.base_color.set_alpha(alpha);
+        m.extension.windows.z = inside;
     }
 }
 
@@ -1327,6 +1359,26 @@ mod tests {
             ..StoreyPlan::default()
         };
         (site, vec![plan])
+    }
+
+    #[test]
+    fn a_window_panes_face_toward_the_buildings_middle_is_marked_inner_and_its_street_face_is_not() {
+        // A pane on the building's -z face: its +z face looks into the building, its -z face onto the street.
+        let mut mb = MeshBuilder::tiled(4.0, 4.0);
+        mb.block(Vec3::new(4.0, 3.0, -0.05), Vec3::new(6.0, 5.0, 0.05), [1.0; 4]);
+        let mut mesh = mb.build();
+        mark_glass_inner(&mut mesh, Vec3::ZERO, Vec3::new(10.0, 20.0, 10.0));
+        let Some(VertexAttributeValues::Float32x3(nor)) = mesh.attribute(Mesh::ATTRIBUTE_NORMAL).cloned() else {
+            panic!("no normals")
+        };
+        let ys = room_y(&mesh);
+        for (n, y) in nor.iter().zip(&ys) {
+            if n[2] > 0.5 {
+                assert_eq!(*y, -1.0, "the inner face");
+            } else if n[2] < -0.5 {
+                assert_eq!(*y, 0.0, "the street face");
+            }
+        }
     }
 
     fn room_y(mesh: &Mesh) -> Vec<f32> {
