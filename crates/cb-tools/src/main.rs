@@ -180,6 +180,28 @@ fn main() -> ExitCode {
                     s.template.placements.len()
                 );
             }
+            // How far each stands from the free roam start, and which way (0 degrees north, +z; 90 east, +x).
+            let start = plan.start.mech_xz;
+            println!("start: ({:.0}, {:.0})", start.x, start.y);
+            for s in &plan.sites {
+                let d = s.footprint().centre() - start;
+                let bearing = d.x.atan2(d.y).to_degrees().rem_euclid(360.0);
+                println!(
+                    "{:?}: {:.1} km from the start, bearing {:.0} degrees",
+                    s.template.kind,
+                    d.length() / 1000.0,
+                    bearing
+                );
+            }
+            for (i, c) in plan.cities.iter().enumerate() {
+                let d = c.centre - start;
+                println!(
+                    "city {i}: centre ({:.0}, {:.0}), {:.1} km from the start",
+                    c.centre.x,
+                    c.centre.y,
+                    d.length() / 1000.0
+                );
+            }
             let [c, b, w, st, wa, r] = plan.airport_rejections;
             println!("airport candidates turned down: cities {c}, bases {b}, off dry land {w}, steep {st}, water {wa}, highways {r}");
             ExitCode::SUCCESS
