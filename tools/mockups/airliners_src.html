@@ -356,10 +356,11 @@ function updateClip() {
 const explode = document.getElementById("explode");
 document.getElementById("repair").onclick = () => {
   explode.value = 0;
-  for (const s of Object.values(planes)) { s.flying = []; for (const z of Object.values(s.zones)) { z.node.position.copy(z.base); z.node.quaternion.copy(z.baseQ); z.node.visible = true; } }
+  for (const s of Object.values(planes)) { for (const f of s.flying) f.home.add(f.z.node); s.flying = []; for (const z of Object.values(s.zones)) { z.node.position.copy(z.base); z.node.quaternion.copy(z.baseQ); z.node.visible = true; } }
   for (const d of debris) scene.remove(d.mesh); debris.length = 0;
   for (const g of carved) { g.index.array.set(g.userData.index0); g.index.needsUpdate = true; } carved.length = 0;
   for (const m of remainders) m.parent && m.parent.remove(m); remainders.length = 0;
+  for (const m of doubled) { m.side = m.userData.side0; m.shadowSide = null; m.needsUpdate = true; } doubled.length = 0;
   for (const s of Object.values(planes)) for (const m of s.meshes) m.userData.gone = false;
   applyLod();
   for (const p of puffs) scene.remove(p.sp); puffs.length = 0;
@@ -390,7 +391,9 @@ canvas.addEventListener("pointerup", e => {
 function breakZone(s, z, at) {
   if (!z.z.parent || s.flying.some(f => f.z === z)) return;  // the main box holds the rest
   const out = z.centre.clone().normalize();
-  s.flying.push({ z, v: new T.Vector3(out.x * 6, 4, out.z * 3), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(1.6), t: 0, puff: 0 });
+  const f = { z, home: z.node.parent, v: new T.Vector3(out.x * 6, 4, out.z * 3).applyQuaternion(s.holder.quaternion), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(1.6), t: 0, puff: 0 };
+  scene.attach(z.node);  // it leaves the aircraft: from here it falls and lands in the world's frame
+  s.flying.push(f);
   const parent = s.zones[z.z.parent];
   const joint = s.holder.localToWorld(z.centre.clone().add(parent.centre).multiplyScalar(0.5));
   // the section's fit-out (seats, floor, bins, galleys) is simply gone with it, here and in every zone that hangs from
@@ -411,7 +414,7 @@ function breakZone(s, z, at) {
 // outside are handed back to the zone as a remainder mesh, so the hull keeps a ragged hole, not a missing strip.
 // Repair puts it all back.
 const CHUNK = 2.2;
-const carved = [], remainders = [];
+const carved = [], remainders = [], doubled = [];
 function clipPoly(poly, axis, at, keep) {
   const out = [];
   for (let i = 0; i < poly.length; i++) {
@@ -429,7 +432,8 @@ function carve(s, zoneNode, at, r, out) {
   const cells = new Map();
   const cellNear = (i, j, k) => new T.Vector3((i + 0.5) * CHUNK, (j + 0.5) * CHUNK, (k + 0.5) * CHUNK).distanceTo(at) <= r;
   for (const mesh of s.meshes) {
-    if (!mesh.visible || isInterior(mesh) || zoneOf(mesh) !== zoneNode || !mesh.geometry.index) continue;
+    // the torn cap of a break is never carved: it is the break's face, and a hole in it shows a solid's empty inside
+    if (!mesh.visible || isInterior(mesh) || /_torn$/.test(mesh.material.name || "") || zoneOf(mesh) !== zoneNode || !mesh.geometry.index) continue;
     mesh.updateMatrixWorld();
     const g = mesh.geometry, idx = g.index, pos = g.attributes.position, nrm = g.attributes.normal, uv = g.attributes.uv;
     if (!g.userData.index0) g.userData.index0 = idx.array.slice();
@@ -469,6 +473,8 @@ function carve(s, zoneNode, at, r, out) {
     }
     if (!touched) continue;
     idx.needsUpdate = true; carved.push(g);
+    // a torn hole shows the inside of the skin round it, not the ground through an empty solid
+    if (mesh.material.side !== T.DoubleSide) { mesh.material.userData.side0 = mesh.material.side; mesh.material.side = T.DoubleSide; mesh.material.shadowSide = T.BackSide; mesh.material.needsUpdate = true; doubled.push(mesh.material); }
     if (rest.p.length) {
       const rm = new T.Mesh(geoOf(rest), mesh.material);
       rm.castShadow = true; mesh.add(rm); remainders.push(rm);
@@ -479,7 +485,7 @@ function carve(s, zoneNode, at, r, out) {
     geo.computeBoundingBox();
     const ctr = geo.boundingBox.getCenter(new T.Vector3());
     geo.translate(-ctr.x, -ctr.y, -ctr.z);
-    const mat = cell.mat.clone(); mat.side = T.DoubleSide; mat.clippingPlanes = null;
+    const mat = cell.mat.clone(); mat.side = T.DoubleSide; mat.shadowSide = T.BackSide; mat.clippingPlanes = null;
     const mesh = new T.Mesh(geo, mat);
     mesh.position.copy(ctr); mesh.castShadow = true;
     scene.add(mesh);
@@ -524,14 +530,25 @@ function puff(at, fire) {
   sp.scale.set(s0, s0, 1); scene.add(sp);
   puffs.push({ sp, fire, t: 0, life: fire ? 0.5 + Math.random() * 0.4 : 3 + Math.random() * 3, s0, v: new T.Vector3((Math.random() - 0.5) * 2, fire ? 1 : 1.5 + Math.random(), (Math.random() - 0.5) * 2) });
 }
+// Ground contact for anything falling (a broken-off zone, a chunk): its lowest point stops on the ground, it bounces a
+// little, rubs to a stop and lies there (owner, 2026-10-30: "I expected the chunks to fall to the ground instead of fall
+// through it").
+const landBox = new T.Box3();
+function land(obj, b) {
+  landBox.setFromObject(obj);
+  if (landBox.isEmpty() || landBox.min.y >= 0) return;
+  obj.position.y -= landBox.min.y;
+  if (b.v.y < 0) b.v.y *= -0.2;
+  b.v.x *= 0.8; b.v.z *= 0.8; b.w.multiplyScalar(0.7);
+  if (Math.abs(b.v.y) < 0.6 && b.v.x * b.v.x + b.v.z * b.v.z < 0.3) { b.v.set(0, 0, 0); b.w.set(0, 0, 0); b.rest = true; }
+}
 function stepDebris(dt) {
   for (let i = debris.length - 1; i >= 0; i--) {
     const d = debris[i]; d.t += dt;
     d.v.y -= 9.81 * dt;
     d.mesh.position.addScaledVector(d.v, dt);
     d.mesh.rotateOnAxis(d.w.clone().normalize(), d.w.length() * dt);
-    const half = d.half != null ? d.half : d.mesh.scale.y * 0.5;
-    if (d.mesh.position.y < half) { d.mesh.position.y = half; d.v.y *= -0.25; d.v.x *= 0.5; d.v.z *= 0.5; d.w.multiplyScalar(0.5); }
+    if (!d.rest) land(d.mesh, d);
     if (!d.big && d.t > 14) { scene.remove(d.mesh); debris.splice(i, 1); }
   }
   for (let i = puffs.length - 1; i >= 0; i--) {
@@ -641,11 +658,12 @@ function frame(now) {
       f.t += dt;
       f.puff -= dt;
       if (f.puff <= 0 && f.z.node.visible && f.t < 12) { f.puff = 0.07; puff(f.z.node.localToWorld(f.z.centre.clone()), Math.random() < 0.25); }
-      if (f.z.node.position.y + s.holder.position.y > -40) {
+      if (!f.rest) {
         f.v.y -= 9.81 * dt;
         f.z.node.position.addScaledVector(f.v, dt);
-        f.z.node.rotateOnAxis(f.w.clone().normalize(), f.w.length() * dt);
-      } else f.z.node.visible = false;
+        if (f.w.lengthSq() > 1e-6) f.z.node.rotateOnWorldAxis(f.w.clone().normalize(), f.w.length() * dt);
+        land(f.z.node, f);
+      }
     }
     for (const L of s.lamps) {
       const on = night && lampOn(L.l.pattern, clock + (s.p.id.length * 0.37), s.man) && (L.l.pattern !== "landing" || gearT < 0.5);

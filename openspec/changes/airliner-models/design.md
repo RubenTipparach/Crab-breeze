@@ -104,7 +104,11 @@ BeamNG-style part trees, and our own `structural-destruction`):
    method, `docs/mockups/building_engine.js` `fromObject`), each cell a chunk thrown out tumbling, and what is left of
    each cut triangle stays on the aircraft as a ragged hole. Small fragments, a flash of fire and a cloud of smoke fill
    it in. The section's fit-out (seats, floor, bins, galleys) is not debris: it despawns with the section and every zone
-   hanging from it (owner, 2026-10-30: "the seats should just despawn when that section of plane id destroyed"). Near you the fragments are rigid bodies that bounce and settle; far away, a dust puff.
+   hanging from it (owner, 2026-10-30: "the seats should just despawn when that section of plane id destroyed").
+   Everything that falls (a section, a wing, a chunk) lands on the ground, bounces a little, rubs to a stop and lies
+   there (owner, 2026-10-30: "I expected the chunks to fall to the ground instead of fall through it"). A break's torn
+   cap is never carved into chunks, and round a torn hole the skin draws its inside, so no break shows through an
+   empty solid (owner, 2026-10-30: "theres like missing geom here"). Near you the fragments are rigid bodies that bounce and settle; far away, a dust puff.
 10. **Deterministic**: the zone tree, shares and capsules are data; the same hits break the same zones.
 
 | Kind | Zones |
