@@ -21,9 +21,12 @@
     // of the noon sun. Lower (4 %, 2 %, 12 %, real moonlight scaled to taste) read black after the tonemapper's
     // toe: the moonlit street measured 0.3 of 255 against 59 at noon (2026-10-28 stills). Raised from 10 % and 6 % (owner,
     // 2026-10-29: "we need to bump up ambient color a bit, at night its too dark"): the mech's shaded side read black.
-    night_ambient_share: 0.16,
-    night_sky_light_share: 0.09,
-    moon_full_share: 0.35,
+    // Doubled again and the moon lowered (owner, 2026-10-29: "its still pretty dark at night", "double it, and lower the
+    // moon light"): ambient 32 %, sky 18 %, the full moon 25 % (was 16, 9 and 35), so the shade is lit and the moon's
+    // shadows soften.
+    night_ambient_share: 0.32,
+    night_sky_light_share: 0.18,
+    moon_full_share: 0.25,
     // The pilot's own light on foot (owner, 2026-10-29: "the player needs a light, so like when I walk in to a an area,
     // I can still see a little bit. just a dim blue subtle self light like in dark souls"): 40 lm of pale blue 0.3 m over
     // the head, reaching 8 m, no shadows, full at night and out by day. About 0.8 lux on the floor at the feet, a dim
