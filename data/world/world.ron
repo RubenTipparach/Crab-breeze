@@ -426,8 +426,10 @@
         house_chunk_m: 1.5,
         house_collapse_chunk_m: 4.0,
         house_dust_m3: 0.25,
-        // A damaged building's windows stay lit at night until 30% of its elements have fallen (owner, 2026-10-29: "damaged building should stay lit until the player destroys about 30% of the building").
-        lights_out_share: 0.3,
+        // A damaged building's lights (windows, rooms, the lamps on it) stay on at night until half of its elements, or a
+        // house's or ship's pieces, have fallen (owner, 2026-10-29: "our 50% building destruction rule for switching off
+        // lights"; it was 30%).
+        lights_out_share: 0.5,
     ),
     // Building skins and roofs (openspec/changes/building-generation): the mockup's facade modules,
     // parapet and coping, roof props; only within dress_radius_m of the player.

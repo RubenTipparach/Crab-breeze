@@ -5,3 +5,4 @@
 - [x] 1.2 `data/hud/targeting.ron`, loaded and validated; `target_next` binding
 - [x] 2.1 Boxes, the selected box, the lead marker from `weapons::lead`, the off-screen arrow, `LOCK`
 - [x] 2.2 Playtest: the defence take shows boxes, the lead marker and locks from the cockpit
+- [x] Q picks by the crosshair (owner, 2026-10-29: "Q shuold first cycle nearest object...", "cool down 15 seconds for objects close to q"): the enemy nearest the crosshair in the pick cone not picked in the last 15 s, then the rest by priority (a unit shelling the city first, provisional) and distance, then the nearest the crosshair again (`targeting::cycle`, `cycle_cooldown_s`; test `q_takes_the_nearest_the_crosshair_then_the_rest_by_priority_and_distance_then_starts_over`). Not yet built or tested: the owner was playing

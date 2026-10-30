@@ -48,6 +48,18 @@ pub struct BeamSpec {
     pub on_s: f32,
     /// Damage a second to the part it touches.
     pub damage_per_s: f32,
+    /// It sweeps across where the target stood when it began to charge, from this far to one side to this far to the
+    /// other, metres, so a pilot who moves off that line is missed; 0 holds it on the target (owner, 2026-10-29:
+    /// "lasers sweep").
+    #[serde(default)]
+    pub sweep_m: f32,
+    /// A sweeping beam burns what is within this of its line, metres.
+    #[serde(default = "six")]
+    pub hit_m: f32,
+}
+
+fn six() -> f32 {
+    6.0
 }
 
 /// A defence's gun.
@@ -80,6 +92,10 @@ pub struct GunSpec {
     /// A beam instead of rounds.
     #[serde(default)]
     pub beam: Option<BeamSpec>,
+    /// It holds on the target this long before a burst, the HUD warning the pilot, seconds (owner, 2026-10-29: "have
+    /// some way of telegraphing shots", "railgun warning so player can dodge").
+    #[serde(default)]
+    pub warn_s: f32,
 }
 
 fn yes() -> bool {
@@ -110,6 +126,18 @@ pub struct KindSpec {
     /// Its gun, if it is a defence.
     #[serde(default)]
     pub gun: Option<GunSpec>,
+    /// Boxed and lockable all the time; any other part only while its gun fires or warns (owner, 2026-10-29: "There are
+    /// way too many targets to even see it properly"). Every part can be hit.
+    #[serde(default)]
+    pub always_target: bool,
+    /// One in this many parts of the kind carries its gun, the first of each run of them (owner, 2026-10-29: "1/2
+    /// weapons"); the rest are silent mounts.
+    #[serde(default = "one")]
+    pub armed_every: u32,
+}
+
+fn one() -> u32 {
+    1
 }
 
 fn forty() -> f32 {
@@ -118,6 +146,14 @@ fn forty() -> f32 {
 
 fn two() -> f32 {
     2.0
+}
+
+fn four() -> f32 {
+    4.0
+}
+
+fn three() -> u32 {
+    3
 }
 
 /// Fighters off the catapults (design section 4).
@@ -250,6 +286,13 @@ pub struct FortressConfig {
     /// Its detail (the spikes, the model's `DETAIL_` meshes) draws only this close to the eye, metres (owner,
     /// 2026-10-25: "spikes should not render until we are up close").
     pub detail_range_m: f32,
+    /// A part that is not `always_target` is boxed for this long after its gun fires, seconds.
+    #[serde(default = "four")]
+    pub fire_box_s: f32,
+    /// At most this many guns warn, fire or burn at the pilot at once (owner, 2026-10-29: "weapons should not all target
+    /// you at once, maybe 3 at a time").
+    #[serde(default = "three")]
+    pub max_firing: u32,
     /// Every kind of part by name.
     pub kinds: BTreeMap<String, KindSpec>,
     /// Fighters.
@@ -315,12 +358,14 @@ impl Validate for FortressConfig {
         for (name, k) in &self.kinds {
             let f = |x: &str| format!("kinds.{name}.{x}");
             positive(&f("hp"), k.hp)?;
+            within(&f("armed_every"), k.armed_every as f32, 1.0, 100.0)?;
             within(&f("armour_mm"), k.armour_mm, 0.0, 10_000.0)?;
             positive(&f("capsule.radius_m"), k.capsule.radius_m)?;
             within(&f("capsule.half_m"), k.capsule.half_m, 0.0, 1000.0)?;
             if let Some(g) = &k.gun {
                 g.weapon.validate()?;
                 positive(&f("gun.range_m"), g.range_m)?;
+                within(&f("gun.warn_s"), g.warn_s, 0.0, 30.0)?;
                 within(&f("gun.aim_error_deg"), g.aim_error_deg, 0.0, 45.0)?;
                 if g.burst == 0 {
                     return Err(format!("`{}` must be above zero", f("gun.burst")));
@@ -331,6 +376,8 @@ impl Validate for FortressConfig {
                 if let Some(b) = &g.beam {
                     positive(&f("gun.beam.charge_s"), b.charge_s)?;
                     positive(&f("gun.beam.on_s"), b.on_s)?;
+                    within(&f("gun.beam.sweep_m"), b.sweep_m, 0.0, 1000.0)?;
+                    positive(&f("gun.beam.hit_m"), b.hit_m)?;
                 }
             }
         }
@@ -463,9 +510,27 @@ pub struct GunState {
     pub fired: u32,
     /// A beam's phase.
     pub beam: BeamPhase,
+    /// Its warning before a burst, seconds left (`GunSpec::warn_s`).
+    pub warn_s: f32,
+    /// Warned and firing its burst.
+    pub firing: bool,
+    /// A sweeping beam's line: the middle (where the target stood) and the way it sweeps, world.
+    pub sweep_at: Vec3,
+    /// ...
+    pub sweep_side: Vec3,
 }
 
 impl GunState {
+    /// Warning, firing or burning at the pilot: holding one of `max_firing`'s places.
+    pub fn engaged(&self) -> bool {
+        self.firing || self.warn_s > 0.0 || self.beam != BeamPhase::Idle
+    }
+
+    /// Fired, warning or burning just now: a round left since `fired_before`, or engaged.
+    pub fn busy(&self, fired_before: u32) -> bool {
+        self.fired != fired_before || self.engaged()
+    }
+
     /// A launcher or gun is in the middle of a burst (its tube faces open: `Weak::WhileFiring`).
     pub fn firing(&self, spec: &GunSpec) -> bool {
         self.left < spec.burst && self.left > 0

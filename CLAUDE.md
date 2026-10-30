@@ -333,6 +333,12 @@ said out loud and kept in check, never guessed.
   Claude may playtest now. Make the updates, build, and tell the owner how to run it
   (`./run.sh`). Permission to playtest lasts until the owner says they are using the computer
   again. A cloud session's headless tests and builds are not playtests.
+- **Never build while the owner's game is running** (owner, 2026-10-29: "DO NOT BILD IF YOU SEE MY GAME
+  IS BEING PLAYED"; a `cargo test` compile beside their game dropped its frames). Before any `cargo`
+  build, test, clippy or check, any Blender bake or any other heavy job on the owner's machine, look for
+  a running `crab-breeze.exe` (or any copy of the game). If one is running, do not start the job: write
+  the code, say what is left to build and check, and wait until the game is closed or the owner says go.
+  A job already running when the game starts is stopped.
 - **Never take camera or input control away from the player** (owner, 2026-10-24: "never take
   camera control away from the player. NEVER"). The view's direction is the player's in every
   state: no camera snapping, easing, aim assist or scripted turn of the view outside a scripted

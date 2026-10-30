@@ -16,7 +16,7 @@
 //!   rebuilding a mesh (owner: "furniture are part of the building cells anyways, so that should save on perf when
 //!   updating the state"). A damaged building stays at LOD0 for good.
 
-use crate::building_state::{BuildingMaterial, BuildingStates, ElementState, slot};
+use crate::building_state::{BuildingMaterial, BuildingStates, DARK, ElementState, STANDING, slot};
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::state::GameApp;
 use crate::walk_in::InteriorColliders;
@@ -156,7 +156,7 @@ pub struct HouseKits {
 }
 
 /// Which furniture a building draws: the modelled pieces or the blocks, and lit by its rooms at night or dark (its
-/// building damaged: "If the building is damaged all of its lights turn off").
+/// building half down: "our 50% building destruction rule for switching off lights", `Houses::lit`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Furnished {
     real: bool,
@@ -1357,7 +1357,13 @@ fn redraw_damaged(
         let kit = plan.small.kit(lot);
         let key = state_key(lot);
         let base = states.base(key, kit.pieces.len(), &mut buffers);
-        let words: Vec<u32> = alive.iter().map(|&a| u32::from(a)).collect();
+        // Its standing bits, and the dark bit on every word once half of it is down (`Houses::lit`), as a tower's.
+        let dark = if live.structures.houses.lit(lot, live.structures.cfg.lights_out_share) {
+            0
+        } else {
+            DARK
+        };
+        let words: Vec<u32> = alive.iter().map(|&a| if a { STANDING } else { 0 } | dark).collect();
         states.write(key, &words);
         let houses = &mut *houses;
         let entry = houses.dressed.entry(lot).or_insert_with(|| Dressed {
@@ -1543,12 +1549,12 @@ fn furnish(
             } else if on_foot && d <= real_reach {
                 Some(Furnished {
                     real: true,
-                    lit: !live.structures.houses.states.contains_key(&l),
+                    lit: live.structures.houses.lit(l, live.structures.cfg.lights_out_share),
                 })
             } else {
                 Some(Furnished {
                     real: false,
-                    lit: !live.structures.houses.states.contains_key(&l),
+                    lit: live.structures.houses.lit(l, live.structures.cfg.lights_out_share),
                 })
             };
             (l, d, want)

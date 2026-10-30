@@ -408,7 +408,11 @@ fn press(
                             if let Some(mut saving) = world.get_resource_mut::<crate::save_game::Saving>() {
                                 saving.mech = file;
                             }
-                            world.insert_resource(crate::mech::SwapMech);
+                            // Where it lands near a pilot on foot: the career's air drop search (mech-shop 6.1).
+                            let drop = cb_core::data::load_ron(&crate::cli::repo_root().join("data/career/air_drop.ron"))
+                                .map_err(|e| warn!("menu: no drop sites, swapping in place: {e}"))
+                                .ok();
+                            world.insert_resource(crate::mech::SwapMech { drop });
                         }
                         Err(e) => error!("menu: the {name} does not load, keeping this mech: {e}"),
                     },

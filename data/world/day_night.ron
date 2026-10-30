@@ -24,6 +24,16 @@
     night_ambient_share: 0.16,
     night_sky_light_share: 0.09,
     moon_full_share: 0.35,
+    // The pilot's own light on foot (owner, 2026-10-29: "the player needs a light, so like when I walk in to a an area,
+    // I can still see a little bit. just a dim blue subtle self light like in dark souls"): 40 lm of pale blue 0.3 m over
+    // the head, reaching 8 m, no shadows, full at night and out by day. About 0.8 lux on the floor at the feet, a dim
+    // floor and walls a few metres round in a dark room; off seated and driving.
+    self_light: (
+        lumens: 40.0,
+        colour: (0.55, 0.7, 1.0),
+        range_m: 8.0,
+        above_eye_m: 0.3,
+    ),
     // The moon casts in 2 cascades to 250 m, not the sun's 3 to 700 m (openspec change `night-frame` NF2, provisional):
     // a low moon's cascades took in every house along its line, and midnight's shadows cost the suburbs about 1.5 ms
     // of the frame on the CPU (switched off: 13.4 ms p50 against 15.4 over three rounds).
