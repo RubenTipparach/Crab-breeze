@@ -25,6 +25,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -105,6 +106,27 @@ def close_obs():
     subprocess.run(force, capture_output=True)
     time.sleep(1)
     clear_stale_crash_markers()
+
+
+def started_marker() -> Path:
+    """A file saying this script started the running OBS. A run killed outright (no cleanup at all) leaves it, so the
+    next run knows the OBS it finds is an orphan to close, not the owner's."""
+    return ws_config_path().with_name("obs-record-started")
+
+
+def stop_any_recording(port: int, password: str):
+    """Stops OBS's recording, if it has one going, so it quits without asking "OBS is still currently active" (which
+    holds the quit until someone clicks OK, 2026-10-31)."""
+    try:
+        client = obs.ReqClient(host="localhost", port=port, password=password, timeout=10)
+        if client.get_record_status().output_active:
+            client.stop_record()
+            for _ in range(240):
+                if not client.get_record_status().output_active:
+                    break
+                time.sleep(0.25)
+    except Exception:
+        pass
 
 
 def obs_executable() -> Path:
@@ -218,6 +240,13 @@ class ObsSession:
             backup.unlink()
             print("restored OBS's WebSocket config left behind by an interrupted run")
         cfg = json.loads(cfg_path.read_text(encoding="utf-8-sig"))
+        if running and started_marker().exists():
+            # The OBS a killed run started and never closed: stop its recording and close it.
+            stop_any_recording(cfg["server_port"], cfg.get("server_password", ""))
+            close_obs()
+            started_marker().unlink(missing_ok=True)
+            running = obs_running()
+            print("closed the OBS a killed run left behind")
         if not cfg.get("server_enabled"):
             if running:
                 sys.exit("OBS is running with its WebSocket server off. Either close OBS "
@@ -238,6 +267,7 @@ class ObsSession:
             # no running OBS was found above, so this is the only one.
             subprocess.Popen([str(exe), "--disable-shutdown-check"], cwd=str(exe.parent))
             self.started_obs = True
+            started_marker().write_text(str(os.getpid()), encoding="utf-8")
         for _ in range(180):
             try:
                 self.client = obs.ReqClient(host="localhost", port=cfg["server_port"],
@@ -275,8 +305,20 @@ class ObsSession:
 
     def __exit__(self, *exc):
         if self.started_obs and obs_running():
+            # A recording still going holds OBS's quit behind a dialog: stop it first.
+            try:
+                if self.client is not None and self.client.get_record_status().output_active:
+                    self.client.stop_record()
+                    for _ in range(240):
+                        if not self.client.get_record_status().output_active:
+                            break
+                        time.sleep(0.25)
+            except Exception:
+                pass
             # OBS writes its config on exit; close it first, then restore.
             close_obs()
+        if self.started_obs:
+            started_marker().unlink(missing_ok=True)
         self._restore_config()
         return False
 
@@ -346,7 +388,16 @@ def find_window(c, pattern_exe: str | None, pattern_title: str | None, timeout: 
     sys.exit("target window never appeared")
 
 
+def _exit_on_signal(signum, _frame):
+    # Killed (SIGTERM, a closed terminal's SIGHUP): unwind through the cleanup, so the recording is stopped and the
+    # OBS this run started is closed, rather than left recording behind a dialog (2026-10-31).
+    raise SystemExit(f"stopped by signal {signum}")
+
+
 def main():
+    for sig in (signal.SIGTERM, getattr(signal, "SIGHUP", None)):
+        if sig is not None:
+            signal.signal(sig, _exit_on_signal)
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     target = p.add_argument_group("target")
     target.add_argument("--launch", help="command line to start before recording")
