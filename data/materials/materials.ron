@@ -12,6 +12,8 @@
         (name: "churned_soil", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.0, use: "the crater's bowl"),
         (name: "smoke_puffs", size_px: 1024, maps: ["albedo"], grid: 4, use: "smoke, steam and trail particles"),
         (name: "fire_flipbook", size_px: 1024, maps: ["albedo"], grid: 4, use: "fire and flame particles, played over life"),
+        (name: "fireball_puffs", size_px: 1024, maps: ["albedo"], grid: 4, use: "a fireball's billows, the smoke puffs' shapes burning, cross-faded into smoke as they cool"),
+        (name: "smoke_lit", size_px: 1024, maps: ["albedo", "normal"], grid: 4, use: "smoke lit in the game by the sun: the smoke puffs' shapes, unlit, with normals"),
         (name: "dust_wisps", size_px: 1024, maps: ["albedo"], grid: 4, use: "dust particles"),
         (name: "hit_marks", size_px: 1024, maps: ["albedo", "normal", "orm"], grid: 4, use: "hit-mark decals on mech armour"),
         (name: "dirt_clods", size_px: 1024, maps: ["albedo"], grid: 4, use: "dirt, debris and rubble particles"),

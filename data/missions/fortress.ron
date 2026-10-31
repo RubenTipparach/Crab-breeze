@@ -11,6 +11,14 @@
     // A lift thruster carries a quarter of the weight at most, a hull thruster a sixth (sections 2, 2b).
     lift_max_share: 0.25,
     hull_max_share: 0.1666667,
+    // With every lift thruster gone, the hull thrusters hold it until half of the six are gone, on either side; then
+    // it has no thrust (owner, 2026-10-31: "all crab legs have to be destroyed, then half the internal thrusters would
+    // have to be destroyed").
+    hull_kills_to_fall: 3,
+    // It weaves 120 m in and out of its circle, three times a turn (owner, 2026-10-30: "have crab carrier move around a
+    // bit too so it's not so easy to shoot down").
+    weave_m: 120.0,
+    weave_per_turn: 3.0,
     sink_drag_per_m: 0.008,
     list_deg_per_weight: 100.0,
     list_rate_deg_s: 4.0,
@@ -151,5 +159,15 @@
     leg: (blast_mj: 30.0, break_radius_m: 25.0, tumble_deg_s: 25.0),
     // Its wreck breaks what is under its 280 x 420 m footprint and 60 m round it; those are the attacked city's
     // cells, so the crash counts as city damage (owner, 2026-10-26, survey H5).
-    crash: (clearance_m: 40.0, blast_mj: 200.0, break_margin_m: 60.0, half_size_m: (140.0, 210.0)),
+    crash: (
+        clearance_m: 40.0, blast_mj: 200.0, break_margin_m: 60.0, half_size_m: (140.0, 210.0),
+        // It goes nuclear (`nuke`; owner, 2026-10-30: "goes nuclear in a big mushroom cloud and leave a giant Crater", "a
+        // big fireball expands rapidly, then cools into a smoke ball that then rises slowly", "Followed by a big ass
+        // Crater", "we have the nuke in mining mike/godot-sandbox", "Review timing of mesh explosion with this And sync
+        // them up!!!"): Mining Mike's mushroom cloud scaled so its cap climbs to 1.1 km, on his timeline over 6 s (his 5 s
+        // explode animation); a crater 800 m across and 100 m deep, everything within 700 m down, the wreck gone.
+        nuke: Some((crater_radius_m: 400.0, crater_depth_m: 100.0, rim_m: 25.0, flatten_radius_m: 700.0,
+                    fireball_radius_m: 250.0, cap_height_m: 1650.0, stretch_up: 1.5, cloud_s: 18.0,
+                    smoke_linger_s: 60.0, smoke_grow: 1.5)),
+    ),
 )

@@ -17,6 +17,14 @@
 - [x] 2.8a The deck guard (owner, 2026-10-26, survey H6): 2 Shrikes and 4 Mites at their posts, a Mite up each working hangar lift every 60 s while fewer than 6 stand, 8 below decks; they keep to the deck and leave with the mission (tests: `the_deck_guard_is_two_shrikes_and_four_mites_standing_on_its_tops`, `each_working_lift_brings_a_mite_up_every_60_s`, `a_lost_lift_brings_no_more`, `no_more_come_up_than_six_on_deck`, `the_lifts_stop_when_the_hangar_is_empty_or_it_falls`, `a_body_kept_to_the_deck_stops_at_its_edge`)
 - [ ] 2.8 The crabs dropped from the bays
 - [ ] 3.1 The Blender block-out, then the detailed model with LODs (after the owner picks from the mockup)
+- [x] 4.2 Over the nearest city's centre (section 10): `Fortress::radius_m`, out to the circle, then round it (test `it_appears_over_the_city_centre_and_flies_out_onto_its_circle`)
+- [x] 4.3 Lit hull thrusters boxed and lockable (H7)
+- [x] 4.4 `Fortress::next_to_bring_down` (test `shooting_what_next_to_bring_down_names_brings_it_down_in_five_kills`); the `BringDownFortress` beat (test `the_standoff_keeps_a_thruster_550_m_up_under_the_foremans_aim_limit`); `data/playtests/fortress-down.ron`
+- [x] 4.5 Playtest `fortress-down` in the game: the fortress crashes (`docs/playtests/2026-10-30-fortress-down.md`: won in 173 s and, recorded, 162 s)
+- [x] 4.6 Two of a side's three hull thrusters must go (`hull_kills_to_fall`, test `it_falls_only_once_two_of_a_sides_three_hull_thrusters_are_gone`); it weaves (`weave_m`, test `it_weaves_in_and_out_on_its_circle`); the pilot clears every hostile after and watches the crash (`ClearHostiles`)
+- [x] 4.7 Its crash goes nuclear (section 11): `Deformation::dig_crater` (test `the_crash_crater_digs_through_a_city`), the flattening, `nuke_flash`, `mushroom_cloud`
+- [ ] 4.9 Every leg, then half the hull, all or nothing (section 12): the lift rule, `next_to_bring_down`, the pilot flying on its jets to each target, `ClearHostiles` against aircraft; `fortress-nuke` recorded
+- [ ] 4.8 Playtest and record: the fortress down, every hostile taken out, the mushroom cloud and the crater on camera, a minute more
 - [ ] 4.1 Playtest beats: climb to the deck, land, fight the guard, walk a pylon, kill three thrusters on one side, jump clear, watch it fall; measure with `--bench defence`
 - [x] 2.9 Headless stills in a cloud session (`CB_STILLS_FORTRESS=1`, `capture_fortress`): whole, under a thruster, on the deck, the hull opening, falling, crashed; `cb-tools validate` checks the model's nodes against the data
 - [x] 2.10 Levels of detail: the spikes as `DETAIL_` meshes drawn only within `detail_range_m` (owner, 2026-10-25: "spikes should not render until we are up close"); LOD0 and LOD1 triangles in the manifest

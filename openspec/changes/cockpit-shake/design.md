@@ -39,7 +39,7 @@ app reads the mech's state and messages and draws.
 
 ## 3. Numbers to start (data `fx.shake`, provisional; tuned by the owner in play)
 
-`max_deg` 1.2, `decay_s` 0.7 (as now); `land_from_m_s` 3, `land_per_m_s` 0.06; `ram_from_m_s` 2, `ram_per_m_s` 0.08;
+`max_deg` 1.2 (0.6 since 2026-10-30: every amplitude halved, owner: "thats a bit much rumbling, change it to 50% of that overall as the new base"; `rumble_deg` 0.125, `jolt_per_m_s` 0.06, `jolt_max_m` 0.125), `decay_s` 0.7 (as now); `land_from_m_s` 3, `land_per_m_s` 0.06; `ram_from_m_s` 2, `ram_per_m_s` 0.08;
 `hit_per_mj` 0.08, `hit_per_mm` 0.0015; `fire_rumble` 0.6, `fire_hold_s` 0.15, `heavy_kick` 0.4,
 `heavy_jolt_m_s` 0.2, `missile_kick` 0.3 (a recoil kick by penetration, felt as the square of the trauma, was too
 small to feel: an autocannon round 0.04, a few hundredths of a degree); `melee_kick` 0.45, `melee_jolt_m_s` 0.6;

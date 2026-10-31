@@ -88,7 +88,7 @@ pub enum Beat {
     /// lights, aircraft, boats, harbours, the fog), a note for the report. Takes no time.
     Survey(f32),
     /// Turn the view toward the nearest of a kind (`person`, `car`, `light`, `aircraft`, `boat`, `harbour`, `door`,
-    /// `bench`, `enemy`, `fortress`) and hold it there for this many seconds.
+    /// `bench`, `enemy`, `fortress`, `nuke`: a mushroom cloud) and hold it there for this many seconds.
     LookAtNearest(String, f32),
     /// Skate the mech to the nearest of a kind (`harbour`, `runway`, `city`), as `SkateTo`, stopping this many metres
     /// short of it.
@@ -118,17 +118,65 @@ pub enum Beat {
     StartMission(String),
     /// Fly the mech up onto the Stratostacean's deck and stand there, at most this many seconds.
     LandOnFortress(f32),
+    /// Bring the Stratostacean down, at most this many seconds (crab-airship section 10): stand off the thruster
+    /// `Fortress::next_to_bring_down` names until its nozzle is at most `BRING_DOWN_PITCH_DEG` up, hold the selected
+    /// gun on the nozzle; at a lit hull thruster, select it and fire missiles at the lock. Done when it crashes.
+    BringDownFortress(f32),
+    /// Fight every hostile left in the world (its fighters, its deck guard, any vehicle), nearest first, as `FightJob`
+    /// fights, until none has been left for 3 s, at most this many seconds (owner, 2026-10-30: "take out all hostiles
+    /// too").
+    ClearHostiles(f32),
     /// Toggle the skates on (true) or off.
     Skates(bool),
     /// Walk on foot toward the mech's stair until within this many metres of it (not boarding).
     WalkToMech(f32),
 }
 
+/// The pilot hovers on tapped jets (design section 12: the jets recharge faster than the mech falls, owner,
+/// 2026-10-31) this far under a hull port while its missiles climb in, `BRING_DOWN_MISSILE_STANDOFF_M` out. A missile
+/// launches near level and turns 70 deg/s: from 180 m under, every one came in more than 30 deg off vertical and did
+/// nothing (fortress-nuke try 3, 32 missiles); from 400 m it has the climb to straighten up, about 13 deg off.
+pub const BRING_DOWN_PORT_BELOW_M: f32 = 400.0;
+/// ...and never lower than this over the ground.
+pub const BRING_DOWN_PORT_FLOOR_M: f32 = 60.0;
+
+/// How far off a lit hull thruster the scripted pilot stands to fire missiles up into its port, metres along the
+/// ground: nearly under it, so a missile (launched at most 25 deg up, turning 70 deg/s) climbs into the port within
+/// 30 deg of vertical, the only way through (a thruster 530 m up is 13 deg off vertical from here). From 500 m out
+/// they arrived about 45 deg off and did nothing (fortress-down run 3).
+pub const BRING_DOWN_MISSILE_STANDOFF_M: f32 = 90.0;
+
+/// How far off a lift thruster's nozzle the scripted pilot hovers on its jets, metres along the ground (owner,
+/// 2026-10-30: "the mech should get up close to the crab carrier", "tap jets so it recharges as you fly up").
+pub const BRING_DOWN_HOVER_STANDOFF_M: f32 = 150.0;
+
+/// How far the nozzle is above the hovering pilot's eye, degrees: well under the Foreman's +25 deg aim limit.
+pub const BRING_DOWN_HOVER_PITCH_DEG: f32 = 12.0;
+
+/// The height to hover at to shoot up into a nozzle at `nozzle_y_m` from `standoff_m` off it: the nozzle
+/// `BRING_DOWN_HOVER_PITCH_DEG` above the eye, the eye `eye_m` above the mech's feet.
+pub fn bring_down_hover_y(nozzle_y_m: f32, standoff_m: f32, eye_m: f32) -> f32 {
+    nozzle_y_m - standoff_m * BRING_DOWN_HOVER_PITCH_DEG.to_radians().tan() - eye_m
+}
+
+/// Whether a scripted pilot holding a height on its jets burns them now. It taps them (owner, 2026-10-30: "you can
+/// tap jets so it recharges as you fly up"): on, it burns until it is rising (over 12 m/s, or at all once over the
+/// height) or the jets are hot (0.8); off, it coasts at least 2 s, long enough for the jets to start cooling (1.5 s
+/// after the last burn), unless it is 60 m under the height or falling at over 35 m/s. `below_m` is the height
+/// less the mech's, `vy` its vertical speed, `off_s` how long the jets have been off.
+pub fn tap_jets(on: bool, below_m: f32, vy: f32, heat: f32, off_s: f32) -> bool {
+    if on {
+        !(vy > 12.0 || (below_m < 0.0 && vy > 0.0) || heat > 0.8)
+    } else {
+        below_m > 60.0 || vy < -35.0 || (off_s > 2.0 && below_m > 0.0 && vy <= 0.0)
+    }
+}
+
 /// What `UseOn` can ask for: `cb_core::interact::Interaction`'s names.
 pub const USE_ON: [&str; 5] = ["Greet", "Terminal", "GetIn", "GetOut", "Board"];
 /// What `LookAtNearest` can look at.
-pub const LOOK_KINDS: [&str; 10] = [
-    "person", "car", "light", "aircraft", "boat", "harbour", "door", "bench", "enemy", "fortress",
+pub const LOOK_KINDS: [&str; 11] = [
+    "person", "car", "light", "aircraft", "boat", "harbour", "door", "bench", "enemy", "fortress", "nuke",
 ];
 /// Where `SkateToNearest` and `JetToNearest` can go.
 pub const GO_KINDS: [&str; 5] = ["harbour", "runway", "city", "house", "farthest-city"];
@@ -249,7 +297,11 @@ impl Validate for Script {
                     Beat::SkateToNearest(k, m) => !(GO_KINDS.contains(&k.as_str()) && m.is_finite() && *m >= 0.0),
                     Beat::JetToNearest(k, h) => !(GO_KINDS.contains(&k.as_str()) && h.is_finite() && *h > 0.0),
                     Beat::SelectWeapon(w) => w.is_empty(),
-                    Beat::FireFor(s) | Beat::MultiLock(s) | Beat::LandOnFortress(s) => !(s.is_finite() && *s > 0.0),
+                    Beat::FireFor(s)
+                    | Beat::MultiLock(s)
+                    | Beat::LandOnFortress(s)
+                    | Beat::BringDownFortress(s)
+                    | Beat::ClearHostiles(s) => !(s.is_finite() && *s > 0.0),
                     Beat::Scope(s, _) => !(s.is_finite() && *s > 0.0),
                     Beat::CycleTargets(n) => *n == 0,
                     Beat::FireAtGround(m, n) => !(m.is_finite() && *m > 0.0 && *n > 0),
@@ -411,5 +463,47 @@ mod tests {
         b.money = 9;
         b.at = [50.0, 5.0];
         assert_eq!(a.differences(&b, 1.0).len(), 2);
+    }
+
+    #[test]
+    fn hovering_puts_the_nozzle_12_degrees_up_from_150_m_off() {
+        let y = bring_down_hover_y(530.0, BRING_DOWN_HOVER_STANDOFF_M, 20.0);
+        let up = (530.0 - (y + 20.0)).atan2(BRING_DOWN_HOVER_STANDOFF_M).to_degrees();
+        assert!((up - BRING_DOWN_HOVER_PITCH_DEG).abs() < 1e-3 && up < 25.0, "{y} m, {up} deg up");
+    }
+
+    #[test]
+    fn tapping_the_jets_holds_a_height_and_lets_them_cool() {
+        // a mech with the Foreman's jets (56 m/s2 up, 20 s burn, 8 s recharge after 1.5 s) holding 500 m from 450 m
+        let (mut y, mut vy, mut heat, mut on, mut off_s, mut idle_s) = (450.0f32, 0.0f32, 0.3f32, false, 10.0f32, 10.0f32);
+        let dt = 1.0 / 60.0;
+        let mut lowest_after = f32::MAX;
+        for i in 0..(120 * 60) {
+            let want = tap_jets(on, 500.0 - y, vy, heat, off_s);
+            if want != on {
+                on = want;
+                off_s = 0.0;
+            }
+            if on {
+                vy += (56.0 - 9.81) * dt;
+                heat = (heat + dt / 20.0).min(1.0);
+                idle_s = 0.0;
+            } else {
+                vy -= 9.81 * dt;
+                off_s += dt;
+                idle_s += dt;
+                if idle_s >= 1.5 {
+                    heat = (heat - dt / 8.0).max(0.0);
+                }
+            }
+            vy = vy.clamp(-60.0, 60.0);
+            y += vy * dt;
+            if i > 30 * 60 {
+                lowest_after = lowest_after.min(y);
+            }
+            assert!(heat < 1.0, "never locks out: {heat} at {i}");
+        }
+        assert!(lowest_after > 400.0, "holds about its height: lowest {lowest_after}");
+        assert!(heat < 0.8, "and the jets stay cool enough: {heat}");
     }
 }

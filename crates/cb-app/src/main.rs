@@ -17,6 +17,7 @@ mod capture;
 mod capture_cars;
 mod capture_fortress;
 mod capture_houses;
+mod capture_nuke;
 mod capture_roads;
 mod career;
 mod civil_standing;
@@ -52,6 +53,8 @@ mod mfd_apps;
 mod missions;
 mod music;
 mod nav;
+mod nuke;
+mod nuke_mesh;
 mod one_sided;
 mod particles;
 mod paving;
@@ -247,7 +250,12 @@ fn main() -> AppExit {
         interact::InteractPlugin,
     ))
     // Free roam's mail and its missions (free-roam-missions); the Stratostacean (crab-airship).
-    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
+    .add_plugins((
+        missions::MissionsPlugin,
+        fortress::FortressPlugin,
+        nuke::NukePlugin,
+        nuke_mesh::NukeMeshPlugin,
+    ))
     // The time of day: the world's clock, the sun and the moon (day-night-cycle).
     .add_plugins((day_night::DayNightPlugin, lamps::LampsPlugin))
     // How thick the ground fog is now: the clock's hour and the mission's preset (ground-fog, survey F1).
@@ -349,6 +357,8 @@ fn main() -> AppExit {
     if let Some(dir) = args.stills {
         if std::env::var("CB_STILLS_HOUSES").is_ok() {
             app.add_plugins(capture_houses::HousesStillsPlugin { dir });
+        } else if std::env::var("CB_STILLS_NUKE").is_ok() {
+            app.add_plugins(capture_nuke::NukeStillsPlugin { dir });
         } else if std::env::var("CB_STILLS_FORTRESS").is_ok() {
             app.add_plugins(capture_fortress::FortressStillsPlugin { dir });
         } else if std::env::var("CB_STILLS_FX").is_ok() {

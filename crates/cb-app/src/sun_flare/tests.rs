@@ -47,6 +47,7 @@ fn eye(toward_sun: Vec3, medium: f32) -> FlareView {
         medium,
         light: Vec3::splat(0.9),
         toward_sun,
+        plain: false,
     }
 }
 
@@ -115,4 +116,15 @@ fn the_bloom_is_the_data_s() {
 fn the_cockpit_s_share_starts_clear() {
     // 1.0 as a half float.
     assert_eq!(half_one(), [0x00, 0x3C]);
+}
+
+#[test]
+fn a_flashs_flare_has_no_halo_ring_ghosts_or_rainbow_fringes() {
+    let mut u = SunFlareUniform::new(&look(), Vec2::ZERO, 16.0 / 9.0, Vec3::ONE, 1.0);
+    assert!(u.halo.truncate().max_element() > 0.0 && u.rays.w > 0.0, "the sun's flare has them");
+    u.plain();
+    assert_eq!(u.halo, Vec4::ZERO);
+    assert_eq!(u.rays.w, 0.0, "no ghosts");
+    assert_eq!((u.spike_shape.z, u.shape.z), (0.0, 0.0), "no red and blue fringes");
+    assert!(u.core.truncate().max_element() > 0.0, "the core stays");
 }

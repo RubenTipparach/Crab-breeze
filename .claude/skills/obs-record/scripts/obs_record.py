@@ -25,6 +25,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -45,6 +46,7 @@ logging.getLogger("obsws_python").setLevel(logging.CRITICAL)
 
 SCENE = "obs-record (temporary)"
 SOURCE = "obs-record window (temporary)"
+AUDIO = "obs-record sound (temporary)"
 
 
 def obs_dir() -> Path:
@@ -67,7 +69,13 @@ def obs_running() -> bool:
                               "/FI", "STATUS ne UNKNOWN"],
                              capture_output=True, text=True).stdout
         return "obs64.exe" in out
-    return subprocess.run(["pgrep", "-x", "obs"], capture_output=True).returncode == 0
+    return subprocess.run(["pgrep", "-x", OBS_PROCESS], capture_output=True).returncode == 0
+
+
+# The OBS process's name outside Windows: `OBS` on macOS (the app bundle's binary), `obs` on Linux. Matching `obs` on
+# the Mac never found the OBS this script started, so it was never closed and every run started another (ten were
+# left running, 2026-10-30).
+OBS_PROCESS = "OBS" if sys.platform == "darwin" else "obs"
 
 
 def clear_stale_crash_markers():
@@ -89,7 +97,7 @@ def close_obs():
     cleanly; force it only as a last resort, then clear what that leaves."""
     polite, force = ((["taskkill", "/IM", "obs64.exe"], ["taskkill", "/F", "/IM", "obs64.exe"])
                      if sys.platform == "win32" else
-                     (["pkill", "-x", "obs"], ["pkill", "-9", "-x", "obs"]))
+                     (["pkill", "-x", OBS_PROCESS], ["pkill", "-9", "-x", OBS_PROCESS]))
     subprocess.run(polite, capture_output=True)
     for _ in range(40):
         if not obs_running():
@@ -98,6 +106,27 @@ def close_obs():
     subprocess.run(force, capture_output=True)
     time.sleep(1)
     clear_stale_crash_markers()
+
+
+def started_marker() -> Path:
+    """A file saying this script started the running OBS. A run killed outright (no cleanup at all) leaves it, so the
+    next run knows the OBS it finds is an orphan to close, not the owner's."""
+    return ws_config_path().with_name("obs-record-started")
+
+
+def stop_any_recording(port: int, password: str):
+    """Stops OBS's recording, if it has one going, so it quits without asking "OBS is still currently active" (which
+    holds the quit until someone clicks OK, 2026-10-31)."""
+    try:
+        client = obs.ReqClient(host="localhost", port=port, password=password, timeout=10)
+        if client.get_record_status().output_active:
+            client.stop_record()
+            for _ in range(240):
+                if not client.get_record_status().output_active:
+                    break
+                time.sleep(0.25)
+    except Exception:
+        pass
 
 
 def obs_executable() -> Path:
@@ -211,6 +240,13 @@ class ObsSession:
             backup.unlink()
             print("restored OBS's WebSocket config left behind by an interrupted run")
         cfg = json.loads(cfg_path.read_text(encoding="utf-8-sig"))
+        if running and started_marker().exists():
+            # The OBS a killed run started and never closed: stop its recording and close it.
+            stop_any_recording(cfg["server_port"], cfg.get("server_password", ""))
+            close_obs()
+            started_marker().unlink(missing_ok=True)
+            running = obs_running()
+            print("closed the OBS a killed run left behind")
         if not cfg.get("server_enabled"):
             if running:
                 sys.exit("OBS is running with its WebSocket server off. Either close OBS "
@@ -227,16 +263,16 @@ class ObsSession:
             clear_stale_crash_markers()
             # A normal window, not --minimize-to-tray: a tray-only OBS cannot be
             # closed cleanly, and an unclean exit brings the Safe Mode prompt.
-            # --multi: an OBS that exited uncleanly can linger in the process
-            # list holding its single-instance lock, and a new one then stops at
-            # "OBS is already running". No running OBS was found above.
-            subprocess.Popen([str(exe), "--disable-shutdown-check", "--multi"], cwd=str(exe.parent))
+            # Never --multi (owner, 2026-10-28: "only 1 obs instance allowed"):
+            # no running OBS was found above, so this is the only one.
+            subprocess.Popen([str(exe), "--disable-shutdown-check"], cwd=str(exe.parent))
             self.started_obs = True
+            started_marker().write_text(str(os.getpid()), encoding="utf-8")
         for _ in range(180):
             try:
                 self.client = obs.ReqClient(host="localhost", port=cfg["server_port"],
                                             password=cfg.get("server_password", ""),
-                                            timeout=10)
+                                            timeout=30)
                 break
             except Exception:
                 time.sleep(0.5)
@@ -249,6 +285,10 @@ class ObsSession:
         for _ in range(120):
             try:
                 self.client.get_video_settings()
+                # Answering one request is not finished loading: on the Mac the next scene request still timed out
+                # when sent at once (2026-10-30), so let it settle.
+                if self.started_obs:
+                    time.sleep(5.0)
                 break
             except Exception:
                 time.sleep(0.5)
@@ -265,8 +305,20 @@ class ObsSession:
 
     def __exit__(self, *exc):
         if self.started_obs and obs_running():
+            # A recording still going holds OBS's quit behind a dialog: stop it first.
+            try:
+                if self.client is not None and self.client.get_record_status().output_active:
+                    self.client.stop_record()
+                    for _ in range(240):
+                        if not self.client.get_record_status().output_active:
+                            break
+                        time.sleep(0.25)
+            except Exception:
+                pass
             # OBS writes its config on exit; close it first, then restore.
             close_obs()
+        if self.started_obs:
+            started_marker().unlink(missing_ok=True)
         self._restore_config()
         return False
 
@@ -336,7 +388,16 @@ def find_window(c, pattern_exe: str | None, pattern_title: str | None, timeout: 
     sys.exit("target window never appeared")
 
 
+def _exit_on_signal(signum, _frame):
+    # Killed (SIGTERM, a closed terminal's SIGHUP): unwind through the cleanup, so the recording is stopped and the
+    # OBS this run started is closed, rather than left recording behind a dialog (2026-10-31).
+    raise SystemExit(f"stopped by signal {signum}")
+
+
 def main():
+    for sig in (signal.SIGTERM, getattr(signal, "SIGHUP", None)):
+        if sig is not None:
+            signal.signal(sig, _exit_on_signal)
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     target = p.add_argument_group("target")
     target.add_argument("--launch", help="command line to start before recording")
@@ -434,6 +495,13 @@ def main():
                 c.create_input(SCENE, SOURCE, "screen_capture", {"type": 1, "show_cursor": False}, True)
                 window = find_window(c, a.window_exe, a.window_title, 120)
                 c.set_input_settings(SOURCE, {"type": 1, "window": window, "show_cursor": False}, True)
+                # Window capture carries no sound on macOS: the desktop's sound through ScreenCaptureKit's audio
+                # capture (type 0, desktop), so the take has the game's audio (a take with a silent track, 2026-10-30).
+                try:
+                    c.remove_input(AUDIO)
+                except Exception:
+                    pass
+                c.create_input(SCENE, AUDIO, "sck_audio_capture", {"type": 0}, True)
             else:
                 c.create_input(SCENE, SOURCE, "window_capture", {"method": 2, "cursor": False}, True)
                 window = find_window(c, a.window_exe, a.window_title, 120)
@@ -515,6 +583,11 @@ def main():
             c.set_current_program_scene(orig_scene)
             if created:
                 c.remove_scene(SCENE)
+            if sys.platform == "darwin":
+                try:
+                    c.remove_input(AUDIO)
+                except Exception:
+                    pass
             c.set_video_settings(orig_video.fps_numerator, orig_video.fps_denominator,
                                  orig_video.base_width, orig_video.base_height,
                                  orig_video.output_width, orig_video.output_height)

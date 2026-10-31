@@ -93,17 +93,29 @@ impl Deformation {
         }
         self.blasts.push(blast);
         let r = cfg.radius_m_per_cbrt_mj * blast.energy_mj.cbrt();
-        let reach = cfg.reach_m(blast.energy_mj);
-        let (k0, k1) = (
-            self.tile_of(blast.centre - Vec2::splat(reach)),
-            self.tile_of(blast.centre + Vec2::splat(reach)),
-        );
-        let mut touched = Vec::new();
         let protected = |p: Vec2| {
             plan.cities.iter().any(|c| c.rect().distance(p) < 14.0)
                 || plan.highways.iter().any(|h| h.project(p).0 < h.width_m * 0.5 + 3.0)
                 || plan.waters.bridges.iter().any(|b| b.centre.distance(p) < b.length_m * 0.6)
         };
+        self.carve(blast.centre, r, cfg.depth_ratio * r, cfg.rim_ratio * r, cfg.max_dig_m, &protected)
+    }
+
+    /// Digs one crater `radius_m` across its bowl, `depth_m` deep at its middle, with a `rim_m` rim, through cities
+    /// and roads alike: the Stratostacean's crash (crab-airship section 11). Returns the tiles it touched.
+    pub fn dig_crater(&mut self, centre: Vec2, radius_m: f32, depth_m: f32, rim_m: f32) -> Vec<(i32, i32)> {
+        if !(centre.is_finite() && radius_m.is_finite() && radius_m > 0.0 && depth_m.is_finite() && rim_m.is_finite()) {
+            return Vec::new();
+        }
+        self.carve(centre, radius_m, depth_m, rim_m, f32::INFINITY, &|_| false)
+    }
+
+    /// The one bowl-and-rim shape: down `depth_m` at the middle, easing to nothing at `r`, a rim `rim_m` high round
+    /// it, scorched out to 1.8 `r`; never below `floor_m` under where the ground was; `protected` points not dug.
+    fn carve(&mut self, centre: Vec2, r: f32, depth_m: f32, rim_m: f32, floor_m: f32, protected: &dyn Fn(Vec2) -> bool) -> Vec<(i32, i32)> {
+        let reach = r * 1.8;
+        let (k0, k1) = (self.tile_of(centre - Vec2::splat(reach)), self.tile_of(centre + Vec2::splat(reach)));
+        let mut touched = Vec::new();
         for kz in k0.1..=k1.1 {
             for kx in k0.0..=k1.0 {
                 let key = (kx, kz);
@@ -113,7 +125,7 @@ impl Deformation {
                 for j in 0..TILE_N {
                     for i in 0..TILE_N {
                         let p = self.sample_xz(key, i, j);
-                        let d = p.distance(blast.centre) / r;
+                        let d = p.distance(centre) / r;
                         if d >= 1.8 {
                             continue;
                         }
@@ -123,12 +135,12 @@ impl Deformation {
                             continue;
                         }
                         let bowl = if d < 1.0 {
-                            -cfg.depth_ratio * r * 0.5 * (1.0 + (std::f32::consts::PI * d).cos())
+                            -depth_m * 0.5 * (1.0 + (std::f32::consts::PI * d).cos())
                         } else {
                             0.0
                         };
-                        let rim = cfg.rim_ratio * r * (-((d - 1.0) / 0.35).powi(2)).exp();
-                        delta[k] = (delta[k] + bowl + rim).max(-cfg.max_dig_m);
+                        let rim = rim_m * (-((d - 1.0) / 0.35).powi(2)).exp();
+                        delta[k] = (delta[k] + bowl + rim).max(-floor_m);
                     }
                 }
                 self.tiles.insert(key, delta);
@@ -398,6 +410,31 @@ mod tests {
         assert!((d.delta_at(c) + cfg.depth_ratio * r).abs() < 0.05, "centre {}", d.delta_at(c));
         assert!(d.delta_at(c + Vec2::X * r) > 0.0, "rim");
         assert_eq!(d.delta_at(c + Vec2::X * 3.0 * r), 0.0, "untouched beyond");
+    }
+
+    #[test]
+    fn the_crash_crater_digs_through_a_city() {
+        let p = plan();
+        let city = p.cities[0].centre;
+        let mut d = Deformation::new(4096.0);
+        let mut by_blast = Deformation::new(4096.0);
+        by_blast.dig(
+            p,
+            Blast {
+                centre: city,
+                energy_mj: 5000.0,
+            },
+            &CraterConfig::default(),
+        );
+        assert_eq!(by_blast.delta_at(city), 0.0, "a shell's crater leaves the city's ground alone");
+        d.dig_crater(city, 260.0, 60.0, 15.0);
+        assert!(
+            (d.delta_at(city) + 60.0).abs() < 0.5,
+            "60 m deep at its middle: {}",
+            d.delta_at(city)
+        );
+        assert!(d.delta_at(city + Vec2::X * 260.0) > 10.0, "its rim");
+        assert_eq!(d.delta_at(city + Vec2::X * 900.0), 0.0, "untouched beyond");
     }
 
     #[test]

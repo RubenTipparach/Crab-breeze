@@ -29,10 +29,13 @@
     // combat frame (median 10.2 ms with 24, 9.1 ms with 8, 2026-10-24).
     max_lights: 8,
     max_fireballs: 64,
-    // Blasts nearby shake the view (owner, 2026-10-24): up to 1.2 degrees, within 60 m per cube
+    // Blasts nearby shake the view (owner, 2026-10-24): up to 0.6 degrees (halved 2026-10-30), within 60 m per cube
     // root of the blast's megajoules (120 m for an 8 MJ shell), dying away over 0.7 s.
     shake: (
-        max_deg: 1.2,
+        // Every amplitude halved (owner, 2026-10-30: "thats a bit much rumbling, change it to 50% of that overall as
+        // the new base"): the view's shake 0.6 degrees at most, the rumble 0.125, the eye's dip 0.06 m/s per m/s and
+        // 12.5 cm at most. Before: 1.2, 0.25, 0.12 and 0.25.
+        max_deg: 0.6,
         reach_m_per_cbrt_mj: 60.0,
         decay_s: 0.7,
         // The mech's own body (openspec change cockpit-shake; owner, 2026-10-28: "thruster shakes, impact shakes,
@@ -63,19 +66,19 @@
         // "similar to the landing shake, but like 50% that strength"): 0.21 of trauma and about a 4 cm dip.
         step_as_landing_m_s: 10.0,
         step_share: 0.5,
-        // The jets' and skates' rumble: up to 0.25 degrees at 23 Hz, swelling and fading over 0.3 s; the jets 0.7 of
+        // The jets' and skates' rumble: up to 0.125 degrees at 23 Hz, swelling and fading over 0.3 s; the jets 0.7 of
         // it, the skates 0.5 at 30 m/s on dirt and half that on paving.
-        rumble_deg: 0.25,
+        rumble_deg: 0.125,
         rumble_hz: 23.0,
         rumble_ease_s: 0.3,
         jets_rumble: 0.7,
         skate_rumble: 0.5,
         skate_full_m_s: 30.0,
         paved_share: 0.5,
-        // The eye's dip springs back at 1.6 Hz, damped 0.45 of critical, never more than 0.25 m: a 12 m/s landing dips it
-        // about 9 cm.
-        jolt_per_m_s: 0.12,
-        jolt_max_m: 0.25,
+        // The eye's dip springs back at 1.6 Hz, damped 0.45 of critical, never more than 0.125 m: a 12 m/s landing dips it
+        // about 4.5 cm.
+        jolt_per_m_s: 0.06,
+        jolt_max_m: 0.125,
         jolt_hz: 1.6,
         jolt_damping: 0.45,
     ),
@@ -139,6 +142,14 @@
             Ripple(radius_m: 4.0),
         ],
         // Explosions, at 1 MJ. Half the radius they had and a quarter of the light (owner, 2026-10-29: "missile.jmpact was way too bright. The radius should be like 1/2 that and brightness toned way down..same with missile.plume").
+        // A nuclear blast (`nuke`), drawn at an eighth of the fireball's radius (31): the flash's light out to 6 km, a
+        // hot core under the mushroom cloud's fire (`nuke_cloud.wesl`), and dust thrown out along the ground. No drawn
+        // shock shell (owner, 2026-10-30: "That violated our realism style"); the shock shows in the dust.
+        "nuke_flash": [
+            Light(lumens: 4.0e6, range_m: 200.0, life_s: 5.0, colour: (1.0, 0.85, 0.6), lift_m: 10.0),
+            Fireball(radius_m: 2.0, grow_s: 1.5, life_s: 8.0),
+            Burst(kind: Dust, count: 160, speed_m_s: 6.0, spread: 1.0, size_m: 2.5, life_s: 20.0),
+        ],
         "explosion_ground": [
             Light(lumens: 1.0e8, range_m: 150.0, life_s: 0.6, colour: (1.0, 0.7, 0.4), lift_m: 3.0),
             Fireball(radius_m: 2.25, grow_s: 0.15, life_s: 0.9),
