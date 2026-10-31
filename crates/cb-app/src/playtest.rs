@@ -2071,11 +2071,30 @@ fn play(
                 return;
             } else {
                 t.leg = 0;
-                let nearest = foes
-                    .iter()
-                    .min_by(|a, b| a.feet.distance(m.pos).total_cmp(&b.feet.distance(m.pos)))
-                    .copied()
-                    .expect("not empty");
+                // One at a time until it is dead (re-picking the nearest every frame, the lock never finished as the
+                // fighters flew past, fortress-nuke try 6): the ground first, the crab mechs and vehicles shooting
+                // back, then the aircraft.
+                let in_air = |h: &crate::units::Hostile| h.feet.y - s.plan.terrain.height_at(h.feet.x, h.feet.z) > 30.0;
+                let kept = t.goal_id.and_then(|id| foes.iter().find(|h| h.id == id).copied());
+                let nearest = kept.unwrap_or_else(|| {
+                    foes.iter()
+                        .min_by(|a, b| {
+                            (in_air(a), a.feet.distance(m.pos))
+                                .partial_cmp(&(in_air(b), b.feet.distance(m.pos)))
+                                .expect("finite")
+                        })
+                        .copied()
+                        .expect("not empty")
+                });
+                if t.goal_id != Some(nearest.id) {
+                    t.goal_id = Some(nearest.id);
+                    info!(
+                        "playtest: taking on {} {} ({:.0} m off)",
+                        if in_air(nearest) { "aircraft" } else { "ground unit" },
+                        nearest.id,
+                        nearest.feet.distance(m.pos)
+                    );
+                }
                 let brain = t.brain.get_or_insert_with(|| {
                     cb_core::ai::AiPilot::new(
                         cb_core::ai::Skill {
