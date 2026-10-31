@@ -242,7 +242,7 @@ class ObsSession:
             try:
                 self.client = obs.ReqClient(host="localhost", port=cfg["server_port"],
                                             password=cfg.get("server_password", ""),
-                                            timeout=10)
+                                            timeout=30)
                 break
             except Exception:
                 time.sleep(0.5)
@@ -255,6 +255,10 @@ class ObsSession:
         for _ in range(120):
             try:
                 self.client.get_video_settings()
+                # Answering one request is not finished loading: on the Mac the next scene request still timed out
+                # when sent at once (2026-10-30), so let it settle.
+                if self.started_obs:
+                    time.sleep(5.0)
                 break
             except Exception:
                 time.sleep(0.5)
