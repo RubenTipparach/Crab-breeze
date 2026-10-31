@@ -82,7 +82,10 @@ fn run(
     let ground = |x: f32, z: f32| plan.terrain.height_at(x, z);
     // Stand 2.5 km off an open plain's middle, facing it.
     if now - ready_at > 4.0 && scene.boom_at.is_none() && scene.target == Vec3::ZERO {
-        let Some((c, spot)) = stored_spot(plan.seed).or_else(|| open_plain(&plan, &data.0.grass)) else {
+        let Some((c, spot)) = forced_spot()
+            .or_else(|| stored_spot(plan.seed))
+            .or_else(|| open_plain(&plan, &data.0.grass))
+        else {
             println!("NUKE_END no open plain found");
             exit.write(AppExit::error());
             return;
@@ -220,4 +223,13 @@ fn stored_spot(seed: u64) -> Option<(Vec2, Vec2)> {
 /// Whether the scene sets Mining Mike's mesh nuke beside the game's (`CB_NUKE_MESH=1`).
 fn with_mesh() -> bool {
     std::env::var("CB_NUKE_MESH").is_ok_and(|v| v == "1")
+}
+
+/// `CB_NUKE_AT=x,z`: the blast there, watched from 2.3 km east of it (the crater on a city above the sea, as the
+/// Stratostacean's crash makes it, where the open plain floods; owner, 2026-10-31).
+fn forced_spot() -> Option<(Vec2, Vec2)> {
+    let v = std::env::var("CB_NUKE_AT").ok()?;
+    let (x, z) = v.split_once(',')?;
+    let c = Vec2::new(x.trim().parse().ok()?, z.trim().parse().ok()?);
+    Some((c, c + Vec2::new(2300.0, 0.0)))
 }

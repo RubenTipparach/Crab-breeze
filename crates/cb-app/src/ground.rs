@@ -106,6 +106,9 @@ struct Ground {
     /// New tiles meshed and waiting to go on screen with their chunk's holed mesh.
     crater_ready: BTreeMap<(i32, i32), Mesh>,
     material: Handle<StandardMaterial>,
+    /// The crater tiles' own material: the Material Maker `churned_soil` set (the crater's bowl), so dug ground is torn
+    /// earth lit by the sun, not one flat colour (owner, 2026-10-31: "Right now it's just a plane").
+    crater_material: Handle<StandardMaterial>,
     /// The grass's tuning, for the ground's colour under it.
     grass: Arc<GrassConfig>,
     /// What the suburbs' paving is drawn with; none, none laid.
@@ -526,6 +529,30 @@ fn spawn_ground(
         perceptual_roughness: 1.0,
         ..default()
     });
+    // The crater tiles: churned soil's grain (its colour made neutral, as the ground's is: its own dark brown under the
+    // vertex colour's dark soil drew near black), its normal and occlusion-roughness; the vertex colour gives the
+    // scorch and the soil.
+    let crater_albedo = crate::pbr_set::load_tiling(&root, "textures/fx/churned_soil/albedo.png", true).map(|mut i| {
+        crate::pbr_set::neutral_detail(&mut i);
+        images.add(i)
+    });
+    let mut churned = |map: &str, srgb: bool| {
+        crate::pbr_set::load_tiling(&root, &format!("textures/fx/churned_soil/{map}.png"), srgb).map(|i| images.add(i))
+    };
+    let crater_orm = churned("orm", false);
+    let crater_material = match crater_albedo {
+        Some(albedo) => materials.add(StandardMaterial {
+            base_color: Color::linear_rgb(2.0, 2.0, 2.0),
+            base_color_texture: Some(albedo),
+            normal_map_texture: churned("normal", false),
+            occlusion_texture: crater_orm.clone(),
+            metallic_roughness_texture: crater_orm,
+            metallic: 0.0,
+            perceptual_roughness: 1.0,
+            ..default()
+        }),
+        None => material.clone(),
+    };
     // The first frame's eye: the pilot's, at the start.
     let s = plan.start.pilot_xz;
     let eye = Vec3::new(s.x, t.height_at(s.x, s.y) + 1.7, s.y);
@@ -575,6 +602,7 @@ fn spawn_ground(
         crater_stale: BTreeSet::new(),
         crater_ready: BTreeMap::new(),
         material,
+        crater_material,
         grass,
         paving,
     });
@@ -754,7 +782,7 @@ fn show_tile(commands: &mut Commands, ground: &mut Ground, meshes: &mut Assets<M
                 .spawn((
                     Name::new(format!("crater tile {key:?}")),
                     Mesh3d(mesh),
-                    MeshMaterial3d(ground.material.clone()),
+                    MeshMaterial3d(ground.crater_material.clone()),
                 ))
                 .id();
             ground.tiles.insert(key, e);

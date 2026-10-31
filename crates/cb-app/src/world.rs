@@ -195,7 +195,8 @@ impl Plugin for WorldPlugin {
             .add_world_spawn((spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees))
             .add_game_systems(FixedUpdate, keep_trees.in_set(SimSet::World))
             .add_game_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))
-            .add_game_systems(Update, ((show_trees, redraw_trees).chain(), follow_ocean).in_set(PresentSet::Pose));
+            .add_game_systems(Update, ((show_trees, redraw_trees).chain(), follow_ocean).in_set(PresentSet::Pose))
+            .add_game_systems(Update, cut_by_craters.in_set(PresentSet::Pose));
     }
 }
 
@@ -656,7 +657,8 @@ pub(crate) fn spawn_roads(
     });
     commands.spawn((
         Name::new("tyre tracks"),
-        Mesh3d(meshes.add(tracks.build())),
+        CutByCraters,
+        Mesh3d(meshes.add(kept_for_cutting(tracks.build()))),
         MeshMaterial3d(track_mat),
         NotShadowCaster,
     ));
@@ -670,12 +672,18 @@ pub(crate) fn spawn_roads(
         ("worn roads", worn, set("textures/road/asphalt_worn", 0.9)),
         ("blocks", kerbs, blocks_mat.clone()),
     ] {
-        commands.spawn((Name::new(name), Mesh3d(meshes.add(mesh.build_with_tangents())), MeshMaterial3d(mat)));
+        commands.spawn((
+            Name::new(name),
+            Mesh3d(meshes.add(kept_for_cutting(mesh.build_with_tangents()))),
+            MeshMaterial3d(mat),
+            CutByCraters,
+        ));
     }
     let mark_mat = vertex_material(&mut materials, 0.6);
     commands.spawn((
+        CutByCraters,
         Name::new("lane marks"),
-        Mesh3d(meshes.add(marks.build())),
+        Mesh3d(meshes.add(kept_for_cutting(marks.build()))),
         MeshMaterial3d(mark_mat.clone()),
         NotShadowCaster,
     ));
@@ -1576,5 +1584,80 @@ mod tests {
             assert!(o3.dot(m3) > 0.99, "vertex {i}: tangent {o3} against {m3}");
             assert_eq!(o[3], m[3], "vertex {i}: handedness");
         }
+    }
+}
+
+/// The city's flat ground laid once at its height (its streets, the highways, the blocks and their kerbs, the lane
+/// marks and the tyre tracks): cut away where a crater is dug whole, so it does not hang over the hole as a plane
+/// (owner, 2026-10-31: "Looks like a big grey quad", "Right now it's just a plane").
+#[derive(Component)]
+struct CutByCraters;
+
+/// A laid-ground mesh kept in the main world as well as on the GPU, so a crater can cut it (a render-world-only mesh
+/// drops its vertices once uploaded).
+fn kept_for_cutting(mut mesh: Mesh) -> Mesh {
+    mesh.asset_usage = RenderAssetUsages::default();
+    mesh
+}
+
+/// How far out from a crater's middle the laid ground goes, as a share of its bowl's radius: the bowl, and the rim
+/// that buries the old surface.
+const CRATER_CUT: f32 = 1.3;
+
+/// Cuts every new crater dug whole (`Deformation::digs`) out of the laid city ground: its triangles with a corner
+/// within `CRATER_CUT` of the crater's radius are dropped, once, when it is dug.
+fn cut_by_craters(live: Res<Live>, mut seen: Local<usize>, laid: Query<&Mesh3d, With<CutByCraters>>, mut meshes: ResMut<Assets<Mesh>>) {
+    let digs = &live.dug.digs;
+    if digs.len() <= *seen {
+        return;
+    }
+    // `digs` holds each crater's reach (1.8 of its radius).
+    let cuts: Vec<(Vec2, f32)> = digs[*seen..].iter().map(|(c, reach)| (*c, reach / 1.8 * CRATER_CUT)).collect();
+    *seen = digs.len();
+    for handle in &laid {
+        if let Some(mut mesh) = meshes.get_mut(&handle.0) {
+            cut_circles(&mut mesh, &cuts);
+        }
+    }
+}
+
+/// Drops the triangles of `mesh` with a corner (x, z) inside any of `cuts` (centre, radius m).
+fn cut_circles(mesh: &mut Mesh, cuts: &[(Vec2, f32)]) {
+    let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
+        return;
+    };
+    let xz: Vec<Vec2> = pos.iter().map(|p| Vec2::new(p[0], p[2])).collect();
+    let Some(indices) = mesh.indices() else { return };
+    let all: Vec<u32> = indices.iter().map(|i| i as u32).collect();
+    let kept: Vec<u32> = all
+        .chunks_exact(3)
+        .filter(|t| {
+            // any corner inside: a kerb's or a park's tall side half in the hole stood over it as a wall
+            !t.iter()
+                .any(|&i| cuts.iter().any(|(c, r)| xz[i as usize].distance_squared(*c) < r * r))
+        })
+        .flatten()
+        .copied()
+        .collect();
+    if kept.len() != all.len() {
+        mesh.insert_indices(bevy::mesh::Indices::U32(kept));
+    }
+}
+
+#[cfg(test)]
+mod crater_cut_tests {
+    use super::*;
+
+    #[test]
+    fn a_crater_cuts_the_laid_ground_inside_it_and_leaves_the_rest() {
+        let mut b = MeshBuilder::default();
+        // two quads on the ground, one inside the crater and one far out
+        b.cuboid(Vec3::new(-5.0, -1.0, -5.0), Vec3::new(5.0, 0.0, 5.0), [1.0; 4]);
+        b.cuboid(Vec3::new(995.0, -1.0, -5.0), Vec3::new(1005.0, 0.0, 5.0), [1.0; 4]);
+        let mut mesh = b.build();
+        let before = mesh.indices().map_or(0, |i| i.len());
+        cut_circles(&mut mesh, &[(Vec2::ZERO, 400.0 * CRATER_CUT)]);
+        let after = mesh.indices().map_or(0, |i| i.len());
+        assert_eq!(after * 2, before, "the box inside is gone, the one 1 km out stays");
     }
 }
