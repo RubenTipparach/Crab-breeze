@@ -223,6 +223,24 @@ const HEAT_PACE: f32 = 0.72;
 /// The column streams up into the ball, this share of its height a second.
 const STEM_FLOW_PER_S: f32 = 0.06;
 
+/// The condensation ring (owner, 2026-10-30: "The condensation ring is cool", of Hardtack I Nutmeg): the shock front
+/// condenses the air's moisture into a flat band of white mist that races out over the ground, `CONDENSE` puffs
+/// `CONDENSE_PUFF_M` across in a band `CONDENSE_BAND` of its radius deep and `CONDENSE_HIGH_M` high...
+const CONDENSE: u32 = 90;
+const CONDENSE_PUFF_M: f32 = 260.0;
+const CONDENSE_BAND: f32 = 0.35;
+const CONDENSE_HIGH_M: f32 = 110.0;
+/// ...its front slowing as it spreads to `CONDENSE_REACH_M` (most of the way in its first `CONDENSE_SLOW_S`)...
+const CONDENSE_REACH_M: f32 = 1800.0;
+const CONDENSE_SLOW_S: f32 = 1.6;
+/// ...condensing over `CONDENSE_IN_S`, holding to `CONDENSE_HOLD_S`, gone `CONDENSE_GONE_S` after.
+const CONDENSE_IN_S: f32 = 0.4;
+const CONDENSE_HOLD_S: f32 = 2.5;
+const CONDENSE_GONE_S: f32 = 4.0;
+const CONDENSE_ALPHA: f32 = 0.7;
+/// Mist lit white by the sun and the fireball: brighter than the smoke sheet's own shading draws it.
+const CONDENSE_BRIGHT: f32 = 1.5;
+
 /// The fire's tint over the fireball sheet (which carries its own white cores and red folds): white-hot, then orange,
 /// then a dull red, pushed into HDR while it burns so it blooms. Linear RGB.
 fn fire_tint(h: f32) -> Vec3 {
@@ -285,7 +303,7 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
     // the hanging smoke: 0 at the explosion's end, 1 at the cloud's
     let hang = ((t_s - n.cloud_s) / n.smoke_linger_s.max(0.1)).clamp(0.0, 1.0);
     let grow = 1.0 + (n.smoke_grow - 1.0) * (1.0 - (1.0 - hang) * (1.0 - hang));
-    let mut out = Vec::with_capacity((BALL + RING + COLUMN + SKIRT) as usize);
+    let mut out = Vec::with_capacity((BALL + RING + COLUMN + SKIRT + CONDENSE) as usize);
     let mut put = |i: u32, pos: Vec3, normal: Vec3, size: f32, heat_offset: f32, dust: bool, fade: f32| {
         let normal = normal.normalize_or(Vec3::Y);
         let under = (-normal.y).clamp(0.0, 1.0);
@@ -377,6 +395,25 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
             1.0,
         );
     }
+    // the condensation ring: the shock front's mist racing out over the ground, slowing, evaporating behind it
+    let front = CONDENSE_REACH_M * (1.0 - (-t_s / CONDENSE_SLOW_S).exp());
+    let mist = (t_s / CONDENSE_IN_S).min(1.0) * (1.0 - ((t_s - CONDENSE_HOLD_S) / CONDENSE_GONE_S).clamp(0.0, 1.0));
+    for j in 0..CONDENSE {
+        let i = j * 29 + 7;
+        let a = rand(i) * tau;
+        // a band behind the front, thin and flat
+        let reach = front * (1.0 - CONDENSE_BAND * rand(i + 1));
+        let pos = at + Vec3::new(a.cos(), 0.0, a.sin()) * reach + Vec3::Y * (CONDENSE_HIGH_M * rand(i + 2) * front / CONDENSE_REACH_M);
+        let lit = 0.85 + 0.15 * rand(i + 4);
+        out.push(Placed {
+            at: pos,
+            size_m: CONDENSE_PUFF_M * (0.25 + 0.75 * (front / CONDENSE_REACH_M)) * (0.8 + 0.4 * rand(i + 6)),
+            colour: (Vec3::new(0.92, 0.93, 0.95) * CONDENSE_BRIGHT * lit).extend(CONDENSE_ALPHA * mist),
+            look: Look::Burning(0.0),
+            cell: (rand(i + 5) * 16.0).floor().min(15.0),
+            spin_rad: rand(i + 3) * tau,
+        });
+    }
     out
 }
 
@@ -459,7 +496,7 @@ mod tests {
         let first = cloud(&n, Vec3::ZERO, 0.0, Vec3::Y);
         assert_eq!(
             first.len() as u32,
-            BALL + RING + COLUMN + SKIRT,
+            BALL + RING + COLUMN + SKIRT + CONDENSE,
             "every puff there from the first frame"
         );
         let hot = first.iter().filter(|p| p.colour.x > 1.0).count();
@@ -494,9 +531,9 @@ mod tests {
         let size = |ps: &[crate::soft_sprites::Placed]| ps.iter().map(|p| p.size_m).sum::<f32>();
         let done = cloud(&n, Vec3::ZERO, n.cloud_s, Vec3::Y);
         let hanging = cloud(&n, Vec3::ZERO, n.cloud_s + 40.0, Vec3::Y);
-        // all but the column's puffs fading out into the ball and back in at its foot
+        // all but the column's puffs fading out into the ball and back in at its foot, and the condensation ring, long gone
         assert!(
-            shown(&hanging) + COLUMN as usize / 4 >= hanging.len(),
+            shown(&hanging) + COLUMN as usize / 4 + CONDENSE as usize >= hanging.len(),
             "still there 40 s on: {}",
             shown(&hanging)
         );
@@ -530,6 +567,23 @@ mod tests {
             middle > outside + 1.0,
             "the middle rises {middle} m, the outside {outside} m in 0.1 s"
         );
+    }
+
+    #[test]
+    fn a_condensation_ring_races_out_over_the_ground_then_evaporates() {
+        let n = spec();
+        let ring = |t: f32| cloud(&n, Vec3::ZERO, t, Vec3::Y).split_off((BALL + RING + COLUMN + SKIRT) as usize);
+        let reach = |ps: &[crate::soft_sprites::Placed]| ps.iter().map(|p| p.at.xz().length()).fold(0.0f32, f32::max);
+        let (early, later) = (ring(0.5), ring(2.0));
+        assert!(
+            reach(&early) > 300.0 && reach(&later) > reach(&early) * 1.5,
+            "{} then {}",
+            reach(&early),
+            reach(&later)
+        );
+        assert!(later.iter().all(|p| p.at.y < 100.0), "flat on the ground");
+        assert!(later.iter().all(|p| p.colour.w > 0.3), "thick at 2 s");
+        assert!(ring(8.0).iter().all(|p| p.colour.w < 0.01), "gone by 8 s");
     }
 
     #[test]
