@@ -11,9 +11,10 @@
     // A lift thruster carries a quarter of the weight at most, a hull thruster a sixth (sections 2, 2b).
     lift_max_share: 0.25,
     hull_max_share: 0.1666667,
-    // Lit, a side's hull thrusters hold its half until two of its three are gone (owner, 2026-10-30: "in order for the
-    // crab to fall, 2 out of three internal thrusters must be taken out").
-    hull_kills_to_fall: 2,
+    // With every lift thruster gone, the hull thrusters hold it until half of the six are gone, on either side; then
+    // it has no thrust (owner, 2026-10-31: "all crab legs have to be destroyed, then half the internal thrusters would
+    // have to be destroyed").
+    hull_kills_to_fall: 3,
     // It weaves 120 m in and out of its circle, three times a turn (owner, 2026-10-30: "have crab carrier move around a
     // bit too so it's not so easy to shoot down").
     weave_m: 120.0,

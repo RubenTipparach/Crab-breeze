@@ -190,7 +190,8 @@ fn run(
                 stand_looking(&mut pilot, feet, mid);
             }
             if t < 2.0 {
-                for id in ["L1", "L2", "L3"] {
+                // every leg (design section 12): the hull opens on the last
+                for id in ["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4"] {
                     shell_from_below(&run, &data, &globals, id, &mut hits);
                 }
             }
@@ -202,10 +203,10 @@ fn run(
             }
             next = t > 10.0;
         }
-        // Two port hull thrusters broken from under them: it falls, lists and crashes.
+        // Half the hull thrusters broken from under them: its thrust gone, it falls level and crashes.
         6 => {
             if t < 2.0 {
-                for id in ["HL1", "HL2"] {
+                for id in ["HL1", "HL2", "HL3"] {
                     shell_from_below(&run, &data, &globals, id, &mut hits);
                 }
             }

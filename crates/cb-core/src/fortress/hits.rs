@@ -163,7 +163,7 @@ mod tests {
             f.hit(&d, i, Vec3::ZERO, Vec3::Y, CANNON.0, CANNON.1),
             HitOutcome::NoPen { .. }
         ));
-        kill(&d, &mut f, &["L1", "L2", "L3"]);
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4"]);
         run(&d, &mut f, 10.0);
         let below = f.hit(&d, i, Vec3::new(0.0, -30.0, 0.0), Vec3::Y, CANNON.0, CANNON.1);
         assert_eq!(below, HitOutcome::Hurt { damage: 180.0, weak: true });

@@ -1924,19 +1924,26 @@ fn play(
                 };
                 let up = (aim.y - eye.y).atan2(flat);
                 if hull {
-                    // Missiles: keep closing on the stand-off point (they need no still gun), the view on the port.
+                    // Missiles: keep closing on the stand-off point (they need no still gun), the view on the port. On
+                    // the jets the whole way (owner, 2026-10-31: "the mech isnt flying often enough"): a long leg out
+                    // to it, then a low hover under the port that keeps pace with the weaving fortress, where skating
+                    // hung 250-290 m off it for minutes (fortress-nuke, 2026-10-31).
                     let goal = under + (here - under).normalize_or(Vec2::X) * want;
                     let ground_y = s.plan.terrain.height_at(m.pos.x, m.pos.z);
-                    act = if m.pos.y - ground_y > 30.0 {
-                        // Still up from the hover: come down toward the point, the jets braking the fall.
-                        hover(&mut t, m, p, goal, ground_y, now)
-                    } else if goal.distance(here) > 80.0 {
-                        travel(&mut t, m, p, eye, goal, now, s.real.delta_secs())
+                    act = if goal.distance(here) > cb_core::playtest::BRING_DOWN_JET_LEG_M {
+                        jet_leg(
+                            &mut t,
+                            m,
+                            p,
+                            eye,
+                            goal,
+                            cb_core::playtest::BRING_DOWN_JET_HEIGHT_M,
+                            &s.plan,
+                            now,
+                            s.real.delta_secs(),
+                        )
                     } else {
-                        Actions {
-                            throttle_zero: true,
-                            ..Default::default()
-                        }
+                        hover(&mut t, m, p, goal, ground_y + cb_core::playtest::BRING_DOWN_PORT_HOVER_M, now)
                     };
                     act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
                     // The goal rides with the fortress: no stuck check on it (the beat's cap ends a fight that drags).
@@ -1982,15 +1989,25 @@ fn play(
                         act.fire_missile = in_beat.rem_euclid(1.5) < 0.3;
                     }
                 } else {
-                    // Up close (owner, 2026-10-30, choice B): skate to within 600 m, then up on tapped jets to hover
+                    // Up close (owner, 2026-10-30, choice B): fly a jet leg to within `BRING_DOWN_JET_LEG_M` (owner,
+                    // 2026-10-31: "it flew once, then skated around and wasted time"), then up on tapped jets to hover
                     // `BRING_DOWN_HOVER_STANDOFF_M` off the nozzle, a little under it, facing it, and hold the gun on it.
                     // Outboard of the thruster, so the line up to its nozzle clears the hull and its legs.
                     let out = (under - Vec2::new(f.f.pos.x, f.f.pos.z)).normalize_or(Vec2::X);
                     let goal = under + out * want;
                     let hover_y = cb_core::playtest::bring_down_hover_y(aim.y, want, spec.body.eye_height_m);
-                    let airborne = m.pos.y - s.plan.terrain.height_at(m.pos.x, m.pos.z) > 30.0;
-                    if flat > 600.0 && !airborne {
-                        act = travel(&mut t, m, p, eye, goal, now, s.real.delta_secs());
+                    if goal.distance(here) > cb_core::playtest::BRING_DOWN_JET_LEG_M {
+                        act = jet_leg(
+                            &mut t,
+                            m,
+                            p,
+                            eye,
+                            goal,
+                            cb_core::playtest::BRING_DOWN_JET_HEIGHT_M,
+                            &s.plan,
+                            now,
+                            s.real.delta_secs(),
+                        );
                     } else {
                         act = hover(&mut t, m, p, goal, hover_y, now);
                         act.turn_axis = crate::showcase::steer(m, under);
@@ -2096,9 +2113,17 @@ fn play(
                     &s.live,
                     s.real.delta_secs(),
                 );
-                // Missiles at whatever is locked, now and then, as a player would.
-                act.fire_missile = in_beat.rem_euclid(4.0) < 0.3;
-                act.target_next = in_beat.rem_euclid(4.0) < 0.02;
+                // Missiles at the nearest, as a player would: cycle the target until it is the one selected, fire at a
+                // full lock. They reach what the guns cannot, an aircraft over the torso's aim (owner, 2026-10-31: "the
+                // mech isnt shooting any other mech or flying vehicle down").
+                if x.targeting.selected != Some(nearest.id) {
+                    if now - t.toggled_s > 0.5 {
+                        t.toggled_s = now;
+                        act.target_next = true;
+                    }
+                } else if x.targeting.locked(&s.data.0.targeting) == Some(nearest.id) {
+                    act.fire_missile = in_beat.rem_euclid(1.5) < 0.3;
+                }
                 if now - t.next_s > 3.0 {
                     t.next_s = now;
                     info!(

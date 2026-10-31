@@ -23,6 +23,7 @@
 - [x] 4.5 Playtest `fortress-down` in the game: the fortress crashes (`docs/playtests/2026-10-30-fortress-down.md`: won in 173 s and, recorded, 162 s)
 - [x] 4.6 Two of a side's three hull thrusters must go (`hull_kills_to_fall`, test `it_falls_only_once_two_of_a_sides_three_hull_thrusters_are_gone`); it weaves (`weave_m`, test `it_weaves_in_and_out_on_its_circle`); the pilot clears every hostile after and watches the crash (`ClearHostiles`)
 - [x] 4.7 Its crash goes nuclear (section 11): `Deformation::dig_crater` (test `the_crash_crater_digs_through_a_city`), the flattening, `nuke_flash`, `mushroom_cloud`
+- [ ] 4.9 Every leg, then half the hull, all or nothing (section 12): the lift rule, `next_to_bring_down`, the pilot flying on its jets to each target, `ClearHostiles` against aircraft; `fortress-nuke` recorded
 - [ ] 4.8 Playtest and record: the fortress down, every hostile taken out, the mushroom cloud and the crater on camera, a minute more
 - [ ] 4.1 Playtest beats: climb to the deck, land, fight the guard, walk a pylon, kill three thrusters on one side, jump clear, watch it fall; measure with `--bench defence`
 - [x] 2.9 Headless stills in a cloud session (`CB_STILLS_FORTRESS=1`, `capture_fortress`): whole, under a thruster, on the deck, the hull opening, falling, crashed; `cb-tools validate` checks the model's nodes against the data

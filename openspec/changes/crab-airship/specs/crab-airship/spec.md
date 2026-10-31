@@ -1,19 +1,21 @@
 ## ADDED Requirements
 
 ### Requirement: The fortress stays up on its lift thrusters
-A crab air fortress SHALL hang on eight lift thrusters, four a side; each side SHALL carry half its weight and a thruster SHALL carry at most a quarter. When a side's outer thrusters cannot carry its half, the fortress SHALL open six hull thrusters, three a side, each carrying at most a sixth, and it SHALL fall only when a side cannot carry its half with both.
+A crab air fortress SHALL hang on eight lift thrusters, its legs, and SHALL hold its height while any one of them is
+working. When the last one is destroyed it SHALL open its six hull thrusters and hold on them, and it SHALL lose all its
+thrust and fall once `hull_kills_to_fall` (3) of them are destroyed. It SHALL never sink or list part way.
 
-#### Scenario: Two lost on each side
-- **WHEN** two lift thrusters are destroyed on each side
-- **THEN** the fortress holds its height and every live thruster runs at full throttle
+#### Scenario: One leg left
+- **WHEN** seven of its eight lift thrusters are destroyed
+- **THEN** it holds its height and its last lift thruster runs past full throttle
 
-#### Scenario: Three lost on one side
-- **WHEN** three lift thrusters on the same side are destroyed
-- **THEN** the fortress sinks while it opens its hull thrusters, then holds its height again
+#### Scenario: Every leg gone
+- **WHEN** the last lift thruster is destroyed
+- **THEN** its hull doors open, its hull thrusters light, and it holds its height throughout
 
-#### Scenario: Two hull thrusters lost on that side
-- **WHEN** two of that side's hull thrusters are then destroyed
-- **THEN** the fortress stops launching and dropping, lists toward that side and sinks at no more than its terminal speed
+#### Scenario: Half the hull thrusters gone
+- **WHEN** three of its six hull thrusters are then destroyed, on either side
+- **THEN** it stops launching and dropping, and falls level under gravity and drag alone until it hits
 
 ### Requirement: The cockpit shows the fortress's lift from the lift rule
 The cockpit's fortress readout SHALL show each side's lift and each thruster's throttle as computed by the lift rule the fortress flies by.
@@ -114,28 +116,19 @@ altitude over that city's ground, and SHALL fly out from there onto its circle r
 A hull thruster SHALL be boxed and lockable while it is lit, so a locked missile can climb into its port.
 
 #### Scenario: Doors open
-- **WHEN** three lift thrusters on one side are destroyed and the hull thrusters light
+- **WHEN** the last lift thruster is destroyed and the hull thrusters light
 - **THEN** every live hull thruster shows a box and can be selected and locked
 
 ### Requirement: A scripted pilot brings the fortress down
 
 The playtest beat `BringDownFortress` SHALL fight the fortress as a player can, through the same input actions,
-until it crashes: the lift thrusters of its weaker side by their nozzles, then that side's hull thrusters with
-locked missiles.
+until it crashes: every lift thruster, then three hull thrusters with locked missiles. It SHALL fly on its jets to any
+target more than 300 m off. After the crash, `ClearHostiles` SHALL shoot down the mechs, vehicles and aircraft left.
 
-#### Scenario: The fortress-down playtest
-- **WHEN** `--playtest fortress-down` runs in the Foreman
+#### Scenario: The fortress-nuke playtest
+- **WHEN** `--playtest fortress-nuke` runs in the Foreman
 - **THEN** the fortress crashes and the run reports the win
-- **AND** the pilot then takes out every hostile left, and the run reports none remain
-
-### Requirement: Two of a side's three hull thrusters must go
-
-Once its hull thrusters are lit, the fortress SHALL NOT fall until a side has lost at least two of its three hull
-thrusters, however many of its lift thrusters are gone.
-
-#### Scenario: One hull thruster down
-- **WHEN** all four lift thrusters on a side and one of its hull thrusters are destroyed
-- **THEN** it holds, and losing a second hull thruster on that side brings it down
+- **AND** the pilot watches the mushroom cloud, then takes out the hostiles left
 
 ### Requirement: The fortress weaves on its circle
 

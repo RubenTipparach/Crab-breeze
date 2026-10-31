@@ -361,6 +361,38 @@ city center".
 - **Cost**: about 350 bursts over 70 s, each 4-10 particles at most (sprites 35-50 m across), within the particle cap;
   one crater remesh of about 64 ground tiles at once (a hitch, measured on the next run, not guessed).
 
+## 12. Every leg, then half the hull; all or nothing (owner, 2026-10-31)
+
+The owner, after the recorded take: "all crab legs have to be destroyed, then half the internal thrusters would have
+to be destroyed", "the crab carrier either looses thrust completely or it doesnt, so that might make the fall more fun
+to watch. Even with one leg, it'll stay afloat", "the mech isnt flying often enough, it flew once, then skated around
+and wasted time", "lets have it shoot down the stragglers after downing the crab carrier".
+
+This replaces the fall rule of sections 2 and 2b and the "two of three hull thrusters" of section 10.
+
+- **Its legs hold it.** While any of its eight lift thrusters is working, it holds its height. There are no sides, no
+  sinking and no list. The live ones share the weight: each runs at `W / (n * T_max)`, so 25 % with eight, 100 % with
+  two and, past its rating, with one. The readout's port and starboard lift both read `W / 2` while it holds.
+- **The hull opens when the last leg goes.** With every lift thruster down, the doors open and the hull thrusters
+  light (`doors_open_s`, `hull_light_s`). It holds through the opening: the ducts take the weight as they open.
+- **It falls when half its hull thrusters are gone.** It falls once `hull_kills_to_fall` (3) of its six hull
+  thrusters are destroyed, on either side. Then its thrust is gone at once, and it falls under gravity and drag
+  alone (`a = -g - k v |v|`, terminal speed `sqrt(g / k)`, 35 m/s), level, until it hits. There is no partial
+  lift and no list.
+- **The scripted pilot's order** (`Fortress::next_to_bring_down`): every lift thruster, port side first, then
+  three hull thrusters in the shape's order. Eight lift kills and three hull kills bring it down.
+- **It flies.** The pilot reaches the carrier, and each next target, on its jets when it is more than 300 m off
+  (`jet_leg`, the jets rested and relit by heat as on a long leg). It hovers on tapped jets at every lift
+  thruster, not only the first, and skates only to cover the last 300 m or to close under a hull port.
+- **It clears the stragglers.** After the crash, `fortress-nuke` watches the cloud for 25 s and then runs
+  `ClearHostiles`. That beat now aims at aircraft as well as mechs and vehicles: it leads a flying target with
+  `weapons::lead`, lifts the view to it, and hovers on tapped jets when the target is more than 15 deg above the
+  torso's aim limit.
+
+Tests: `while_any_leg_works_it_holds_its_height`, `the_hull_lights_only_when_every_leg_is_gone`,
+`it_falls_only_when_half_its_hull_thrusters_are_gone`, `with_no_thrust_it_falls_level_at_its_terminal_speed`,
+`shooting_what_next_to_bring_down_names_brings_it_down_in_eleven_kills`, `the_lift_readout_is_the_rule`.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |

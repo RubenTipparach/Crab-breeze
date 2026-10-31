@@ -132,6 +132,14 @@ pub enum Beat {
     WalkToMech(f32),
 }
 
+/// The pilot flies a jet leg to any fortress target its stand-off point is more than this far from, metres (design
+/// section 12: "the mech isnt flying often enough")...
+pub const BRING_DOWN_JET_LEG_M: f32 = 300.0;
+/// ...at this height over the ground, metres...
+pub const BRING_DOWN_JET_HEIGHT_M: f32 = 150.0;
+/// ...and hovers this high over the ground under a hull port while its missiles climb in.
+pub const BRING_DOWN_PORT_HOVER_M: f32 = 60.0;
+
 /// How far off a lit hull thruster the scripted pilot stands to fire missiles up into its port, metres along the
 /// ground: nearly under it, so a missile (launched at most 25 deg up, turning 70 deg/s) climbs into the port within
 /// 30 deg of vertical, the only way through (a thruster 530 m up is 13 deg off vertical from here). From 500 m out

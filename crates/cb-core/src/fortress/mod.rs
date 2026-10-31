@@ -299,8 +299,9 @@ pub struct FortressConfig {
     pub lift_max_share: f32,
     /// A hull thruster carries at most this share of W.
     pub hull_max_share: f32,
-    /// Lit, a side's hull thrusters hold its half (running past their rating) until it has lost this many of them
-    /// (owner, 2026-10-30: "in order for the crab to fall, 2 out of three internal thrusters must be taken out").
+    /// With every lift thruster lost, its hull thrusters hold it until this many of them are lost, on either side;
+    /// then it has no thrust at all (owner, 2026-10-31: "all crab legs have to be destroyed, then half the internal
+    /// thrusters would have to be destroyed").
     #[serde(default = "two_kills")]
     pub hull_kills_to_fall: u32,
     /// On its circle it weaves in and out by this much (owner, 2026-10-30: "have crab carrier move around a bit too so
@@ -764,26 +765,20 @@ impl Fortress {
         lift(d, &self.parts, self.hull_lit(&d.cfg))
     }
 
-    /// The part a pilot shoots next to bring it down (section 10): the side with fewer live lift thrusters (port on a
-    /// tie), its lift thrusters in the shape's order until the hull thrusters light (three down), then that side's
-    /// hull thrusters (`hull_kills_to_fall` of them). `None` once it is falling or down.
+    /// The part a pilot shoots next to bring it down (section 12): every lift thruster, port's first, each side in the
+    /// shape's order; then its hull thrusters in the shape's order until it falls. `None` once it is falling or down.
     pub fn next_to_bring_down(&self, d: &FortressData) -> Option<usize> {
         if self.falling || self.crashed {
             return None;
         }
-        let live = |kind: &str, side: i8| {
-            (0..d.shape.parts.len())
-                .filter(move |&i| d.shape.parts[i].kind == kind && d.shape.parts[i].side == side && self.parts[i].alive)
-                .collect::<Vec<_>>()
+        let live = |kind: &'static str, side: i8| {
+            (0..d.shape.parts.len()).filter(move |&i| d.shape.parts[i].kind == kind && d.shape.parts[i].side == side && self.parts[i].alive)
         };
-        let (port, stbd) = (live("lift", 1), live("lift", -1));
-        let side = if stbd.len() < port.len() { -1 } else { 1 };
-        let lifts = if side == 1 { port } else { stbd };
-        let hull = live("hull", side);
-        if self.hull_lit(&d.cfg) && !hull.is_empty() {
-            return hull.first().copied();
-        }
-        lifts.first().copied().or_else(|| hull.first().copied())
+        live("lift", 1)
+            .chain(live("lift", -1))
+            .chain(live("hull", 1))
+            .chain(live("hull", -1))
+            .next()
     }
 
     /// The bridge stands (losing it doubles every aim error).
@@ -804,9 +799,9 @@ impl Fortress {
         if self.crashed || dt_s.is_nan() || dt_s <= 0.0 {
             return events;
         }
-        // The doors open when a side's outer thrusters can no longer carry its half.
+        // The doors open when the last lift thruster is lost (section 12).
         let outer = lift(d, &self.parts, false);
-        if self.doors_s.is_none() && !outer.holds {
+        if self.doors_s.is_none() && outer.outer == [0, 0] {
             self.doors_s = Some(0.0);
             events.push(Event::DoorsOpening);
         }
@@ -818,7 +813,7 @@ impl Fortress {
             }
         }
         let l = self.lift(d);
-        // Falling: short of its weight even with every hull thruster it has.
+        // Falling: half its hull thrusters lost with no leg left, and with them all its thrust.
         let could = lift(d, &self.parts, true);
         if !could.holds && !self.falling {
             self.falling = true;
@@ -1009,17 +1004,18 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn it_falls_only_once_two_of_a_sides_three_hull_thrusters_are_gone() {
+    fn the_hull_lights_only_when_every_leg_is_gone() {
         let (d, mut f) = fortress();
-        // every outer thruster on the side gone: one hull thruster lost, it still holds
-        kill(&d, &mut f, &["L1", "L2", "L3", "L4"]);
-        run(&d, &mut f, 10.0);
-        kill(&d, &mut f, &["HL1"]);
-        run(&d, &mut f, 5.0);
-        assert!(!f.falling, "one hull thruster down: it holds");
-        kill(&d, &mut f, &["HL2"]);
-        run(&d, &mut f, 1.0);
-        assert!(f.falling, "two of three down: it falls");
+        let y = f.pos.y;
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "R1", "R2", "R3"]);
+        let e = run(&d, &mut f, 10.0);
+        assert!(e.is_empty(), "one leg left: nothing opens, nothing sinks: {e:?}");
+        assert!((f.pos.y - y).abs() < 1e-3);
+        kill(&d, &mut f, &["R4"]);
+        let e = run(&d, &mut f, 10.0);
+        assert!(e.contains(&Event::DoorsOpening) && e.contains(&Event::HullLit), "{e:?}");
+        assert!(!f.falling);
+        assert!((f.pos.y - y).abs() < 1e-3, "it holds its height while the doors open: {}", f.pos.y);
     }
 
     #[test]
@@ -1042,11 +1038,11 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn shooting_what_next_to_bring_down_names_brings_it_down_in_five_kills() {
+    fn shooting_what_next_to_bring_down_names_brings_it_down_in_eleven_kills() {
         let (d, mut f) = fortress();
         let mut killed = Vec::new();
         while let Some(i) = f.next_to_bring_down(&d) {
-            assert!(killed.len() < 8, "it should be falling by now: {killed:?}");
+            assert!(killed.len() < 14, "it should be falling by now: {killed:?}");
             f.parts[i].alive = false;
             f.parts[i].hp = 0.0;
             killed.push(d.shape.parts[i].id.clone());
@@ -1054,7 +1050,7 @@ pub(crate) mod tests {
             run(&d, &mut f, 6.0);
         }
         assert!(f.falling, "falling after {killed:?}");
-        assert_eq!(killed, ["L1", "L2", "L3", "HL1", "HL2"]);
+        assert_eq!(killed, ["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4", "HL1", "HL2", "HL3"]);
     }
 
     #[test]
@@ -1109,32 +1105,18 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn three_kills_on_one_side_open_the_hull_thrusters() {
+    fn half_its_hull_thrusters_lost_it_falls_level_and_crashes() {
         let (d, mut f) = fortress();
-        kill(&d, &mut f, &["L1", "L2", "L3"]);
-        let e = run(&d, &mut f, 1.0);
-        assert!(e.contains(&Event::DoorsOpening));
-        assert!(!f.falling, "the hull thrusters will hold it");
-        let e = run(&d, &mut f, 20.0);
-        assert!(e.contains(&Event::HullLit));
-        let y = f.pos.y;
-        assert!(y < d.cfg.altitude_m - 5.0, "it sank while the doors opened: {y}");
-        run(&d, &mut f, 20.0);
-        assert!((f.pos.y - y).abs() < 0.5, "and holds again: {} -> {}", y, f.pos.y);
-    }
-
-    #[test]
-    fn two_hull_thrusters_lost_on_that_side_bring_it_down() {
-        let (d, mut f) = fortress();
-        kill(&d, &mut f, &["L1", "L2", "L3"]);
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4"]);
         run(&d, &mut f, 10.0);
-        kill(&d, &mut f, &["HL1", "HL2"]);
+        kill(&d, &mut f, &["HL1", "HR1"]);
+        assert!(run(&d, &mut f, 5.0).is_empty(), "two of six: it holds");
+        kill(&d, &mut f, &["HR2"]);
         let e = run(&d, &mut f, 1.0);
         assert!(e.contains(&Event::Falling));
         let e = run(&d, &mut f, 120.0);
         assert!(e.contains(&Event::Crashed));
-        assert!(f.crashed);
-        assert!(f.list_rad > 0.1, "it lists toward its weak side, port: {}", f.list_rad);
+        assert!(f.list_rad.abs() < 1e-4, "no thrust on either side: it falls level, {}", f.list_rad);
     }
 
     #[test]
@@ -1149,16 +1131,17 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_sink_speed_never_passes_its_terminal_speed() {
+    fn with_no_thrust_it_falls_level_at_its_terminal_speed() {
         let (d, mut f) = fortress();
-        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "HL1", "HL2", "HL3"]);
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4"]);
+        kill(&d, &mut f, &["HL1", "HL2", "HL3"]);
         let mut fastest: f32 = 0.0;
         for _ in 0..(40.0 / DT) as usize {
             f.step(&d, &flat, DT);
             fastest = fastest.max(-f.v_m_s);
         }
-        // one side at none: L = 0.5 W, terminal sqrt(g / 2k)
-        let terminal = (G_M_S2 * 0.5 / d.cfg.sink_drag_per_m).sqrt();
+        // no lift at all: a = -g - k v |v|, terminal sqrt(g / k)
+        let terminal = (G_M_S2 / d.cfg.sink_drag_per_m).sqrt();
         assert!(fastest <= terminal + 1e-3, "{fastest} > {terminal}");
         assert!(fastest > terminal * 0.9, "{fastest}");
     }
@@ -1360,7 +1343,7 @@ pub(crate) mod tests {
         run(&d, &mut f, d.cfg.drive_stop_s + 1.0);
         assert_eq!(f.speed_m_s, 0.0);
         let hung = Vec2::new(f.pos.x, f.pos.z);
-        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "HL1", "HL2", "HL3"]);
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4", "HL1", "HL2", "HL3"]);
         let mut down = None;
         for _ in 0..(120.0 / DT) as usize {
             if f.step(&d, &flat, DT).contains(&Event::Crashed) {
@@ -1377,7 +1360,7 @@ pub(crate) mod tests {
         let (d, mut f) = fortress();
         assert_eq!(d.cfg.speed_m_s, 15.0);
         let from = f.angle_rad;
-        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "HL1", "HL2", "HL3"]);
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4", "HL1", "HL2", "HL3"]);
         let mut t = 0.0;
         while !f.crashed {
             f.step(&d, &flat, DT);
@@ -1386,7 +1369,7 @@ pub(crate) mod tests {
         let flown = (f.angle_rad - from) * d.cfg.circle_radius_m;
         eprintln!("with its drives it flew {flown:.0} m on in a {t:.1} s fall");
         assert!((flown - 15.0 * t).abs() < 1.0, "{flown:.0} m in {t:.1} s");
-        assert!(flown > 300.0, "the drift carries it {flown:.0} m on before it lands");
+        assert!(flown > 200.0, "the drift carries it {flown:.0} m on before it lands");
     }
 
     #[test]
@@ -1407,7 +1390,7 @@ pub(crate) mod tests {
         let mut s = Structures::new(plan);
         assert!(f.wreck_breaks(&d, plan, &s).is_empty(), "nothing breaks before it is down");
         let before = crate::mission::city_damage(plan, &s, city.id);
-        kill(&d, &mut f, &["R1", "R2", "R3", "R4", "HR1", "HR2", "HR3"]);
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4", "HR1", "HR2", "HR3"]);
         fall(&d, &mut f, plan);
         let breaks = f.wreck_breaks(&d, plan, &s);
         assert!(!breaks.is_empty(), "it came down on buildings");
