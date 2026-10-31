@@ -32,3 +32,30 @@
 - **The mech-lost alert:** `PLAYTEST_ALERT` only fired while the pilot was seated. The seat throws the pilot out on the frame the mech is destroyed, so take 3's loss went unreported. It is now checked whatever the pilot's mode.
 - **The cloud from the cockpit:** the cockpit's overhead screens hide the top of the rising cloud. The view holds a point at 45 % of the cap's height.
 - **The bot:** it can hang 250-290 m off a weaving carrier for minutes without closing to missile range, and the carrier's escorts can kill it while it watches.
+
+## The take under section 12's rules (every leg, then half the hull)
+
+- **Commit:** `1918638d` on `fortress-nuke`.
+- **Drive:** `dungeon-crawler-2026/crab-breeze-2026-10-31-stratostacean-legs-and-hull.mp4` (13 min 50 s, cut just
+  before the mech was lost).
+- **Sound:** -19.5 dB mean, 0 dB peak.
+- **Contact sheet:** `docs/screenshots/fortress-down/2026-10-31-legs-and-hull/sheet.png`.
+
+| Beat | Outcome |
+|---|---|
+| BringDownFortress(1500) | All eight legs, then three hull ports, on tapped jets the whole fight (420-470 m up at the legs, about 205 m up under the ports); down in 355 s |
+| LookAtNearest("nuke", 25) | The fireball and the cloud, from the cockpit |
+| ClearHostiles(480) | Seven of the ten taken out: all six crab mechs, then a fighter. A fighter destroyed the Foreman at 829 s with three fighters left. `PLAYTEST_ALERT` ended the take |
+
+The unrecorded run before it (try 8) won every beat: the carrier down in 360 s, then every hostile taken out in
+183 s.
+
+Tries 1-7 found:
+
+| Problem | Fix |
+|---|---|
+| Held jets, low flight | Tapped jets near the carrier |
+| The hover settling 60 m behind the moving carrier | Its goal led by 4 s |
+| Missiles launched 180 m under a port arriving too shallow | 400 m under, fired only within 15 deg of vertical |
+| Hull ports at 900 hp needing 15 of 40 missiles | 600 hp, open question H8, provisional |
+| The straggler hunt re-picking its target every frame | One target at a time, the ground first |
