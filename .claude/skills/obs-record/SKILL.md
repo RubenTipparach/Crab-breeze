@@ -31,6 +31,9 @@ not commands for this repository.
   nothing else should be playing sound during a take. Keep the display awake
   (`caffeinate -d -u`): a sleeping display renders the game black. Drive for Desktop is under
   `~/Library/CloudStorage/GoogleDrive-*/My Drive/`.
+- **Sound:** launch every take with `CB_TAKE_SOUND=1`. It plays the game's music and effects at full volume in
+  memory, whatever the owner's `settings.ron` holds. Their saved volumes were 0, and every take recorded silence
+  (2026-10-31). Check a take's track with ffmpeg's `volumedetect`: -91 dB is silence.
 - A cloud session cannot run OBS: it has no display or GPU. Recording is done by a session on
   the owner's machine (CLAUDE.md section 9).
 
