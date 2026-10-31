@@ -650,7 +650,8 @@ fn play(
     // Its mech destroyed: say so at once and end the run as failed, so the take stops rather than filming the
     // ejected pilot staring at the ground for the rest of the beat (owner, 2026-10-31: "Did you blow up again? Might
     // wanna make the bot notify you").
-    if s.access.0.as_ref().is_some_and(|a| a.destroyed) && p.mode == PilotMode::Seated {
+    // Not only while seated: the seat throws the pilot out on the frame the mech is destroyed.
+    if s.access.0.as_ref().is_some_and(|a| a.destroyed) {
         say(&format!(
             "PLAYTEST_ALERT mech destroyed in beat {} {beat:?}, {:.0} s in",
             t.beat,
