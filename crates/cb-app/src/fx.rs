@@ -446,7 +446,29 @@ fn setup(
     let dust = lib.sheet_image("dust_wisps").unwrap_or_else(|| disc.clone());
     // The fireball sheet; until it is rendered, the smoke's (the same shapes).
     let fire = lib.sheet_image("fireball_puffs").unwrap_or_else(|| smoke.clone());
-    crate::soft_sprites::make_draw(&mut commands, &mut meshes, &mut soft_materials, smoke, dust, fire, data.0.fx.soft_m);
+    // The lit smoke sheet and its normals; until they are rendered, the smoke's with flat normals.
+    let lit_normal = crate::pbr_set::load_tiling(&root, "textures/fx/smoke_lit/normal.png", false)
+        .map(|img| images.add(img))
+        .unwrap_or_else(|| {
+            images.add(Image::new_fill(
+                bevy::render::render_resource::Extent3d::default(),
+                bevy::render::render_resource::TextureDimension::D2,
+                &[128, 128, 255, 255],
+                bevy::render::render_resource::TextureFormat::Rgba8Unorm,
+                bevy::asset::RenderAssetUsages::RENDER_WORLD,
+            ))
+        });
+    let lit = (lib.sheet_image("smoke_lit").unwrap_or_else(|| smoke.clone()), lit_normal);
+    crate::soft_sprites::make_draw(
+        &mut commands,
+        &mut meshes,
+        &mut soft_materials,
+        smoke,
+        dust,
+        fire,
+        lit,
+        data.0.fx.soft_m,
+    );
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         sphere: meshes.add(Sphere::new(1.0).mesh().uv(32, 16)),

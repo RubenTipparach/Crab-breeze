@@ -316,7 +316,8 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
             let dust = Vec3::new(0.30, 0.25, 0.20).lerp(Vec3::new(0.62, 0.52, 0.42), lit.clamp(0.0, 1.0));
             (Look::Dust, dust.lerp(heat_colour(h, lit), fire * 0.5), DUST_ALPHA)
         } else {
-            let colour = heat_colour(h.max(BURN_TO_SMOKE.1), lit).lerp(fire_tint(h), fire);
+            // the smoke at its own colour: the shader lights it from the sheet's normals (`smoke_lit`)
+            let colour = heat_colour(h.max(BURN_TO_SMOKE.1), 1.0).lerp(fire_tint(h), fire);
             (Look::Burning(fire), colour, SMOKE_ALPHA + (FIRE_ALPHA - SMOKE_ALPHA) * fire)
         };
         out.push(Placed {

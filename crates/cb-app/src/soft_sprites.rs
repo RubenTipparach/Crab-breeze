@@ -95,7 +95,8 @@ pub struct SoftSprites {
 pub enum Look {
     /// The dust wisps.
     Dust,
-    /// The fireball puffs cross-faded into the smoke puffs, the same shapes cell for cell: 1 all fire, 0 all smoke.
+    /// The fireball puffs cross-faded into the lit smoke puffs (`smoke_lit`, lit by the sun from their normals), the
+    /// same shapes cell for cell: 1 all fire, 0 all smoke.
     Burning(f32),
 }
 
@@ -210,9 +211,16 @@ struct SoftLook {
     /// far away fog should Apply").
     fog: Vec4,
     haze: Vec4,
+    /// The sun for the lit smoke sheet (`smoke_lit`): xyz toward it, w how much of it there is (0 below the horizon).
+    sun: Vec4,
+    /// Its colour (rgb, brightest channel 1) and, in w, the share of the light the sky gives a puff's shaded side.
+    sun_colour: Vec4,
 }
 
-/// The one soft sprite material: the smoke, dust and fireball sheets.
+/// The light a lit smoke puff's shaded side still gets from the sky, a share of its sunlit side's.
+const SKY_SHARE: f32 = 0.38;
+
+/// The one soft sprite material: the smoke, dust and fireball sheets, and the lit smoke sheet and its normals.
 #[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
 pub struct SoftMaterial {
     #[uniform(0)]
@@ -226,6 +234,12 @@ pub struct SoftMaterial {
     #[texture(5)]
     #[sampler(6)]
     fire: Handle<Image>,
+    #[texture(7)]
+    #[sampler(8)]
+    lit: Handle<Image>,
+    #[texture(9)]
+    #[sampler(10)]
+    lit_normal: Handle<Image>,
 }
 
 impl Material for SoftMaterial {
@@ -301,7 +315,7 @@ impl Plugin for SoftSpritesPlugin {
         app.add_plugins(MaterialPlugin::<SoftMaterial>::default())
             .init_resource::<SoftSprites>()
             .add_game_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose))
-            .add_game_systems(Update, refresh_air);
+            .add_game_systems(Update, (refresh_air, refresh_sun));
     }
 }
 
@@ -320,17 +334,22 @@ pub fn make_draw(
     smoke: Handle<Image>,
     dust: Handle<Image>,
     fire: Handle<Image>,
+    lit: (Handle<Image>, Handle<Image>),
     soft_m: f32,
 ) {
     let mesh = meshes.add(sprite_mesh(&[]));
     let material = materials.add(SoftMaterial {
         look: SoftLook {
             fade: Vec4::new(soft_m.max(0.01), NEAR_FADE_M, 0.0, 0.0),
+            sun: Vec3::Y.extend(1.0),
+            sun_colour: Vec3::ONE.extend(SKY_SHARE),
             ..default()
         },
         smoke,
         dust,
         fire,
+        lit: lit.0,
+        lit_normal: lit.1,
     });
     commands.spawn((
         Name::new("soft sprites"),
@@ -423,6 +442,32 @@ fn refresh_air(
     if stale && let Some(mut m) = materials.get_mut(&draw.material) {
         m.look.fog = fog;
         m.look.haze = haze;
+    }
+}
+
+/// The sun the lit smoke sheet is lit by (`world::Sun`, as `day_night` sets it), written when it moves.
+fn refresh_sun(
+    sun: Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody), With<crate::world::Sun>>,
+    draw: Option<Res<SoftDraw>>,
+    mut materials: ResMut<Assets<SoftMaterial>>,
+) {
+    let (Some(draw), Some((light, transform, body))) = (draw, sun.iter().next()) else {
+        return;
+    };
+    let c = LinearRgba::from(light.color);
+    let colour = Vec3::new(c.red, c.green, c.blue);
+    let colour = colour / colour.max_element().max(1e-3);
+    let (sun, sun_colour) = (
+        transform.back().as_vec3().extend(body.visible.clamp(0.0, 1.0)),
+        colour.extend(SKY_SHARE),
+    );
+    // Only when it moved: a material written every frame is re-uploaded every frame.
+    let stale = materials
+        .get(&draw.material)
+        .is_some_and(|m| (m.look.sun - sun).abs().max_element() > 2e-3 || m.look.sun_colour != sun_colour);
+    if stale && let Some(mut m) = materials.get_mut(&draw.material) {
+        m.look.sun = sun;
+        m.look.sun_colour = sun_colour;
     }
 }
 
