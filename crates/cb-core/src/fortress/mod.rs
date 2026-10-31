@@ -249,6 +249,9 @@ pub struct NukeSpec {
     pub fireball_radius_m: f32,
     /// The mushroom cloud's cap climbs to this height over the ground (Mining Mike's cloud scaled to it, `nuke`)...
     pub cap_height_m: f32,
+    /// ...his cloud stretched up this many times over its width to reach it (owner, 2026-10-30: "make it 1.5x
+    /// taller")...
+    pub stretch_up: f32,
     /// ...over this long, the explosion: the fireball bursts, swells, cools and climbs on its column...
     pub cloud_s: f32,
     /// ...then its smoke hangs this long after, slowly spreading...
@@ -414,6 +417,7 @@ impl Validate for FortressConfig {
             }
             within("crash.nuke.rim_m", n.rim_m, 0.0, n.crater_depth_m)?;
             within("crash.nuke.smoke_grow", n.smoke_grow, 1.0, 4.0)?;
+            within("crash.nuke.stretch_up", n.stretch_up, 0.5, 3.0)?;
         }
         finite("launch.first_s", self.launch.first_s)?;
         for (name, k) in &self.kinds {

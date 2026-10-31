@@ -93,7 +93,7 @@ fn run(
         // at the cloud, high enough to keep its spread cap in view; with the mesh one beside it, between the two
         let across = Vec3::new(-(scene.target.z - feet.z), 0.0, scene.target.x - feet.x).normalize_or(Vec3::X);
         let aside = if with_mesh() { 650.0 } else { 0.0 };
-        stand_looking(&mut pilot, feet, scene.target + across * aside + Vec3::Y * 800.0);
+        stand_looking(&mut pilot, feet, scene.target + across * aside + Vec3::Y * 1150.0);
         println!(
             "NUKE spot for seed {}: (blast: ({:.1}, {:.1}), watcher: ({:.1}, {:.1}))",
             plan.seed, c.x, c.y, spot.x, spot.y

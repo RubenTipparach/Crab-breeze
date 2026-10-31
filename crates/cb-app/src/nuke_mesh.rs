@@ -141,7 +141,8 @@ fn spawn(
         let root = commands
             .spawn((
                 Name::new("mesh nuke"),
-                Transform::from_translation(*at).with_scale(Vec3::splat(n.cap_height_m / AUTHORED_HEAD_M)),
+                Transform::from_translation(*at)
+                    .with_scale(Vec3::new(1.0, n.stretch_up, 1.0) * (n.cap_height_m / AUTHORED_HEAD_M / n.stretch_up)),
                 Visibility::default(),
             ))
             .id();
