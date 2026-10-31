@@ -47,7 +47,9 @@
             capsule: (radius_m: 16.5, half_m: 20.0),
         ),
         "hull": (
-            name: "Hull thruster", hp: 900.0, armour_mm: 300.0,
+            // 600, not 900: three of the six must now go (design section 12), ten missile hits as two at 900 took
+            // before (provisional, open question H8)
+            name: "Hull thruster", hp: 600.0, armour_mm: 300.0,
             weak: Port(within_deg: 30.0),
             capsule: (radius_m: 12.0, half_m: 30.0, centre_y_m: 5.0),
         ),

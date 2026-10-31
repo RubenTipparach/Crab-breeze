@@ -409,3 +409,5 @@ Tests: `while_any_leg_works_it_holds_its_height`, `the_hull_lights_only_when_eve
 | H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | decided (owner, 2026-10-26, survey H5: recommendation accepted, "Approve all"); section 6 |
 | H7 | How a lit hull thruster is reached | box and lock it while lit, so missiles climb into its port (no mech gun points within 30 deg of vertical) | provisional (2026-10-30, section 10) |
 | H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | decided (owner, 2026-10-26, survey H6: recommendation accepted, "Approve all"); section 9, the deck guard. The cap of 6 on deck and 8 below are section 4's, kept |
+
+| H8 | A hull thruster has 600 hp, not 900, so bringing it down still takes ten missile hits now three of the six must go (section 12): 15 hits from the Foreman's 40 missiles, with no rearming, failed two runs out of ammunition | 600 (provisional) |
