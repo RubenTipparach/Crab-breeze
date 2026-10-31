@@ -77,7 +77,11 @@ fn vertex(in: SoftVertex) -> SoftFragment {
     let local = vec2<f32>(in.corner.x * 0.5 + 0.5, 0.5 - in.corner.y * 0.5);
     out.uv = (vec2<f32>(col, row) + local) / GRID;
     out.sheet = in.shape.w;
-    out.colour = in.colour;
+    // The air between the eye and the sprite, once for its centre rather than per pixel: big overlapping puffs (a
+    // nuclear cloud) paid it hundreds of times a pixel (docs/benchmarks/2026-10-30-nuke).
+    let to_centre = in.centre - view.world_position;
+    let centre_dist = length(to_centre);
+    out.colour = vec4<f32>(in.colour.rgb, in.colour.a * air_between(view.world_position, to_centre / max(centre_dist, 1e-3), centre_dist));
     return out;
 }
 
@@ -108,7 +112,7 @@ fn fragment(in: SoftFragment) -> @location(0) vec4<f32> {
     let eye = view.world_position;
     let dist = distance(in.world, eye);
     let near = smoothstep(0.0, look.fade.y, dist);
-    out.a *= soft_edge(in.position) * near * air_between(eye, (in.world - eye) / max(dist, 1e-3), dist);
+    out.a *= soft_edge(in.position) * near;
     if out.a < 0.003 {
         discard;
     }

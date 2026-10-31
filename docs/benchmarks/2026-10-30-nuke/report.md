@@ -52,3 +52,20 @@ Frame times in milliseconds, while the cloud is up.
 - **Fewer puffs:** draw about a quarter as many puffs at the 4x size, then check on stills that no gaps come back.
 - **Cheaper fragments:** work out the fog and haze once per sprite instead of once per fragment.
 - **Confirm on the RTX 3070:** measure there.
+
+## After the fix: a quarter of the puffs, fog once per sprite
+
+The cloud now has 470 puffs (ball 225, ring 60, column 125, skirt 60) at the same 4x size, each a little more opaque.
+The sprite shader works out the air between the eye and a sprite once, at the sprite's centre, in the vertex
+shader, instead of once per fragment. Interleaved runs at 1920 x 1080, no OBS:
+
+| Run | With the cloud p50 | p95 | p99 |
+|---|---|---|---|
+| No cloud drawn | 19.2 | 28.4 | 33.9 |
+| New cloud | 19.8 | 29.9 | 33.0 |
+| No cloud drawn, again | 18.8 | 29.1 | 33.1 |
+| New cloud, again | 19.5 | 28.4 | 32.9 |
+
+The cloud now costs about 0.6 ms at p50. The two no-cloud runs differ by 0.4 ms, so this is close to the spread. The
+frame time no longer climbs as the smoke spreads: the last third of the cloud's life runs at 18.6-18.7 ms, the same
+as with no cloud. The stills (`docs/screenshots/fortress-down/2026-10-30-nuke-quarter/`) show no gaps.

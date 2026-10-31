@@ -168,11 +168,11 @@ const FLASH_GLOW: f32 = 12.0;
 /// same shapes (`soft_sprites::Look::Burning`).
 const BURN_TO_SMOKE: (f32, f32) = (0.4, 0.72);
 
-/// A puff's opacity: fire, then smoke, then dust. Ten times the puffs drawn fainter (owner, 2026-10-30: "increase smoke
-/// puff density even more, 10x original", "but make them more transparent too").
-const FIRE_ALPHA: f32 = 0.4;
-const SMOKE_ALPHA: f32 = 0.32;
-const DUST_ALPHA: f32 = 0.08;
+/// A puff's opacity: fire, then smoke, then dust (owner, 2026-10-30: "but make them more transparent too"); a little
+/// more than at ten times the puffs, so a quarter as many still fill the cloud.
+const FIRE_ALPHA: f32 = 0.6;
+const SMOKE_ALPHA: f32 = 0.5;
+const DUST_ALPHA: f32 = 0.14;
 
 /// How far one puff's heat strays from the cloud's.
 const HEAT_NOISE: f32 = 0.18;
@@ -196,11 +196,13 @@ const BURST_S: (f32, f32) = (0.2, 0.5);
 /// A puff's size as it leaves the blast point, as a share of its full size.
 const BURST_SEED: f32 = 0.12;
 
-/// The puffs of each part of the cloud, ten times the first cloud's.
-const BALL: u32 = 900;
-const RING: u32 = 240;
-const COLUMN: u32 = 500;
-const SKIRT: u32 = 240;
+/// The puffs of each part of the cloud: two and a half times the first cloud's, at four times the size. Ten times
+/// as many filled every pixel of the cloud hundreds of layers deep, and the frame time climbed as the smoke spread
+/// (docs/benchmarks/2026-10-30-nuke; owner, 2026-10-30: "You can clearly see frame time climbing here").
+const BALL: u32 = 225;
+const RING: u32 = 60;
+const COLUMN: u32 = 125;
+const SKIRT: u32 = 60;
 
 /// The fire's tint over the fireball sheet (which carries its own white cores and red folds): white-hot, then orange,
 /// then a dull red, pushed into HDR while it burns so it blooms. Linear RGB.
