@@ -90,9 +90,10 @@ fn run(
         scene.target = Vec3::new(c.x, ground(c.x, c.y), c.y);
         let feet = Vec3::new(spot.x, ground(spot.x, spot.y), spot.y);
         scene.watcher = feet;
-        // between the particle nuke and the mesh one beside it (`MeshNuke`, 1.3 km across)
+        // at the cloud, high enough to keep its spread cap in view; with the mesh one beside it, between the two
         let across = Vec3::new(-(scene.target.z - feet.z), 0.0, scene.target.x - feet.x).normalize_or(Vec3::X);
-        stand_looking(&mut pilot, feet, scene.target + across * 650.0 + Vec3::Y * 500.0);
+        let aside = if with_mesh() { 650.0 } else { 0.0 };
+        stand_looking(&mut pilot, feet, scene.target + across * aside + Vec3::Y * 800.0);
         println!(
             "NUKE spot for seed {}: (blast: ({:.1}, {:.1}), watcher: ({:.1}, {:.1}))",
             plan.seed, c.x, c.y, spot.x, spot.y
@@ -105,15 +106,18 @@ fn run(
     // It goes off 4 s after the pilot is placed.
     if now - ready_at > 8.0 && scene.boom_at.is_none() && scene.target != Vec3::ZERO {
         nukes.write(Nuke { at: scene.target });
-        // Mining Mike's mesh nuke beside it, its reference (owner: "Place mesh nuke side by side of this nuke"), 1.3 km
-        // to the side across the view, on the same timeline.
+        // `CB_NUKE_MESH=1`: Mining Mike's mesh nuke beside it, its reference (owner: "Place mesh nuke side by side of
+        // this nuke"), 1.3 km to the side across the view, on the same timeline. Off by default (owner, 2026-10-30:
+        // "Just render with the new nuke").
         let across = Vec3::new(-(scene.target.z - scene.watcher.z), 0.0, scene.target.x - scene.watcher.x).normalize_or(Vec3::X);
         let side = scene.target + across * 1300.0;
-        meshes.write(crate::nuke_mesh::MeshNuke(Vec3::new(
-            side.x,
-            plan.terrain.height_at(side.x, side.z),
-            side.z,
-        )));
+        if with_mesh() {
+            meshes.write(crate::nuke_mesh::MeshNuke(Vec3::new(
+                side.x,
+                plan.terrain.height_at(side.x, side.z),
+                side.z,
+            )));
+        }
         scene.boom_at = Some(now);
     }
     let Some(boom) = scene.boom_at else { return };
@@ -208,4 +212,9 @@ fn stored_spot(seed: u64) -> Option<(Vec2, Vec2)> {
             None
         }
     }
+}
+
+/// Whether the scene sets Mining Mike's mesh nuke beside the game's (`CB_NUKE_MESH=1`).
+fn with_mesh() -> bool {
+    std::env::var("CB_NUKE_MESH").is_ok_and(|v| v == "1")
 }

@@ -365,10 +365,24 @@ fn animate_clouds(
             let k = 1.0 - c.t_s / FLASH_S;
             flash.0 = Some((c.at + Vec3::Y * n.fireball_radius_m * 0.5, FLASH_GLOW * k * k));
         }
-        for p in cloud(&n, c.at, c.t_s, to_sun) {
-            sprites.place(p);
+        let (stride, size) = instrument();
+        for (k, mut p) in cloud(&n, c.at, c.t_s, to_sun).into_iter().enumerate() {
+            if k % stride == 0 {
+                p.size_m *= size;
+                sprites.place(p);
+            }
         }
     }
+}
+
+/// Measurement switches (an instrument, for what the cloud costs to draw): `CB_NUKE_PUFF_STRIDE=n` draws every nth
+/// puff, `CB_NUKE_SIZE_SHARE=x` draws them x times their size.
+fn instrument() -> (usize, f32) {
+    let var = |k: &str| std::env::var(k).ok().and_then(|v| v.parse::<f32>().ok());
+    (
+        var("CB_NUKE_PUFF_STRIDE").map_or(1, |v| v.max(1.0) as usize),
+        var("CB_NUKE_SIZE_SHARE").map_or(1.0, |v| v.clamp(0.01, 4.0)),
+    )
 }
 
 #[cfg(test)]
