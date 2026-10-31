@@ -147,8 +147,17 @@ fn grass_cover(plan: &WorldPlan, grass: &GrassConfig, p: Vec3, n: Vec3, dug_m: f
 /// Ground under a rubble heap (openspec change `rubble`): dusty broken concrete flecked with brick,
 /// blended in as the heap deepens from 0.2 m to 0.6 m (crater rims stay ground). A stand-in until
 /// the `rubble` layer of `terrain-materials` exists.
-fn rubble_colour(ground: [f32; 4], depth_m: f32, i: usize, j: usize) -> [f32; 4] {
-    let w = ((depth_m - 0.2) / 0.4).clamp(0.0, 1.0);
+fn rubble_colour(ground: [f32; 4], depth_m: f32, scorch: f32, i: usize, j: usize) -> [f32; 4] {
+    // Never inside a blast's scorch: a crater's rim and the rubble the blast threw down are burnt dark, not pale
+    // concrete (the Stratostacean's nuclear crater drew its 25 m rim and a city's flattened rubble near-white,
+    // owner 2026-10-31: "Looks like a big grey quad").
+    // Dug or heaped ground is bare: churned soil, darker the more it moved, where grass and a pale biome layer stood
+    // (the crater's bowl drew as a flat sand-grey).
+    let churn = ((depth_m.abs() - 0.3) / 2.0).clamp(0.0, 1.0) * 0.8;
+    let soil = Vec3::new(0.16, 0.12, 0.09);
+    let base = Vec3::new(ground[0], ground[1], ground[2]).lerp(soil, churn);
+    let ground = [base.x, base.y, base.z, ground[3]];
+    let w = ((depth_m - 0.2) / 0.4).clamp(0.0, 1.0) * if scorch > 0.0 { 0.0 } else { 1.0 };
     if w <= 0.0 {
         return ground;
     }
@@ -722,18 +731,9 @@ fn redraw_craters(
                 .map(|(k, (p, n))| {
                     let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
                     let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)));
-                    let c = ground_colour(
-                        *p,
-                        *n,
-                        sea,
-                        false,
-                        dug.scorch_at(key, i, j),
-                        cover,
-                        (&*grass).into(),
-                        biome_at(&world, *p, *n),
-                        0.0,
-                    );
-                    rubble_colour(c, dug.delta_sample(key, i, j), i, j)
+                    let scorch = dug.scorch_at(key, i, j);
+                    let c = ground_colour(*p, *n, sea, false, scorch, cover, (&*grass).into(), biome_at(&world, *p, *n), 0.0);
+                    rubble_colour(c, dug.delta_sample(key, i, j), scorch, i, j)
                 })
                 .collect();
             chunk_to_mesh(tile, colors)

@@ -202,6 +202,8 @@ struct Grass {
     push_buffer: Handle<ShaderBuffer>,
     /// Blasts already masked out of the grass.
     blasts_seen: usize,
+    /// Of `Deformation::digs`.
+    digs_seen: usize,
     /// Where mech prints and skate grooves crush the grass now (ground-marks), and the version of
     /// that set already packed.
     crush: Vec<CrushRect>,
@@ -267,6 +269,7 @@ fn setup(
         tile_buffer,
         push_buffer,
         blasts_seen: 0,
+        digs_seen: 0,
         crush: Vec::new(),
         crush_version: 0,
     });
@@ -395,14 +398,19 @@ fn stream_tiles(
         g.place(&mut commands, key);
     }
 
-    // New craters clear the grass they reach.
+    // New craters clear the grass they reach: a blast's, and a crater dug whole (the nuclear crash's).
     let blasts = &live.dug.blasts;
-    for b in blasts.iter().skip(g.blasts_seen) {
-        let reach = data.0.world.craters.reach_m(b.energy_mj);
+    let reached: Vec<(Vec2, f32)> = blasts
+        .iter()
+        .skip(g.blasts_seen)
+        .map(|b| (b.centre, data.0.world.craters.reach_m(b.energy_mj)))
+        .chain(live.dug.digs.iter().skip(g.digs_seen).copied())
+        .collect();
+    for (centre, reach) in reached {
         let hit: Vec<TileKey> = g
             .tiles
             .keys()
-            .filter(|k| g.grid.rect(**k).distance(b.centre) <= reach)
+            .filter(|k| g.grid.rect(**k).distance(centre) <= reach)
             .copied()
             .collect();
         for key in hit {
@@ -414,6 +422,7 @@ fn stream_tiles(
         }
     }
     g.blasts_seen = blasts.len();
+    g.digs_seen = live.dug.digs.len();
 
     // Prints and grooves laid or faded since: repack the tiles the old or the new set touches.
     if let Some(c) = crush

@@ -132,24 +132,27 @@ fn run(
     let r = data.0.fortress.cfg.crash.nuke.map_or(300.0, |n| n.crater_radius_m);
     let c = Vec2::new(scene.target.x, scene.target.z);
     let floor = Vec3::new(c.x, ground(c.x, c.y), c.y);
-    for (at_s, shot_s, off_m, name) in [
-        (80.0, 83.0, r + 30.0, "nuke-crater-rim.png"),
-        (85.0, 88.0, r * 2.2, "nuke-crater-back.png"),
+    // ...and from the air, 400 m up and 1 km off, as a flying mech sees it (owner, 2026-10-31: "Looks like a big grey
+    // quad").
+    for (at_s, shot_s, off_m, up_m, name) in [
+        (80.0, 83.0, r + 30.0, 0.0, "nuke-crater-rim.png"),
+        (85.0, 88.0, r * 2.2, 0.0, "nuke-crater-back.png"),
+        (90.0, 93.0, 1000.0, 400.0, "nuke-crater-air.png"),
     ] {
         if t > at_s && !scene.done.contains(&name) && t < shot_s {
             let p = c + Vec2::new(1.0, 0.0) * off_m;
-            stand_looking(&mut pilot, Vec3::new(p.x, ground(p.x, p.y), p.y), floor);
+            stand_looking(&mut pilot, Vec3::new(p.x, ground(p.x, p.y) + up_m, p.y), floor);
         }
         if t > shot_s && !scene.done.contains(&name) {
             scene.done.push(name);
             shoot(&mut commands, &scene.dir, name);
         }
     }
-    if t > 90.0 && !scene.done.contains(&"end") {
+    if t > 95.0 && !scene.done.contains(&"end") {
         scene.done.push("end");
         println!("NUKE_END");
     }
-    if t > 92.0 {
+    if t > 97.0 {
         exit.write(AppExit::Success);
     }
 }

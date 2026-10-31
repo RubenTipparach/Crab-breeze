@@ -32,6 +32,10 @@ pub struct Deformation {
     scorch: HashMap<(i32, i32), Vec<f32>>,
     /// Every blast, in order.
     pub blasts: Vec<Blast>,
+    /// Every crater dug by `dig_crater` (not a blast's), in order: its centre and how far its dig and scorch reach, m.
+    /// What clears and redraws over a blast must clear over these too (the grass stood at the old ground over the
+    /// Stratostacean's crater, 2026-10-31).
+    pub digs: Vec<(Vec2, f32)>,
     origin_m: f32,
 }
 
@@ -107,6 +111,7 @@ impl Deformation {
         if !(centre.is_finite() && radius_m.is_finite() && radius_m > 0.0 && depth_m.is_finite() && rim_m.is_finite()) {
             return Vec::new();
         }
+        self.digs.push((centre, radius_m * 1.8));
         self.carve(centre, radius_m, depth_m, rim_m, f32::INFINITY, &|_| false)
     }
 
@@ -410,6 +415,14 @@ mod tests {
         assert!((d.delta_at(c) + cfg.depth_ratio * r).abs() < 0.05, "centre {}", d.delta_at(c));
         assert!(d.delta_at(c + Vec2::X * r) > 0.0, "rim");
         assert_eq!(d.delta_at(c + Vec2::X * 3.0 * r), 0.0, "untouched beyond");
+    }
+
+    #[test]
+    fn a_crater_dug_whole_is_recorded_for_what_clears_over_it() {
+        let mut d = Deformation::new(4096.0);
+        d.dig_crater(Vec2::new(100.0, -50.0), 400.0, 100.0, 25.0);
+        assert_eq!(d.digs, vec![(Vec2::new(100.0, -50.0), 720.0)], "its centre and its scorch's reach");
+        assert!(d.blasts.is_empty(), "not a blast");
     }
 
     #[test]
