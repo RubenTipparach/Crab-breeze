@@ -134,11 +134,9 @@ fn detonate(
     for e in nukes.read() {
         let at = e.at;
         let xz = Vec2::new(at.x, at.z);
-        // Never down into the sea: the ground under a city can stand low, and a 100 m bowl flooded to sea level showed
-        // as a sheet of water inside it (2026-10-31). Its floor stays `DRY_FLOOR_M` over the sea.
-        let ground = plan.0.terrain.height_at(xz.x, xz.y);
-        let depth = n.crater_depth_m.min((ground - plan.0.waters.sea_level_m - DRY_FLOOR_M).max(0.0));
-        let touched = live.dug.dig_crater(xz, n.crater_radius_m, depth, n.rim_m);
+        // Its full depth wherever it falls: on a coast the bowl goes under the sea and floods, a crater lake (a cap 5 m
+        // over the sea left a coastal city's crater a dent a few metres deep, 2026-10-31).
+        let touched = live.dug.dig_crater(xz, n.crater_radius_m, n.crater_depth_m, n.rim_m);
         live.dirty_tiles.extend(touched);
         let mut flat = 0;
         for b in plan.collision.candidates(xz, n.flatten_radius_m) {
@@ -178,9 +176,6 @@ fn detonate(
         );
     }
 }
-
-/// A crater's floor stays this far over the sea, metres.
-const DRY_FLOOR_M: f32 = 5.0;
 
 /// The flash lasts this long, seconds...
 const FLASH_S: f32 = 0.8;

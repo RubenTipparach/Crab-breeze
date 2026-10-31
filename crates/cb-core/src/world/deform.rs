@@ -280,6 +280,40 @@ impl Deformation {
         self.scorch.get(&key).map_or(0.0, |s| s[j * TILE_N + i])
     }
 
+    /// Any ground dug or heaped at all.
+    pub fn has_any(&self) -> bool {
+        !self.tiles.is_empty()
+    }
+
+    /// The scorch at `p`, 0..1: its nearest tile sample's (what a coarse ground node colours by).
+    pub fn scorch_xz(&self, p: Vec2) -> f32 {
+        let key = self.tile_of(p);
+        let Some(s) = self.scorch.get(&key) else { return 0.0 };
+        let o = self.sample_xz(key, 0, 0);
+        let i = (((p.x - o.x) / STEP_M).round().max(0.0) as usize).min(TILE_N - 1);
+        let j = (((p.y - o.y) / STEP_M).round().max(0.0) as usize).min(TILE_N - 1);
+        s[j * TILE_N + i]
+    }
+
+    /// Only the dug tiles touching `lo..hi` (x, z), and their scorch, to hand a ground node's worker thread what it
+    /// draws on without copying every dug tile.
+    pub fn within(&self, lo: Vec2, hi: Vec2) -> Self {
+        let mut out = Self {
+            origin_m: self.origin_m,
+            ..Default::default()
+        };
+        let (k0, k1) = (self.tile_of(lo), self.tile_of(hi));
+        for (k, t) in &self.tiles {
+            if (k0.0..=k1.0).contains(&k.0) && (k0.1..=k1.1).contains(&k.1) {
+                out.tiles.insert(*k, t.clone());
+                if let Some(sc) = self.scorch.get(k) {
+                    out.scorch.insert(*k, sc.clone());
+                }
+            }
+        }
+        out
+    }
+
     /// Only a tile and its eight neighbours (what `tile_mesh` and `scorch_at` read for that tile),
     /// to hand to a worker thread without copying every dug tile.
     pub fn around(&self, key: (i32, i32)) -> Self {
@@ -415,6 +449,19 @@ mod tests {
         assert!((d.delta_at(c) + cfg.depth_ratio * r).abs() < 0.05, "centre {}", d.delta_at(c));
         assert!(d.delta_at(c + Vec2::X * r) > 0.0, "rim");
         assert_eq!(d.delta_at(c + Vec2::X * 3.0 * r), 0.0, "untouched beyond");
+    }
+
+    #[test]
+    fn a_node_gets_the_dug_ground_inside_it_and_its_scorch() {
+        let mut d = Deformation::new(8192.0);
+        d.dig_crater(Vec2::new(100.0, -50.0), 400.0, 100.0, 25.0);
+        let inside = d.within(Vec2::new(-200.0, -300.0), Vec2::new(300.0, 200.0));
+        assert!((inside.delta_at(Vec2::new(100.0, -50.0)) - d.delta_at(Vec2::new(100.0, -50.0))).abs() < 1e-4);
+        assert!(inside.delta_at(Vec2::new(100.0, -50.0)) < -90.0, "the bowl's middle, 100 m down");
+        assert!(d.scorch_xz(Vec2::new(100.0, -50.0)) > 0.9, "scorched at the middle");
+        assert_eq!(d.scorch_xz(Vec2::new(3000.0, 3000.0)), 0.0, "and nowhere near it");
+        let far = d.within(Vec2::new(3000.0, 3000.0), Vec2::new(3500.0, 3500.0));
+        assert!(!far.has_any(), "a node far off gets none");
     }
 
     #[test]

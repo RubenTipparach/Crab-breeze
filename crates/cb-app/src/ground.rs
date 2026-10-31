@@ -365,18 +365,21 @@ fn node_meshes(
     node: Node,
     cells: usize,
     skip: &HashSet<(usize, usize)>,
+    dug: &Deformation,
 ) -> NodeMeshes {
     let laid = paving.map_or_else(Default::default, |style| {
         node_paving(plan, style, node.rect(&plan.terrain, cells), node.step())
     });
-    (node_mesh(plan, grass, node, cells, skip), laid)
+    (node_mesh(plan, grass, node, cells, skip, dug), laid)
 }
 
-/// The drawn ground of a node, leaving out the cells `skip` holds.
-fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, skip: &HashSet<(usize, usize)>) -> Mesh {
+/// The drawn ground of a node, leaving out the cells `skip` holds, on the dug ground: every level of detail takes the
+/// craters' heights, slope and scorch, so a crater is a hole from the air too and no undug edge's skirt stands beside
+/// it (owner, 2026-10-31: "Looks like terrain skirt is showing there. Shouldn't the terrain height map changed?").
+fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, skip: &HashSet<(usize, usize)>, dug: &Deformation) -> Mesh {
     let t = &plan.terrain;
     let step = node.step();
-    let chunk = t.chunk_mesh_lod(
+    let mut chunk = t.chunk_mesh_lod(
         node.x as usize,
         node.z as usize,
         node.cells(cells),
@@ -384,6 +387,21 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
         lod::skirt_m(step, t.cell_m),
         |ix, iz| skip.contains(&(ix, iz)),
     );
+    // The dug ground: each vertex moved by the dig there, and its normal taken from the dug heights a cell either side.
+    let mut scorch = vec![0.0f32; chunk.positions.len()];
+    if dug.has_any() {
+        let d = t.cell_m * step as f32;
+        let h = |x: f32, z: f32| t.height_at(x, z) + dug.delta_at(Vec2::new(x, z));
+        for ((p, n), sc) in chunk.positions.iter_mut().zip(chunk.normals.iter_mut()).zip(scorch.iter_mut()) {
+            let xz = Vec2::new(p.x, p.z);
+            let dy = dug.delta_at(xz);
+            *sc = dug.scorch_xz(xz);
+            if dy != 0.0 {
+                p.y += dy;
+                *n = Vec3::new(h(p.x - d, p.z) - h(p.x + d, p.z), 2.0 * d, h(p.x, p.z - d) - h(p.x, p.z + d)).normalize_or(Vec3::Y);
+            }
+        }
+    }
     let sea = plan.waters.sea_level_m;
     // Patches up close, a crossfade on the coarse nodes far away (seen from the air).
     let patch_far = smoothstep(1.0, 8.0, step as f32);
@@ -395,14 +413,17 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
         .positions
         .iter()
         .zip(&chunk.normals)
-        .map(|(p, n)| {
+        .zip(&scorch)
+        .map(|((p, n), sc)| {
             // A river's water 3 m over this ground: its bank or bed.
             let river = plan
                 .waters
                 .water_at(Vec2::new(p.x, p.z), p.y - 3.0)
                 .is_some_and(|w| w.surface_m > sea);
-            let cover = grass_cover(plan, grass, *p, *n, 0.0);
-            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n), patch_far)
+            let dug_m = dug.delta_at(Vec2::new(p.x, p.z));
+            let cover = grass_cover(plan, grass, *p, *n, dug_m);
+            let c = ground_colour(*p, *n, sea, river, *sc, cover, grass.into(), biome_at(plan, *p, *n), patch_far);
+            if dug_m != 0.0 { rubble_colour(c, dug_m, *sc, 0, 0) } else { c }
         })
         .collect();
     chunk_to_mesh(chunk, colors)
@@ -571,7 +592,15 @@ fn spawn_ground(
             ))
             .id();
         let mut draw = NodeDraw::new(e, true);
-        let built = node_meshes(&plan, &grass, paving.as_ref().map(|p| &p.style), *n, cells, &none);
+        let built = node_meshes(
+            &plan,
+            &grass,
+            paving.as_ref().map(|p| &p.style),
+            *n,
+            cells,
+            &none,
+            &Deformation::default(),
+        );
         put_up(&mut commands, &mut meshes, paving.as_ref(), &mut draw, built);
         nodes.insert(*n, draw);
     }
@@ -834,12 +863,30 @@ fn stream_ground(
     camera: Single<&GlobalTransform, With<PilotCamera>>,
     bodies: Query<(&GlobalTransform, &RigidBody)>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut dug_seen: Local<(usize, usize)>,
 ) {
     let _t = crate::perf_hud::slow("stream_ground");
     let cfg = &data.0.world.terrain_lod;
     let sea = plan.waters.sea_level_m;
     let eye = camera.translation();
     let g = &mut *ground;
+    // Every node a new crater or blast reaches is built again on the dug ground, at every level of detail.
+    let (blasts, digs) = (&live.dug.blasts, &live.dug.digs);
+    if blasts.len() > dug_seen.0 || digs.len() > dug_seen.1 {
+        let reached: Vec<(Vec2, f32)> = blasts[dug_seen.0..]
+            .iter()
+            .map(|b| (b.centre, data.0.world.craters.reach_m(b.energy_mj)))
+            .chain(digs[dug_seen.1..].iter().copied())
+            .collect();
+        *dug_seen = (blasts.len(), digs.len());
+        let cells = g.cells;
+        for (node, n) in g.nodes.iter_mut() {
+            let r = node.rect(&plan.terrain, cells);
+            if reached.iter().any(|(c, reach)| r.distance(*c) <= *reach) {
+                n.stale = true;
+            }
+        }
+    }
     let (side, cells) = (g.side, g.cells);
     let pool = AsyncComputeTaskPool::get();
 
@@ -924,10 +971,12 @@ fn stream_ground(
             (HashSet::new(), BTreeSet::new())
         };
         let p = Arc::clone(&plan.0);
+        let r = node.rect(&plan.terrain, cells);
+        let dug = live.dug.within(r.min - Vec2::splat(64.0), r.max + Vec2::splat(64.0));
         if let Some(n) = g.nodes.get_mut(&node) {
             let grass = Arc::clone(&g.grass);
             let style = g.paving.as_ref().map(|l| l.style);
-            n.job = Some(pool.spawn(async move { node_meshes(&p, &grass, style.as_ref(), node, cells, &skip) }));
+            n.job = Some(pool.spawn(async move { node_meshes(&p, &grass, style.as_ref(), node, cells, &skip, &dug) }));
             n.job_holes = holes;
             n.stale = false;
         }

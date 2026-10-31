@@ -73,13 +73,15 @@ fn run(
     mut nukes: MessageWriter<Nuke>,
     mut meshes: MessageWriter<crate::nuke_mesh::MeshNuke>,
     mut exit: MessageWriter<AppExit>,
+    live: Res<crate::world::Live>,
 ) {
     let now = time.elapsed_secs();
     if !ready.0 {
         return;
     }
     let ready_at = *scene.ready_at.get_or_insert(now);
-    let ground = |x: f32, z: f32| plan.terrain.height_at(x, z);
+    // The ground as it stands, craters dug (the rim shot stood inside the rim, at the ground's old height).
+    let ground = |x: f32, z: f32| plan.terrain.height_at(x, z) + live.dug.delta_at(Vec2::new(x, z));
     // Stand 2.5 km off an open plain's middle, facing it.
     if now - ready_at > 4.0 && scene.boom_at.is_none() && scene.target == Vec3::ZERO {
         let Some((c, spot)) = forced_spot()
@@ -141,21 +143,30 @@ fn run(
         (80.0, 83.0, r + 30.0, 0.0, "nuke-crater-rim.png"),
         (85.0, 88.0, r * 2.2, 0.0, "nuke-crater-back.png"),
         (90.0, 93.0, 1000.0, 400.0, "nuke-crater-air.png"),
+        // and from its floor, the walls standing round
+        (95.0, 98.0, 60.0, 0.0, "nuke-crater-floor.png"),
     ] {
         if t > at_s && !scene.done.contains(&name) && t < shot_s {
             let p = c + Vec2::new(1.0, 0.0) * off_m;
-            stand_looking(&mut pilot, Vec3::new(p.x, ground(p.x, p.y) + up_m, p.y), floor);
+            // from the floor, across it at the far wall; else down at the floor
+            let far = c - Vec2::new(1.0, 0.0) * r;
+            let at = if up_m == 0.0 && off_m < r {
+                Vec3::new(far.x, ground(far.x, far.y) + 20.0, far.y)
+            } else {
+                floor
+            };
+            stand_looking(&mut pilot, Vec3::new(p.x, ground(p.x, p.y) + up_m, p.y), at);
         }
         if t > shot_s && !scene.done.contains(&name) {
             scene.done.push(name);
             shoot(&mut commands, &scene.dir, name);
         }
     }
-    if t > 95.0 && !scene.done.contains(&"end") {
+    if t > 100.0 && !scene.done.contains(&"end") {
         scene.done.push("end");
         println!("NUKE_END");
     }
-    if t > 97.0 {
+    if t > 102.0 {
         exit.write(AppExit::Success);
     }
 }
