@@ -88,7 +88,7 @@ pub enum Beat {
     /// lights, aircraft, boats, harbours, the fog), a note for the report. Takes no time.
     Survey(f32),
     /// Turn the view toward the nearest of a kind (`person`, `car`, `light`, `aircraft`, `boat`, `harbour`, `door`,
-    /// `bench`, `enemy`, `fortress`) and hold it there for this many seconds.
+    /// `bench`, `enemy`, `fortress`, `nuke`: a mushroom cloud) and hold it there for this many seconds.
     LookAtNearest(String, f32),
     /// Skate the mech to the nearest of a kind (`harbour`, `runway`, `city`), as `SkateTo`, stopping this many metres
     /// short of it.
@@ -167,8 +167,8 @@ pub fn tap_jets(on: bool, below_m: f32, vy: f32, heat: f32, off_s: f32) -> bool 
 /// What `UseOn` can ask for: `cb_core::interact::Interaction`'s names.
 pub const USE_ON: [&str; 5] = ["Greet", "Terminal", "GetIn", "GetOut", "Board"];
 /// What `LookAtNearest` can look at.
-pub const LOOK_KINDS: [&str; 10] = [
-    "person", "car", "light", "aircraft", "boat", "harbour", "door", "bench", "enemy", "fortress",
+pub const LOOK_KINDS: [&str; 11] = [
+    "person", "car", "light", "aircraft", "boat", "harbour", "door", "bench", "enemy", "fortress", "nuke",
 ];
 /// Where `SkateToNearest` and `JetToNearest` can go.
 pub const GO_KINDS: [&str; 5] = ["harbour", "runway", "city", "house", "farthest-city"];

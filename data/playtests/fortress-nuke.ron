@@ -1,0 +1,26 @@
+// The Stratostacean brought down, its nuclear crash the finale (owner, 2026-10-31: "record a crab carrier fight using
+// that explosion as the finale"): `fortress-down`'s fight in the Foreman, then the pilot holds the mushroom cloud in
+// view for a minute, and the take ends there. First person throughout.
+//
+//   CB_TAKE_SOUND=1 ./target/release/crab-breeze --playtest fortress-nuke --mech mechs/foreman.ron
+(
+    name: "fortress-nuke",
+    stuck_s: 60.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                SelectWeapon("autocannon"),
+                StartMission("Fortress"),
+                Wait(4.0),
+                LookAtNearest("fortress", 4.0),
+                BringDownFortress(900.0),
+                // the fireball, the rolling cap and the column, watched from where the fight ended
+                LookAtNearest("nuke", 60.0),
+            ],
+        ),
+    ],
+)

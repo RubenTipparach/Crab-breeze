@@ -30,6 +30,16 @@ pub struct Nuke {
 pub struct NukeCloud {
     at: Vec3,
     t_s: f32,
+    /// Where its cap climbs to over the ground, m.
+    cap_m: f32,
+}
+
+impl NukeCloud {
+    /// Where to look to see it whole: up its column, under half its cap's height (a scripted pilot's
+    /// `LookAtNearest("nuke")`).
+    pub fn look_at(&self) -> Vec3 {
+        self.at + Vec3::Y * self.cap_m * 0.45
+    }
 }
 
 /// What Mining Mike's scene is authored at: its head stands `AUTHORED_HEAD_M` up at the end, so a cloud whose cap
@@ -147,7 +157,14 @@ fn detonate(
         let felled = live.forest.blast(xz, n.flatten_radius_m, 1.0e9);
         live.moved_trees.extend(felled);
         fx.write(Fx::new("nuke_flash", at + Vec3::Y * 40.0).scaled(n.fireball_radius_m / 8.0));
-        commands.spawn((Name::new("nuke cloud"), NukeCloud { at, t_s: 0.0 }));
+        commands.spawn((
+            Name::new("nuke cloud"),
+            NukeCloud {
+                at,
+                t_s: 0.0,
+                cap_m: n.cap_height_m,
+            },
+        ));
         println!(
             "NUKE at ({:.0}, {:.0}): a crater {:.0} m across and {:.0} m deep, {flat} buildings and houses flattened",
             at.x,

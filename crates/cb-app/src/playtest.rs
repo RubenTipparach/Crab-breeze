@@ -378,6 +378,7 @@ struct More<'w, 's> {
     boats: Option<Res<'w, crate::boats::Boats>>,
     targeting: Res<'w, crate::targeting::TargetState>,
     fortress: Option<Res<'w, crate::fortress::FortressRun>>,
+    nukes: Query<'w, 's, &'static crate::nuke::NukeCloud>,
     hostiles: Option<Res<'w, crate::units::Hostiles>>,
     fog: Option<Res<'w, crate::ground_fog::FogNow>>,
     free: Option<Res<'w, crate::missions::FreeRoamRun>>,
@@ -2519,6 +2520,7 @@ fn nearest(kind: &str, eyes: Vec3, s: &Scene, x: &More) -> Option<(Vec3, String)
                 "the Stratostacean's deck".to_string(),
             )
         }),
+        "nuke" => pick(x.nukes.iter().map(|c| (c.look_at(), "the mushroom cloud".to_string())).collect()),
         _ => None,
     }
 }
