@@ -381,9 +381,12 @@ This replaces the fall rule of sections 2 and 2b and the "two of three hull thru
   lift and no list.
 - **The scripted pilot's order** (`Fortress::next_to_bring_down`): every lift thruster, port side first, then
   three hull thrusters in the shape's order. Eight lift kills and three hull kills bring it down.
-- **It flies.** The pilot reaches the carrier, and each next target, on its jets when it is more than 300 m off
-  (`jet_leg`, the jets rested and relit by heat as on a long leg). It hovers on tapped jets at every lift
-  thruster, not only the first, and skates only to cover the last 300 m or to close under a hull port.
+- **It flies.** The jets fire the mech up into an arc, and they recharge faster than it falls, so tapping them keeps
+  it in the air indefinitely (owner, 2026-10-31: "occasionaly tapping space would allow the mech to stay in flight
+  indefinitely"). The pilot never skates in the fight. It flies to every target on tapped jets (`playtest::hover`, up
+  to 25 m/s, faster than the fortress's 15 m/s) up near the fortress ("its jet altitude shoould be near the crab").
+  At a lift thruster it hovers 150 m off the nozzle, outboard. At a hull port it hovers 180 m under it and 90 m out
+  (`BRING_DOWN_PORT_BELOW_M`, `BRING_DOWN_MISSILE_STANDOFF_M`), so its missiles climb in about 27 deg off vertical.
 - **It clears the stragglers.** After the crash, `fortress-nuke` watches the cloud for 25 s and then runs
   `ClearHostiles`. That beat now aims at aircraft as well as mechs and vehicles: it leads a flying target with
   `weapons::lead`, lifts the view to it, and hovers on tapped jets when the target is more than 15 deg above the

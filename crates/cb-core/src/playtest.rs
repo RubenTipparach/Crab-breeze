@@ -132,19 +132,16 @@ pub enum Beat {
     WalkToMech(f32),
 }
 
-/// The pilot flies a jet leg to any fortress target its stand-off point is more than this far from, metres (design
-/// section 12: "the mech isnt flying often enough")...
-pub const BRING_DOWN_JET_LEG_M: f32 = 300.0;
-/// ...at this height over the ground, metres...
-pub const BRING_DOWN_JET_HEIGHT_M: f32 = 150.0;
-/// ...and hovers this high over the ground under a hull port while its missiles climb in.
-pub const BRING_DOWN_PORT_HOVER_M: f32 = 60.0;
+/// The pilot hovers on tapped jets (design section 12: the jets recharge faster than the mech falls, owner,
+/// 2026-10-31) this far under a hull port while its missiles climb in, `BRING_DOWN_MISSILE_STANDOFF_M` out: within
+/// 30 deg of vertical (about 27 deg).
+pub const BRING_DOWN_PORT_BELOW_M: f32 = 180.0;
 
 /// How far off a lit hull thruster the scripted pilot stands to fire missiles up into its port, metres along the
 /// ground: nearly under it, so a missile (launched at most 25 deg up, turning 70 deg/s) climbs into the port within
 /// 30 deg of vertical, the only way through (a thruster 530 m up is 13 deg off vertical from here). From 500 m out
 /// they arrived about 45 deg off and did nothing (fortress-down run 3).
-pub const BRING_DOWN_MISSILE_STANDOFF_M: f32 = 120.0;
+pub const BRING_DOWN_MISSILE_STANDOFF_M: f32 = 90.0;
 
 /// How far off a lift thruster's nozzle the scripted pilot hovers on its jets, metres along the ground (owner,
 /// 2026-10-30: "the mech should get up close to the crab carrier", "tap jets so it recharges as you fly up").

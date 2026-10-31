@@ -1924,27 +1924,12 @@ fn play(
                 };
                 let up = (aim.y - eye.y).atan2(flat);
                 if hull {
-                    // Missiles: keep closing on the stand-off point (they need no still gun), the view on the port. On
-                    // the jets the whole way (owner, 2026-10-31: "the mech isnt flying often enough"): a long leg out
-                    // to it, then a low hover under the port that keeps pace with the weaving fortress, where skating
-                    // hung 250-290 m off it for minutes (fortress-nuke, 2026-10-31).
+                    // Missiles: keep closing on the stand-off point (they need no still gun), the view on the port. In
+                    // the air the whole way, on tapped jets up near it (owner, 2026-10-31: "the mech isnt flying often
+                    // enough", "its jet altitude shoould be near the crab", "occasionaly tapping space would allow the
+                    // mech to stay in flight indefinitely"), where skating hung 250-290 m off it for minutes.
                     let goal = under + (here - under).normalize_or(Vec2::X) * want;
-                    let ground_y = s.plan.terrain.height_at(m.pos.x, m.pos.z);
-                    act = if goal.distance(here) > cb_core::playtest::BRING_DOWN_JET_LEG_M {
-                        jet_leg(
-                            &mut t,
-                            m,
-                            p,
-                            eye,
-                            goal,
-                            cb_core::playtest::BRING_DOWN_JET_HEIGHT_M,
-                            &s.plan,
-                            now,
-                            s.real.delta_secs(),
-                        )
-                    } else {
-                        hover(&mut t, m, p, goal, ground_y + cb_core::playtest::BRING_DOWN_PORT_HOVER_M, now)
-                    };
+                    act = hover(&mut t, m, p, goal, aim.y - cb_core::playtest::BRING_DOWN_PORT_BELOW_M, now);
                     act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
                     // The goal rides with the fortress: no stuck check on it (the beat's cap ends a fight that drags).
                     dist = None;
@@ -1989,29 +1974,15 @@ fn play(
                         act.fire_missile = in_beat.rem_euclid(1.5) < 0.3;
                     }
                 } else {
-                    // Up close (owner, 2026-10-30, choice B): fly a jet leg to within `BRING_DOWN_JET_LEG_M` (owner,
-                    // 2026-10-31: "it flew once, then skated around and wasted time"), then up on tapped jets to hover
-                    // `BRING_DOWN_HOVER_STANDOFF_M` off the nozzle, a little under it, facing it, and hold the gun on it.
+                    // Up close (owner, 2026-10-30, choice B): on tapped jets the whole way to it, and hover
+                    // `BRING_DOWN_HOVER_STANDOFF_M` off the nozzle, a little under it, facing it, and hold the gun on it
+                    // (owner, 2026-10-31: "it flew once, then skated around and wasted time").
                     // Outboard of the thruster, so the line up to its nozzle clears the hull and its legs.
                     let out = (under - Vec2::new(f.f.pos.x, f.f.pos.z)).normalize_or(Vec2::X);
                     let goal = under + out * want;
                     let hover_y = cb_core::playtest::bring_down_hover_y(aim.y, want, spec.body.eye_height_m);
-                    if goal.distance(here) > cb_core::playtest::BRING_DOWN_JET_LEG_M {
-                        act = jet_leg(
-                            &mut t,
-                            m,
-                            p,
-                            eye,
-                            goal,
-                            cb_core::playtest::BRING_DOWN_JET_HEIGHT_M,
-                            &s.plan,
-                            now,
-                            s.real.delta_secs(),
-                        );
-                    } else {
-                        act = hover(&mut t, m, p, goal, hover_y, now);
-                        act.turn_axis = crate::showcase::steer(m, under);
-                    }
+                    act = hover(&mut t, m, p, goal, hover_y, now);
+                    act.turn_axis = crate::showcase::steer(m, under);
                     act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
                     let view = Vec3::new(
                         -p.yaw_rad.sin() * p.pitch_rad.cos(),
@@ -2044,9 +2015,10 @@ fn play(
                     t.next_s = now;
                     let l = f.f.lift(d);
                     info!(
-                        "playtest: at {} ({:.0} hp), {flat:.0} m off (want {want:.0}), {:.0} deg up; lift port {:.2} stbd {:.2}{}; lock {:?}, rounds {:?}",
+                        "playtest: at {} ({:.0} hp), {flat:.0} m off (want {want:.0}), {:.0} m up, {:.0} deg up; lift port {:.2} stbd {:.2}{}; lock {:?}, rounds {:?}",
                         d.shape.parts[i].id,
                         f.f.parts[i].hp,
+                        m.pos.y - s.plan.terrain.height_at(m.pos.x, m.pos.z),
                         up.to_degrees(),
                         l.port,
                         l.stbd,
