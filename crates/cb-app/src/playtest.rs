@@ -1936,7 +1936,15 @@ fn play(
                     // enough", "its jet altitude shoould be near the crab", "occasionaly tapping space would allow the
                     // mech to stay in flight indefinitely"), where skating hung 250-290 m off it for minutes.
                     let goal = under + (here - under).normalize_or(Vec2::X) * want + lead;
-                    act = hover(&mut t, m, p, goal, aim.y - cb_core::playtest::BRING_DOWN_PORT_BELOW_M, now);
+                    act = hover(
+                        &mut t,
+                        m,
+                        p,
+                        goal,
+                        (aim.y - cb_core::playtest::BRING_DOWN_PORT_BELOW_M)
+                            .max(s.plan.terrain.height_at(m.pos.x, m.pos.z) + cb_core::playtest::BRING_DOWN_PORT_FLOOR_M),
+                        now,
+                    );
                     act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
                     // The goal rides with the fortress: no stuck check on it (the beat's cap ends a fight that drags).
                     dist = None;

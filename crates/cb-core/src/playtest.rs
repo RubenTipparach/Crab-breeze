@@ -133,9 +133,12 @@ pub enum Beat {
 }
 
 /// The pilot hovers on tapped jets (design section 12: the jets recharge faster than the mech falls, owner,
-/// 2026-10-31) this far under a hull port while its missiles climb in, `BRING_DOWN_MISSILE_STANDOFF_M` out: within
-/// 30 deg of vertical (about 27 deg).
-pub const BRING_DOWN_PORT_BELOW_M: f32 = 180.0;
+/// 2026-10-31) this far under a hull port while its missiles climb in, `BRING_DOWN_MISSILE_STANDOFF_M` out. A missile
+/// launches near level and turns 70 deg/s: from 180 m under, every one came in more than 30 deg off vertical and did
+/// nothing (fortress-nuke try 3, 32 missiles); from 400 m it has the climb to straighten up, about 13 deg off.
+pub const BRING_DOWN_PORT_BELOW_M: f32 = 400.0;
+/// ...and never lower than this over the ground.
+pub const BRING_DOWN_PORT_FLOOR_M: f32 = 60.0;
 
 /// How far off a lit hull thruster the scripted pilot stands to fire missiles up into its port, metres along the
 /// ground: nearly under it, so a missile (launched at most 25 deg up, turning 70 deg/s) climbs into the port within
