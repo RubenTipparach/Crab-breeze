@@ -204,6 +204,25 @@ const RING: u32 = 60;
 const COLUMN: u32 = 125;
 const SKIRT: u32 = 60;
 
+/// Convection (owner, 2026-10-30: "the middle column will rise faster than the outer area of the fireball radius
+/// causing it to push in ward near the middle like a mushroom"; Operation Teapot and Plumbbob Galileo films): the ball
+/// becomes a vortex ring over Mining Mike's timeline `u`, 0 a ball, 1 a ring...
+fn vortex(u: f32) -> f32 {
+    keyed(&[(0.0, 0.0), (0.5, 0.0), (2.0, 1.0)], u)
+}
+/// ...whose ring runs this far out from the axis, as a share of the ball's radius, its tube this thick...
+const RING_MAJOR: f32 = 0.8;
+const RING_TUBE: f32 = 0.55;
+/// ...turning over (up the middle, out over the top, down the outside, in underneath) this many times, slowing as it
+/// goes, most of it in its first `CONVECTION_S` seconds.
+const CONVECTION_TURNS: f32 = 1.2;
+const CONVECTION_S: f32 = 8.0;
+/// The cloud cools slower than Mining Mike's: his heat keys at this share of his timeline, so the fire glows until
+/// near the explosion's end (owner, 2026-10-30: "transitioning to smoke a bit too fast").
+const HEAT_PACE: f32 = 0.72;
+/// The column streams up into the ball, this share of its height a second.
+const STEM_FLOW_PER_S: f32 = 0.06;
+
 /// The fire's tint over the fireball sheet (which carries its own white cores and red folds): white-hot, then orange,
 /// then a dull red, pushed into HDR while it burns so it blooms. Linear RGB.
 fn fire_tint(h: f32) -> Vec3 {
@@ -262,12 +281,12 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
     let u = timeline(t_s, n.cloud_s);
     let p = pose(u);
     let s = n.cap_height_m / AUTHORED_HEAD_M;
-    let heat_now = heat(u);
+    let heat_now = heat(u * HEAT_PACE);
     // the hanging smoke: 0 at the explosion's end, 1 at the cloud's
     let hang = ((t_s - n.cloud_s) / n.smoke_linger_s.max(0.1)).clamp(0.0, 1.0);
     let grow = 1.0 + (n.smoke_grow - 1.0) * (1.0 - (1.0 - hang) * (1.0 - hang));
     let mut out = Vec::with_capacity((BALL + RING + COLUMN + SKIRT) as usize);
-    let mut put = |i: u32, pos: Vec3, normal: Vec3, size: f32, heat_offset: f32, dust: bool| {
+    let mut put = |i: u32, pos: Vec3, normal: Vec3, size: f32, heat_offset: f32, dust: bool, fade: f32| {
         let normal = normal.normalize_or(Vec3::Y);
         let under = (-normal.y).clamp(0.0, 1.0);
         // a little noise and a little hotter underneath, so the ball cools as one: at the puffs' size a puff left
@@ -295,22 +314,29 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         out.push(Placed {
             at: pos,
             size_m: size * (0.8 + 0.4 * rand(i + 6)),
-            colour: colour.extend(alpha * keep),
+            colour: colour.extend(alpha * keep * fade),
             look,
             cell: (rand(i + 5) * 16.0).floor().min(15.0),
             spin_rad: rand(i + 3) * tau + t_s * 0.05 * (rand(i + 4) - 0.5),
         });
     };
-    // the ball, round, every puff out of the blast point at once
+    // the ball, every puff out of the blast point at once, turning over as a vortex ring once the mushroom forms
     let head = at + Vec3::Y * p.head_y * s;
     let centre = head + Vec3::Y * 10.0 * p.head_scale * s;
     let r = 90.0 * p.head_scale * s;
+    let ring = vortex(u);
+    let turned = -CONVECTION_TURNS * tau * (1.0 - (-t_s / CONVECTION_S).exp());
+    let (major, tube) = (r * ring * RING_MAJOR, r * (1.0 - ring * (1.0 - RING_TUBE)));
     for j in 0..BALL {
         let i = j * 13 + 1;
-        let (a, z) = (rand(i) * tau, rand(i + 1) * 2.0 - 1.0);
-        let dir = Vec3::new((1.0 - z * z).sqrt() * a.cos(), z, (1.0 - z * z).sqrt() * a.sin());
-        let reach = rand(i + 2).cbrt();
-        put(i, centre + dir * reach * r, dir, r * PUFF_SPAN, 0.0, false);
+        // its place on the torus (round the axis, round the tube, how deep in it), the tube's angle turning
+        let (around, deep) = (rand(i) * tau, rand(i + 2).sqrt());
+        let over = rand(i + 1) * tau + turned * (0.7 + 0.6 * rand(i + 10));
+        let out = Vec3::new(around.cos(), 0.0, around.sin());
+        let in_tube = out * over.cos() + Vec3::Y * over.sin();
+        let pos = centre + out * major + in_tube * deep * tube;
+        // the rising middle is the fire fed from below, the rolled-over outside the coolest
+        put(i, pos, in_tube, r * PUFF_SPAN, 0.05 * ring * over.cos(), false, 1.0);
     }
     // the ring rolling under it
     for j in 0..RING {
@@ -320,18 +346,20 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         let round = Vec3::new(a.cos(), 0.0, a.sin());
         let tube = round * 37.5 * b.cos() + Vec3::Y * 37.5 * b.sin();
         let pos = ring_c + (round * 77.5 + tube) * p.head_scale * s;
-        put(i, pos, tube, 37.5 * 2.0 * p.head_scale * s * PUFF_SPAN, 0.05, false);
+        put(i, pos, tube, 37.5 * 2.0 * p.head_scale * s * PUFF_SPAN, 0.05, false, 1.0);
     }
-    // the column, from the ground up to the ball's foot, the ground sucked up into it low down
+    // the column, from the ground up to the ball's foot, streaming up into it, the ground sucked up into it low down;
+    // a puff fades out as it reaches the ball and back in at the foot
     let top = (centre.y - at.y - r * 0.7).max(0.0);
     for j in 0..COLUMN {
         let i = j * 19 + 5;
-        let f = (j as f32 + rand(i)) / COLUMN as f32;
+        let f = ((j as f32 + rand(i)) / COLUMN as f32 + t_s * STEM_FLOW_PER_S).fract();
         let wide = (40.0 + (22.0 - 40.0) * f) * p.stem.x * 1.3 * s;
         let a = rand(i + 1) * tau;
         let off = Vec3::new(a.cos(), 0.0, a.sin()) * wide * 0.6 * rand(i + 2).sqrt();
         let dust = rand(i + 8) < 0.35 * (1.0 - f) * (1.0 - f);
-        put(i, at + Vec3::Y * f * top + off, off, wide * 2.0 * COLUMN_SPAN, 0.12, dust);
+        let fade = (f / 0.1).min((1.0 - f) / 0.15).clamp(0.0, 1.0);
+        put(i, at + Vec3::Y * f * top + off, off, wide * 2.0 * COLUMN_SPAN, 0.12, dust, fade);
     }
     // the dust skirt round the foot
     for j in 0..SKIRT {
@@ -339,7 +367,15 @@ pub fn cloud(n: &NukeSpec, at: Vec3, t_s: f32, to_sun: Vec3) -> Vec<crate::soft_
         let (a, b) = (rand(i) * tau, rand(i + 1) * std::f32::consts::PI);
         let round = Vec3::new(a.cos(), 0.0, a.sin());
         let pos = at + (round * (90.0 + 50.0 * b.cos()) * p.skirt.x + Vec3::Y * (8.0 + 50.0 * b.sin() * p.skirt.y)) * s;
-        put(i, pos, round + Vec3::Y * 0.3, 50.0 * 2.0 * p.skirt.x * s * SKIRT_SPAN, 0.35, true);
+        put(
+            i,
+            pos,
+            round + Vec3::Y * 0.3,
+            50.0 * 2.0 * p.skirt.x * s * SKIRT_SPAN,
+            0.35,
+            true,
+            1.0,
+        );
     }
     out
 }
@@ -458,11 +494,42 @@ mod tests {
         let size = |ps: &[crate::soft_sprites::Placed]| ps.iter().map(|p| p.size_m).sum::<f32>();
         let done = cloud(&n, Vec3::ZERO, n.cloud_s, Vec3::Y);
         let hanging = cloud(&n, Vec3::ZERO, n.cloud_s + 40.0, Vec3::Y);
-        assert_eq!(shown(&hanging), hanging.len(), "all of it still there 40 s on");
+        // all but the column's puffs fading out into the ball and back in at its foot
+        assert!(
+            shown(&hanging) + COLUMN as usize / 4 >= hanging.len(),
+            "still there 40 s on: {}",
+            shown(&hanging)
+        );
         let spread = size(&hanging) / size(&done);
         assert!(spread > 1.3 && spread < 1.5, "spreading toward half again its size: {spread}");
         let gone = cloud(&n, Vec3::ZERO, lasts_s(&n) - 0.01, Vec3::Y);
         assert!(shown(&gone) < gone.len() / 20, "faded away at the end: {}", shown(&gone));
+    }
+
+    #[test]
+    fn once_a_mushroom_its_middle_rises_faster_than_its_outside_rolls_down() {
+        let n = spec();
+        let t = n.cloud_s * 0.6;
+        let (now, next) = (cloud(&n, Vec3::ZERO, t, Vec3::Y), cloud(&n, Vec3::ZERO, t + 0.1, Vec3::Y));
+        let ball = |ps: &[crate::soft_sprites::Placed]| ps[..BALL as usize].to_vec();
+        let (now, next) = (ball(&now), ball(&next));
+        let mut wide: Vec<f32> = now.iter().map(|p| p.at.xz().length()).collect();
+        wide.sort_by(f32::total_cmp);
+        let (inner, outer) = (wide[wide.len() / 4], wide[wide.len() * 3 / 4]);
+        let rise = |keep: &dyn Fn(f32) -> bool| {
+            let v: Vec<f32> = now
+                .iter()
+                .zip(&next)
+                .filter(|(a, _)| keep(a.at.xz().length()))
+                .map(|(a, b)| b.at.y - a.at.y)
+                .collect();
+            v.iter().sum::<f32>() / v.len() as f32
+        };
+        let (middle, outside) = (rise(&|d| d < inner), rise(&|d| d > outer));
+        assert!(
+            middle > outside + 1.0,
+            "the middle rises {middle} m, the outside {outside} m in 0.1 s"
+        );
     }
 
     #[test]

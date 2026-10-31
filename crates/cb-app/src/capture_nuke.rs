@@ -58,7 +58,7 @@ const SHOTS: [(f32, &str); 9] = [
     (25.0, "nuke-25s.png"),
     (40.0, "nuke-40s.png"),
     (55.0, "nuke-55s.png"),
-    (64.0, "nuke-64s.png"),
+    (70.0, "nuke-70s.png"),
 ];
 
 #[allow(clippy::too_many_arguments)]
@@ -133,8 +133,8 @@ fn run(
     let c = Vec2::new(scene.target.x, scene.target.z);
     let floor = Vec3::new(c.x, ground(c.x, c.y), c.y);
     for (at_s, shot_s, off_m, name) in [
-        (68.0, 71.0, r + 30.0, "nuke-crater-rim.png"),
-        (73.0, 76.0, r * 2.2, "nuke-crater-back.png"),
+        (80.0, 83.0, r + 30.0, "nuke-crater-rim.png"),
+        (85.0, 88.0, r * 2.2, "nuke-crater-back.png"),
     ] {
         if t > at_s && !scene.done.contains(&name) && t < shot_s {
             let p = c + Vec2::new(1.0, 0.0) * off_m;
@@ -145,11 +145,11 @@ fn run(
             shoot(&mut commands, &scene.dir, name);
         }
     }
-    if t > 78.0 && !scene.done.contains(&"end") {
+    if t > 90.0 && !scene.done.contains(&"end") {
         scene.done.push("end");
         println!("NUKE_END");
     }
-    if t > 80.0 {
+    if t > 92.0 {
         exit.write(AppExit::Success);
     }
 }
