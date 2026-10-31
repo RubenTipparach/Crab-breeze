@@ -93,6 +93,18 @@ pub fn pose(u: f32) -> Pose {
     }
 }
 
+/// Every city a crater made whole reaches (`Deformation::digs`), as a circle covering it (its middle and its half
+/// diagonal, m): wiped, so no people or cars come into it (owner, 2026-10-31: "dont spawn people or cars in the city
+/// that got nuked").
+pub fn nuked_cities(plan: &cb_core::world::WorldPlan, dug: &cb_core::world::Deformation) -> Vec<(Vec2, f32)> {
+    plan.cities
+        .iter()
+        .map(|c| c.rect())
+        .filter(|r| dug.digs.iter().any(|(at, reach)| r.distance(*at) <= *reach))
+        .map(|r| ((r.min + r.max) * 0.5, (r.max - r.min).length() * 0.5))
+        .collect()
+}
+
 /// Real seconds after the blast to Mining Mike's timeline: his `explode` animation over the explosion's length,
 /// `cloud_s` (owner, 2026-10-30: "The explosion part is also way too slow", "Review timing of mesh explosion with this
 /// And sync them up!!!").
@@ -125,6 +137,7 @@ fn detonate(
     mut live: ResMut<Live>,
     mut commands: Commands,
     mut fx: MessageWriter<Fx>,
+    mut traffic: Option<ResMut<crate::traffic::TrafficSim>>,
 ) {
     let Some(n) = data.0.fortress.cfg.crash.nuke else {
         nukes.clear();
@@ -137,6 +150,15 @@ fn detonate(
         // Its full depth wherever it falls: on a coast the bowl goes under the sea and floods, a crater lake (a cap 5 m
         // over the sea left a coastal city's crater a dent a few metres deep, 2026-10-31).
         let touched = live.dug.dig_crater(xz, n.crater_radius_m, n.crater_depth_m, n.rim_m);
+        // Every car in the cities it wipes burns out where it stands (owner, 2026-10-31: "dont spawn people or cars in
+        // the city that got nuked"): a blast whose burn reaches each such city's far corner.
+        if let Some(t) = traffic.as_deref_mut() {
+            let d = &data.0.traffic;
+            for (c, reach) in nuked_cities(&plan, &live.dug) {
+                let energy_mj = (reach / d.cfg.blast_burn_m_per_cbrt_mj).powi(3) * 1.01;
+                t.traffic.blast(d, Vec3::new(c.x, at.y, c.y), energy_mj, false);
+            }
+        }
         live.dirty_tiles.extend(touched);
         let mut flat = 0;
         for b in plan.collision.candidates(xz, n.flatten_radius_m) {

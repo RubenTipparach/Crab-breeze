@@ -68,6 +68,7 @@ impl Fixture {
             cfg: &self.cfg,
             ground: &self.ground,
             doors,
+            nuked: &[],
         }
     }
 }

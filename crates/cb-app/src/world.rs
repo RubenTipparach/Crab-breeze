@@ -1600,19 +1600,15 @@ fn kept_for_cutting(mut mesh: Mesh) -> Mesh {
     mesh
 }
 
-/// How far out from a crater's middle the laid ground goes, as a share of its bowl's radius: the bowl, and the rim
-/// that buries the old surface.
-const CRATER_CUT: f32 = 1.3;
-
-/// Cuts every new crater dug whole (`Deformation::digs`) out of the laid city ground: its triangles with a corner
-/// within `CRATER_CUT` of the crater's radius are dropped, once, when it is dug.
+/// Cuts every new crater made whole (`Deformation::digs`) out of the laid city ground: its triangles with a corner
+/// within the crater's reach are dropped, once, when it is made.
 fn cut_by_craters(live: Res<Live>, mut seen: Local<usize>, laid: Query<&Mesh3d, With<CutByCraters>>, mut meshes: ResMut<Assets<Mesh>>) {
     let digs = &live.dug.digs;
     if digs.len() <= *seen {
         return;
     }
-    // `digs` holds each crater's reach (1.8 of its radius).
-    let cuts: Vec<(Vec2, f32)> = digs[*seen..].iter().map(|(c, reach)| (*c, reach / 1.8 * CRATER_CUT)).collect();
+    // As far as its walls and thrown earth reach: the floor wiped, the rest buried (`Deformation::digs`).
+    let cuts: Vec<(Vec2, f32)> = digs[*seen..].to_vec();
     *seen = digs.len();
     for handle in &laid {
         if let Some(mut mesh) = meshes.get_mut(&handle.0) {
@@ -1656,7 +1652,7 @@ mod crater_cut_tests {
         b.cuboid(Vec3::new(995.0, -1.0, -5.0), Vec3::new(1005.0, 0.0, 5.0), [1.0; 4]);
         let mut mesh = b.build();
         let before = mesh.indices().map_or(0, |i| i.len());
-        cut_circles(&mut mesh, &[(Vec2::ZERO, 400.0 * CRATER_CUT)]);
+        cut_circles(&mut mesh, &[(Vec2::ZERO, 400.0 * 2.1)]);
         let after = mesh.indices().map_or(0, |i| i.len());
         assert_eq!(after * 2, before, "the box inside is gone, the one 1 km out stays");
     }

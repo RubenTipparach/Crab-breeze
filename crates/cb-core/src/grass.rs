@@ -702,7 +702,8 @@ impl TileBake {
         for j in 0..d {
             for i in 0..d {
                 let p = corner + (Vec2::new(i as f32, j as f32) + 0.5) * cfg.density_cell_m;
-                if crater_clears(dug.delta_at(p), cfg) {
+                // dug, or burnt away where a crater made whole leaves its floor at the old height
+                if crater_clears(dug.delta_at(p), cfg) || dug.scorch_xz(p) > SCORCH_CLEARS {
                     self.density[j * d + i] = 0;
                 }
             }
@@ -896,6 +897,10 @@ pub fn overlook_start(plan: &WorldPlan, cfg: &GrassConfig, to_sun: Vec3) -> Opti
         rise,
     ))
 }
+
+/// Scorch at or over which no grass stands: a nuclear crater's floor stays at the ground's height, but nothing grows
+/// on it (owner, 2026-10-31).
+pub const SCORCH_CLEARS: f32 = 0.5;
 
 /// True when a crater changed the ground by `dug_delta_m` enough to clear its grass.
 pub fn crater_clears(dug_delta_m: f32, cfg: &GrassConfig) -> bool {
