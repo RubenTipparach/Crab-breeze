@@ -1,0 +1,83 @@
+<title>Night Light Values</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one narrow column, a cockpit-style readout of three night values, before beside after. */
+  :root {
+    --bg: #eef1f6; --panel: #ffffff; --fg: #1a2130; --muted: #5d6779;
+    --line: #d5dbe6; --old: #a9b3c4; --new: #2f6fd6;
+    --display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+    --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c1018; --panel: #141a26; --fg: #dfe6f2; --muted: #8b96aa;
+      --line: #252e40; --old: #4a5468; --new: #6ea2ff; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c1018; --panel: #141a26; --fg: #dfe6f2; --muted: #8b96aa;
+    --line: #252e40; --old: #4a5468; --new: #6ea2ff; color-scheme: dark;
+  }
+  body {
+    background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px;
+  }
+  main { max-width: 640px; margin: 0 auto; display: grid; gap: 24px; }
+  .eyebrow { font: 500 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 700 32px/1.15 var(--display); margin: 4px 0 0; text-wrap: balance; }
+  p { margin: 0; max-width: 62ch; color: var(--muted); }
+  .readout { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 20px; display: grid; gap: 22px; }
+  .row { display: grid; gap: 8px; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .name { font: 500 16px var(--display); }
+  .key { font: 400 12px var(--mono); color: var(--muted); }
+  .nums { font: 500 14px var(--mono); font-variant-numeric: tabular-nums; }
+  .nums .was { color: var(--muted); }
+  .bars { display: grid; gap: 4px; }
+  .bar { height: 8px; border-radius: 2px; }
+  .bar.old { background: var(--old); }
+  .bar.new { background: var(--new); }
+  .legend { display: flex; gap: 18px; font: 400 12px var(--mono); color: var(--muted); flex-wrap: wrap; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .legend .l-old::before { background: var(--old); }
+  .legend .l-new::before { background: var(--new); }
+  footer { font: 400 12px var(--mono); color: var(--muted); }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">Crab Breeze · data/world/day_night.ron · PR #109</div>
+    <h1>Night Light Values</h1>
+  </header>
+  <p>How much of the daytime light the city keeps after dark. You asked to double the night light and lower the moon ("its still pretty dark at night", "double it, and lower the moon light"). Each value is a share of full daylight.</p>
+
+  <section class="readout" id="readout" aria-label="Night light values, before and after"></section>
+
+  <div class="legend"><span class="l-old">before</span><span class="l-new">now</span></div>
+  <footer>Not playtested yet. The bars are drawn to scale, 0 to 40 % of daylight.</footer>
+</main>
+
+<script>
+  const ROWS = [
+    { name: "Ambient fill", key: "night_ambient_share", was: 0.16, now: 0.32, note: "lights the shade" },
+    { name: "Sky light", key: "night_sky_light_share", was: 0.09, now: 0.18, note: "the glow from above" },
+    { name: "Full moon", key: "moon_full_share", was: 0.35, now: 0.25, note: "softer moon shadows" },
+  ];
+  const MAX = 0.40;
+  const pct = v => Math.round(v * 100) + " %";
+  document.getElementById("readout").innerHTML = ROWS.map(r => `
+    <div class="row">
+      <div class="head">
+        <div><div class="name">${r.name}</div><div class="key">${r.key} · ${r.note}</div></div>
+        <div class="nums"><span class="was">${pct(r.was)}</span> → ${pct(r.now)}</div>
+      </div>
+      <div class="bars">
+        <div class="bar old" style="width:${(r.was / MAX) * 100}%"></div>
+        <div class="bar new" style="width:${(r.now / MAX) * 100}%"></div>
+      </div>
+    </div>`).join("");
+</script>
