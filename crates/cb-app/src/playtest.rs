@@ -647,6 +647,18 @@ fn play(
         finish(&mut t, now, None);
         return;
     };
+    // Its mech destroyed: say so at once and end the run as failed, so the take stops rather than filming the
+    // ejected pilot staring at the ground for the rest of the beat (owner, 2026-10-31: "Did you blow up again? Might
+    // wanna make the bot notify you").
+    if s.access.0.as_ref().is_some_and(|a| a.destroyed) && p.mode == PilotMode::Seated {
+        say(&format!(
+            "PLAYTEST_ALERT mech destroyed in beat {} {beat:?}, {:.0} s in",
+            t.beat,
+            now - t.start_s
+        ));
+        fail(&mut t, now, "the mech was destroyed");
+        return;
+    }
     let in_beat = now - t.beat_real_s;
     let mut act = Actions::default();
     let mut done = false;
