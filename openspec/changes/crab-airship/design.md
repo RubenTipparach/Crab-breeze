@@ -386,7 +386,8 @@ This replaces the fall rule of sections 2 and 2b and the "two of three hull thru
   indefinitely"). The pilot never skates in the fight. It flies to every target on tapped jets (`playtest::hover`, up
   to 25 m/s, faster than the fortress's 15 m/s) up near the fortress ("its jet altitude shoould be near the crab").
   At a lift thruster it hovers 150 m off the nozzle, outboard. At a hull port it hovers 400 m under it (at least 60 m off the
-  ground) and 90 m out (`BRING_DOWN_PORT_BELOW_M`, `BRING_DOWN_MISSILE_STANDOFF_M`): its missiles launch near level and
+  ground) and 60 m out (`BRING_DOWN_PORT_BELOW_M`, `BRING_DOWN_MISSILE_STANDOFF_M`), firing one missile each
+  2.5 s while the port is within 15 deg of straight up (`BRING_DOWN_MISSILE_OFF_VERTICAL_DEG`): its missiles launch near level and
   need that climb to come in within 30 deg of vertical (from 180 m under, 32 of them came in too shallow). The goal
   leads the fortress by 4 s of its motion (`HOVER_LEAD_S`), so the hover keeps pace.
 - **It clears the stragglers.** After the crash, `fortress-nuke` watches the cloud for 25 s and then runs

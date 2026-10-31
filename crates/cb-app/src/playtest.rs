@@ -1988,7 +1988,7 @@ fn play(
                     {
                         // Only at a full lock: an unlocked missile flies straight past (40 rounds went that way,
                         // fortress-down run 7).
-                        act.fire_missile = in_beat.rem_euclid(1.5) < 0.3;
+                        act.fire_missile = in_beat.rem_euclid(2.5) < 0.3;
                     }
                 } else {
                     // Up close (owner, 2026-10-30, choice B): on tapped jets the whole way to it, and hover
