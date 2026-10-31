@@ -560,6 +560,9 @@ fn first_on_line(capsules: &[cb_core::weapons::PartCapsule], from: Vec3, to: Vec
 
 /// Holds the mech in the air at `y_m` over `goal` (x, z): the jets tapped (`cb_core::playtest::tap_jets`), the rockets'
 /// swivel and the skates (lateral thrusters in the air) pushing it toward the point, the view's frame being theirs.
+/// How far ahead a hover's goal leads a moving target, seconds: `hover` closes at a quarter of the gap a second.
+const HOVER_LEAD_S: f32 = 4.0;
+
 fn hover(t: &mut Pilot, m: &cb_core::mech::MechState, p: &cb_core::pilot::PilotState, goal: Vec2, y_m: f32, now: f32) -> Actions {
     let off_s = if t.jet_on { 0.0 } else { now - t.jet_since_s };
     let on = cb_core::playtest::tap_jets(t.jet_on, y_m - m.pos.y, m.vel_y_m_s, m.boost.heat, off_s);
@@ -1923,12 +1926,16 @@ fn play(
                     cb_core::playtest::BRING_DOWN_HOVER_STANDOFF_M
                 };
                 let up = (aim.y - eye.y).atan2(flat);
+                // The hover closes at a quarter of what is left a second, so behind a fortress moving at 15 m/s it
+                // settles 60 m short (it hung 144-243 m off a port it wanted 90 m from): lead its goal by where the
+                // fortress will be in `HOVER_LEAD_S`.
+                let lead = Vec2::new(f.f.velocity().x, f.f.velocity().z) * HOVER_LEAD_S;
                 if hull {
                     // Missiles: keep closing on the stand-off point (they need no still gun), the view on the port. In
                     // the air the whole way, on tapped jets up near it (owner, 2026-10-31: "the mech isnt flying often
                     // enough", "its jet altitude shoould be near the crab", "occasionaly tapping space would allow the
                     // mech to stay in flight indefinitely"), where skating hung 250-290 m off it for minutes.
-                    let goal = under + (here - under).normalize_or(Vec2::X) * want;
+                    let goal = under + (here - under).normalize_or(Vec2::X) * want + lead;
                     act = hover(&mut t, m, p, goal, aim.y - cb_core::playtest::BRING_DOWN_PORT_BELOW_M, now);
                     act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
                     // The goal rides with the fortress: no stuck check on it (the beat's cap ends a fight that drags).
@@ -1979,7 +1986,7 @@ fn play(
                     // (owner, 2026-10-31: "it flew once, then skated around and wasted time").
                     // Outboard of the thruster, so the line up to its nozzle clears the hull and its legs.
                     let out = (under - Vec2::new(f.f.pos.x, f.f.pos.z)).normalize_or(Vec2::X);
-                    let goal = under + out * want;
+                    let goal = under + out * want + lead;
                     let hover_y = cb_core::playtest::bring_down_hover_y(aim.y, want, spec.body.eye_height_m);
                     act = hover(&mut t, m, p, goal, hover_y, now);
                     act.turn_axis = crate::showcase::steer(m, under);
