@@ -139,6 +139,10 @@ pub enum Beat {
 pub const BRING_DOWN_PORT_BELOW_M: f32 = 400.0;
 /// ...and never lower than this over the ground.
 pub const BRING_DOWN_PORT_FLOOR_M: f32 = 60.0;
+/// It fires a missile at a hull port only while the port is within this many degrees of straight up from it: fired
+/// from further out they came in too shallow, and 35 of 40 did nothing (fortress-nuke try 4, out of missiles with the
+/// third port at half).
+pub const BRING_DOWN_MISSILE_OFF_VERTICAL_DEG: f32 = 22.0;
 
 /// How far off a lit hull thruster the scripted pilot stands to fire missiles up into its port, metres along the
 /// ground: nearly under it, so a missile (launched at most 25 deg up, turning 70 deg/s) climbs into the port within

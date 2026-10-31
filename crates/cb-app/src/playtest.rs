@@ -1983,7 +1983,9 @@ fn play(
                                 d.shape.parts[i].id, x.targeting.selected
                             );
                         }
-                    } else if x.targeting.locked(&s.data.0.targeting) == Some(id) && flat < want + 60.0 {
+                    } else if x.targeting.locked(&s.data.0.targeting) == Some(id)
+                        && (90.0 - up.to_degrees()) < cb_core::playtest::BRING_DOWN_MISSILE_OFF_VERTICAL_DEG
+                    {
                         // Only at a full lock: an unlocked missile flies straight past (40 rounds went that way,
                         // fortress-down run 7).
                         act.fire_missile = in_beat.rem_euclid(1.5) < 0.3;
