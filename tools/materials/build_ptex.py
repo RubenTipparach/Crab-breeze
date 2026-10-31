@@ -399,6 +399,33 @@ vec4 fire_$name(vec2 uv) {
     g.material(albedo=(s, 0), metallic_v=0.0, transparent=True, opacity=(s, 1))
     return g
 
+
+def smoke_lit():
+    """Sixteen smoke puffs for lighting in the game: the smoke puffs' own silhouettes (`PUFF_HEIGHT`, cell for cell),
+    an unlit colour with fine grain and a little darkening in the folds, and a normal map from the same height, so the
+    game lights each puff from the sun's real direction (owner, 2026-10-30: "Maybe make new smoke puffs with normals
+    that you can light?")."""
+    g = Graph("Smoke Lit")
+    erode = fbm(g, 16, iterations=5, persistence=0.6)
+    grain = fbm(g, 64, iterations=4, persistence=0.5, offset=0.3)
+    billow = fbm(g, 10, iterations=3, persistence=0.45, offset=0.15)
+    inst = HASH + CELL + PUFF_HEIGHT + LIT + """
+vec4 lit_puff_$name(vec2 uv) {
+	float h = height_$name(uv);
+	vec3 n = lit_$name(uv, 0.0015);
+	// folds and crevices a little darker, whatever the light: the occlusion, not the sun
+	float fold = 1.0 - clamp(n.z, 0.0, 1.0);
+	float shade = mix(0.94, 1.04, $grain(uv)) * (1.0 - 0.3 * fold);
+	float a = smoothstep(0.0, 0.45, h - 0.3 * ($erode(uv) - 0.5) - 0.05) * edge_$name(uv);
+	return vec4(vec3(shade), a);
+}
+"""
+    s = shader(g, "smoke lit", [("erode", "f", erode), ("grain", "f", grain), ("billow", "f", billow)], inst,
+               [("f", "height_$name($uv)"), ("rgba", "lit_puff_$name($uv)"), ("f", "lit_puff_$name($uv).a")])
+    normal = g.normal_map((s, 0), strength=2.0)
+    g.material(albedo=(s, 1), normal=normal, metallic_v=0.0, transparent=True, opacity=(s, 2))
+    return g
+
 def fire_flipbook():
     """Sixteen frames of a flame tongue licking up and breaking into wisps, played over a fire particle's life."""
     g = Graph("Fire Flipbook")
@@ -596,6 +623,7 @@ GRAPHS = {
     "smoke_puffs": smoke_puffs,
     "fire_flipbook": fire_flipbook,
     "fireball_puffs": fireball_puffs,
+    "smoke_lit": smoke_lit,
     "dust_wisps": dust_wisps,
     "dirt_clods": dirt_clods,
 }
