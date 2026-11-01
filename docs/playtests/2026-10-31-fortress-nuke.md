@@ -59,3 +59,36 @@ Tries 1-7 found:
 | Missiles launched 180 m under a port arriving too shallow | 400 m under, fired only within 15 deg of vertical |
 | Hull ports at 900 hp needing 15 of 40 missiles | 600 hp, open question H8, provisional |
 | The straggler hunt re-picking its target every frame | One target at a time, the ground first |
+
+## 2026-11-01: guns on every thruster, hopping near the crab's height, in the Foreman
+
+- **Commit:** `cddbfd70` and on, `fortress-nuke` (PR #113).
+- **Drive:** `dungeon-crawler-2026/crab-breeze-2026-11-01-stratostacean-guns-hops.mp4` (9 min 42 s).
+- **Sound:** -20.1 dB mean.
+- **Contact sheet:** `docs/screenshots/fortress-down/2026-11-01-guns-hops/sheet.png`.
+
+| Beat | Outcome |
+|---|---|
+| BringDownFortress(1500) | All eight legs, then three hull ports, all with the autocannon. The Foreman hopped on its jets about 450-510 m up, near the crab's height, with the crab in its window. The fortress was down in 248 s |
+| LookAtNearest("nuke", 20) | The fireball and the cloud |
+| JetToNearest("crater", 120) | Flew over the crater |
+| ClearHostiles(600) | Every hostile taken out in 260 s: the crab mechs first, then the fighters |
+
+`PLAYTEST_RESULT ok fortress-nuke run 0: every beat played`.
+
+The changes since the last take:
+
+| What | How |
+|---|---|
+| Ports | A hull port takes hits within 70 deg of vertical (provisional, H9), so the guns take the ports as they take the legs, 22 deg up from 150 m off |
+| Missiles | None in the bring-down |
+| Jets | Hops: burn to a 22 m/s climb, coast, relight 25 m under the height |
+| Mech | The Foreman, not the Harrow |
+
+The unrecorded runs before it found:
+
+| Try | What happened |
+|---|---|
+| Harrow from above | The view down showed the cockpit floor, and the deck guard shot it down |
+| Foreman with missiles at 45 deg | 40 missiles, no hits: a slanting missile hits the plating round the port |
+| Foreman with guns | The crab came down in 295 s, then the Foreman was lost to the crab mechs, three of them down |
