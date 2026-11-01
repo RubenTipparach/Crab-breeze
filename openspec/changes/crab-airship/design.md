@@ -381,15 +381,17 @@ This replaces the fall rule of sections 2 and 2b and the "two of three hull thru
   lift and no list.
 - **The scripted pilot's order** (`Fortress::next_to_bring_down`): every lift thruster, port side first, then
   three hull thrusters in the shape's order. Eight lift kills and three hull kills bring it down.
-- **It flies.** The jets fire the mech up into an arc, and they recharge faster than it falls, so tapping them keeps
-  it in the air indefinitely (owner, 2026-10-31: "occasionaly tapping space would allow the mech to stay in flight
-  indefinitely"). The pilot never skates in the fight. It flies to every target on tapped jets (`playtest::hover`, up
-  to 25 m/s, faster than the fortress's 15 m/s) up near the fortress ("its jet altitude shoould be near the crab").
-  At a lift thruster it hovers 150 m off the nozzle, outboard. At a hull port it hovers 400 m under it (at least 60 m off the
-  ground) and 60 m out (`BRING_DOWN_PORT_BELOW_M`, `BRING_DOWN_MISSILE_STANDOFF_M`), firing one missile each
-  2.5 s while the port is within 15 deg of straight up (`BRING_DOWN_MISSILE_OFF_VERTICAL_DEG`): its missiles launch near level and
-  need that climb to come in within 30 deg of vertical (from 180 m under, 32 of them came in too shallow). The goal
-  leads the fortress by 4 s of its motion (`HOVER_LEAD_S`), so the hover keeps pace.
+- **It flies, in hops.** The jets fire the mech up into an arc, and they recharge faster than it falls, so a pilot
+  hopping on them stays in the air indefinitely (owner, 2026-10-31: "occasionaly tapping space would allow the mech to
+  stay in flight indefinitely", "it should fire togain altitude quick, coast fall and relight", "maintaining height is
+  no fun"). Each hop burns until the mech climbs at 22 m/s, coasts over the top, and lights again 25 m under the
+  height it keeps (`tap_jets`, `HOP_*`): it rises and falls some 50 m and the jet meter drains and fills each time. It
+  never skates in the fight, and it moves at up to 25 m/s, faster than the fortress's 15 m/s, its goal 4 s ahead of
+  the fortress (`HOVER_LEAD_S`). At a lift thruster it hops 150 m off the nozzle, outboard, the crab in front of it.
+  At a hull port it hops 250 m over it and 60 m out (`BRING_DOWN_PORT_ABOVE_M`, `BRING_DOWN_MISSILE_STANDOFF_M`), the
+  crab in plain view below ("crab should be withing line of sight, not constantly above me"), and fires one missile
+  each 2.5 s while the port is within 15 deg of straight down (`BRING_DOWN_MISSILE_OFF_VERTICAL_DEG`), the missile
+  diving in through the port's top.
 - **It clears the stragglers.** After the crash, `fortress-nuke` watches the cloud for 25 s and then runs
   `ClearHostiles`. That beat now aims at aircraft as well as mechs and vehicles: it leads a flying target with
   `weapons::lead`, lifts the view to it, and hovers on tapped jets when the target is more than 15 deg above the

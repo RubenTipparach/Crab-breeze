@@ -3,7 +3,10 @@
 // section 12), flown on the jets; the pilot watches the mushroom cloud, then shoots down the stragglers. First person
 // throughout.
 //
-//   CB_TAKE_SOUND=1 ./target/release/crab-breeze --playtest fortress-nuke --mech mechs/foreman.ron
+// Flown in the Harrow, whose cockpit sees out through its top, so the crab stays in view as the pilot shoots up into
+// its hull ports (owner, 2026-10-31: "make sure the bot flies up and can see the crab clearly as it is shooting it"):
+//
+//   CB_TAKE_SOUND=1 ./target/release/crab-breeze --playtest fortress-nuke --mech mechs/harrow.ron
 (
     name: "fortress-nuke",
     stuck_s: 60.0,
@@ -20,10 +23,12 @@
                 LookAtNearest("fortress", 4.0),
                 BringDownFortress(1500.0),
                 // the fireball, the rolling cap and the column, watched from where the fight ended
-                LookAtNearest("nuke", 25.0),
+                LookAtNearest("nuke", 20.0),
+                // over the crater on the jets (owner, 2026-10-31: "fly over crater, and kill all invading mechs")
+                JetToNearest("crater", 120.0),
                 // then the stragglers: its fighters, its deck guard and any vehicle left (owner, 2026-10-31: "lets have
                 // it shoot down the stragglers after downing the crab carrier")
-                ClearHostiles(480.0),
+                ClearHostiles(600.0),
             ],
         ),
     ],

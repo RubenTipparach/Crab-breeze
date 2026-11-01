@@ -1931,20 +1931,12 @@ fn play(
                 // fortress will be in `HOVER_LEAD_S`.
                 let lead = Vec2::new(f.f.velocity().x, f.f.velocity().z) * HOVER_LEAD_S;
                 if hull {
-                    // Missiles: keep closing on the stand-off point (they need no still gun), the view on the port. In
-                    // the air the whole way, on tapped jets up near it (owner, 2026-10-31: "the mech isnt flying often
-                    // enough", "its jet altitude shoould be near the crab", "occasionaly tapping space would allow the
-                    // mech to stay in flight indefinitely"), where skating hung 250-290 m off it for minutes.
+                    // Missiles: keep closing on the stand-off point over the port (they need no still gun), the view down
+                    // on it, the crab in sight below. In the air the whole way, hopping on the jets (owner, 2026-10-31:
+                    // "it should fire togain altitude quick, coast fall and relight", "crab should be withing line of
+                    // sight, not constantly above me").
                     let goal = under + (here - under).normalize_or(Vec2::X) * want + lead;
-                    act = hover(
-                        &mut t,
-                        m,
-                        p,
-                        goal,
-                        (aim.y - cb_core::playtest::BRING_DOWN_PORT_BELOW_M)
-                            .max(s.plan.terrain.height_at(m.pos.x, m.pos.z) + cb_core::playtest::BRING_DOWN_PORT_FLOOR_M),
-                        now,
-                    );
+                    act = hover(&mut t, m, p, goal, aim.y + cb_core::playtest::BRING_DOWN_PORT_ABOVE_M, now);
                     act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
                     // The goal rides with the fortress: no stuck check on it (the beat's cap ends a fight that drags).
                     dist = None;
@@ -1965,12 +1957,14 @@ fn play(
                         let stray = held.iter().any(|h| !wanted.contains(h));
                         let full = held.len() >= wanted.len();
                         let ready = now - t.toggled_s > 10.5;
-                        if t.leg == 3 && (stray || full || flat >= want + 60.0) {
+                        // only while the port is near straight up, as a single missile (`BRING_DOWN_MISSILE_OFF_VERTICAL_DEG`)
+                        let steep = (90.0 - up.to_degrees().abs()) < cb_core::playtest::BRING_DOWN_MISSILE_OFF_VERTICAL_DEG;
+                        if t.leg == 3 && (stray || full || !steep) {
                             // let go: the salvo leaves
                             t.leg = 0;
                             t.toggled_s = now;
                             info!("playtest: salvo away on {:?} ({} locks)", held, held.len());
-                        } else if t.leg == 3 || (ready && flat < want + 60.0) {
+                        } else if t.leg == 3 || (ready && steep) {
                             t.leg = 3;
                             act.fire_missile = true;
                         }
@@ -1984,7 +1978,7 @@ fn play(
                             );
                         }
                     } else if x.targeting.locked(&s.data.0.targeting) == Some(id)
-                        && (90.0 - up.to_degrees()) < cb_core::playtest::BRING_DOWN_MISSILE_OFF_VERTICAL_DEG
+                        && (90.0 - up.to_degrees().abs()) < cb_core::playtest::BRING_DOWN_MISSILE_OFF_VERTICAL_DEG
                     {
                         // Only at a full lock: an unlocked missile flies straight past (40 rounds went that way,
                         // fortress-down run 7).
@@ -2612,6 +2606,13 @@ fn place(kind: &str, here: Vec2, s: &Scene, x: &More) -> Option<(Vec2, String)> 
                 .map(|(i, l)| (l.centre, format!("house lot {i}")))
                 .collect(),
         ),
+        // the latest crater made whole (a nuclear crash's), to fly over it
+        "crater" => s.live.dug.digs.last().map(|(c, reach)| {
+            (
+                *c,
+                format!("the crater, {:.0} m across", reach / cb_core::world::deform::DIG_REACH * 2.0),
+            )
+        }),
         // the city farthest from here (the fast-flight runs)
         "farthest-city" => s
             .plan

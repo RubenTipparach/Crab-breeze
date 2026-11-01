@@ -132,13 +132,11 @@ pub enum Beat {
     WalkToMech(f32),
 }
 
-/// The pilot hovers on tapped jets (design section 12: the jets recharge faster than the mech falls, owner,
-/// 2026-10-31) this far under a hull port while its missiles climb in, `BRING_DOWN_MISSILE_STANDOFF_M` out. A missile
-/// launches near level and turns 70 deg/s: from 180 m under, every one came in more than 30 deg off vertical and did
-/// nothing (fortress-nuke try 3, 32 missiles); from 400 m it has the climb to straighten up, about 13 deg off.
-pub const BRING_DOWN_PORT_BELOW_M: f32 = 400.0;
-/// ...and never lower than this over the ground.
-pub const BRING_DOWN_PORT_FLOOR_M: f32 = 60.0;
+/// The pilot hops this far over a hull port while its missiles dive in, `BRING_DOWN_MISSILE_STANDOFF_M` out: the port is
+/// hit only from straight above or below (design section 2b), and from above the crab is in plain view under the
+/// pilot (owner, 2026-10-31: "crab should be withing line of sight, not constantly above me"; from 400 m under it
+/// the cockpit roof hid it).
+pub const BRING_DOWN_PORT_ABOVE_M: f32 = 250.0;
 /// It fires a missile at a hull port only while the port is within this many degrees of straight up from it: fired
 /// from further out they came in too shallow, and 35 of 40 did nothing (fortress-nuke try 4, out of missiles with the
 /// third port at half; at 22 deg, about a third hit and it still ran dry, try 7).
@@ -163,18 +161,26 @@ pub fn bring_down_hover_y(nozzle_y_m: f32, standoff_m: f32, eye_m: f32) -> f32 {
     nozzle_y_m - standoff_m * BRING_DOWN_HOVER_PITCH_DEG.to_radians().tan() - eye_m
 }
 
-/// Whether a scripted pilot holding a height on its jets burns them now. It taps them (owner, 2026-10-30: "you can
-/// tap jets so it recharges as you fly up"): on, it burns until it is rising (over 12 m/s, or at all once over the
-/// height) or the jets are hot (0.8); off, it coasts at least 2 s, long enough for the jets to start cooling (1.5 s
-/// after the last burn), unless it is 60 m under the height or falling at over 35 m/s. `below_m` is the height
-/// less the mech's, `vy` its vertical speed, `off_s` how long the jets have been off.
+/// Whether a scripted pilot holding a height on its jets burns them now. It hops (owner, 2026-10-30: "you can tap
+/// jets so it recharges as you fly up"; 2026-10-31: "they fire and allow the mech to be in a parabolic trajectory",
+/// "doesnt look like its jumping"): on, it burns until it is rising at `HOP_RISE_M_S` or the jets are hot (0.8);
+/// off, it coasts up over the top and falls, and lights them again once it is `HOP_DROP_M` under the height or
+/// falling faster than `HOP_FALL_M_S`. Each hop rises and falls some 50 m round the height, a jump you can see, not a
+/// float. `below_m` is the height less the mech's, `vy` its vertical speed, `off_s` how long the jets have been off.
 pub fn tap_jets(on: bool, below_m: f32, vy: f32, heat: f32, off_s: f32) -> bool {
     if on {
-        !(vy > 12.0 || (below_m < 0.0 && vy > 0.0) || heat > 0.8)
+        !(vy > HOP_RISE_M_S || heat > 0.8)
     } else {
-        below_m > 60.0 || vy < -35.0 || (off_s > 2.0 && below_m > 0.0 && vy <= 0.0)
+        below_m > HOP_DROP_M || vy < -HOP_FALL_M_S || (off_s > 2.0 && below_m > HOP_DROP_M * 0.5 && vy <= 0.0)
     }
 }
+
+/// A hop burns until the mech rises this fast...
+pub const HOP_RISE_M_S: f32 = 22.0;
+/// ...and the next lights once it has fallen this far under the height it holds...
+pub const HOP_DROP_M: f32 = 25.0;
+/// ...or falls this fast.
+pub const HOP_FALL_M_S: f32 = 30.0;
 
 /// What `UseOn` can ask for: `cb_core::interact::Interaction`'s names.
 pub const USE_ON: [&str; 5] = ["Greet", "Terminal", "GetIn", "GetOut", "Board"];
@@ -183,7 +189,7 @@ pub const LOOK_KINDS: [&str; 11] = [
     "person", "car", "light", "aircraft", "boat", "harbour", "door", "bench", "enemy", "fortress", "nuke",
 ];
 /// Where `SkateToNearest` and `JetToNearest` can go.
-pub const GO_KINDS: [&str; 5] = ["harbour", "runway", "city", "house", "farthest-city"];
+pub const GO_KINDS: [&str; 6] = ["harbour", "runway", "city", "house", "farthest-city", "crater"];
 
 /// Heat at or over which a scripted pilot on a long jet leg comes down to skate (the jets lock out at 1, survey M3, M5).
 pub const JET_REST_AT: f32 = 0.85;
