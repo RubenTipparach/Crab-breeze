@@ -141,12 +141,13 @@ On its circle the fortress SHALL weave in and out by `weave_m`, `weave_per_turn`
 ### Requirement: Its crash goes nuclear
 
 When the fortress hits the ground it SHALL dig a crater `crater_radius_m` in radius and `crater_depth_m` deep through
-the city, with nothing of the city drawn over it, bring down every building and house within `flatten_radius_m`, wipe
-the city it falls on of people and cars, and raise a mushroom cloud whose cap climbs to `cap_height_m`.
+the city, with nothing of the city drawn over it, blow away every building and house within `crater_radius_m`, damage
+those within `flatten_radius_m` (twice the crater's radius), leave the rest standing, wipe the city it falls on of
+people and cars, and raise a mushroom cloud whose cap climbs to `cap_height_m`.
 
 #### Scenario: The crash
 - **WHEN** the fortress crashes over a city
 - **THEN** the ground at the impact is `crater_depth_m` lower, no road, pavement, building floor or lamp hangs over it,
-  nothing stands within `flatten_radius_m`, no person or car is brought into that city again, and a mushroom cloud rises
-  over it
+  nothing stands within `crater_radius_m`, the buildings within `flatten_radius_m` are broken, those beyond stand, no
+  person or car is brought into that city again, and a mushroom cloud rises over it
 

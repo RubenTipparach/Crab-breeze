@@ -1600,6 +1600,10 @@ pub(crate) fn kept_for_cutting(mut mesh: Mesh) -> Mesh {
     mesh
 }
 
+/// How far from a crater's middle the laid ground and lamps are cut, in its radii: the bowl and the rim that buries the
+/// old surface.
+const LAID_CUT: f32 = 1.3;
+
 /// Cuts every new crater made whole (`Deformation::digs`) out of the laid city ground: its triangles with a corner
 /// within the crater's reach are dropped, once, when it is made.
 fn cut_by_craters(live: Res<Live>, mut seen: Local<usize>, laid: Query<&Mesh3d, With<CutByCraters>>, mut meshes: ResMut<Assets<Mesh>>) {
@@ -1607,8 +1611,12 @@ fn cut_by_craters(live: Res<Live>, mut seen: Local<usize>, laid: Query<&Mesh3d, 
     if digs.len() <= *seen {
         return;
     }
-    // As far as its walls and thrown earth reach: the floor wiped, the rest buried (`Deformation::digs`).
-    let cuts: Vec<(Vec2, f32)> = digs[*seen..].to_vec();
+    // The bowl and its rim (`LAID_CUT` of its radius; `digs` holds its reach, `CRATER_REACH` radii): past it the ground
+    // is the city's again and its streets stand.
+    let cuts: Vec<(Vec2, f32)> = digs[*seen..]
+        .iter()
+        .map(|(c, reach)| (*c, reach / cb_core::world::deform::CRATER_REACH * LAID_CUT))
+        .collect();
     *seen = digs.len();
     for handle in &laid {
         if let Some(mut mesh) = meshes.get_mut(&handle.0) {

@@ -214,8 +214,9 @@ fn detonate(
     }
 }
 
-/// What stood within this many of the crater's radii is vaporised: the bowl and its rim.
-const GROUND_ZERO: f32 = 1.3;
+/// What stood within this many of the crater's radii is vaporised: the crater (owner, 2026-10-31: "Buildings in the
+/// crater radius are blown up"); within `flatten_radius_m` the blast breaks what it can.
+const GROUND_ZERO: f32 = 1.0;
 
 /// The flash lasts this long, seconds...
 const FLASH_S: f32 = 0.8;
