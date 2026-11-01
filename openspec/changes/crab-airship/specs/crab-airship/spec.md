@@ -65,7 +65,7 @@ Every part of the fortress (thrusters, turrets, catapults, bays, lifts, drive th
 - **THEN** it does not penetrate
 
 #### Scenario: A hull port from the side
-- **WHEN** a round reaches an open hull thruster's port hole more than 50 deg from the fortress's vertical
+- **WHEN** a round reaches an open hull thruster's port hole more than 70 deg from the fortress's vertical
 - **THEN** it meets the 300 mm hull and does no damage, while one from directly below does double damage
 
 #### Scenario: The autocannon on a thruster's inboard side
@@ -122,7 +122,8 @@ A hull thruster SHALL be boxed and lockable while it is lit, so a locked missile
 ### Requirement: A scripted pilot brings the fortress down
 
 The playtest beat `BringDownFortress` SHALL fight the fortress as a player can, through the same input actions,
-until it crashes: every lift thruster, then three hull thrusters with locked missiles. It SHALL fly on its jets to any
+until it crashes: every lift thruster, then three hull thrusters, with its guns, hopping on its jets near the
+fortress's height with it in sight. It SHALL fly on its jets to any
 target more than 300 m off. After the crash, `ClearHostiles` SHALL shoot down the mechs, vehicles and aircraft left.
 
 #### Scenario: The fortress-nuke playtest

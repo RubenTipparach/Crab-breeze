@@ -560,6 +560,11 @@ fn first_on_line(capsules: &[cb_core::weapons::PartCapsule], from: Vec3, to: Vec
 
 /// Holds the mech in the air at `y_m` over `goal` (x, z): the jets tapped (`cb_core::playtest::tap_jets`), the rockets'
 /// swivel and the skates (lateral thrusters in the air) pushing it toward the point, the view's frame being theirs.
+/// The hull ports are taken with missiles, not the guns. Off: the guns take them as they take the lift thrusters (owner,
+/// 2026-11-01: "you dont need missiles, regular gun shots or cannons should destroy it just fine"), from near the crab's
+/// height with it in view, and never run dry; the missile approach stays for a mech without a gun.
+const BRING_DOWN_BY_MISSILE: bool = false;
+
 /// How far ahead a hover's goal leads a moving target, seconds: `hover` closes at a quarter of the gap a second.
 const HOVER_LEAD_S: f32 = 4.0;
 
@@ -1909,28 +1914,29 @@ fn play(
             {
                 let hull = d.shape.parts[i].kind == "hull";
                 // The nozzle: the capsule's lower end and a little further down its axis, so the round enters the
-                // weak cap (below -18 m); a hull thruster's port is its middle.
+                // weak cap (below -18 m); a hull thruster's port is the lower end of its duct, where it opens under the
+                // hull.
                 let (lo, hi) = if c.a.y < c.b.y { (c.a, c.b) } else { (c.b, c.a) };
                 let axis = (hi - lo).normalize_or(Vec3::Y);
-                let spot = if hull { (lo + hi) * 0.5 } else { lo - axis * (c.radius_m * 0.8) };
+                let spot = if hull {
+                    lo + axis * (c.radius_m * 0.5)
+                } else {
+                    lo - axis * (c.radius_m * 0.8)
+                };
                 let speed = spec.weapons.get(sim.selected).map_or(1000.0, |w| w.speed_m_s);
-                let aim = cb_core::weapons::lead(eye, spot, f.f.velocity(), speed, !hull);
+                let aim = cb_core::weapons::lead(eye, spot, f.f.velocity(), speed, true);
                 let here = Vec2::new(m.pos.x, m.pos.z);
                 let under = Vec2::new(aim.x, aim.z);
                 let flat = here.distance(under);
                 // A gun stands off until the nozzle is low enough to aim at; a missile turns and climbs, so for a hull
                 // thruster it closes to well inside a missile's reach (260 m/s for 6 s).
-                let want = if hull {
-                    cb_core::playtest::BRING_DOWN_MISSILE_STANDOFF_M
-                } else {
-                    cb_core::playtest::BRING_DOWN_HOVER_STANDOFF_M
-                };
+                let want = cb_core::playtest::BRING_DOWN_HOVER_STANDOFF_M;
                 let up = (aim.y - eye.y).atan2(flat);
                 // The hover closes at a quarter of what is left a second, so behind a fortress moving at 15 m/s it
                 // settles 60 m short (it hung 144-243 m off a port it wanted 90 m from): lead its goal by where the
                 // fortress will be in `HOVER_LEAD_S`.
                 let lead = Vec2::new(f.f.velocity().x, f.f.velocity().z) * HOVER_LEAD_S;
-                if hull {
+                if hull && BRING_DOWN_BY_MISSILE {
                     // Missiles: keep closing on the stand-off point just under the port (they need no still gun), near the
                     // crab's height, the crab in sight. In the air the whole way, hopping on the jets (owner, 2026-10-31:
                     // "it should fire togain altitude quick, coast fall and relight", "crab should be withing line of
@@ -1991,7 +1997,13 @@ fn play(
                     // Outboard of the thruster, so the line up to its nozzle clears the hull and its legs.
                     let out = (under - Vec2::new(f.f.pos.x, f.f.pos.z)).normalize_or(Vec2::X);
                     let goal = under + out * want + lead;
-                    let hover_y = cb_core::playtest::bring_down_hover_y(aim.y, want, spec.body.eye_height_m);
+                    // a lift thruster's nozzle 12 deg up; a hull port 22 deg up, steep enough that the rounds go in
+                    let pitch = if hull {
+                        cb_core::playtest::BRING_DOWN_PORT_PITCH_DEG
+                    } else {
+                        cb_core::playtest::BRING_DOWN_HOVER_PITCH_DEG
+                    };
+                    let hover_y = cb_core::playtest::hover_y_at(aim.y, want, spec.body.eye_height_m, pitch);
                     act = hover(&mut t, m, p, goal, hover_y, now);
                     act.turn_axis = crate::showcase::steer(m, under);
                     act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);

@@ -158,8 +158,19 @@ pub const BRING_DOWN_HOVER_PITCH_DEG: f32 = 12.0;
 /// The height to hover at to shoot up into a nozzle at `nozzle_y_m` from `standoff_m` off it: the nozzle
 /// `BRING_DOWN_HOVER_PITCH_DEG` above the eye, the eye `eye_m` above the mech's feet.
 pub fn bring_down_hover_y(nozzle_y_m: f32, standoff_m: f32, eye_m: f32) -> f32 {
-    nozzle_y_m - standoff_m * BRING_DOWN_HOVER_PITCH_DEG.to_radians().tan() - eye_m
+    hover_y_at(nozzle_y_m, standoff_m, eye_m, BRING_DOWN_HOVER_PITCH_DEG)
 }
+
+/// The height to hover at so a point at `target_y_m` from `standoff_m` off it is `pitch_deg` above the eye, the eye
+/// `eye_m` above the mech's feet.
+pub fn hover_y_at(target_y_m: f32, standoff_m: f32, eye_m: f32, pitch_deg: f32) -> f32 {
+    target_y_m - standoff_m * pitch_deg.to_radians().tan() - eye_m
+}
+
+/// A hull port is shot with the guns from this far below its level: within a gun's 25 deg up and 20 deg or more, so the
+/// rounds go in within a port's 70 deg of vertical (owner, 2026-11-01: "you dont need missiles, regular gun shots or
+/// cannons should destroy it just fine"), the crab in the window, near its height.
+pub const BRING_DOWN_PORT_PITCH_DEG: f32 = 22.0;
 
 /// Whether a scripted pilot holding a height on its jets burns them now. It hops (owner, 2026-10-30: "you can tap
 /// jets so it recharges as you fly up"; 2026-10-31: "they fire and allow the mech to be in a parabolic trajectory",
