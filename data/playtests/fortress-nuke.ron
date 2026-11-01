@@ -3,10 +3,10 @@
 // section 12), flown on the jets; the pilot watches the mushroom cloud, then shoots down the stragglers. First person
 // throughout.
 //
-// Flown in the Harrow, whose cockpit sees out through its top, so the crab stays in view as the pilot shoots up into
-// its hull ports (owner, 2026-10-31: "make sure the bot flies up and can see the crab clearly as it is shooting it"):
+// Flown in the Foreman (owner, 2026-11-01: "the foreman was just fine"), hopping near the crab's height with it in
+// sight:
 //
-//   CB_TAKE_SOUND=1 ./target/release/crab-breeze --playtest fortress-nuke --mech mechs/harrow.ron
+//   CB_TAKE_SOUND=1 ./target/release/crab-breeze --playtest fortress-nuke --mech mechs/foreman.ron
 (
     name: "fortress-nuke",
     stuck_s: 60.0,

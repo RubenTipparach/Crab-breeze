@@ -50,7 +50,9 @@
             // 600, not 900: three of the six must now go (design section 12), ten missile hits as two at 900 took
             // before (provisional, open question H8)
             name: "Hull thruster", hp: 600.0, armour_mm: 300.0,
-            weak: Port(within_deg: 30.0),
+            // 50, not 30: a pilot near the crab's own height, the crab in sight, can still reach a port from under its hull
+            // (owner, 2026-11-01: "mech should maintain as close as possible altittude"; provisional, open question H9)
+            weak: Port(within_deg: 50.0),
             capsule: (radius_m: 12.0, half_m: 30.0, centre_y_m: 5.0),
         ),
         "drive": (name: "Drive thruster", hp: 600.0, armour_mm: 140.0, capsule: (radius_m: 12.0, half_m: 0.0)),

@@ -1931,12 +1931,12 @@ fn play(
                 // fortress will be in `HOVER_LEAD_S`.
                 let lead = Vec2::new(f.f.velocity().x, f.f.velocity().z) * HOVER_LEAD_S;
                 if hull {
-                    // Missiles: keep closing on the stand-off point over the port (they need no still gun), the view down
-                    // on it, the crab in sight below. In the air the whole way, hopping on the jets (owner, 2026-10-31:
+                    // Missiles: keep closing on the stand-off point just under the port (they need no still gun), near the
+                    // crab's height, the crab in sight. In the air the whole way, hopping on the jets (owner, 2026-10-31:
                     // "it should fire togain altitude quick, coast fall and relight", "crab should be withing line of
                     // sight, not constantly above me").
                     let goal = under + (here - under).normalize_or(Vec2::X) * want + lead;
-                    act = hover(&mut t, m, p, goal, aim.y + cb_core::playtest::BRING_DOWN_PORT_ABOVE_M, now);
+                    act = hover(&mut t, m, p, goal, aim.y - cb_core::playtest::BRING_DOWN_PORT_BELOW_M, now);
                     act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
                     // The goal rides with the fortress: no stuck check on it (the beat's cap ends a fight that drags).
                     dist = None;

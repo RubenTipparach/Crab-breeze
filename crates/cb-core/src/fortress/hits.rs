@@ -2,7 +2,7 @@
 //! doubled through a weak point. Where it struck and which way it was going are given in the part's own frame
 //! (axis-aligned with the fortress's), so the armour is the round's to find: a lift thruster's outboard plate
 //! stops everything, its inboard side is 60 mm, its nozzle and grille are weak; a hull thruster's port counts only
-//! once its doors are open and only to a round within 30 degrees of the fortress's vertical.
+//! once its doors are open and only to a round within its `Port` angle (`fortress.ron`) of the fortress's vertical.
 
 use super::{BeamPhase, Fortress, FortressData};
 use glam::Vec3;
@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[test]
-    fn a_hull_port_takes_damage_only_from_within_30_deg_of_vertical() {
+    fn a_hull_port_takes_damage_only_from_within_its_angle_of_vertical() {
         let (d, mut f) = fortress();
         let i = d.part("HL2").unwrap();
         // sealed: nothing gets in
@@ -167,7 +167,7 @@ mod tests {
         run(&d, &mut f, 10.0);
         let below = f.hit(&d, i, Vec3::new(0.0, -30.0, 0.0), Vec3::Y, CANNON.0, CANNON.1);
         assert_eq!(below, HitOutcome::Hurt { damage: 180.0, weak: true });
-        let slant = Vec3::new(0.7, 0.7, 0.0); // 45 degrees off vertical
+        let slant = Vec3::new(0.866, 0.5, 0.0); // 60 degrees off vertical, past the port's 50
         assert!(matches!(f.hit(&d, i, Vec3::ZERO, slant, CANNON.0, CANNON.1), HitOutcome::NoPen { armour_mm } if armour_mm >= 300.0));
         let steep = Vec3::new(0.3, -1.0, 0.0); // about 17 degrees off, from above
         assert!(matches!(
