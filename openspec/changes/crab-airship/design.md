@@ -381,17 +381,18 @@ This replaces the fall rule of sections 2 and 2b and the "two of three hull thru
   lift and no list.
 - **The scripted pilot's order** (`Fortress::next_to_bring_down`): every lift thruster, port side first, then
   three hull thrusters in the shape's order. Eight lift kills and three hull kills bring it down.
-- **It flies, in hops.** The jets fire the mech up into an arc, and they recharge faster than it falls, so a pilot
-  hopping on them stays in the air indefinitely (owner, 2026-10-31: "occasionaly tapping space would allow the mech to
-  stay in flight indefinitely", "it should fire togain altitude quick, coast fall and relight", "maintaining height is
-  no fun"). Each hop burns until the mech climbs at 22 m/s, coasts over the top, and lights again 25 m under the
-  height it keeps (`tap_jets`, `HOP_*`): it rises and falls some 50 m and the jet meter drains and fills each time. It
-  never skates in the fight, and it moves at up to 25 m/s, faster than the fortress's 15 m/s, its goal 4 s ahead of
-  the fortress (`HOVER_LEAD_S`). At a lift thruster it hops 150 m off the nozzle, outboard, the crab in front of it.
-  At a hull port it hops 250 m over it and 60 m out (`BRING_DOWN_PORT_ABOVE_M`, `BRING_DOWN_MISSILE_STANDOFF_M`), the
-  crab in plain view below ("crab should be withing line of sight, not constantly above me"), and fires one missile
-  each 2.5 s while the port is within 15 deg of straight down (`BRING_DOWN_MISSILE_OFF_VERTICAL_DEG`), the missile
-  diving in through the port's top.
+- **It flies, in hops, near the crab's height.** The jets fire the mech up into an arc, and they recharge faster than
+  it falls, so a pilot hopping on them stays in the air indefinitely (owner, 2026-10-31: "it should fire togain altitude
+  quick, coast fall and relight", "maintaining height is no fun"; 2026-11-01: "mech should maintain as close as possible
+  altittude"). Each hop burns until the mech climbs at 22 m/s, coasts over the top, and lights again 25 m under the
+  height it keeps (`tap_jets`, `HOP_*`): it rises and falls some 50 m, the jet meter draining and filling. It never
+  skates in the fight, and it moves at up to 25 m/s, its goal 4 s ahead of the fortress (`HOVER_LEAD_S`). At a lift
+  thruster it hops 150 m off the nozzle, outboard, the crab in front of it. At a hull port it hops 150 m under it and
+  100 m out (`BRING_DOWN_PORT_BELOW_M`, `BRING_DOWN_MISSILE_STANDOFF_M`), near the crab's height with the crab in
+  sight ("crab should be withing line of sight, not constantly above me"), and fires one missile each 2.5 s while the
+  port is within 45 deg of vertical. For that a hull port takes hits within 50 deg of its vertical, not 30
+  (provisional, H9): from straight under it the cockpit roof hid the crab, and over the deck its guard shot the mech
+  down. The take is flown in the Foreman ("the foreman was just fine").
 - **It clears the stragglers.** After the crash, `fortress-nuke` watches the cloud for 25 s and then runs
   `ClearHostiles`. That beat now aims at aircraft as well as mechs and vehicles: it leads a flying target with
   `weapons::lead`, lifts the view to it, and hovers on tapped jets when the target is more than 15 deg above the
@@ -414,3 +415,4 @@ Tests: `while_any_leg_works_it_holds_its_height`, `the_hull_lights_only_when_eve
 | H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | decided (owner, 2026-10-26, survey H6: recommendation accepted, "Approve all"); section 9, the deck guard. The cap of 6 on deck and 8 below are section 4's, kept |
 
 | H8 | A hull thruster has 600 hp, not 900, so bringing it down still takes ten missile hits now three of the six must go (section 12): 15 hits from the Foreman's 40 missiles, with no rearming, failed two runs out of ammunition | 600 (provisional) |
+| H9 | A hull port takes hits within 50 deg of the fortress's vertical, not 30 (section 2b), so a pilot near the crab's height, the crab in sight, can still reach one from under the hull (section 12) | 50 deg (provisional) |
