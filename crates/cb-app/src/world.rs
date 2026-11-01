@@ -1611,11 +1611,11 @@ fn cut_by_craters(live: Res<Live>, mut seen: Local<usize>, laid: Query<&Mesh3d, 
     if digs.len() <= *seen {
         return;
     }
-    // The bowl and its rim (`LAID_CUT` of its radius; `digs` holds its reach, `CRATER_REACH` radii): past it the ground
+    // The bowl and its rim (`LAID_CUT` of its radius; `digs` holds its reach, `DIG_REACH` radii): past it the ground
     // is the city's again and its streets stand.
     let cuts: Vec<(Vec2, f32)> = digs[*seen..]
         .iter()
-        .map(|(c, reach)| (*c, reach / cb_core::world::deform::CRATER_REACH * LAID_CUT))
+        .map(|(c, reach)| (*c, reach / cb_core::world::deform::DIG_REACH * LAID_CUT))
         .collect();
     *seen = digs.len();
     for handle in &laid {

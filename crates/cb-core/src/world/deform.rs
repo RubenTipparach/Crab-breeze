@@ -26,6 +26,20 @@ pub struct Blast {
 
 /// A crater's dig and scorch reach this many of its radii.
 pub const CRATER_REACH: f32 = 1.8;
+/// A crater made whole scorches out this many of its radii: to the ring its blast heavily damages (owner, 2026-10-31:
+/// "darken the area of the explosion", "buildings 2x of the radius are heavily damaged").
+pub const DIG_REACH: f32 = 2.0;
+
+/// The one bowl-and-rim profile, `d` the distance from the middle in radii: down `depth_m` at the middle, easing to
+/// nothing at the radius, a rim `rim_m` high round it.
+fn bowl(d: f32, depth_m: f32, rim_m: f32) -> f32 {
+    let bowl = if d < 1.0 {
+        -depth_m * 0.5 * (1.0 + (std::f32::consts::PI * d).cos())
+    } else {
+        0.0
+    };
+    bowl + rim_m * (-((d - 1.0) / 0.35).powi(2)).exp()
+}
 
 /// The dug ground: tile deltas and the blasts that made them, in order.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -117,21 +131,14 @@ impl Deformation {
         if !(centre.is_finite() && radius_m.is_finite() && radius_m > 0.0 && depth_m.is_finite() && rim_m.is_finite()) {
             return Vec::new();
         }
-        self.digs.push((centre, radius_m * CRATER_REACH));
-        self.carve(centre, radius_m, depth_m, rim_m, f32::INFINITY, &|_| false)
+        self.digs.push((centre, radius_m * DIG_REACH));
+        self.shape(centre, radius_m, DIG_REACH, f32::INFINITY, &|_| false, &|d| bowl(d, depth_m, rim_m))
     }
 
     /// The one bowl-and-rim shape: down `depth_m` at the middle, easing to nothing at `r`, a rim `rim_m` high round
     /// it, scorched out to 1.8 `r`; never below `floor_m` under where the ground was; `protected` points not dug.
     fn carve(&mut self, centre: Vec2, r: f32, depth_m: f32, rim_m: f32, floor_m: f32, protected: &dyn Fn(Vec2) -> bool) -> Vec<(i32, i32)> {
-        self.shape(centre, r, CRATER_REACH, floor_m, protected, &|d| {
-            let bowl = if d < 1.0 {
-                -depth_m * 0.5 * (1.0 + (std::f32::consts::PI * d).cos())
-            } else {
-                0.0
-            };
-            bowl + rim_m * (-((d - 1.0) / 0.35).powi(2)).exp()
-        })
+        self.shape(centre, r, CRATER_REACH, floor_m, protected, &|d| bowl(d, depth_m, rim_m))
     }
 
     /// Adds `change(d)` (metres, `d` the distance from `centre` in radii of `r`) to every sample within `reach` radii
@@ -323,6 +330,7 @@ impl Deformation {
     pub fn within(&self, lo: Vec2, hi: Vec2) -> Self {
         let mut out = Self {
             origin_m: self.origin_m,
+            digs: self.digs.clone(),
             ..Default::default()
         };
         let (k0, k1) = (self.tile_of(lo), self.tile_of(hi));
@@ -342,6 +350,7 @@ impl Deformation {
     pub fn around(&self, key: (i32, i32)) -> Self {
         let mut out = Self {
             origin_m: self.origin_m,
+            digs: self.digs.clone(),
             ..Default::default()
         };
         for dz in -1..=1 {
@@ -494,7 +503,7 @@ mod tests {
         let (c, reach) = d.digs[0];
         assert_eq!(c, Vec2::new(100.0, -50.0));
         assert!(
-            (reach - 400.0 * CRATER_REACH).abs() < 0.01,
+            (reach - 400.0 * DIG_REACH).abs() < 0.01,
             "its scorch's reach, the thrown earth's: {reach}"
         );
         assert!(d.blasts.is_empty(), "not a blast");

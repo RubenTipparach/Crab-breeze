@@ -143,9 +143,50 @@ impl From<&GrassConfig> for GrassTint {
 
 /// How fully grass covers the ground at vertex `p` with normal `n`, `dug_m` changed by craters:
 /// the one rule the grass grows by (`cb_core::grass::ground_cover`).
-fn grass_cover(plan: &WorldPlan, grass: &GrassConfig, p: Vec3, n: Vec3, dug_m: f32) -> f32 {
-    ground_cover(plan, Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y), dug_m, grass)
+fn grass_cover(plan: &WorldPlan, grass: &GrassConfig, p: Vec3, n: Vec3, dug_m: f32, scorch: f32) -> f32 {
+    // none where a blast scorched it, as the blades themselves (`grass::SCORCH_CLEARS`): the ring at a crater's edge,
+    // where the dig fades out, kept its green (owner, 2026-10-31: "there's a grass ring poking out")
+    let burnt = (scorch / cb_core::grass::SCORCH_CLEARS).clamp(0.0, 1.0);
+    ground_cover(plan, Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y), dug_m, grass) * (1.0 - burnt)
 }
+
+/// The blast mark a crater made whole leaves (the Material Maker `blast_scorch` map, its charred middle, cracks,
+/// streaks and ragged edge) laid over its whole scorched reach in the ground's own colour, so it follows the bowl and
+/// its rim as no flat decal can (owner, 2026-10-31: "add some explosion texture? Like a radical scorch mark decal on
+/// the terrain hole?"). Linear albedo over the ground colour `c`.
+fn blast_mark(dug: &Deformation, p: Vec3, c: [f32; 4]) -> [f32; 4] {
+    static MARK: std::sync::OnceLock<Option<image::RgbaImage>> = std::sync::OnceLock::new();
+    let Some(img) = MARK
+        .get_or_init(|| {
+            image::open(crate::cli::repo_root().join("assets/textures/fx/blast_scorch/albedo.png"))
+                .ok()
+                .map(|i| i.to_rgba8())
+        })
+        .as_ref()
+    else {
+        return c;
+    };
+    let mut out = Vec3::new(c[0], c[1], c[2]);
+    for (centre, reach) in &dug.digs {
+        let rel = Vec2::new(p.x, p.z) - *centre;
+        if rel.length() >= *reach {
+            continue;
+        }
+        // turned by where it fell, so two marks are not one stamp
+        let a = (centre.x * 0.37 + centre.y * 0.61).sin() * std::f32::consts::PI;
+        let rel = Vec2::from_angle(a).rotate(rel);
+        let uv = rel / (2.0 * reach) + Vec2::splat(0.5);
+        let (w, h) = img.dimensions();
+        let px = img.get_pixel(((uv.x * w as f32) as u32).min(w - 1), ((uv.y * h as f32) as u32).min(h - 1));
+        let lin = |v: u8| (f32::from(v) / 255.0).powf(2.2);
+        let mark = Vec3::new(lin(px[0]), lin(px[1]), lin(px[2]));
+        out = out.lerp(mark, f32::from(px[3]) / 255.0 * BLAST_MARK);
+    }
+    [out.x, out.y, out.z, c[3]]
+}
+
+/// How fully the blast mark covers the ground where its alpha is whole.
+const BLAST_MARK: f32 = 0.9;
 
 /// Ground under a rubble heap (openspec change `rubble`): dusty broken concrete flecked with brick,
 /// blended in as the heap deepens from 0.2 m to 0.6 m (crater rims stay ground). A stand-in until
@@ -325,7 +366,9 @@ fn ground_colour(
     let mut c = c.max(Vec3::ZERO).powf(2.2);
     let dry: f32 = biome.iter().zip(&tint.dryness).map(|(w, d)| w * d).sum::<f32>().clamp(0.0, 1.0);
     c = c.lerp(tint.colour, (cover * tint.strength * (1.0 - dry)).clamp(0.0, 1.0));
-    c = c.lerp(Vec3::new(0.10, 0.08, 0.07), scorch.clamp(0.0, 1.0) * 0.85);
+    // darker and wider than a linear fall-off: most of the blast's reach is burnt (owner, 2026-10-31: "darken the area of
+    // the explosion")
+    c = c.lerp(Vec3::new(0.08, 0.065, 0.055), scorch.clamp(0.0, 1.0).sqrt() * 0.95);
     c.extend(1.0).to_array()
 }
 
@@ -421,9 +464,10 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
                 .water_at(Vec2::new(p.x, p.z), p.y - 3.0)
                 .is_some_and(|w| w.surface_m > sea);
             let dug_m = dug.delta_at(Vec2::new(p.x, p.z));
-            let cover = grass_cover(plan, grass, *p, *n, dug_m);
+            let cover = grass_cover(plan, grass, *p, *n, dug_m, *sc);
             let c = ground_colour(*p, *n, sea, river, *sc, cover, grass.into(), biome_at(plan, *p, *n), patch_far);
-            if dug_m != 0.0 { rubble_colour(c, dug_m, *sc, 0, 0) } else { c }
+            let c = if dug_m != 0.0 { rubble_colour(c, dug_m, *sc, 0, 0) } else { c };
+            if *sc > 0.0 { blast_mark(dug, *p, c) } else { c }
         })
         .collect();
     chunk_to_mesh(chunk, colors)
@@ -787,10 +831,10 @@ fn redraw_craters(
                 .enumerate()
                 .map(|(k, (p, n))| {
                     let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
-                    let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)));
                     let scorch = dug.scorch_at(key, i, j);
+                    let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)), scorch);
                     let c = ground_colour(*p, *n, sea, false, scorch, cover, (&*grass).into(), biome_at(&world, *p, *n), 0.0);
-                    rubble_colour(c, dug.delta_sample(key, i, j), scorch, i, j)
+                    blast_mark(&dug, *p, rubble_colour(c, dug.delta_sample(key, i, j), scorch, i, j))
                 })
                 .collect();
             chunk_to_mesh(tile, colors)
