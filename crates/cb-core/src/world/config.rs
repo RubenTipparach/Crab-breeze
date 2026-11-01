@@ -861,6 +861,8 @@ pub struct WorldConfig {
     pub highway_blend_m: f32,
     /// Air bases (air-bases).
     pub bases: super::bases::BasesConfig,
+    /// The offshore limit (offshore-limit).
+    pub bounds: crate::bounds::BoundsConfig,
     /// The terrain's baked shadow for far ground (distant-shadows).
     pub sun_shade: super::sun_shade::SunShadeConfig,
     /// Height of a road surface above the ground under it (no z-fighting).
@@ -1010,6 +1012,7 @@ impl Default for WorldConfig {
             highway_flat_margin_m: 12.0,
             highway_blend_m: 60.0,
             bases: super::bases::BasesConfig::default(),
+            bounds: crate::bounds::BoundsConfig::default(),
             sun_shade: super::sun_shade::SunShadeConfig::default(),
             road_lift_m: 0.15,
             kerb_height_m: 0.2,
@@ -1097,6 +1100,7 @@ impl Validate for WorldConfig {
         positive("highway_blend_m", self.highway_blend_m)?;
         positive("road_lift_m", self.road_lift_m)?;
         self.bases.validate()?;
+        self.bounds.validate()?;
         self.sun_shade.validate()?;
         positive("kerb_height_m", self.kerb_height_m)?;
         self.road_surfaces.validate()?;

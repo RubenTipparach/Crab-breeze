@@ -275,7 +275,13 @@ fn spawn_harbours(
         if h.port {
             // The seaport (seaport-layout): its buildings, cranes and quays are the site's lots and ground
             // (`small_buildings`); its quays' tops are walked on as fixed platforms in the world's frame.
-            if let Some(site) = plan.sites.iter().find(|s| s.city == h.city) {
+            // the seaport whose harbour this is (an airport may serve the same city): its berth is the harbour's
+            if let Some(site) = plan
+                .sites
+                .iter()
+                .filter(|s| s.template.kind == cb_core::world::sites::SiteKind::Seaport)
+                .min_by(|a, b| a.footprint().distance(h.berth).total_cmp(&b.footprint().distance(h.berth)))
+            {
                 let slabs = site
                     .solids
                     .iter()

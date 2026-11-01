@@ -126,6 +126,70 @@ pub struct AirBase {
     pub highway: u32,
     /// Its runway (survey W45).
     pub runway: Runway,
+    /// The site it is built as (`WorldPlan::sites`' index), when the military base's page is shipped
+    /// (`military-base` section 4); none for a block-out base.
+    pub site: Option<u32>,
+    /// Its hangar bays and tower as its site places them; none for a block-out base, whose bays are laid out by
+    /// `BasesConfig`.
+    pub bays: Option<Bays>,
+}
+
+/// A site-built base's mech hangar bays and tower, from its page's marks (`military-base` section 4).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Bays {
+    /// Each bay's middle (x, z).
+    pub centres: [Vec2; 3],
+    /// Half a bay's inside, x and z, as the site is turned.
+    pub half_m: Vec2,
+    /// The way out of a bay's mouth, a unit vector (x, z).
+    pub mouth: Vec2,
+    /// The control tower's middle (x, z).
+    pub tower: Vec2,
+}
+
+impl AirBase {
+    /// The base built as `site` (index `index` in the plan's sites), id `id`: its footprint, its first runway, its
+    /// bays from the marks `bay_0`..`bay_2` (each a `cfg.hangar_m` inside, its mouth toward the page's -z) and its tower
+    /// at `tower`. None when the site lacks a runway or a bay.
+    pub fn of_site(id: u32, index: u32, site: &super::sites::PlacedSite, cfg: &BasesConfig) -> Option<Self> {
+        let f = site.footprint();
+        let (a, b, width_m, surface_m) = site.runways().into_iter().next()?;
+        let centre = f.centre();
+        let mid = (a + b) * 0.5;
+        let along_x = (b - a).x.abs() >= (b - a).y.abs();
+        let side = match (along_x, mid.y < centre.y, mid.x < centre.x) {
+            (true, true, _) => RunwaySide::Front,
+            (true, false, _) => RunwaySide::Back,
+            (false, _, true) => RunwaySide::West,
+            (false, _, false) => RunwaySide::East,
+        };
+        let mut centres = [Vec2::ZERO; 3];
+        for (i, c) in centres.iter_mut().enumerate() {
+            *c = site.mark(&format!("bay_{i}"))?;
+        }
+        let inside = Vec2::new(cfg.hangar_m.x, cfg.hangar_m.z) * 0.5;
+        let half_m = if site.turn % 2 == 1 {
+            Vec2::new(inside.y, inside.x)
+        } else {
+            inside
+        };
+        let mouth = site.to_world(Vec2::NEG_Y) - site.to_world(Vec2::ZERO);
+        Some(Self {
+            id,
+            centre,
+            half_m: f.size() * 0.5,
+            ground_m: surface_m,
+            highway: 0,
+            runway: Runway { a, b, width_m, side },
+            site: Some(index),
+            bays: Some(Bays {
+                centres,
+                half_m,
+                mouth: mouth.normalize_or(Vec2::NEG_Y),
+                tower: site.mark("tower").unwrap_or(centre),
+            }),
+        })
+    }
 }
 
 /// Where a runway lies beside its base's site.
@@ -256,6 +320,9 @@ impl AirBase {
 
     /// Its control tower's footprint at its widest (the cab), by the front corner of the apron.
     pub fn tower(&self) -> Rect {
+        if let Some(b) = &self.bays {
+            return Rect::centred(b.tower, Vec2::splat(TOWER_HALF_M));
+        }
         let r = self.rect();
         Rect::centred(Vec2::new(r.max.x - TOWER_IN_M, r.min.y + TOWER_IN_M), Vec2::splat(TOWER_HALF_M))
     }
@@ -278,6 +345,9 @@ impl AirBase {
     /// Its hangar bays' insides (x, z), along the back edge (high z), open toward the apron (low z).
     /// The one rule for where a hangar is: the game draws them here and repairs a mech standing in one.
     pub fn hangars(&self, cfg: &BasesConfig) -> Vec<Rect> {
+        if let Some(b) = &self.bays {
+            return b.centres.iter().map(|c| Rect::centred(*c, b.half_m)).collect();
+        }
         let n = cfg.hangars;
         let pitch = cfg.hangar_m.x + HANGAR_GAP_M;
         let z = self.centre.y + self.half_m.y - HANGAR_BACK_M - cfg.hangar_m.z * 0.5;
@@ -308,14 +378,23 @@ pub struct Terminal {
 impl AirBase {
     /// Its terminals, one a bay, each just inside the bay's mouth by its left (low x) wall.
     pub fn terminals(&self, cfg: &BasesConfig) -> Vec<Terminal> {
+        // inside the mouth (`terminal_in_m.y` in) by the wall on its left looking out (`terminal_in_m.x` in): a
+        // block-out bay opens toward low z, a site's bay its page's way
+        let mouth = self.bays.map_or(Vec2::NEG_Y, |b| b.mouth);
         self.hangars(cfg)
             .iter()
             .enumerate()
-            .map(|(bay, h)| Terminal {
-                base: self.id,
-                bay,
-                at: Vec2::new(h.min.x + cfg.terminal_in_m.x, h.min.y + cfg.terminal_in_m.y),
-                office: None,
+            .map(|(bay, h)| {
+                let c = h.centre();
+                let half = h.size() * 0.5;
+                let deep = half.dot(mouth.abs());
+                let wide = half.dot(mouth.perp().abs());
+                Terminal {
+                    base: self.id,
+                    bay,
+                    at: c + mouth * (deep - cfg.terminal_in_m.y) - mouth.perp() * (wide - cfg.terminal_in_m.x),
+                    office: None,
+                }
             })
             .collect()
     }
@@ -361,6 +440,13 @@ pub struct KeepClear<'a> {
     pub courses: &'a [Vec<Vec2>],
     /// Least distance from a site's edge to a course.
     pub river_m: f32,
+    /// The civil sites placed before the bases (openspec change `island-sites-layout`: the civil airports go first),
+    /// kept `site_m` from...
+    pub sites: &'a [Rect],
+    /// ...this far, metres.
+    pub site_m: f32,
+    /// ...and the civil runways' approach cones, which nothing of a base may stand under.
+    pub cones: &'a [super::approach::Approach],
 }
 
 /// Places the bases: candidate sites beside every highway, kept when on land, flat enough and clear of
@@ -394,6 +480,8 @@ pub fn place_bases(shape: &Shape, cities: &[City], clear: &KeepClear, start: Vec
                         ground_m,
                         highway: hi as u32,
                         runway,
+                        site: None,
+                        bays: None,
                     });
                 }
             }
@@ -489,7 +577,15 @@ pub(crate) fn keeps_clear(site: &Rect, clear: &KeepClear) -> bool {
         .iter()
         .all(|h| edge.iter().all(|p| h.project(*p).0 > clear.road_m) && h.path.iter().all(|p| site.distance(*p) > clear.road_m));
     let rivers = clear.courses.iter().flatten().all(|p| site.distance(*p) > clear.river_m);
-    roads && rivers
+    let sites = clear.sites.iter().all(|s| {
+        !Rect {
+            min: s.min - Vec2::splat(clear.site_m),
+            max: s.max + Vec2::splat(clear.site_m),
+        }
+        .overlaps(site)
+    });
+    let cones = clear.cones.iter().all(|c| !c.covers(site, 100.0));
+    roads && rivers && sites && cones
 }
 
 /// The ground a site at `c` is flattened to (the mean of its corners and centre), or `None` when the
@@ -530,6 +626,8 @@ mod tests {
             ground_m: 40.0,
             highway: 0,
             runway: Runway::beside(Vec2::new(1000.0, -2000.0), cfg.half_m, RunwaySide::Front, 1800.0, 0.0, &cfg),
+            site: None,
+            bays: None,
         };
         let bays = base.hangars(&cfg);
         assert_eq!(bays.len(), cfg.hangars);
@@ -558,6 +656,8 @@ mod tests {
             ground_m: 10.0,
             highway: 0,
             runway: Runway::beside(Vec2::ZERO, cfg.half_m, RunwaySide::Front, 1800.0, 0.0, &cfg),
+            site: None,
+            bays: None,
         };
         let t = base.terminals(&cfg)[2];
         assert_eq!((t.base, t.bay), (1, 2));

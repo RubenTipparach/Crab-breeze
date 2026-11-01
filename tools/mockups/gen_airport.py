@@ -18,6 +18,7 @@ SRC = os.path.join(ROOT, "tools", "mockups", "airport_src.html")
 OUT = os.path.join(ROOT, "docs", "mockups", "airport.html")
 KIT = os.path.join(ROOT, "docs", "mockups", "small_buildings_kit.js")
 SITE_KIT = os.path.join(ROOT, "tools", "mockups", "site_kit.js")
+AIRFIELD_KIT = os.path.join(ROOT, "tools", "mockups", "airfield_kit.js")
 ENGINE = os.path.join(ROOT, "docs", "mockups", "building_engine.js")
 SITE_BUILDINGS = os.path.join(ROOT, "docs", "mockups", "site_buildings_kit.js")
 
@@ -25,7 +26,7 @@ SITE_BUILDINGS = os.path.join(ROOT, "docs", "mockups", "site_buildings_kit.js")
 def main():
     with open(SRC) as f:
         page = f.read()
-    for marker in ("__AIRCRAFT__", "__YARDSTICK__", "__KIT__", "__ENGINE__", "__SITE_BUILDINGS__", "__SITE_KIT__"):
+    for marker in ("__AIRCRAFT__", "__YARDSTICK__", "__KIT__", "__ENGINE__", "__SITE_BUILDINGS__", "__SITE_KIT__", "__AIRFIELD_KIT__"):
         if marker not in page:
             raise SystemExit(f"{SRC}: no {marker} marker")
     table = aircraft()
@@ -40,7 +41,8 @@ def main():
         page = page.replace("__KIT__", f.read())
     # The building engine (the street's: textures, merged meshes, the shot, the fall, the rubble) and the airport and
     # port buildings drawn on the kit's Builder, shared with the seaport page.
-    for marker, path in (("__ENGINE__", ENGINE), ("__SITE_BUILDINGS__", SITE_BUILDINGS), ("__SITE_KIT__", SITE_KIT)):
+    for marker, path in (("__ENGINE__", ENGINE), ("__SITE_BUILDINGS__", SITE_BUILDINGS), ("__SITE_KIT__", SITE_KIT),
+                         ("__AIRFIELD_KIT__", AIRFIELD_KIT)):
         with open(path) as f:
             page = page.replace(marker, f.read())
     with open(OUT, "w") as f:

@@ -20,7 +20,7 @@ use bevy::prelude::*;
 use bevy::world_serialization::{WorldAsset, WorldAssetRoot};
 use cb_core::car::{CarSpec, Drive, Obstacle};
 use cb_core::civilians::Doors;
-use cb_core::pilot::{CarAccess, PilotEvent, PilotMode};
+use cb_core::pilot::{CarAccess, PilotEvent, PilotMode, Vehicle};
 use cb_core::traffic::{CarState, Harm, MechNear, Traffic, TrafficView, in_cone, sight_blocked, view_half_rad};
 use cb_core::world::lanes::LaneGraph;
 use cb_core::world::{Ground, OnRoads, Scene as WorldScene};
@@ -158,6 +158,7 @@ pub fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut
         let spec = &kinds[c.kind as usize];
         CarAccess {
             id: c.id,
+            vehicle: Vehicle::Car,
             door: CarSpec::to_world(c.pos, c.heading_rad, spec.door_driver_m),
             eye: CarSpec::to_world(c.pos, c.heading_rad, spec.eye_driver_m),
             centre: c.pos,
@@ -201,7 +202,7 @@ fn step_traffic(
     mut blasts: MessageReader<crate::blast::Explosion>,
     mut harmed: MessageWriter<CivilianHarmed>,
     mut toll: ResMut<CivilianToll>,
-    (time, doors): (Res<Time<Fixed>>, Option<Res<crate::street_doors::RefugeDoors>>),
+    (time, doors, access): (Res<Time<Fixed>>, Option<Res<crate::street_doors::RefugeDoors>>, Res<CarAccessNow>),
 ) {
     let _t = crate::perf_hud::slow("car_traffic");
     let d = &data.0.traffic;
@@ -219,8 +220,9 @@ fn step_traffic(
         ground: &scene,
         plan: &plan,
     };
-    // the pilot and the cars
-    for e in &events.0 {
+    // the pilot and the cars (an aircraft's door and seat are `stolen_aircraft`'s)
+    let aircraft = access.0.is_some_and(|c| c.vehicle == Vehicle::Aircraft);
+    for e in events.0.iter().filter(|_| !aircraft) {
         match *e {
             PilotEvent::EnteringCar(id) => {
                 // the driver runs from the pilot for the nearest street door, as people on foot do (the
@@ -773,9 +775,16 @@ fn spawn_speed_readout(mut commands: Commands) {
     ));
 }
 
-fn show_speed(sim: Res<TrafficSim>, pilot: Res<PilotSim>, mut text: Single<&mut Text, With<SpeedReadout>>) {
-    let want = match sim.traffic.driven() {
-        Some(c) if pilot.curr.mode == PilotMode::Driving => cb_core::car::speed_readout(c.vel().length()),
+fn show_speed(
+    sim: Res<TrafficSim>,
+    pilot: Res<PilotSim>,
+    flown: Res<crate::stolen_aircraft::Flown>,
+    mut text: Single<&mut Text, With<SpeedReadout>>,
+) {
+    let driving = pilot.curr.mode == PilotMode::Driving;
+    let want = match (sim.traffic.driven(), flown.0.as_ref()) {
+        (_, Some(f)) if driving => crate::stolen_aircraft::readout_line(f),
+        (Some(c), _) if driving => cb_core::car::speed_readout(c.vel().length()),
         _ => String::new(),
     };
     if text.0 != want {

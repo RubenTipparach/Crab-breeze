@@ -18,11 +18,13 @@ says so. `docs/analysis/source-repos.md` records what was taken from each, at wh
 > black screen between walking and piloting: boarding is walked and climbed. Every playtest shows
 > the game this way (section 9). It outranks every other rule, design and plan here.
 >
-> **One exception: driving a car is third person** (owner, 2026-10-26: "also driving should be in 3rd
-> person"). Behind the wheel the view is a chase camera behind and above the car that the mouse
-> orbits, at the on-foot field of view ("car driving should remain at 75"); getting in and out stay
-> first person and ease into and out of it with no cut (`openspec/changes/car-chase-camera`). On foot,
-> the mech and boarding stay first person.
+> **Two exceptions: driving a car and flying a stolen aircraft are third person** (owner, 2026-10-26:
+> "also driving should be in 3rd person"; 2026-10-30, in the plan questions for stealing aircraft: a
+> chase camera). Behind the wheel or at the controls the view is a chase camera behind and above the
+> vehicle that the mouse orbits, at the on-foot field of view ("car driving should remain at 75");
+> getting in and out stay first person and ease into and out of it with no cut
+> (`openspec/changes/car-chase-camera`, `openspec/changes/fly-stolen-aircraft`). On foot, the mech and
+> boarding stay first person.
 
 **This file is the only copy of these rules.** `AGENTS.md` is a pointer to it and must stay one.
 Write a rule here, never there. Two files that have to agree are two files that won't (Star Crew,
@@ -350,7 +352,8 @@ said out loud and kept in check, never guessed.
   mouse is the player's again the moment they are seated. **Driving a car's chase camera** turns
   with the car (owner, 2026-10-26: "also driving should be in 3rd person") and drifts back behind a
   moving car after the mouse has been still 2 s; the mouse orbits it freely at any moment. The drift
-  is provisional (`car-chase-camera`, DC1).
+  is provisional (`car-chase-camera`, DC1). **A stolen aircraft's chase camera** is the same camera
+  (owner, 2026-10-30, `fly-stolen-aircraft`).
 - **Ask with the survey, never in chat** (Star Crew, Pale Blue Dot, Tactical Airsuite). Open
   questions go into the survey page `docs/design/survey.html`, published as an HTML artifact whose
   database holds the answers, with options, a recommendation and a place to answer. The
@@ -391,8 +394,8 @@ said out loud and kept in check, never guessed.
 The owner's first priority. The `playtest` and `obs-record` skills are the method.
 - **A feature is done when a playtest shows it in the running game**, not when a test passes or a
   mockup looks right.
-- **A playtest is the game as it is played**: first person throughout (driving a car excepted, which
-  is third person by the law's one exception), the walk to the mech and the climb into the cockpit included, nothing cut together (the law; Star Crew 2026-10-12: a take
+- **A playtest is the game as it is played**: first person throughout (driving a car and flying a
+  stolen aircraft excepted, which are third person by the law's two exceptions), the walk to the mech and the climb into the cockpit included, nothing cut together (the law; Star Crew 2026-10-12: a take
   that cuts between views "DOES NOT MEET MY REQUIREMENTS").
 - **The scripted pilot plays fair**: one scripted pilot sends the same input actions a player does,
   following beats in `data/playtests/<name>.ron`, and prints `PLAYTEST_START`, `PLAYTEST_RESULT`

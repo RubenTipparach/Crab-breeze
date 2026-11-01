@@ -4,8 +4,9 @@
 //! tallied per base and sent as `CivilAirHit` for the career loop. A kind with a model (the freighter, survey D8) is
 //! drawn from its glb, its three levels of detail switched by distance and its gear shown only near the ground; the
 //! others as labelled block-out stand-ins at true size (`cb_core::air_traffic::shape`). Each plays its engine loop.
-//! `Neutrals` lists them for targeting and the cockpit, which show them as neutral. The aircraft the airport's page
-//! parks at its stands stand there in the same models (`park_aircraft`).
+//! `Neutrals` lists them for targeting and the cockpit, which show them as neutral. Nothing stands at an airfield as
+//! scenery: every aircraft on a stand is traffic, filled out of sight and sent off in turn (`airfield-traffic`), and the
+//! airfields it uses are `cb_core::air_traffic::fields`, laid out once from the plan (`AirFields`).
 
 use crate::audio::{Ear, Loop, SoundAt};
 use crate::blast::Explosion;
@@ -82,6 +83,7 @@ pub struct CivilHits<'w, 's> {
     air: Option<ResMut<'w, AirTraffic>>,
     plan: Res<'w, Plan>,
     out: MessageWriter<'w, CivilAirHit>,
+    broke: MessageWriter<'w, crate::airliners::AirlinerBroke>,
     pilot: Query<'w, 's, &'static MechId, With<Piloted>>,
 }
 
@@ -97,7 +99,7 @@ impl CivilHits<'_, '_> {
             .flat_map(|(a, spec)| {
                 shape::capsules(a, spec).into_iter().map(|c| cb_core::weapons::PartCapsule {
                     mech: CIVIL_ID_BASE + a.id,
-                    part: 0,
+                    part: c.part,
                     a: c.a,
                     b: c.b,
                     radius_m: c.radius_m,
@@ -117,11 +119,14 @@ impl CivilHits<'_, '_> {
             .collect()
     }
 
-    /// A shot from `owner` struck civil aircraft `id` at `at`: the armour rule, the tally and the
-    /// message. True when it went down.
+    /// A shot from `owner` struck part `part` of civil aircraft `id` at `at` (a modelled airliner's damage zone, else
+    /// the aircraft as a whole): the armour rule, the tally and the message, and a zone shot away
+    /// (`airliners::AirlinerBroke`). True when it went down.
+    #[allow(clippy::too_many_arguments)]
     pub fn hit(
         &mut self,
         id: u32,
+        part: usize,
         owner: u32,
         at: Vec3,
         penetration_mm: f32,
@@ -134,8 +139,18 @@ impl CivilHits<'_, '_> {
         let Some(a) = air.0.get_mut(id - CIVIL_ID_BASE) else {
             return false;
         };
-        let armour = data.0.air_traffic.kinds.get(&a.kind).map_or(0.0, |s| s.armour_mm);
-        let downed = a.hit(penetration_mm, damage, armour);
+        let Some(spec) = data.0.air_traffic.kinds.get(&a.kind) else {
+            return false;
+        };
+        let out = a.hit_part(spec, part, penetration_mm, damage);
+        let downed = out.downed;
+        if !out.broke.is_empty() {
+            self.broke.write(crate::airliners::AirlinerBroke {
+                aircraft: id,
+                zones: out.broke,
+                at,
+            });
+        }
         if downed {
             fx.write(Fx::new("explosion_air", a.pos));
         }
@@ -160,8 +175,9 @@ impl Plugin for AirTrafficPlugin {
             .init_resource::<CivilStanding>()
             .init_resource::<KindLooks>()
             .add_message::<CivilAirHit>()
+            .add_message::<crate::airliners::AirlinerBroke>()
+            .add_message::<crate::airliners::AirlinerCrashed>()
             .add_world_spawn(start)
-            .add_world_spawn(park_aircraft)
             .add_game_systems(FixedUpdate, list_neutrals.in_set(SimSet::Input).after(crate::units::list_hostiles))
             .add_game_systems(
                 FixedUpdate,
@@ -171,46 +187,43 @@ impl Plugin for AirTrafficPlugin {
                     .before(crate::combat::fly_shots),
             )
             .add_game_systems(FixedUpdate, tally_hits.in_set(SimSet::Mech).after(crate::combat::fly_shots))
-            .add_game_systems(Update, (draw_traffic, bind_models, spin_parts).chain());
+            .add_game_systems(FixedUpdate, scramble_on_attack.in_set(SimSet::Mech).after(crate::combat::fly_shots))
+            .add_game_systems(
+                Update,
+                (
+                    crate::airliners::crash_airliners,
+                    crate::airliners::break_airliners,
+                    draw_traffic,
+                    bind_models,
+                    spin_parts,
+                    crate::airliners::pose_airliners,
+                    crate::airliners::fall_parts,
+                )
+                    .chain(),
+            );
     }
 }
 
 fn start(mut commands: Commands, plan: Res<Plan>) {
     commands.insert_resource(AirTraffic(Traffic::new(plan.seed)));
+    let fields = cb_core::air_traffic::fields::fields(&plan.0);
+    let bases = fields.iter().map(|f| f.base).collect();
+    info!(
+        "air traffic: {} airfields, {} stands",
+        fields.len(),
+        fields.iter().map(|f| f.stands.len()).sum::<usize>()
+    );
+    commands.insert_resource(AirFields { fields, bases });
 }
 
-/// Parks the aircraft each site's page parks at its stands (airport-layout: "parked aircraft are the civil traffic's own
-/// models in the game"): each kind's model, its wheels on the apron, its nose as the page turns it.
-fn park_aircraft(
-    mut commands: Commands,
-    plan: Res<Plan>,
-    data: Res<Data>,
-    assets: Res<AssetServer>,
-    mut looks: ResMut<KindLooks>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    for site in &plan.sites {
-        for a in &site.template.parked {
-            // `GameData::load` has checked every parked kind is one.
-            let Some(spec) = data.0.air_traffic.kinds.get(&a.kind) else {
-                continue;
-            };
-            let at = site.point_to_world(a.at) + Vec3::Y * rest_m(spec);
-            spawn_aircraft(
-                &mut commands,
-                &mut looks,
-                &mut meshes,
-                &mut materials,
-                &assets,
-                &a.kind,
-                spec,
-                format!("parked {}", a.kind),
-                Transform::from_translation(at).with_rotation(Quat::from_rotation_y(a.heading_rad + site.heading_rad())),
-                true,
-            );
-        }
-    }
+/// The airfields the traffic uses on the ground, laid out once from the plan: every civil airport and military base,
+/// and each one's runway as the flight code knows it.
+#[derive(Resource)]
+pub struct AirFields {
+    /// The fields.
+    pub fields: Vec<cb_core::air_traffic::Field>,
+    /// Their runways (`Field::base`), the places routes fly between.
+    pub bases: Vec<cb_core::world::AirBase>,
 }
 
 /// The civil aircraft in the air, for targeting and the cockpit.
@@ -247,16 +260,19 @@ fn zones(hostiles: &Hostiles, keep_clear_m: f32) -> Vec<Zone> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn step_traffic(
+pub(crate) fn step_traffic(
     mut air: ResMut<AirTraffic>,
     data: Res<Data>,
     plan: Res<Plan>,
+    fields: Res<AirFields>,
     pilot: Res<PilotSim>,
     me: Query<&MechSim, With<Piloted>>,
     hostiles: Res<Hostiles>,
     time: Res<Time<Fixed>>,
     mut live: ResMut<Live>,
     mut explosions: MessageWriter<Explosion>,
+    mut crashed: MessageWriter<crate::airliners::AirlinerCrashed>,
+    mut units: ResMut<crate::units::Units>,
 ) {
     let _t = crate::perf_hud::slow("step_traffic");
     let cfg = &data.0.air_traffic;
@@ -273,11 +289,35 @@ fn step_traffic(
     let ground = |x: f32, z: f32| plan.height_at(x, z);
     let island = Island {
         ground: &ground,
-        bases: &plan.bases,
+        bases: &fields.bases,
+        fields: &fields.fields,
         cities: &plan.cities,
         zones: &zones,
     };
-    for e in air.0.step(cfg, &w, &island, time.delta_secs()) {
+    let events = air.0.step(cfg, &w, &island, time.delta_secs());
+    // A scrambled base's aircraft over the pilot is handed to the invasion's units, whose brains fly attack runs and
+    // fire their weapons (airfield-traffic F2); it keeps its model (`UnitSpec::look`).
+    for a in air.0.take_attackers() {
+        let role = cfg.kinds.get(&a.kind).map(|k| k.role);
+        let kind = match role {
+            Some(cb_core::air_traffic::Role::Fighter) => "base_fighter",
+            Some(cb_core::air_traffic::Role::Gunship) => "base_gunship",
+            _ => continue,
+        };
+        let Some(spec) = data.0.units.units.get(kind) else { continue };
+        let id = units.add_for(
+            |id| {
+                let mut u = cb_core::units::Unit::new(id, kind, spec, a.pos, a.heading_rad, id);
+                u.vel = a.vel;
+                u
+            },
+            None,
+            None,
+            None,
+        );
+        warn!("air traffic: {} {} attacks the pilot as unit {id}", a.kind, a.id);
+    }
+    for e in events {
         match e.what {
             Happened::Crashed => {
                 let Some(spec) = cfg.kinds.get(&e.kind) else { continue };
@@ -287,6 +327,15 @@ fn step_traffic(
                     // a crash is nobody's blast: the hit that downed it was charged already (survey W42)
                     by: None,
                 });
+                // a modelled airliner is strewn as its own pieces (airliner-models), not boxes
+                if !spec.zones().is_empty() {
+                    crashed.write(crate::airliners::AirlinerCrashed {
+                        aircraft: e.id,
+                        heading_rad: e.heading_rad,
+                    });
+                    info!("air traffic: {} {} crashed at ({:.0}, {:.0})", e.kind, e.id, e.at.x, e.at.z);
+                    continue;
+                }
                 // The wreck, as the debris rules lay any falling piece down: a body near the pilot,
                 // a dust puff far away.
                 for (centre, size) in shape::wreck(spec, e.id, e.at, e.heading_rad, cfg.fall.wreck_pieces) {
@@ -301,6 +350,38 @@ fn step_traffic(
             Happened::Diverted => info!("air traffic: {} {} diverted from a fight", e.kind, e.id),
             Happened::Landed | Happened::Passed(_) => {}
         }
+    }
+}
+
+/// The pilot fires on a military base's aircraft: the base scrambles its fighters and gunships to circle over where the
+/// pilot is (owner's plan answer, 2026-10-30: "Patrol, scramble if hostile").
+fn scramble_on_attack(
+    mut hits: MessageReader<CivilAirHit>,
+    air: Option<ResMut<AirTraffic>>,
+    data: Res<Data>,
+    pilot: Res<PilotSim>,
+    me: Query<&MechSim, With<Piloted>>,
+) {
+    let Some(mut air) = air else {
+        hits.clear();
+        return;
+    };
+    let cfg = &data.0.air_traffic;
+    for h in hits.read().filter(|h| h.by_pilot) {
+        let Some(a) = air.0.get(h.aircraft - CIVIL_ID_BASE) else { continue };
+        let military = cfg.kinds.get(&a.kind).is_some_and(|k| k.role.military());
+        let home = a.field.or(match a.flight {
+            cb_core::air_traffic::Flight::Patrol { home, .. } => Some(home),
+            _ => None,
+        });
+        let (true, Some(field)) = (military, home) else { continue };
+        let p = me
+            .iter()
+            .next()
+            .filter(|_| pilot.curr.mode == PilotMode::Seated)
+            .map_or(pilot.curr.feet, |m| m.curr.pos);
+        let n = air.0.scramble(cfg, field, Vec2::new(p.x, p.z));
+        warn!("air base {field} scrambles {n} aircraft against the pilot");
     }
 }
 
@@ -320,7 +401,7 @@ fn tally_hits(mut hits: MessageReader<CivilAirHit>, mut standing: ResMut<CivilSt
 
 /// An aircraft's drawing: its root, by aircraft id.
 #[derive(Component)]
-struct CivilDraw(u32);
+pub struct CivilDraw(pub u32);
 
 /// A part turning in flight (a rotor or propeller), radians a second.
 #[derive(Component)]
@@ -355,7 +436,11 @@ pub fn spawn_aircraft(
                 t,
                 Visibility::default(),
                 bevy::world_serialization::WorldAssetRoot(scene),
-                ModelToBind { lod_m: m.lod_m, gear },
+                ModelToBind {
+                    lod_m: m.lod_m,
+                    gear,
+                    loaded: m.loaded.clone(),
+                },
             ))
             .id();
     }
@@ -381,6 +466,8 @@ pub fn spawn_aircraft(
 pub struct ModelToBind {
     lod_m: [f32; 2],
     gear: bool,
+    /// Its manifest and zones: an airliner built of zones binds through `airliners::bind`.
+    loaded: Option<std::sync::Arc<cb_core::air_traffic::model::LoadedModel>>,
 }
 
 /// A modelled aircraft's landing gear nodes (`GEAR_*`), shown near the ground only.
@@ -390,16 +477,37 @@ pub struct GearNodes(pub Vec<Entity>);
 /// Once a modelled aircraft's scene is in: every mesh under `LOD0`, `LOD1` and `LOD2` gets the visibility range of its
 /// level (each blends into the next over 10 % of its switch distance, so a level never pops), and its gear nodes are
 /// found, hidden when its gear never shows.
+#[allow(clippy::too_many_arguments)]
 pub fn bind_models(
     mut commands: Commands,
     todo: Query<(Entity, &ModelToBind)>,
     children: Query<&Children>,
+    parents: Query<&ChildOf>,
     names: Query<&Name>,
     is_mesh: Query<(), With<Mesh3d>>,
+    transforms: Query<&Transform>,
     mut vis: Query<&mut Visibility>,
 ) {
     use bevy::camera::visibility::VisibilityRange;
     for (root, m) in &todo {
+        // an airliner built of damage zones (airliner-models): its own binding
+        if let Some(l) = m.loaded.as_ref().filter(|l| !l.zones.is_empty()) {
+            if crate::airliners::bind(
+                &mut commands,
+                root,
+                l,
+                m.lod_m,
+                false,
+                &children,
+                &parents,
+                &names,
+                &is_mesh,
+                &transforms,
+            ) {
+                commands.entity(root).remove::<ModelToBind>();
+            }
+            continue;
+        }
         let mut by_name: HashMap<&str, Entity> = HashMap::new();
         let mut gear = Vec::new();
         for e in children.iter_descendants(root) {
@@ -514,7 +622,11 @@ fn draw_traffic(
             continue;
         };
         seen.insert(d.0);
-        *t = Transform::from_translation(a.pos).with_rotation(shape::attitude(a));
+        let q = cfg
+            .kinds
+            .get(&a.kind)
+            .map_or_else(|| shape::attitude(a), |spec| shape::attitude_for(a, spec));
+        *t = Transform::from_translation(a.pos).with_rotation(q);
         // a modelled aircraft's gear is down only near the ground (survey D8)
         if let (Some(gear), Some(m)) = (gear, cfg.kinds.get(&a.kind).and_then(|s| s.model.as_ref())) {
             let low = a.pos.y - plan.terrain.height_at(a.pos.x, a.pos.z) < m.gear_below_m;
@@ -552,7 +664,7 @@ fn draw_traffic(
             &a.kind,
             spec,
             format!("civil {} {}", a.kind, a.id),
-            Transform::from_translation(a.pos).with_rotation(shape::attitude(a)),
+            Transform::from_translation(a.pos).with_rotation(shape::attitude_for(a, spec)),
             true,
         );
         commands.entity(root).insert(CivilDraw(a.id));

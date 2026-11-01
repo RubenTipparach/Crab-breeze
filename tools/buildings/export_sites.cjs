@@ -10,7 +10,7 @@
 //   ground.glb                     the site's paving, paint, quays and breakwaters, one primitive per surface
 //   site.json                      every placement (kit, x, y, z, quarter turns, base, rules) and the ground's solids
 //
-//   node tools/buildings/export_sites.cjs [--only airport|seaport] [--out assets/models/sites]
+//   node tools/buildings/export_sites.cjs [--only airport|seaport|military_base] [--out assets/models/sites]
 //
 // Needs three.js r147 (the pages' version): from THREE_JS if set, else fetched once into target/three-0.147.0.min.js.
 'use strict';
@@ -88,7 +88,7 @@ function runPage(file, exportFlags) {
   sandbox.THREE.GLTFLoader = function () { return S; };
   const code = scripts.filter((m) => !m[1]).map((m) => m[2]).join('\n;\n') + '\n;globalThis.__BUILT__ = built; globalThis.__M__ = M;';
   vm.runInContext(code, sandbox, { filename: path.basename(file) });
-  return { taken, built: sandbox.__BUILT__, M: sandbox.__M__, THREE: sandbox.THREE, pads: sandbox.SITE_EXPORT.pads || [], marks: sandbox.SITE_EXPORT.marks || {}, lights: sandbox.SITE_EXPORT.lights || { masts: [], dots: [], runways: [] }, parked: sandbox.SITE_EXPORT.parked || [] };
+  return { taken, built: sandbox.__BUILT__, M: sandbox.__M__, THREE: sandbox.THREE, pads: sandbox.SITE_EXPORT.pads || [], marks: sandbox.SITE_EXPORT.marks || {}, taxi_edges: sandbox.SITE_EXPORT.taxi_edges || [], lights: sandbox.SITE_EXPORT.lights || { masts: [], dots: [], runways: [] }, parked: sandbox.SITE_EXPORT.parked || [] };
 }
 
 // ---------------------------------------------------------------- the ground: the page's group, by material
@@ -153,7 +153,7 @@ function exportSite(site, page, flags) {
   fs.mkdirSync(dir, { recursive: true });
   for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f));
   const t0 = Date.now();
-  const { taken, built, M, THREE, pads, marks, lights, parked } = runPage(page, flags);
+  const { taken, built, M, THREE, pads, marks, taxi_edges, lights, parked } = runPage(page, flags);
   // Identical buildings share one kit: the same name and the same geometry.
   const kits = new Map(); const placements = []; const named = new Map(); let failed = false;
   const manifest = [];
@@ -198,6 +198,7 @@ function exportSite(site, page, flags) {
     site, generator: 'tools/buildings/export_sites.cjs', page: path.relative(ROOT, page),
     units: 'metres; the site frame as the page draws it (x east, z south, y up from still water or the airfield ground); a kit stands on y = 0 at (x, base, z), turned by quarter turns (1: its front, +z, to +x)',
     marks: Object.fromEntries(Object.entries(marks).map(([k, v]) => [k, v.map(r3)])),
+    taxi_edges,
     pads: pads.map((p) => ({ lo: [r3(p[0]), r3(p[1])], hi: [r3(p[2]), r3(p[3])], y: r3(p[4]) })),
     kits: manifest, placements, ground: { glb: 'ground.glb', surfaces: gres.prims.GROUND, solids, materials: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, { colour: v.def.colour.map(r3), roughness: r3(v.def.roughness), metallic: r3(v.def.metallic), emissive: v.def.emissive.map(r3) }])) },
     // The night's lights (openspec/changes/night-voxel-light section 2d), the page's own list (its `nightLights`):
@@ -221,4 +222,6 @@ function exportSite(site, page, flags) {
 let ok = true;
 if (!ONLY || ONLY === 'airport') ok = exportSite('airport', path.join(ROOT, 'docs/mockups/airport.html'), { civil: true }) && ok;
 if (!ONLY || ONLY === 'seaport') ok = exportSite('seaport', path.join(ROOT, 'docs/mockups/seaport.html'), {}) && ok;
+// The military base (openspec change military-base, task 3.4): its kits, ground and site table, written beside the others.
+if (!ONLY || ONLY === 'military_base') ok = exportSite('military_base', path.join(ROOT, 'docs/mockups/military-base.html'), {}) && ok;
 if (!ok) process.exit(1);

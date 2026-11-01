@@ -46,6 +46,19 @@ pub enum Plan {
         /// Where round it at time zero, metres.
         phase_m: f32,
     },
+    /// A seaport's ship (openspec change `ship-traffic`): lies at its own berth, sails out through the mouth to the
+    /// anchorage, waits there and sails back in; `phase_s` into that cycle at time zero. Its route runs from its
+    /// berth to the anchorage, and the berth is its own, so no two ships hold one berth.
+    Port {
+        /// The route, berth to anchorage.
+        route: u32,
+        /// Its heading at the berth, as the port lays it.
+        moored_rad: f32,
+        /// It waits at the anchorage this long, seconds.
+        away_s: f32,
+        /// Seconds into the cycle at time zero.
+        phase_s: f32,
+    },
     /// The ferry: out, moor, back, moor; `phase_s` into that cycle at time zero.
     Ferry {
         /// The route, harbour to landing.
@@ -115,6 +128,9 @@ pub struct Island<'a> {
     pub islets: Vec<(Vec2, f32, bool)>,
     /// The world's side, metres.
     pub world_size_m: f32,
+    /// The seaports' ships as their pages lay them (openspec change `ship-traffic`): each port's index (its harbour,
+    /// the ports being placed first), the ship's kind, where it lies (x, z) and its heading.
+    pub port_ships: Vec<(usize, String, Vec2, f32)>,
 }
 
 impl Traffic {
@@ -133,6 +149,7 @@ impl Traffic {
             lakes: &plan.waters.lakes.list,
             islets: plan.terrain.shape().island().islets().collect(),
             world_size_m,
+            port_ships: port_ships(plan),
         };
         let sea = Sea {
             ground: plan,
@@ -277,6 +294,35 @@ impl Traffic {
                 live: None,
             });
         }
+        // The seaports' ships: each its own berth where the port lays it, out through the mouth to the anchorage and
+        // back (ship-traffic).
+        for (i, (port, kind, at, heading)) in island.port_ships.iter().enumerate() {
+            let Some(h) = harbours.iter().filter(|h| h.port).nth(*port) else {
+                continue;
+            };
+            if !cfg.kinds.contains_key(kind) {
+                continue;
+            }
+            let mut rng = root.fork(&format!("port/{port}/{i}"));
+            let route = routes.len() as u32;
+            routes.push(Route::new(vec![*at, h.mouth, h.anchorage], [End::Berth(h.id), End::Offing]));
+            let (dwell, away) = (dwell(&mut rng, t.port_dwell_s), dwell(&mut rng, t.port_away_s));
+            let v = cfg.kinds.get(kind).map_or(1.0, |k| k.speed_m_s);
+            let cycle = 2.0 * routes[route as usize].length_m() / v + dwell + away;
+            slots.push(Slot {
+                kind: kind.clone(),
+                plan: Plan::Port {
+                    route,
+                    moored_rad: *heading,
+                    away_s: away,
+                    phase_s: rng.range_f32(0.0, cycle),
+                },
+                dwell_s: dwell,
+                lake: false,
+                sunk: false,
+                live: None,
+            });
+        }
         Self {
             harbours,
             routes,
@@ -324,12 +370,66 @@ impl Traffic {
         };
         Some(match &slot.plan {
             Plan::Lane { route, offset_m } => {
-                let len = self.routes[*route as usize].length_m();
-                let u = ((f64::from(*offset_m) + f64::from(v) * t_s) % f64::from(2.0 * len)) as f32;
-                if u < len {
-                    underway(*route, u, true)
+                // Out and back, moored `dwell_s` at each end that is a berth (ship-traffic: lane ships moor); at the
+                // offing it is over the horizon for as long.
+                let r = &self.routes[*route as usize];
+                let len = r.length_m();
+                let run = len / v;
+                let dwell = slot.dwell_s;
+                let cycle = 2.0 * (run + dwell);
+                let u = ((f64::from(*offset_m / v) + t_s) % f64::from(cycle)) as f32;
+                let at_end = |end: bool, left_s: f32| match r.ends[usize::from(end)] {
+                    End::Berth(_) => moored(r, *route, end, spec.beam_m(), left_s),
+                    _ => Placed {
+                        phase: Phase::Gone,
+                        ..underway(*route, if end { len } else { 0.0 }, end)
+                    },
+                };
+                if u < run {
+                    underway(*route, u * v, true)
+                } else if u < run + dwell {
+                    at_end(true, run + dwell - u)
+                } else if u < 2.0 * run + dwell {
+                    underway(*route, len - (u - run - dwell) * v, false)
                 } else {
-                    underway(*route, 2.0 * len - u, false)
+                    at_end(false, cycle - u)
+                }
+            }
+            Plan::Port {
+                route,
+                moored_rad,
+                away_s,
+                phase_s,
+            } => {
+                let r = &self.routes[*route as usize];
+                let len = r.length_m();
+                let run = len / v;
+                let (dwell, away) = (slot.dwell_s, *away_s);
+                let cycle = 2.0 * run + dwell + away;
+                let u = ((f64::from(*phase_s) + t_s) % f64::from(cycle)) as f32;
+                if u < dwell {
+                    Placed {
+                        pos: r.points[0],
+                        heading_rad: *moored_rad,
+                        errand: Errand::Route {
+                            route: *route,
+                            s_m: 0.0,
+                            forward: false,
+                        },
+                        phase: Phase::Moored { left_s: dwell - u },
+                    }
+                } else if u < dwell + run {
+                    underway(*route, (u - dwell) * v, true)
+                } else if u < dwell + run + away {
+                    let at = *r.points.last()?;
+                    Placed {
+                        pos: at,
+                        heading_rad: heading_of(r.at(len).1),
+                        errand: Errand::Anchor { at },
+                        phase: Phase::Anchored,
+                    }
+                } else {
+                    underway(*route, len - (u - dwell - run - away) * v, false)
                 }
             }
             Plan::Fishing { route, phase_s } => {
@@ -580,6 +680,23 @@ fn moored(r: &Route, route: u32, at_end: bool, beam_m: f32, left_s: f32) -> Plac
     }
 }
 
+/// The seaports' ships as their pages lay them: each port's index among the seaports, the kind, where it lies (x, z)
+/// and its heading.
+pub fn port_ships(plan: &WorldPlan) -> Vec<(usize, String, Vec2, f32)> {
+    plan.sites
+        .iter()
+        .filter(|s| s.template.kind == crate::world::sites::SiteKind::Seaport)
+        .enumerate()
+        .flat_map(|(port, s)| {
+            s.template.placements.iter().filter(|p| p.ship).map(move |p| {
+                let kind = plan.small.kits.kits[p.kit].id.clone();
+                let heading = s.heading_rad() + f32::from(p.turn) * std::f32::consts::FRAC_PI_2;
+                (port, kind, s.to_world(p.at), heading)
+            })
+        })
+        .collect()
+}
+
 fn fishing_cycle(r: &Route, cfg: &ShipsConfig, work_s: f32, moor_s: f32) -> f32 {
     let v = cfg.kinds.get(FISHING).map_or(1.0, |k| k.speed_m_s);
     2.0 * r.length_m() / v + work_s + moor_s
@@ -704,6 +821,7 @@ mod tests {
             // A beach islet to the south, 6 km out.
             islets: vec![(Vec2::new(0.0, 7000.0), 200.0, false)],
             world_size_m: 16000.0,
+            port_ships: Vec::new(),
         }
     }
 
@@ -917,5 +1035,95 @@ mod tests {
             assert_eq!(s.harbour, h.id);
             assert!(s.escort_from.distance(h.mouth) > 1000.0, "out along a lane");
         }
+    }
+
+    /// Seed 42's boats, the way the game lays them out.
+    fn seed_42_traffic() -> (Traffic, ShipsConfig) {
+        let (plan, _) = super::super::harbour::tests::seed_42();
+        let cfg = test_world::shipped();
+        (Traffic::from_plan(plan, &cfg, 30.0, 40960.0, 42), cfg)
+    }
+
+    #[test]
+    fn every_seaport_ship_sails_out_of_its_berth_and_back_in() {
+        let (t, cfg) = seed_42_traffic();
+        let (plan, _) = super::super::harbour::tests::seed_42();
+        let laid: usize = plan
+            .sites
+            .iter()
+            .filter(|s| s.template.kind == crate::world::sites::SiteKind::Seaport)
+            .map(|s| s.template.placements.iter().filter(|p| p.ship).count())
+            .sum();
+        let ports: Vec<usize> = (0..t.slots.len())
+            .filter(|&i| matches!(t.slots[i].plan, Plan::Port { .. }))
+            .collect();
+        assert_eq!(ports.len(), laid, "every ship the ports lay sails");
+        for &i in &ports {
+            let Plan::Port {
+                route, away_s, phase_s, ..
+            } = t.slots[i].plan
+            else {
+                unreachable!()
+            };
+            let r = &t.routes[route as usize];
+            let v = cfg.kinds[&t.slots[i].kind].speed_m_s;
+            let (dwell, run) = (t.slots[i].dwell_s, r.length_m() / v);
+            let cycle = 2.0 * run + dwell + away_s;
+            // the cycle's start: at the berth; half way out: underway; then at the anchorage; then back
+            let at = |u: f32| t.place(i, &cfg, f64::from((u - phase_s).rem_euclid(cycle))).expect("placed");
+            let berth = at(dwell * 0.5);
+            assert!(
+                matches!(berth.phase, Phase::Moored { .. }) && berth.pos.distance(r.points[0]) < 1.0,
+                "moored at its berth"
+            );
+            assert_eq!(at(dwell + run * 0.5).phase, Phase::Underway, "sailing out");
+            assert_eq!(at(dwell + run + away_s * 0.5).phase, Phase::Anchored, "waiting at the anchorage");
+            assert_eq!(at(dwell + run + away_s + run * 0.5).phase, Phase::Underway, "sailing back in");
+        }
+    }
+
+    #[test]
+    fn no_two_seaport_ships_share_a_berth() {
+        let (t, _) = seed_42_traffic();
+        let berths: Vec<Vec2> = t
+            .slots
+            .iter()
+            .filter_map(|s| match s.plan {
+                Plan::Port { route, .. } => Some(t.routes[route as usize].points[0]),
+                _ => None,
+            })
+            .collect();
+        for (i, a) in berths.iter().enumerate() {
+            for b in &berths[i + 1..] {
+                assert!(a.distance(*b) > 5.0, "two ships at {a}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_lane_ship_moors_at_a_berth_for_its_dwell() {
+        let (t, cfg) = seed_42_traffic();
+        let i = (0..t.slots.len())
+            .find(|&i| match t.slots[i].plan {
+                Plan::Lane { route, .. } => matches!(t.routes[route as usize].ends[1], End::Berth(_)),
+                _ => false,
+            })
+            .expect("a lane between two harbours");
+        let Plan::Lane { route, offset_m } = t.slots[i].plan else {
+            unreachable!()
+        };
+        let v = cfg.kinds[&t.slots[i].kind].speed_m_s;
+        let run = t.routes[route as usize].length_m() / v;
+        let dwell = t.slots[i].dwell_s;
+        assert!(dwell > 0.0);
+        let start = -f64::from(offset_m / v);
+        let moored = t.place(i, &cfg, start + f64::from(run + dwell * 0.5)).expect("placed");
+        assert!(
+            matches!(moored.phase, Phase::Moored { .. }),
+            "moored at the far berth: {:?}",
+            moored.phase
+        );
+        let off = t.place(i, &cfg, start + f64::from(run + dwell + 1.0)).expect("placed");
+        assert_eq!(off.phase, Phase::Underway, "and away after its dwell");
     }
 }

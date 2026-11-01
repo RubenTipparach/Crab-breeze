@@ -220,6 +220,8 @@ pub enum Loss {
     },
     /// The pilot's mech was destroyed.
     PilotDown,
+    /// The pilot went past the offshore limit (`bounds`).
+    OutOfBounds,
 }
 
 /// Where the mission is.
@@ -363,6 +365,14 @@ impl Defence {
                 None
             }
             Phase::Won | Phase::Lost(_) => None,
+        }
+    }
+
+    /// Ends the mission, lost, for a reason outside its own rules (the offshore limit); `None` once it is over.
+    pub fn fail(&mut self, why: Loss) -> Option<Event> {
+        match self.phase {
+            Phase::Won | Phase::Lost(_) => None,
+            _ => Some(self.lose(why)),
         }
     }
 

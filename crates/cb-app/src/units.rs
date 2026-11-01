@@ -425,6 +425,7 @@ fn draw_units(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut known: Local<BTreeMap<u32, Entity>>,
     assets: Res<AssetServer>,
+    mut looks: ResMut<crate::air_traffic::KindLooks>,
 ) {
     let _t = crate::perf_hud::slow("draw_units");
     let mut seen = std::collections::BTreeSet::new();
@@ -524,6 +525,11 @@ fn draw_units(
                 ));
             }
         }
+        // drawn as an air traffic kind's model (a base's scrambled aircraft), not boxes
+        let look = s.look.as_ref().and_then(|k| Some((k, data.0.air_traffic.kinds.get(k)?)));
+        if look.is_some() {
+            parts.clear();
+        }
         let root = commands
             .spawn((
                 Name::new(format!("unit {} {}", p.unit.kind, p.unit.id)),
@@ -566,6 +572,21 @@ fn draw_units(
                 ))
                 .id()
         });
+        if let Some((k, spec)) = look {
+            let model = crate::air_traffic::spawn_aircraft(
+                &mut commands,
+                &mut looks,
+                &mut meshes,
+                &mut materials,
+                &assets,
+                k,
+                spec,
+                format!("unit {} model", p.unit.id),
+                Transform::IDENTITY,
+                false,
+            );
+            commands.entity(model).insert(ChildOf(root));
+        }
         commands.entity(root).insert(UnitDraw { id: p.unit.id, chute });
         known.insert(p.unit.id, root);
     }

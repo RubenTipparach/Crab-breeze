@@ -4,6 +4,7 @@
 use super::shape::{Spin, blockout, capsules, wreck};
 use super::*;
 use crate::data::load_ron;
+use crate::units::wrap;
 use crate::world::City;
 
 const DT: f32 = 1.0 / 60.0;
@@ -32,6 +33,8 @@ fn base(id: u32, x: f32, z: f32) -> AirBase {
             0.0,
             &crate::world::BasesConfig::default(),
         ),
+        site: None,
+        bays: None,
     }
 }
 
@@ -68,14 +71,101 @@ fn fly(a: &mut Aircraft, c: &AirTrafficConfig, bases: &[AirBase], zones: &[Zone]
 }
 
 #[test]
-fn the_shipped_kinds_are_the_four_the_owner_asked_for_at_true_size() {
+fn the_shipped_kinds_are_the_ones_the_owner_asked_for_at_true_size() {
     let c = cfg();
     let roles: Vec<Role> = c.kinds.values().map(|k| k.role).collect();
     for r in [Role::Airliner, Role::Freighter, Role::LightPlane, Role::Helicopter] {
         assert!(roles.contains(&r), "{r:?}");
     }
-    // The owner's "about 40 m" airliner.
-    assert!((c.kinds["airliner"].length_m - 40.0).abs() < 5.0);
+    // The three airliners the owner approved (airliner-models), at their real aircraft's size within 2 %: the DC-3,
+    // the Boeing 720 and the L-1011.
+    for (kind, length, span) in [("propliner", 19.66, 28.96), ("airliner", 41.25, 39.87), ("widebody", 54.17, 47.35)] {
+        let k = &c.kinds[kind];
+        assert_eq!(k.role, Role::Airliner, "{kind} flies routes");
+        assert!((k.length_m / length - 1.0).abs() < 0.02, "{kind} length");
+        assert!((k.span_m / span - 1.0).abs() < 0.02, "{kind} span");
+    }
+}
+
+/// The shipped kinds with their models' manifests read, as the game loads them.
+fn loaded() -> AirTrafficConfig {
+    let mut c = cfg();
+    c.load_models(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets"))
+        .unwrap();
+    c
+}
+
+fn flying_airliner(c: &AirTrafficConfig, kind: &str) -> Aircraft {
+    let spec = &c.kinds[kind];
+    Aircraft::new(
+        7,
+        kind,
+        spec,
+        Vec3::new(0.0, 900.0, 0.0),
+        0.0,
+        spec.cruise_m_s,
+        Phase::Enroute,
+        Flight::Orbit {
+            city: 0,
+            centre: Vec2::ZERO,
+            radius_m: 1000.0,
+            dir: 1.0,
+        },
+    )
+}
+
+#[test]
+fn a_shot_engine_breaks_away_and_the_airliner_flies_on_slower() {
+    let c = loaded();
+    let spec = &c.kinds["airliner"];
+    let mut a = flying_airliner(&c, "airliner");
+    let zones = spec.zones();
+    let e1 = zones.iter().position(|z| z.name == "engine_1").unwrap();
+    let mut out = super::HitOutcome::default();
+    for _ in 0..100 {
+        out = a.hit_part(spec, e1, 50.0, 10.0);
+        if !out.broke.is_empty() {
+            break;
+        }
+    }
+    assert_eq!(out.broke, vec![e1], "only the engine comes away");
+    assert!(!out.downed && !a.downed(), "one engine of four does not bring it down");
+    assert!((a.thrust_lost(spec) - 0.25).abs() < 1e-6);
+    assert!(spec.with_thrust_lost(0.25).cruise_m_s < spec.cruise_m_s);
+    // its capsules leave the lost engine out
+    assert!(super::shape::capsules(&a, spec).iter().all(|k| k.part != e1));
+}
+
+#[test]
+fn a_shot_through_a_wing_root_brings_the_wing_and_its_engines_away_and_the_airliner_down() {
+    let c = loaded();
+    let spec = &c.kinds["widebody"];
+    let mut a = flying_airliner(&c, "widebody");
+    let zones = spec.zones();
+    let root = zones.iter().position(|z| z.name == "wing_inner_r").unwrap();
+    // a shot that does not beat the armour does nothing
+    assert!(a.hit_part(spec, root, spec.armour_mm - 0.5, 1e6).broke.is_empty());
+    let out = a.hit_part(spec, root, 50.0, 1e6);
+    let names: Vec<&str> = out.broke.iter().map(|&i| zones[i].name.as_str()).collect();
+    assert!(
+        names.contains(&"wing_inner_r") && names.contains(&"wing_outer_r") && names.contains(&"engine_3"),
+        "{names:?}"
+    );
+    assert!(out.downed && a.downed());
+    // nothing more breaks once it is down
+    assert!(a.hit_part(spec, 0, 50.0, 1e6).broke.is_empty());
+}
+
+#[test]
+fn the_propliner_stands_tail_down_on_its_models_rest() {
+    let c = loaded();
+    let spec = &c.kinds["propliner"];
+    assert!((super::rest_pitch_rad(spec).to_degrees() - 13.7).abs() < 1.0);
+    assert!((super::rest_m(spec) - 2.57).abs() < 0.05, "the model's rest, not one from its size");
+    // every zone has hit capsules, the aircraft's own whole hp spread over them by share
+    let a = flying_airliner(&c, "propliner");
+    assert_eq!(a.zone_hp.len(), spec.zones().len());
+    assert!(super::shape::capsules(&a, spec).len() >= spec.zones().len());
 }
 
 #[test]
@@ -373,6 +463,7 @@ fn a_freighter_overflies_its_via_point_and_says_so_then_lands() {
     let island = Island {
         ground: &ground,
         bases: &bases,
+        fields: &[],
         cities: &[],
         zones: &[],
     };
@@ -427,6 +518,7 @@ fn run_traffic(seed: u64, w: Watcher, seconds: f32, zones: &[Zone]) -> (Traffic,
     let island = Island {
         ground: &ground,
         bases: &bases,
+        fields: &[],
         cities: &cities,
         zones,
     };
@@ -456,7 +548,9 @@ fn traffic_appears_only_where_the_pilot_cannot_see_it_appear() {
         assert!(hidden(&w, a.pos, &c.near), "{} appeared in sight at {:?}", a.kind, a.pos);
     }
     let kinds: std::collections::BTreeSet<&str> = seen.iter().map(|a| a.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 4, "every kind flies: {kinds:?}");
+    // the airfields' own kinds live on their stands (`max_near` 0) and appear there, not in the air
+    let flying = c.kinds.values().filter(|k| k.max_near > 0).count();
+    assert_eq!(kinds.len(), flying, "every kind spawned in the air flies: {kinds:?}");
 }
 
 #[test]
@@ -479,6 +573,7 @@ fn traffic_lives_near_the_pilot_only_and_never_past_each_kinds_cap() {
     let island = Island {
         ground: &ground,
         bases: &bases,
+        fields: &[],
         cities: &cities,
         zones: &[],
     };
@@ -646,6 +741,7 @@ fn measure_traffic_step() {
     let island = Island {
         ground: &ground,
         bases: &plan.bases,
+        fields: &[],
         cities: &plan.cities,
         zones: &[],
     };
@@ -700,11 +796,12 @@ fn on_the_shipped_island_a_flight_from_every_base_lands_at_the_next_over_the_rea
     use crate::world::Ground;
     let plan = island_42();
     let c = cfg();
-    assert_eq!(plan.bases.len(), 5, "the five bases (survey J5)");
+    assert_eq!(plan.bases.len(), 4, "the four bases (owner, 2026-10-30)");
     let ground = |x: f32, z: f32| plan.height_at(x, z);
     let island = Island {
         ground: &ground,
         bases: &plan.bases,
+        fields: &[],
         cities: &plan.cities,
         zones: &[],
     };
@@ -748,4 +845,420 @@ fn on_the_shipped_island_a_flight_from_every_base_lands_at_the_next_over_the_rea
             );
         }
     }
+}
+
+/// Two bases' fields on flat ground, 12 km apart, and the data with nothing spawned in the air and no stand filled
+/// on its own: the aircraft a test puts on a stand are the only traffic.
+fn two_fields() -> (AirTrafficConfig, Vec<Field>, Vec<AirBase>) {
+    let mut c = cfg();
+    c.routes.patrol_s = 90.0;
+    c.routes.patrol_radius_m = 3000.0;
+    c.routes.stand_fill_m = 0.0;
+    for k in c.kinds.values_mut() {
+        k.max_near = 0;
+    }
+    let fields = vec![fields::base_field(&base(0, 0.0, 0.0)), fields::base_field(&base(1, 12000.0, 0.0))];
+    let bases = fields.iter().map(|f| f.base).collect();
+    (c, fields, bases)
+}
+
+/// Puts a `kind` at its first stand of `field`, its turnaround about to end.
+fn on_stand(t: &mut Traffic, c: &AirTrafficConfig, field: &Field, kind: &str, id: u32) -> usize {
+    let k = field.stands.iter().position(|s| s.kind == kind).unwrap();
+    let p = field.taxi.points[field.stands[k].node];
+    let spec = &c.kinds[kind];
+    let a = Aircraft::standing(
+        id,
+        kind,
+        spec,
+        field.id,
+        k,
+        Vec3::new(p.x, 20.0, p.y),
+        field.stands[k].heading_rad,
+        spec.turn_s - 1.0,
+    );
+    t.list.push(a);
+    k
+}
+
+/// A short name for each phase, to read a flight's story.
+fn phase_name(p: Phase) -> &'static str {
+    match p {
+        Phase::Stand { .. } => "stand",
+        Phase::Taxi { then: Then::Roll, .. } => "line up",
+        Phase::Taxi { .. } => "taxi",
+        Phase::Hold { .. } => "hold",
+        Phase::Lift => "lift",
+        Phase::Settle => "settle",
+        Phase::Roll { .. } => "roll",
+        Phase::Climb => "climb",
+        Phase::Enroute => "enroute",
+        Phase::Intercept | Phase::Final => "approach",
+        Phase::Rollout { .. } => "rollout",
+        Phase::Parked { .. } => "parked",
+        Phase::Orbit => "orbit",
+        Phase::Leaving => "leaving",
+        Phase::Falling | Phase::Wrecked => "down",
+        Phase::Piloted { .. } => "piloted",
+    }
+}
+
+/// Runs the traffic with the pilot riding along on aircraft `id` until it stands again after flying, or `seconds`
+/// pass; returns the phases it went through, each once in a row.
+fn ride(t: &mut Traffic, c: &AirTrafficConfig, island: &Island, id: u32, seconds: f32) -> Vec<&'static str> {
+    let dt = 0.05;
+    let mut story: Vec<&'static str> = Vec::new();
+    for _ in 0..(seconds / dt) as usize {
+        let Some(a) = t.get(id) else { break };
+        let name = phase_name(a.phase);
+        if story.last() != Some(&name) {
+            story.push(name);
+        }
+        if name == "stand" && story.len() > 2 {
+            break;
+        }
+        let w = Watcher { eye: a.pos, look: Vec3::X };
+        t.step(c, &w, island, dt);
+    }
+    story
+}
+
+/// True when `want` appears in `story` in order (other phases between).
+fn in_order(story: &[&str], want: &[&str]) -> bool {
+    let mut it = story.iter();
+    want.iter().all(|w| it.any(|s| s == w))
+}
+
+#[test]
+fn a_fighter_taxis_out_patrols_over_its_base_lands_and_taxis_back_to_a_stand() {
+    let (c, fields, bases) = two_fields();
+    let ground = flat;
+    let island = Island {
+        ground: &ground,
+        bases: &bases,
+        fields: &fields,
+        cities: &[],
+        zones: &[],
+    };
+    let mut t = Traffic::new(3);
+    on_stand(&mut t, &c, &fields[0], "fighter", 900);
+    let story = ride(&mut t, &c, &island, 900, 1500.0);
+    assert!(
+        in_order(
+            &story,
+            &[
+                "stand", "taxi", "hold", "line up", "roll", "climb", "orbit", "approach", "rollout", "taxi", "stand"
+            ]
+        ),
+        "{story:?}"
+    );
+    let a = t.get(900).unwrap();
+    let (f, k) = a.stand.expect("it holds a stand again");
+    assert_eq!(f, 0, "back at its own base");
+    let at = fields[0].taxi.points[fields[0].stands[k].node];
+    assert!(a.xz().distance(at) < 1.0, "on the stand: {:?} against {at:?}", a.xz());
+    assert!(
+        (wrap(a.heading_rad - fields[0].stands[k].heading_rad)).abs() < 0.05,
+        "facing the stand's way"
+    );
+}
+
+#[test]
+fn a_helicopter_lifts_off_its_pad_patrols_and_settles_back_on_the_same_pad() {
+    let (c, fields, bases) = two_fields();
+    let ground = flat;
+    let island = Island {
+        ground: &ground,
+        bases: &bases,
+        fields: &fields,
+        cities: &[],
+        zones: &[],
+    };
+    let mut t = Traffic::new(4);
+    let k = on_stand(&mut t, &c, &fields[0], "military_helicopter", 901);
+    let story = ride(&mut t, &c, &island, 901, 900.0);
+    assert!(
+        in_order(&story, &["stand", "lift", "orbit", "enroute", "settle", "stand"]),
+        "{story:?}"
+    );
+    assert!(!story.contains(&"roll"), "a helicopter needs no runway: {story:?}");
+    let a = t.get(901).unwrap();
+    assert_eq!(a.stand, Some((0, k)), "its own pad");
+    let pad = fields[0].taxi.points[fields[0].stands[k].node];
+    assert!(a.xz().distance(pad) < 1.0);
+    assert!(
+        (a.pos.y - 20.0 - rest_m(&c.kinds["military_helicopter"])).abs() < 0.1,
+        "on the ground"
+    );
+}
+
+#[test]
+fn a_transport_flies_to_the_other_base_and_taxis_to_a_free_stand_there() {
+    let (c, fields, bases) = two_fields();
+    let ground = flat;
+    let island = Island {
+        ground: &ground,
+        bases: &bases,
+        fields: &fields,
+        cities: &[],
+        zones: &[],
+    };
+    let mut t = Traffic::new(5);
+    on_stand(&mut t, &c, &fields[0], "military_cargo", 902);
+    let story = ride(&mut t, &c, &island, 902, 1500.0);
+    assert!(
+        in_order(
+            &story,
+            &["stand", "taxi", "hold", "roll", "enroute", "approach", "rollout", "taxi", "stand"]
+        ),
+        "{story:?}"
+    );
+    let a = t.get(902).unwrap();
+    let (f, k) = a.stand.unwrap();
+    assert_eq!(f, 1, "it went to the other base");
+    assert_eq!(fields[1].stands[k].kind, "military_cargo", "the stand made for it");
+}
+
+#[test]
+fn one_aircraft_takes_a_runway_at_a_time() {
+    let (c, fields, bases) = two_fields();
+    let ground = flat;
+    let island = Island {
+        ground: &ground,
+        bases: &bases,
+        fields: &fields,
+        cities: &[],
+        zones: &[],
+    };
+    let mut t = Traffic::new(6);
+    // three fighters whose turnarounds end together
+    for (i, id) in [910, 911, 912].into_iter().enumerate() {
+        let f = &fields[0];
+        let k = f.stands.iter().enumerate().filter(|(_, s)| s.kind == "fighter").nth(i).unwrap().0;
+        let p = f.taxi.points[f.stands[k].node];
+        let spec = &c.kinds["fighter"];
+        t.list.push(Aircraft::standing(
+            id,
+            "fighter",
+            spec,
+            0,
+            k,
+            Vec3::new(p.x, 20.0, p.y),
+            f.stands[k].heading_rad,
+            spec.turn_s,
+        ));
+    }
+    let w = Watcher {
+        eye: Vec3::new(0.0, 30.0, 0.0),
+        look: Vec3::X,
+    };
+    let dt = 0.05;
+    let mut rolled = Vec::new();
+    for _ in 0..(600.0 / dt) as usize {
+        t.step(&c, &w, &island, dt);
+        let on_runway: Vec<u32> = t
+            .list
+            .iter()
+            .filter(|a| matches!(a.phase, Phase::Taxi { then: Then::Roll, .. } | Phase::Roll { .. }))
+            .map(|a| a.id)
+            .collect();
+        assert!(on_runway.len() <= 1, "two on the runway at once: {on_runway:?}");
+        for id in on_runway {
+            if !rolled.contains(&id) {
+                rolled.push(id);
+            }
+        }
+    }
+    assert_eq!(rolled.len(), 3, "each took its turn: {rolled:?}");
+}
+
+#[test]
+fn stands_near_the_pilot_fill_out_of_sight_with_the_kind_each_is_for() {
+    let (mut c, fields, bases) = two_fields();
+    c.routes.stand_fill_m = 6000.0;
+    let ground = flat;
+    let island = Island {
+        ground: &ground,
+        bases: &bases,
+        fields: &fields,
+        cities: &[],
+        zones: &[],
+    };
+    let mut t = Traffic::new(7);
+    // the pilot at the first base, looking away from it
+    let w = Watcher {
+        eye: Vec3::new(0.0, 30.0, 4000.0),
+        look: Vec3::Z,
+    };
+    for _ in 0..(c.near.check_s * 3.0 / DT) as usize {
+        t.step(&c, &w, &island, DT);
+    }
+    let held = t.stands_held();
+    assert!(!held.is_empty(), "some stands filled");
+    assert!(held.keys().all(|(f, _)| *f == 0), "only the base near the pilot: {held:?}");
+    for ((f, k), id) in &held {
+        let a = t.get(*id).unwrap();
+        assert_eq!(a.kind, fields[*f as usize].stands[*k].kind);
+    }
+    let again = {
+        let mut u = Traffic::new(7);
+        for _ in 0..(c.near.check_s * 3.0 / DT) as usize {
+            u.step(&c, &w, &island, DT);
+        }
+        u.stands_held()
+    };
+    assert_eq!(held, again, "the same seed fills the same stands");
+}
+
+#[test]
+fn each_civil_airport_on_the_shipped_island_is_a_field_whose_every_stand_reaches_its_runway() {
+    static PLAN: std::sync::OnceLock<crate::world::WorldPlan> = std::sync::OnceLock::new();
+    let plan = PLAN.get_or_init(|| {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let data = crate::GameData::load(&root, "mechs/placeholder.ron").expect("the shipped data loads");
+        crate::world::generate(42, &data.world)
+    });
+    let all = fields::fields(plan);
+    let civil: Vec<&Field> = all.iter().filter(|f| f.civil).collect();
+    assert_eq!(civil.len(), 2, "both airports");
+    assert_eq!(all.len(), 2 + plan.bases.len(), "and every base");
+    let c = cfg();
+    for f in civil {
+        assert!(f.stands.len() >= 20, "{} stands", f.stands.len());
+        assert!(f.stands.iter().filter(|s| s.pad).count() >= 2, "helicopter pads");
+        for s in &f.stands {
+            assert!(c.kinds.contains_key(&s.kind), "{} is a kind", s.kind);
+            if s.pad {
+                continue; // a helicopter lifts off its pad: it needs no way to the runway
+            }
+            let out = s.out.unwrap_or(s.node);
+            for e in f.entries {
+                assert!(
+                    f.taxi.route(out, e).is_some(),
+                    "stand {} reaches entry {}",
+                    f.taxi.names[s.node],
+                    f.taxi.names[e]
+                );
+            }
+            for &x in &f.exits {
+                assert!(
+                    f.taxi.route(x, s.node).is_some(),
+                    "exit {} reaches stand {}",
+                    f.taxi.names[x],
+                    f.taxi.names[s.node]
+                );
+            }
+        }
+        let rwy = f.base.runway.rect();
+        for e in f.entries {
+            assert!(rwy.distance(f.taxi.points[e]) < 1.0, "entry {} is on the runway", f.taxi.names[e]);
+        }
+    }
+}
+
+#[test]
+fn a_scrambled_base_sends_its_fighters_and_gunships_to_circle_over_the_pilot() {
+    let (mut c, fields, bases) = two_fields();
+    c.routes.patrol_s = 1200.0;
+    let ground = flat;
+    let island = Island {
+        ground: &ground,
+        bases: &bases,
+        fields: &fields,
+        cities: &[],
+        zones: &[],
+    };
+    let mut t = Traffic::new(8);
+    let f = &fields[0];
+    for (id, (k, s)) in (920..).zip(f.stands.iter().enumerate()) {
+        let p = f.taxi.points[s.node];
+        let spec = &c.kinds[&s.kind];
+        // all well inside their turnaround: none would leave on its own for minutes
+        t.list.push(Aircraft::standing(
+            id,
+            &s.kind,
+            spec,
+            0,
+            k,
+            Vec3::new(p.x, 20.0, p.y),
+            s.heading_rad,
+            0.0,
+        ));
+    }
+    let pilot = Vec2::new(-4000.0, 3000.0);
+    let n = t.scramble(&c, 0, pilot);
+    assert_eq!(n, 5, "three fighters and two gunships answer; the transport stays");
+    let w = Watcher {
+        eye: Vec3::new(0.0, 30.0, 0.0),
+        look: Vec3::X,
+    };
+    let dt = 0.05;
+    for _ in 0..(400.0 / dt) as usize {
+        t.step(&c, &w, &island, dt);
+    }
+    let circling = t
+        .list
+        .iter()
+        .filter(|a| matches!(a.flight, Flight::Patrol { centre, .. } if centre == pilot) && a.phase == Phase::Orbit)
+        .count();
+    let story: Vec<String> = t.list.iter().map(|a| format!("{} {:?} {:?}", a.kind, a.phase, a.flight)).collect();
+    assert_eq!(circling, 5, "all five over the pilot within 400 s: {story:#?}");
+    let attackers = t.take_attackers();
+    assert_eq!(attackers.len(), 5, "over the pilot they are handed to the units to attack");
+    assert!(attackers.iter().all(|a| a.hostile));
+    assert!(t.list.iter().all(|a| !a.hostile), "and leave the traffic");
+    let cargo = t.list.iter().find(|a| a.kind == "military_cargo").unwrap();
+    assert!(matches!(cargo.phase, Phase::Stand { .. }), "the transport is not scrambled");
+}
+
+#[test]
+fn the_pilot_steals_only_an_aircraft_standing_still_and_flies_it_where_the_traffic_never_moves_it() {
+    let (c, fields, bases) = two_fields();
+    let ground = flat;
+    let island = Island {
+        ground: &ground,
+        bases: &bases,
+        fields: &fields,
+        cities: &[],
+        zones: &[],
+    };
+    let mut t = Traffic::new(9);
+    let k = on_stand(&mut t, &c, &fields[0], "fighter", 930);
+    assert_eq!(t.stands_held().get(&(0, k)), Some(&930));
+    t.list.push(Aircraft::new(
+        931,
+        "fighter",
+        &c.kinds["fighter"],
+        Vec3::new(0.0, 900.0, 0.0),
+        0.0,
+        150.0,
+        Phase::Enroute,
+        Flight::Orbit {
+            city: 0,
+            centre: Vec2::ZERO,
+            radius_m: 3000.0,
+            dir: 1.0,
+        },
+    ));
+    assert!(!t.steal(931), "not one in the air");
+    assert!(t.steal(930));
+    assert!(t.stands_held().is_empty(), "its stand is free");
+    let to = Vec3::new(50.0, 400.0, -300.0);
+    t.fly(930, to, Vec3::new(0.0, 5.0, -120.0), 0.3, 0.1, -0.2, false);
+    let w = Watcher { eye: to, look: Vec3::X };
+    for _ in 0..(c.near.check_s * 2.0 / DT) as usize {
+        t.step(&c, &w, &island, DT);
+    }
+    let a = t.get(930).unwrap();
+    assert_eq!(a.pos, to, "the traffic leaves it where the pilot flew it");
+    assert_eq!((a.heading_rad, a.pitch_rad, a.bank_rad), (0.3, 0.1, -0.2));
+    t.crash(930);
+    let mut crashed = false;
+    for _ in 0..(60.0 / DT) as usize {
+        crashed |= t
+            .step(&c, &w, &island, DT)
+            .iter()
+            .any(|e| e.id == 930 && e.what == Happened::Crashed);
+    }
+    assert!(crashed, "flown into the ground, it crashes as any downed aircraft does");
 }

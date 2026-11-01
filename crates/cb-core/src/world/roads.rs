@@ -52,7 +52,65 @@ pub fn lay_highway(
     (from, to): (Vec2, Vec2),
     cfg: &WorldConfig,
 ) -> Option<Highway> {
-    let ends_ground = [cities[a].ground_m, cities[b].ground_m];
+    let end = |k: usize, at: Vec2| RoadEnd {
+        city: Some(k),
+        id: cities[k].id,
+        rect: cities[k].rect(),
+        ground_m: cities[k].ground_m,
+        at,
+    };
+    lay_road(shape, drainage, cities, [end(a, from), end(b, to)], cfg)
+}
+
+/// The id a road's second end carries when it ends at a site's gate, not at a city (`Highway::cities`).
+pub const SITE_END: u32 = u32::MAX;
+
+/// A site's access road (openspec change `island-sites-layout`, design section 3): from the edge of the site's city
+/// nearest its gate to the gate (`gate`, on the site's footprint `site`, its ground `ground_m`), routed and graded as a
+/// highway is. Its second city is `SITE_END`: the lane graph ends it at a gate of its own.
+pub fn lay_access(
+    shape: &Shape,
+    drainage: &Drainage,
+    cities: &[City],
+    city: usize,
+    (site, gate, ground_m): (super::layout::Rect, Vec2, f32),
+    cfg: &WorldConfig,
+) -> Option<Highway> {
+    let r = cities[city].rect();
+    let from = gate.clamp(r.min, r.max);
+    let ends = [
+        RoadEnd {
+            city: Some(city),
+            id: cities[city].id,
+            rect: r,
+            ground_m: cities[city].ground_m,
+            at: from,
+        },
+        RoadEnd {
+            city: None,
+            id: SITE_END,
+            rect: site,
+            ground_m,
+            at: gate,
+        },
+    ];
+    lay_road(shape, drainage, cities, ends, cfg)
+}
+
+/// One end of a road: the city it starts in (none for a site), the id it carries, the flat ground it leaves (the
+/// city's square or the site's footprint) at that ground's height, and the point it starts from.
+struct RoadEnd {
+    city: Option<usize>,
+    id: u32,
+    rect: super::layout::Rect,
+    ground_m: f32,
+    at: Vec2,
+}
+
+fn lay_road(shape: &Shape, drainage: &Drainage, cities: &[City], ends: [RoadEnd; 2], cfg: &WorldConfig) -> Option<Highway> {
+    let (from, to) = (ends[0].at, ends[1].at);
+    let (a, b) = (ends[0].city.unwrap_or(usize::MAX), ends[1].city.unwrap_or(usize::MAX));
+    let ends_ground = [ends[0].ground_m, ends[1].ground_m];
     let top = ends_ground[0].max(ends_ground[1]) + cfg.highway_max_climb_m;
     let n = drainage.n;
     let cell = drainage.cell_m;
@@ -137,7 +195,7 @@ pub fn lay_highway(
     cells.reverse();
     // The cell path, from the first edge point to the second, leaving out the cells inside the
     // two end cities (the road starts at their edges).
-    let (ra, rb) = (cities[a].rect(), cities[b].rect());
+    let (ra, rb) = (ends[0].rect, ends[1].rect);
     let mut points = vec![from];
     points.extend(
         cells
@@ -194,7 +252,7 @@ pub fn lay_highway(
     let level = [clear_of(&ra, &mut (0..n_path)), clear_of(&rb, &mut (0..n_path).rev())];
     let grade = grade_along(&path, shape, ends_ground, level, cfg);
     Some(Highway::new(
-        [cities[a].id, cities[b].id],
+        [ends[0].id, ends[1].id],
         path,
         grade,
         cfg.highway_width_m,

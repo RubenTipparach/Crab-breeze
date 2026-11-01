@@ -4,12 +4,14 @@
 mod air_bases;
 mod air_drop;
 mod air_traffic;
+mod airliners;
 mod ambience;
 mod audio;
 mod battle_fx;
 mod bench;
 mod blast;
 mod boats;
+mod bounds;
 mod building_arrays;
 mod building_state;
 mod buildings;
@@ -82,6 +84,7 @@ mod sky_light;
 mod small_buildings;
 mod soft_sprites;
 mod state;
+mod stolen_aircraft;
 mod street_doors;
 mod sun_flare;
 mod targeting;
@@ -247,7 +250,7 @@ fn main() -> AppExit {
         interact::InteractPlugin,
     ))
     // Free roam's mail and its missions (free-roam-missions); the Stratostacean (crab-airship).
-    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
+    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin, bounds::BoundsPlugin))
     // The time of day: the world's clock, the sun and the moon (day-night-cycle).
     .add_plugins((day_night::DayNightPlugin, lamps::LampsPlugin))
     // How thick the ground fog is now: the clock's hour and the mission's preset (ground-fog, survey F1).
@@ -337,7 +340,7 @@ fn main() -> AppExit {
     app.add_plugins(one_sided::OneSidedPlugin);
     app.add_plugins(cockpit_space::CockpitSpacePlugin);
     app.add_plugins((air_bases::AirBasesPlugin, air_drop::AirDropPlugin));
-    app.add_plugins(air_traffic::AirTrafficPlugin);
+    app.add_plugins((air_traffic::AirTrafficPlugin, stolen_aircraft::StolenAircraftPlugin));
     // Harm to civilians, cars and civil aircraft costs career standing, by one rule (survey W34, W37, W42).
     app.add_plugins(civil_standing::CivilStandingPlugin);
     // Every boat: harbours, sea traffic, lake boats, the ferry and the shipping jobs (harbours).
