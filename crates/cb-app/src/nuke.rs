@@ -177,6 +177,21 @@ fn detonate(
                 flat += 1;
             }
         }
+        // Ground zero is vaporised: every building and house over the bowl and its rim gone whole, so no ground floor
+        // hangs over the hole (owner, 2026-10-31: "Let's try the alternate").
+        let zero = n.crater_radius_m * GROUND_ZERO;
+        for b in plan.collision.candidates(xz, zero) {
+            if plan.buildings[b as usize].footprint.centre().distance(xz) <= zero && live.structures.raze(b) {
+                live.dirty_buildings.push(b);
+            }
+        }
+        for lot in plan.small.candidates(xz, zero) {
+            let all: Vec<usize> = live.structures.houses.alive(lot).map_or_else(Vec::new, |a| (0..a.len()).collect());
+            if !all.is_empty() {
+                live.structures.houses.remove(&plan.small, lot, &all);
+                live.dirty_houses.push(lot);
+            }
+        }
         live.forest.grow_around(&plan, xz, n.flatten_radius_m);
         let felled = live.forest.blast(xz, n.flatten_radius_m, 1.0e9);
         live.moved_trees.extend(felled);
@@ -198,6 +213,9 @@ fn detonate(
         );
     }
 }
+
+/// What stood within this many of the crater's radii is vaporised: the bowl and its rim.
+const GROUND_ZERO: f32 = 1.3;
 
 /// The flash lasts this long, seconds...
 const FLASH_S: f32 = 0.8;

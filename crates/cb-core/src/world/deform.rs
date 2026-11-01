@@ -24,10 +24,8 @@ pub struct Blast {
     pub energy_mj: f32,
 }
 
-/// A crater made whole (`Deformation::dig_crater`) is flat across this share of its radius...
-pub const CRATER_FLOOR: f32 = 0.3;
-/// ...and its thrown earth reaches out to this many radii.
-pub const CRATER_APRON: f32 = 2.1;
+/// A crater's dig and scorch reach this many of its radii.
+pub const CRATER_REACH: f32 = 1.8;
 
 /// The dug ground: tile deltas and the blasts that made them, in order.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -110,35 +108,23 @@ impl Deformation {
         self.carve(blast.centre, r, cfg.depth_ratio * r, cfg.rim_ratio * r, cfg.max_dig_m, &protected)
     }
 
-    /// Makes one crater `radius_m` across its bowl and `depth_m` deep, with a `rim_m` rim, through cities and roads
-    /// alike: the Stratostacean's crash (crab-airship section 11). Its floor stays at the ground's height and the ground
-    /// round it rises (owner, 2026-10-31: "have bottom of crater be the same height and the surrounding area rise
-    /// up"): what stood at ground zero rests on the floor instead of hanging over a hole. Flat across the middle
-    /// (`CRATER_FLOOR` of the radius), its walls rise to `depth_m` at the radius, the rim on top, and the thrown earth
-    /// falls away outside to nothing by `CRATER_APRON` radii. Returns the tiles it touched.
+    /// Digs one crater `radius_m` across its bowl, `depth_m` deep at its middle, with a `rim_m` rim, through cities
+    /// and roads alike: the Stratostacean's crash (crab-airship section 11). The bowl a blast digs, made whole: what
+    /// stood over it (the city's laid ground, its buildings' ground floors, its lamps) is cut away by what draws it
+    /// (owner, 2026-10-31: "break up the road and concrete sidewalk mesh so they don't render when there's a crater",
+    /// "Let's try the alternate"). Returns the tiles it touched.
     pub fn dig_crater(&mut self, centre: Vec2, radius_m: f32, depth_m: f32, rim_m: f32) -> Vec<(i32, i32)> {
         if !(centre.is_finite() && radius_m.is_finite() && radius_m > 0.0 && depth_m.is_finite() && rim_m.is_finite()) {
             return Vec::new();
         }
-        let r = radius_m;
-        self.digs.push((centre, r * CRATER_APRON));
-        self.shape(centre, r, CRATER_APRON, f32::INFINITY, &|_| false, &|d| {
-            let wall = if d < 1.0 {
-                let t = ((d - CRATER_FLOOR) / (1.0 - CRATER_FLOOR)).clamp(0.0, 1.0);
-                depth_m * t * t * (3.0 - 2.0 * t)
-            } else {
-                // the thrown earth: from the wall's top down to nothing by the apron's edge
-                let t = ((d - 1.0) / (CRATER_APRON - 1.0)).clamp(0.0, 1.0);
-                depth_m * (1.0 - t) * (1.0 - t)
-            };
-            wall + rim_m * (-((d - 1.0) / 0.35).powi(2)).exp()
-        })
+        self.digs.push((centre, radius_m * CRATER_REACH));
+        self.carve(centre, radius_m, depth_m, rim_m, f32::INFINITY, &|_| false)
     }
 
     /// The one bowl-and-rim shape: down `depth_m` at the middle, easing to nothing at `r`, a rim `rim_m` high round
     /// it, scorched out to 1.8 `r`; never below `floor_m` under where the ground was; `protected` points not dug.
     fn carve(&mut self, centre: Vec2, r: f32, depth_m: f32, rim_m: f32, floor_m: f32, protected: &dyn Fn(Vec2) -> bool) -> Vec<(i32, i32)> {
-        self.shape(centre, r, 1.8, floor_m, protected, &|d| {
+        self.shape(centre, r, CRATER_REACH, floor_m, protected, &|d| {
             let bowl = if d < 1.0 {
                 -depth_m * 0.5 * (1.0 + (std::f32::consts::PI * d).cos())
             } else {
@@ -494,12 +480,7 @@ mod tests {
         d.dig_crater(Vec2::new(100.0, -50.0), 400.0, 100.0, 25.0);
         let inside = d.within(Vec2::new(-200.0, -300.0), Vec2::new(300.0, 200.0));
         assert!((inside.delta_at(Vec2::new(100.0, -50.0)) - d.delta_at(Vec2::new(100.0, -50.0))).abs() < 1e-4);
-        let on_wall = Vec2::new(280.0, -50.0);
-        assert!(
-            inside.delta_at(on_wall) > 5.0 && (inside.delta_at(on_wall) - d.delta_at(on_wall)).abs() < 1e-4,
-            "the wall rising"
-        );
-        assert!(d.delta_at(Vec2::new(500.0, -50.0)) > 90.0, "100 m up at its radius");
+        assert!(inside.delta_at(Vec2::new(100.0, -50.0)) < -90.0, "the bowl's middle, 100 m down");
         assert!(d.scorch_xz(Vec2::new(100.0, -50.0)) > 0.9, "scorched at the middle");
         assert_eq!(d.scorch_xz(Vec2::new(3000.0, 3000.0)), 0.0, "and nowhere near it");
         let far = d.within(Vec2::new(3000.0, 3000.0), Vec2::new(3500.0, 3500.0));
@@ -513,14 +494,14 @@ mod tests {
         let (c, reach) = d.digs[0];
         assert_eq!(c, Vec2::new(100.0, -50.0));
         assert!(
-            (reach - 400.0 * CRATER_APRON).abs() < 0.01,
+            (reach - 400.0 * CRATER_REACH).abs() < 0.01,
             "its scorch's reach, the thrown earth's: {reach}"
         );
         assert!(d.blasts.is_empty(), "not a blast");
     }
 
     #[test]
-    fn the_crash_crater_rises_round_a_city_and_leaves_its_floor() {
+    fn the_crash_crater_digs_through_a_city() {
         let p = plan();
         let city = p.cities[0].centre;
         let mut d = Deformation::new(4096.0);
@@ -535,10 +516,13 @@ mod tests {
         );
         assert_eq!(by_blast.delta_at(city), 0.0, "a shell's crater leaves the city's ground alone");
         d.dig_crater(city, 260.0, 60.0, 15.0);
-        assert!(d.delta_at(city).abs() < 0.5, "its floor at the city's height: {}", d.delta_at(city));
-        assert!(d.delta_at(city + Vec2::X * 260.0) > 70.0, "its walls 60 m up and the rim on them");
-        assert!(d.delta_at(city + Vec2::X * 400.0) > 0.0, "its thrown earth beyond");
-        assert_eq!(d.delta_at(city + Vec2::X * 900.0), 0.0, "untouched beyond 2.1 radii");
+        assert!(
+            (d.delta_at(city) + 60.0).abs() < 0.5,
+            "60 m deep at its middle: {}",
+            d.delta_at(city)
+        );
+        assert!(d.delta_at(city + Vec2::X * 260.0) > 10.0, "its rim");
+        assert_eq!(d.delta_at(city + Vec2::X * 900.0), 0.0, "untouched beyond");
     }
 
     #[test]

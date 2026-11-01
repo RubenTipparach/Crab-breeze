@@ -1588,14 +1588,14 @@ mod tests {
 }
 
 /// The city's flat ground laid once at its height (its streets, the highways, the blocks and their kerbs, the lane
-/// marks and the tyre tracks): cut away where a crater is dug whole, so it does not hang over the hole as a plane
+/// marks and the tyre tracks) and its street lamps: cut away where a crater is dug whole, so it does not hang over the hole as a plane
 /// (owner, 2026-10-31: "Looks like a big grey quad", "Right now it's just a plane").
 #[derive(Component)]
-struct CutByCraters;
+pub(crate) struct CutByCraters;
 
 /// A laid-ground mesh kept in the main world as well as on the GPU, so a crater can cut it (a render-world-only mesh
 /// drops its vertices once uploaded).
-fn kept_for_cutting(mut mesh: Mesh) -> Mesh {
+pub(crate) fn kept_for_cutting(mut mesh: Mesh) -> Mesh {
     mesh.asset_usage = RenderAssetUsages::default();
     mesh
 }
