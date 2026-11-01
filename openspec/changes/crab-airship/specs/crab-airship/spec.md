@@ -65,7 +65,7 @@ Every part of the fortress (thrusters, turrets, catapults, bays, lifts, drive th
 - **THEN** it does not penetrate
 
 #### Scenario: A hull port from the side
-- **WHEN** a round reaches an open hull thruster's port hole more than 30 deg from the fortress's vertical
+- **WHEN** a round reaches an open hull thruster's port hole more than 50 deg from the fortress's vertical
 - **THEN** it meets the 300 mm hull and does no damage, while one from directly below does double damage
 
 #### Scenario: The autocannon on a thruster's inboard side
