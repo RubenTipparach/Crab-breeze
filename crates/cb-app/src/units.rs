@@ -409,6 +409,7 @@ pub fn unit_capsules(units: &Units, data: &Data) -> Vec<cb_core::weapons::PartCa
                 a: p.unit.pos - fwd * half,
                 b: p.unit.pos + fwd * half,
                 radius_m: s.size_m[0].max(s.size_m[1]) * 0.5,
+                flat_ends: false,
             })
         })
         .collect()

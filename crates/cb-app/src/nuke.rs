@@ -160,6 +160,27 @@ fn detonate(
             }
         }
         live.dirty_tiles.extend(touched);
+        // On the dug ground nothing is left where it stood: the burnt cars come down onto the bowl, tilted to it, and
+        // the trees burn off with the grass (owner, 2026-11-01: "these burning cars should've changed height and
+        // rotation to match crater floor", "And trees").
+        let dug_reach = n.crater_radius_m * cb_core::world::deform::DIG_REACH;
+        if let Some(t) = traffic.as_deref_mut() {
+            let scene = cb_core::world::Scene {
+                plan: &plan,
+                dug: &live.dug,
+                trees: None,
+                structures: Some(&live.structures),
+                platforms: &live.platforms,
+                interiors: None,
+            };
+            let ground = cb_core::world::OnRoads {
+                ground: &scene,
+                plan: &plan,
+            };
+            t.traffic.set_down_wrecks(&data.0.traffic, &ground, xz, dug_reach);
+        }
+        let burnt = live.forest.burn_away(xz, dug_reach);
+        live.moved_trees.extend(burnt);
         let mut flat = 0;
         for b in plan.collision.candidates(xz, n.flatten_radius_m) {
             let (broke, chunks) = live.structures.break_sphere(b, at, n.flatten_radius_m);

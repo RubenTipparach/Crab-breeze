@@ -1515,7 +1515,16 @@ fn redraw_trees(mut commands: Commands, mut live: ResMut<Live>, trees: Option<Re
     let trees = &mut *trees;
     let moved = std::mem::take(&mut live.moved_trees);
     for id in moved {
-        let Some(tree) = live.forest.tree(id) else { continue };
+        // Burnt away (`Forest::burn_away`): off the screen, and its tile drawn again without it.
+        let Some(tree) = live.forest.tree(id) else {
+            if let Some(e) = trees.moving.remove(&id) {
+                commands.entity(e).despawn();
+            }
+            if let Some(tile) = trees.tile_of.remove(&id).and_then(|key| trees.tiles.get_mut(&key)) {
+                tile.dirty = true;
+            }
+            continue;
+        };
         let state = live.forest.state(id);
         let Some(key) = trees.tile_of.get(&id).copied() else { continue };
         match state {

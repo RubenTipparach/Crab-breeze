@@ -756,6 +756,7 @@ fn step(
                 a: mid - axis,
                 b: mid + axis,
                 radius_m: c.radius_m,
+                flat_ends: c.flat_ends,
             });
             run.targets.push((FORTRESS_TARGET_BASE + i as u32, mid));
         }
@@ -768,6 +769,7 @@ fn step(
             a: pose.transform_point3(h.a),
             b: pose.transform_point3(h.b),
             radius_m: h.radius_m,
+            flat_ends: false,
         });
     }
     // The attacked city's damage, whatever broke it: the defences' rounds, its legs, its wreck (survey H5).

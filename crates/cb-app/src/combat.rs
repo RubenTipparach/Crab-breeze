@@ -277,6 +277,7 @@ fn capsules(id: u32, sim: &MechSim, cfg: &MechConfig, rig: &MechRig, globals: &Q
                 a,
                 b,
                 radius_m,
+                flat_ends: false,
             });
         }
         // The hips, across from thigh to thigh: a round there hurts the torso; without it, rounds at
@@ -290,6 +291,7 @@ fn capsules(id: u32, sim: &MechSim, cfg: &MechConfig, rig: &MechRig, globals: &Q
                 a: l,
                 b: r,
                 radius_m: b.leg_hit_radius_m,
+                flat_ends: false,
             });
         }
     }

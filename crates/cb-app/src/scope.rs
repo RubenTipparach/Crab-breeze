@@ -326,6 +326,7 @@ fn draw_sight(
                 a: h.feet,
                 b: h.feet + Vec3::Y * h.height_m,
                 radius_m: (h.height_m * 0.15).max(1.5),
+                flat_ends: false,
             })
             .collect();
         let scene = Scene {

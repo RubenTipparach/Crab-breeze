@@ -132,6 +132,8 @@ pub struct Forest {
     falling: BTreeSet<u32>,
     /// Trees felled in tiles that have been let go.
     remembered: BTreeMap<u32, TreeState>,
+    /// Ground burnt bare (centre, radius): no tree stands there, grown now or later (`burn_away`).
+    burnt: Vec<(Vec2, f32)>,
 }
 
 /// What a body bumping into trees did.
@@ -376,9 +378,55 @@ impl Forest {
         }
     }
 
+    /// Burns every tree within `radius_m` of `centre` away, standing, falling or felled, and keeps the ground bare
+    /// whenever its tiles grow again: a nuke's crater and the ground it dug round it, where the grass burns off too
+    /// (owner, 2026-11-01: "And trees", on trees left hanging over the bowl at their old height). Returns the ids
+    /// gone, ascending.
+    pub fn burn_away(&mut self, centre: Vec2, radius_m: f32) -> Vec<u32> {
+        let mut gone = Vec::new();
+        let Some(g) = &self.grower else { return gone };
+        if !(centre.is_finite() && radius_m.is_finite() && radius_m > 0.0) {
+            return gone;
+        }
+        let (ts, per_side) = (g.cfg.tile_sites, g.sites_per_side);
+        self.burnt.push((centre, radius_m));
+        for key in self.tiles_within(centre, radius_m) {
+            let Some(tile) = self.tiles.get_mut(&key) else { continue };
+            let before = tile.trees.len();
+            let mut kept = TreeTile {
+                trees: Vec::with_capacity(before),
+                states: Vec::with_capacity(before),
+                slot: vec![NO_TREE; tile.slot.len()],
+            };
+            for (t, st) in tile.trees.iter().zip(&tile.states) {
+                if Vec2::new(t.base.x, t.base.z).distance(centre) < radius_m {
+                    gone.push(t.id);
+                    continue;
+                }
+                let (ix, iz) = (t.id % per_side, t.id / per_side);
+                kept.slot[((iz % ts) * ts + ix % ts) as usize] = kept.trees.len() as u16;
+                kept.trees.push(*t);
+                kept.states.push(*st);
+            }
+            if kept.trees.len() < before {
+                *tile = kept;
+            }
+        }
+        for id in &gone {
+            self.falling.remove(id);
+        }
+        gone.sort_unstable();
+        gone
+    }
+
+    fn burnt_bare(&self, t: &Tree) -> bool {
+        self.burnt.iter().any(|(c, r)| Vec2::new(t.base.x, t.base.z).distance(*c) < *r)
+    }
+
     fn grow_tile(&mut self, plan: &WorldPlan, key: (u32, u32)) {
         let Some(g) = &self.grower else { return };
-        let trees = g.grow(plan, key);
+        let mut trees = g.grow(plan, key);
+        trees.retain(|t| !self.burnt_bare(t));
         let ts = g.cfg.tile_sites;
         let mut slot = vec![NO_TREE; (ts * ts) as usize];
         let mut states = Vec::with_capacity(trees.len());
@@ -708,6 +756,30 @@ mod tests {
         assert_eq!(b.broke, vec![the(&f)]);
         assert!(!b.blocked, "a crown does not stop a mech");
         assert!(b.kept > 0.9 && b.kept < 1.0, "a little momentum lost: {}", b.kept);
+    }
+
+    #[test]
+    fn ground_burnt_bare_loses_its_trees_falling_or_not_and_grows_none_again() {
+        let mut f = one(10.0);
+        let id = the(&f);
+        f.hit(id, Vec2::X, 20_000.0);
+        assert_eq!(f.burn_away(Vec2::new(300.0, 0.0), 50.0), Vec::<u32>::new(), "a far fire leaves it");
+        assert_eq!(f.burn_away(Vec2::new(5.0, 0.0), 50.0), vec![id]);
+        assert!(f.tree(id).is_none() && f.falling().is_empty());
+        let mut regrown = *f.tiles[&(2, 2)].trees.first().unwrap_or(&Tree {
+            id,
+            species: 0,
+            base: Vec3::ZERO,
+            height_m: 20.0,
+            trunk_radius_m: 0.3,
+            break_impulse_n_s: 1.0,
+            yaw_rad: 0.0,
+            crown_radius_m: 4.0,
+            crown_base_m: 4.0,
+        });
+        assert!(f.burnt_bare(&regrown), "the tile grown again leaves it out");
+        regrown.base = Vec3::new(120.0, 0.0, 0.0);
+        assert!(!f.burnt_bare(&regrown));
     }
 
     #[test]

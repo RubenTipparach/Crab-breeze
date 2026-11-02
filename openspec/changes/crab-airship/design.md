@@ -248,7 +248,7 @@ catapults, bays and lifts as flat capsules, the sizes in data. The hull itself i
 (the shell and the belly), with no hit points: a round meeting them stops on 300 mm. The hull thrusters are listed
 before the hull, so a round down a port reaches the thruster. What a hit does is section 3, from the round's
 direction and the point it struck in the part's own frame: a lift thruster's outboard half and skirt are 300 mm,
-its inboard side 60 mm, its nozzle (below `-18 m`) and grille (above `+18 m`) 40 mm at double damage; a hull port
+its inboard side 60 mm, its nozzle (below `-12 m`, section 13) and grille (above `+18 m`) 40 mm at double damage; a hull port
 counts only within 30 deg of the fortress's vertical and only once the doors are open.
 
 **Defences in this build.** The 10 flak turrets (shells that burst within 10 m of the pilot's mech as a 1 MJ
@@ -401,6 +401,34 @@ This replaces the fall rule of sections 2 and 2b and the "two of three hull thru
 Tests: `while_any_leg_works_it_holds_its_height`, `the_hull_lights_only_when_every_leg_is_gone`,
 `it_falls_only_when_half_its_hull_thrusters_are_gone`, `with_no_thrust_it_falls_level_at_its_terminal_speed`,
 `shooting_what_next_to_bring_down_names_brings_it_down_in_eleven_kills`, `the_lift_readout_is_the_rule`.
+
+## 13. The thrusters' colliders end where the nacelles do (owner, 2026-11-01)
+
+The owner saw the scripted pilot shooting the empty air under the legs and the legs taking the damage: "it looks
+like the mech is targeting exhaust of the crab legs and it's damaging it..this seems like a collider issue. Combined
+with a bot aiming issue." Both were true.
+
+- **The collider.** A lift thruster was hit as a capsule 16.5 m round with a 20 m half axis: its rounded ends reached
+  36.5 m above and below its middle. The nacelle in the model (`PART_L1`, measured off the glb) is 15 m round and
+  ends 20 m above and below its middle, so a round 16.5 m under the nozzle, in the exhaust, counted as the nozzle.
+  A part's collider can now be cut square (`PartCapsule::flat_ends`, `CapsuleSpec::flat_ends`: a cylinder whose end
+  discs are its ends, in both the ray test and the point test), and the lift thrusters are a cylinder 15.5 m round
+  and 40 m long, the nacelle's own size.
+- **The weak band.** The nozzle counted below `-18 m`, which with the nacelle ending at `-20 m` left a 2 m strip:
+  the bot only scored by hitting the exhaust under it. The nozzle is now the nacelle's lower 8 m (`below_m` 12),
+  the nozzle band in the model.
+- **The aim.** The bot aimed 13 m past the nacelle's lower end, down its axis; it now aims 4 m up from that end,
+  the middle of the nozzle band (`NOZZLE_UP_M`), and its barrel check (`first_on_line`) still finds the part.
+
+The nuke's crater also takes what stood on its ground down with it (owner, 2026-11-01: "these burning cars
+should've changed height and rotation to match crater floor", "And trees"). Every wreck within the dug ground
+(`DIG_REACH` crater radii) is set down on the bowl at rest, each wheel on the ground under it and the body tilted
+to match (`Traffic::set_down_wrecks`, `CarBody::set_down`); every tree there burns away with the grass, and its
+tiles grow none there again (`Forest::burn_away`).
+
+Tests: `a_flat_ended_part_takes_no_shot_through_the_space_past_its_end`,
+`a_wreck_over_dug_ground_is_set_down_on_it_tilted_to_its_slope`,
+`ground_burnt_bare_loses_its_trees_falling_or_not_and_grows_none_again`.
 
 ## Open questions
 

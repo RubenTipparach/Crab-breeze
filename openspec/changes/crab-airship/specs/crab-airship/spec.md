@@ -72,6 +72,10 @@ Every part of the fortress (thrusters, turrets, catapults, bays, lifts, drive th
 - **WHEN** 35 mm autocannon rounds hit a lift thruster's exposed inboard side (60 mm)
 - **THEN** they penetrate and do their damage, and the same rounds into its 40 mm nozzle do double damage
 
+#### Scenario: A round through a lift thruster's exhaust
+- **WHEN** a round passes under a lift thruster's nacelle, through its exhaust, without touching the nacelle
+- **THEN** it does not hit the thruster: the thruster's collider is a flat-ended cylinder the nacelle's own size
+
 ### Requirement: The fortress is called the Stratostacean
 Everything the player reads about the crab air fortress (its mission mail, the HUD's mission line, the TARGET page and the mission log) SHALL name it the Stratostacean, from the one `name` in its data.
 

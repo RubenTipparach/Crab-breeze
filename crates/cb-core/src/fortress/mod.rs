@@ -36,6 +36,10 @@ pub struct CapsuleSpec {
     /// Where its middle sits up the part's Y axis.
     #[serde(default)]
     pub centre_y_m: f32,
+    /// Cut square at both ends (a cylinder), so the space past them is not the part: a lift
+    /// thruster's nacelle ends at its nozzle, and its exhaust below takes no hits.
+    #[serde(default)]
+    pub flat_ends: bool,
 }
 
 /// A beam turret's cycle (design section 4): it charges where the pilot can see it, then burns.

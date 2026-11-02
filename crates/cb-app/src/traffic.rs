@@ -366,6 +366,7 @@ pub fn car_capsules(sim: &TrafficSim, data: &Data, near: &[Vec3], reach_m: f32) 
             a,
             b,
             radius_m,
+            flat_ends: false,
         })
         .collect()
 }

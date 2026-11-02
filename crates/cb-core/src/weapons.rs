@@ -681,6 +681,19 @@ pub struct PartCapsule {
     pub b: Vec3,
     /// Radius.
     pub radius_m: f32,
+    /// A cylinder cut square at `a` and `b`, not rounded past them: a nozzle or a drum whose ends
+    /// are flat, so nothing beyond them (a thruster's exhaust) counts as the part.
+    pub flat_ends: bool,
+}
+
+/// Whether `p` is inside the part `c`.
+fn inside(p: Vec3, c: &PartCapsule) -> bool {
+    if c.flat_ends {
+        let ab = c.b - c.a;
+        let t = (p - c.a).dot(ab) / ab.length_squared().max(1e-6);
+        return (0.0..=1.0).contains(&t) && (c.a + ab * t).distance(p) <= c.radius_m;
+    }
+    point_segment_distance(p, c.a, c.b) <= c.radius_m
 }
 
 /// What a shot hit.
@@ -738,7 +751,7 @@ fn solid_at(p: Vec3, skip: Option<u32>, scene: &Scene, structures: &Structures, 
         if Some(c.mech) == skip {
             continue;
         }
-        if point_segment_distance(p, c.a, c.b) <= c.radius_m {
+        if inside(p, c) {
             return Some(Struck::Mech {
                 mech: c.mech,
                 part: c.part,
@@ -808,7 +821,7 @@ pub fn sweep(
 
 /// Where the ray from `o` along the unit `d` first enters the capsule `c`, as a distance along the
 /// ray (exact: the cylinder, then its end caps; after Inigo Quilez's capsule intersection). `None`
-/// if it misses or the capsule is behind.
+/// if it misses or the capsule is behind. With `flat_ends` the ends are discs, not caps.
 pub fn ray_capsule(o: Vec3, d: Vec3, c: &PartCapsule) -> Option<f32> {
     let ba = c.b - c.a;
     let oa = o - c.a;
@@ -827,6 +840,20 @@ pub fn ray_capsule(o: Vec3, d: Vec3, c: &PartCapsule) -> Option<f32> {
         if y > 0.0 && y < baba {
             return (t >= 0.0).then_some(t);
         }
+    }
+    if c.flat_ends {
+        // The end discs: the plane at each end, entered within the radius.
+        if bard.abs() < 1e-6 {
+            return None;
+        }
+        return [0.0, baba]
+            .into_iter()
+            .filter_map(|y| {
+                let t = (y - baoa) / bard;
+                let p = oa + d * t;
+                (t >= 0.0 && (p - ba * (y / baba)).length_squared() <= ra2).then_some(t)
+            })
+            .min_by(f32::total_cmp);
     }
     // The caps: the sphere at whichever end the ray meets first.
     [c.a, c.b]
@@ -1120,6 +1147,7 @@ mod tests {
             a: from + Vec3::new(60.0, -5.0, 0.0),
             b: from + Vec3::new(60.0, 5.0, 0.0),
             radius_m: 1.5,
+            flat_ends: false,
         };
         let mut s = Projectile {
             owner: 0,
@@ -1504,6 +1532,7 @@ mod tests {
             a: Vec3::new(0.0, -5.0, -100.0),
             b: Vec3::new(0.0, 5.0, -100.0),
             radius_m: 3.0,
+            flat_ends: false,
         };
         let t = ray_capsule(Vec3::ZERO, Vec3::NEG_Z, &c).expect("a hit");
         assert!((t - 97.0).abs() < 1e-3, "{t}");
@@ -1511,6 +1540,29 @@ mod tests {
         assert_eq!(ray_capsule(Vec3::ZERO, Vec3::Z, &c), None, "behind");
         let cap = ray_capsule(Vec3::new(0.0, 7.0, 0.0), Vec3::NEG_Z, &c).expect("the top cap");
         assert!((cap - (100.0 - 5.0f32.sqrt())).abs() < 1e-2, "{cap}");
+    }
+
+    #[test]
+    fn a_flat_ended_part_takes_no_shot_through_the_space_past_its_end() {
+        // A thruster nacelle 40 m long and 15.5 m round, upright, its exhaust below it.
+        let mut c = PartCapsule {
+            mech: 1,
+            part: 0,
+            a: Vec3::new(0.0, -20.0, -100.0),
+            b: Vec3::new(0.0, 20.0, -100.0),
+            radius_m: 15.5,
+            flat_ends: true,
+        };
+        let exhaust = Vec3::new(0.0, -30.0, 0.0);
+        assert_eq!(ray_capsule(exhaust, Vec3::NEG_Z, &c), None, "the exhaust is not the part");
+        assert!(!inside(Vec3::new(0.0, -30.0, -100.0), &c));
+        let side = ray_capsule(Vec3::new(0.0, -18.0, 0.0), Vec3::NEG_Z, &c).expect("the nacelle's side");
+        assert!((side - 84.5).abs() < 1e-2, "{side}");
+        let up = ray_capsule(Vec3::new(5.0, -60.0, -100.0), Vec3::Y, &c).expect("up the nozzle");
+        assert!((up - 40.0).abs() < 1e-3, "{up}");
+        assert!(inside(Vec3::new(0.0, -19.0, -100.0), &c));
+        c.flat_ends = false;
+        assert!(ray_capsule(exhaust, Vec3::NEG_Z, &c).is_some(), "a rounded end reaches into it");
     }
 
     #[test]
@@ -1531,6 +1583,7 @@ mod tests {
             a: from + Vec3::new(0.0, -5.0, z),
             b: from + Vec3::new(0.0, 5.0, z),
             radius_m: 2.0,
+            flat_ends: false,
         };
         let parts = [at(0, -1.0), at(9, -800.0), at(7, -300.0)];
         let hit = trace(from, Vec3::NEG_Z, 1500.0, Some(0), &scene, &st, &Forest::default(), &parts).expect("a hit");
@@ -1562,6 +1615,7 @@ mod tests {
             a: from + dir * 400.0 + Vec3::Y * -5.0,
             b: from + dir * 400.0 + Vec3::Y * 5.0,
             radius_m: 2.0,
+            flat_ends: false,
         };
         let hit = trace(from, dir, 1500.0, None, &scene, &st, &Forest::default(), &[behind]).expect("a hit");
         assert_ne!(hit.0, Struck::Mech { mech: 4, part: 0 });
@@ -1595,6 +1649,7 @@ mod tests {
                 a: from + Vec3::new(i as f32 * 30.0, 0.0, 300.0),
                 b: from + Vec3::new(i as f32 * 30.0, 10.0, 300.0),
                 radius_m: 2.0,
+                flat_ends: false,
             })
             .collect();
         let n = 2000;

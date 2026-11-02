@@ -565,6 +565,10 @@ fn first_on_line(capsules: &[cb_core::weapons::PartCapsule], from: Vec3, to: Vec
 /// height with it in view, and never run dry; the missile approach stays for a mech without a gun.
 const BRING_DOWN_BY_MISSILE: bool = false;
 
+/// Where the bot aims on a lift thruster, metres up its axis from the nacelle's flat lower end: the middle of
+/// the nozzle's weak band (`Weak::Lift::below_m` 12, the nacelle 20 m each way), never the exhaust below it.
+const NOZZLE_UP_M: f32 = 4.0;
+
 /// How far ahead a hover's goal leads a moving target, seconds: `hover` closes at a quarter of the gap a second.
 const HOVER_LEAD_S: f32 = 4.0;
 
@@ -1913,15 +1917,15 @@ fn play(
                 && let Some(c) = f.capsules.iter().find(|c| c.part == i)
             {
                 let hull = d.shape.parts[i].kind == "hull";
-                // The nozzle: the capsule's lower end and a little further down its axis, so the round enters the
-                // weak cap (below -18 m); a hull thruster's port is the lower end of its duct, where it opens under the
-                // hull.
+                // The nozzle: the middle of the nacelle's weak lower band (4 m up from its flat lower end, inside the
+                // part, never the exhaust under it); a hull thruster's port is the lower end of its duct, where it opens
+                // under the hull.
                 let (lo, hi) = if c.a.y < c.b.y { (c.a, c.b) } else { (c.b, c.a) };
                 let axis = (hi - lo).normalize_or(Vec3::Y);
                 let spot = if hull {
                     lo + axis * (c.radius_m * 0.5)
                 } else {
-                    lo - axis * (c.radius_m * 0.8)
+                    lo + axis * NOZZLE_UP_M
                 };
                 let speed = spec.weapons.get(sim.selected).map_or(1000.0, |w| w.speed_m_s);
                 let aim = cb_core::weapons::lead(eye, spot, f.f.velocity(), speed, true);
@@ -2792,6 +2796,7 @@ mod tests {
             a: Vec3::new(x, -5.0, 0.0),
             b: Vec3::new(x, 5.0, 0.0),
             radius_m: 3.0,
+            flat_ends: false,
         }
     }
 

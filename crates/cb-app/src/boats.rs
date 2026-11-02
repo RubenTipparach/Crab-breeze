@@ -199,6 +199,7 @@ pub fn boat_capsules(boats: &Boats, data: &Data) -> Vec<cb_core::weapons::PartCa
                 a: Vec3::new(a.x, y, a.y),
                 b: Vec3::new(z.x, y, z.y),
                 radius_m: r.max(free * 0.35),
+                flat_ends: false,
             })
         })
         .collect()

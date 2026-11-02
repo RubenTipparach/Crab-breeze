@@ -519,10 +519,27 @@ impl CarBody {
                 c.vel_y_m_s = c.vel_y_m_s.max(0.0);
             }
         }
+        self.lie(spec);
+    }
+
+    /// The body's height, pitch and roll from its four corners: it lies as its wheels stand.
+    fn lie(&mut self, spec: &CarSpec) {
         let [fl, fr, rl, rr] = self.corners.map(|c| c.y_m);
         self.pos.y = (fl + fr + rl + rr) * 0.25 - spec.ride_height_m;
         self.pitch_rad = ((fl + fr) * 0.5 - (rl + rr) * 0.5).atan2(spec.wheelbase_m);
         self.roll_rad = ((fl + rl) * 0.5 - (fr + rr) * 0.5).atan2(spec.track_m);
+    }
+
+    /// Sets the body down at rest where it stands, each wheel on the ground under it, tilted to match: a wreck
+    /// whose ground a crater dug from under it.
+    pub fn set_down(&mut self, spec: &CarSpec, ground: &impl Ground) {
+        self.vel = Vec2::ZERO;
+        let wheels = self.wheels(spec);
+        for (c, w) in self.corners.iter_mut().zip(wheels) {
+            c.y_m = ground.height_at(w.x, w.y) + spec.ride_height_m;
+            c.vel_y_m_s = 0.0;
+        }
+        self.lie(spec);
     }
 }
 

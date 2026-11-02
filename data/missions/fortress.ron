@@ -43,8 +43,10 @@
         "lift": (
             name: "Lift thruster", hp: 800.0, armour_mm: 60.0, always_target: true,
             // owner, 2026-10-25: "armor on the thrusters facing outward", "should be damageable from this side"
-            weak: Lift(plate_mm: 300.0, below_m: 18.0, above_m: 18.0),
-            capsule: (radius_m: 16.5, half_m: 20.0),
+            // The nozzle is the nacelle's lower 8 m (12-20 m below its middle) and the collider ends where the nacelle
+            // does, so its exhaust takes no hits (design section 13).
+            weak: Lift(plate_mm: 300.0, below_m: 12.0, above_m: 18.0),
+            capsule: (radius_m: 15.5, half_m: 20.0, flat_ends: true),
         ),
         "hull": (
             // 600, not 900: three of the six must now go (design section 12), ten missile hits as two at 900 took
