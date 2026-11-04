@@ -1,20 +1,31 @@
 ## ADDED Requirements
 
-### Requirement: A city grows in districts
+### Requirement: A city is a town round a highway
 
-A generated city SHALL be made of districts (old town, downtown, courtyard blocks, rowhouses, estate, port and works,
-suburbs), each with its own grid angle, block size, street width and block filler, joined by a ring road, avenues and,
-where there is one, a river with bridges.
+A generated city SHALL have a highway (through the city beside its downtown, or round it with a spur avenue in) with its
+commerce along it, a downtown beside it, and house blocks on grids that drift a few degrees between neighbourhoods, fading
+at a ragged edge into farmland, with no paved slab round it.
 
-#### Scenario: Two districts side by side
-- **WHEN** the pilot stands where downtown meets the courtyard blocks
-- **THEN** the streets on each side run at different angles and the buildings differ in height, footprint and form
+#### Scenario: Driving into a city
+- **WHEN** the pilot follows the highway into a city
+- **THEN** stores, car lots and gas stations line it before the downtown, and house blocks spread out on either side
 
-### Requirement: A block crossed by an avenue is cut, not dropped
+#### Scenario: A bypass city
+- **WHEN** a city's highway is a bypass
+- **THEN** no highway crosses its downtown, and a spur avenue leads from the bypass to it
 
-A district block that an avenue, the river or the rail would cross SHALL be replaced by the smaller blocks that fit
-on either side.
+### Requirement: Housing grows with the downtown
 
-#### Scenario: An avenue through the courtyard blocks
-- **WHEN** an avenue runs through a courtyard district
-- **THEN** the blocks beside it are smaller and still built, with no gap left where whole blocks would not fit
+A city with a large downtown SHALL be wider than one with a small downtown, with apartment blocks near its centre.
+
+#### Scenario: The capital
+- **WHEN** the capital has a large downtown
+- **THEN** its house blocks reach farther out than a small city's, and apartment blocks stand within 700 m of the downtown
+
+### Requirement: Water only where the island has it
+
+A city SHALL have no river, and the sea and a harbour only where it stands on the coast.
+
+#### Scenario: An inland city
+- **WHEN** a city stands inland
+- **THEN** no water runs through it and no quay cranes stand in it
