@@ -76,6 +76,36 @@ What it proves is the mockup's road surfaces. Junctions are allowed a 0.5 m step
 into a graded joint; the game's colliders get the same fill, clearance, grade, turn and bot checks, in `cb-core` tests,
 when the generator is built.
 
+## 4. In the game
+
+The owner approved the look (2026-11-04: "looks great ... go ahead and start implementing this in game"), so CD1 is
+answered. The game today builds every city as one flat square of a straight grid, every block filled with boxes from 60
+storeys to 2, and every road has a single height: `road_top_at`, the cars' `OnRoads`, the lane graph's heights and the
+terrain under a highway all assume nothing is stacked. The mockup's exits need roads over roads, so the work comes in
+three steps, each playable:
+
+| Step | What the player sees | What changes in the code |
+| --- | --- | --- |
+| 1, now | The Fargo city on today's grid: a small tower downtown, low flats round it, block after block of houses with yards and drives on the city's own streets, the strip of businesses and car parks where the highway comes in, parks and schools; car parks, streets and highways each on their own material | blocks get a use (`BlockUse`); `build_city` builds by use; the suburbs' lot placer also fills house and strip blocks, its drives and car parks reaching the city's streets the way they reach a highway (one implementation); the highway on concrete, car parks on their own surface |
+| 2 | Highways through and round the city with real exits (the mockup's six), on bridges and embankments | layered road surfaces: a bridge deck over the road under it, ramps as graded roads whose ground is their embankment, the lane graph joining a highway along its length, every height query told which level a body is on; the mockup's drive check as `cb-core` tests over the generated roads |
+| 3 | The grid drifts a few degrees between neighbourhoods | turned blocks and footprints: `Rect` footprints become turned boxes through collision, facades and interiors |
+
+### Step 1 in numbers
+
+| Block use | Where | What stands on it |
+| --- | --- | --- |
+| Downtown | centre within 0.18 of the city's half size (0.30 for the capital, scaled by size between) | today's buildings, storeys falling from the downtown's tallest to 6 at its edge |
+| Flats | centre within 0.45 of the half size | walk-ups of 3 to 5 storeys |
+| Strip | within 220 m of where a highway reaches the city | businesses from the roadside kits, side by side along the street, each with its striped car park out to the kerb |
+| Houses | the rest | two rows of houses back to back, each facing its street with a drive to the kerb; yards on the ground's own grass, a 4 m pavement round the block |
+| Park | 6 % of blocks (as today) | grass and trees |
+| School | 3 % of the house blocks | one 2 storey building and a playing field |
+
+The streets, lanes, traffic, lamps and the start point do not change. Every house, business and car park passes the
+suburbs' own rules (a drive no steeper than its limit, reaching the road, off the other lots). Car parks are their own
+surface (`Surface::Lot`) with their own material, lighter than the streets; the highway takes the CC0 Concrete047A set
+the quays already use.
+
 ## 3. Cost
 
 ## 3. Cost
@@ -92,7 +122,7 @@ capital or fewer. It is measured on the owner's machine before it is built.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| CD1 | Is the Fargo look the right one, and which variations? | Small and large downtowns, all three shapes, both highways | open (owner's review) |
+| CD1 | Is the Fargo look the right one, and which variations? | Small and large downtowns, all three shapes, both highways | answered: approved (owner, 2026-11-04: "looks great") |
 | CD2 | Which cities get which variation? | The capital large; the rest small, the shape and the highway drawn per city | provisional |
 | CD5 | Frontage roads: none, as now (the ramps and overpasses need the ground), or added outside the interchanges? | None | provisional |
 | CD4 | Which highway mode is the default, and does a city mix them (elevated through the downtown, at grade outside)? | At grade outside the edge, overpasses in town; elevated only for the capital's downtown | provisional |
