@@ -46,6 +46,7 @@ fn city(id: u32, x: f32, z: f32) -> City {
         ground_m: 20.0,
         streets: Vec::new(),
         blocks: Vec::new(),
+        sidewalk_m: 4.0,
     }
 }
 

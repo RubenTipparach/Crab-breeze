@@ -11,10 +11,10 @@
 
 ## 2. In the game, step 1: the Fargo city on today's grid
 
-- [ ] 2.1 `BlockUse` and zoning (downtown, flats, strip, houses, park, school), tuned in `world.ron`
-- [ ] 2.2 `build_city` by use; the lot placer fills house and strip blocks with drives and car parks onto the city's streets
-- [ ] 2.3 Drawing: house and strip blocks as a pavement ring with the yards and car parks inside; car parks on `Surface::Lot`; the highway on Concrete047A
-- [ ] 2.4 Tests: zoning, every city lot off the streets and joined to one, goldens re-pinned
+- [x] 2.1 `BlockUse` and zoning (downtown, flats, strip, houses, park, school), tuned in `world.ron`
+- [x] 2.2 `build_city` by use; the lot placer fills house and strip blocks with drives and car parks onto the city's streets
+- [x] 2.3 Drawing: house and strip blocks as a pavement ring with the yards and car parks inside; car parks on `Surface::Lot`; the highway on Concrete047A
+- [x] 2.4 Tests: zoning, every city lot off the streets and joined to one, goldens re-pinned
 - [ ] 2.5 Headless stills of the new cities
 
 ## 3. Step 2: exits

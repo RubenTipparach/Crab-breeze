@@ -73,7 +73,7 @@ impl WorldPlan {
                 let park = c
                     .blocks
                     .iter()
-                    .any(|b| b.park && b.rect.inset(clear.park_inset_m).is_some_and(|i| i.distance(p) < 1e-3));
+                    .any(|b| b.is_park() && b.rect.inset(clear.park_inset_m).is_some_and(|i| i.distance(p) < 1e-3));
                 if park { Cover::Park } else { Cover::Bare }
             }
             None if self.cities.iter().any(|c| c.rect().distance(p) < clear.city_m) => Cover::Bare,

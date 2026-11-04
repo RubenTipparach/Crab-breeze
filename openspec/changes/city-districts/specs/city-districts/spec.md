@@ -69,3 +69,19 @@ with a bot that drives trips through the network.
 #### Scenario: A bot trip
 - **WHEN** the bot drives from a random street to the far end of the highway
 - **THEN** it arrives, by streets, a ramp and the highway
+
+### Requirement: A city's blocks are used the way a town's are
+
+Every city block SHALL have a use: a downtown of towers at the city's middle, flats round it, the strip of businesses
+and car parks where a highway reaches the city, parks, schools, and houses everywhere else. A house block SHALL hold
+rows of houses facing its streets, each with a drive to the street; a strip block SHALL hold businesses, each with a
+striped car park out to its street; no house or business SHALL stand on a street.
+
+#### Scenario: The capital's house blocks
+- **WHEN** the seed-42 island is built
+- **THEN** its house blocks hold more than six houses each on average, its strips at least ten businesses, and every city lot stands inside a house or strip block, off every street, its drive or car park reaching a street (`a_citys_house_blocks_are_full_of_houses_and_its_strip_of_businesses`, `lots_keep_clear_of_water_roads_and_each_other`, `every_house_has_a_drive_to_a_street_or_a_highway`)
+
+#### Scenario: Car parks, streets and highways look apart
+- **WHEN** the city is drawn
+- **THEN** its streets are on Asphalt027C, its highways on Concrete047A and its car parks on a lighter asphalt of their own (`Surface::Lot`)
+

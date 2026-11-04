@@ -130,12 +130,14 @@ fn seed_42_builds_the_golden_world() {
 // arithmetic plus `powf`, `sqrt`, `atan2`, `hypot`, `exp`, `sin` and `cos` (the island's gradient
 // noise); if another platform disagrees, the difference is in those calls.
 const GOLDEN_CITIES: usize = 13;
-const GOLDEN_BUILDINGS: usize = 3609;
+// 2026-11-04: the Fargo-like city (openspec change `city-districts`, design section 4): `build_city` builds the
+// downtown, flats and schools only (3609 to 709); the house and strip blocks are the lot placer's.
+const GOLDEN_BUILDINGS: usize = 709;
 const GOLDEN_HIGHWAYS: usize = 12;
 const GOLDEN_RIVERS: usize = 64;
 const GOLDEN_TREES_AT_START: usize = 38407;
 // 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
-const GOLDEN_FINGERPRINT: u64 = 2360908105245372907;
+const GOLDEN_FINGERPRINT: u64 = 10312752859990284784;
 
 #[test]
 fn seed_42_census_for_the_design() {

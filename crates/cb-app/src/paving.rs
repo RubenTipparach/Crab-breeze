@@ -24,6 +24,8 @@ pub struct PavingStyle {
     pub concrete_tile_m: f32,
     /// The suburbs' asphalt tone.
     pub asphalt: [f32; 4],
+    /// A car park's tone: the same asphalt, lighter.
+    pub lot: [f32; 4],
 }
 
 /// What paving is drawn with, made with the roads (`world::spawn_roads`): its style and a material per surface, in
@@ -82,6 +84,7 @@ pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usiz
         }
         let (into, colour) = match slab.surface {
             Surface::Asphalt => (&mut asphalt, style.asphalt),
+            Surface::Lot => (&mut asphalt, style.lot),
             Surface::Concrete => (&mut concrete, concrete_tone),
             Surface::Paint => (&mut paint, white),
         };

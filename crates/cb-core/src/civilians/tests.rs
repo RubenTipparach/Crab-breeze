@@ -35,9 +35,9 @@ impl Fixture {
         let cfg = world_cfg();
         let mut city = lay_out_city(&mut SimRng::new(7).fork("city"), 0, Vec2::ZERO, 600.0, 0.0, &cfg);
         for b in &mut city.blocks {
-            b.park = false;
+            b.kind = crate::world::BlockUse::Downtown;
         }
-        city.blocks[1].park = true;
+        city.blocks[1].kind = crate::world::BlockUse::Park;
         let base = AirBase {
             id: 0,
             centre: Vec2::new(2000.0, 0.0),
@@ -176,7 +176,7 @@ fn the_heart_of_a_city_is_busier_than_its_edge() {
         n / (2.0 * (r.size().x + r.size().y))
     };
     let by_distance = |b: &usize| city.blocks[*b].rect.centre().length();
-    let mut blocks: Vec<usize> = (0..city.blocks.len()).filter(|b| !city.blocks[*b].park).collect();
+    let mut blocks: Vec<usize> = (0..city.blocks.len()).filter(|b| !city.blocks[*b].is_park()).collect();
     blocks.sort_by(|a, b| by_distance(a).total_cmp(&by_distance(b)));
     let (heart, edge) = (blocks[0], *blocks.last().unwrap());
     assert!(per_m(heart) > 3.0 * per_m(edge), "{} vs {}", per_m(heart), per_m(edge));
@@ -203,7 +203,7 @@ fn walkers_keep_to_the_pavements_and_the_crossings() {
     let lots: Vec<Rect> = f.cities[0]
         .blocks
         .iter()
-        .filter(|b| !b.park)
+        .filter(|b| !b.is_park())
         .filter_map(|b| b.rect.inset(f.cfg.sidewalk_m))
         .collect();
     let mut crossed = false;
@@ -254,7 +254,7 @@ fn a_crossing_reaches_the_block_opposite_in_the_same_row() {
     let city = &f.cities[0];
     // the block at the least corner of the grid, crossing +x from its corner 2 (the greatest corner)
     let b = (0..city.blocks.len())
-        .filter(|i| !city.blocks[*i].park)
+        .filter(|i| !city.blocks[*i].is_park())
         .min_by(|a, b| {
             city.blocks[*a]
                 .rect
