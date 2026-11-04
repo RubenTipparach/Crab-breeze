@@ -537,9 +537,7 @@ impl Placer<'_> {
         let inside = |r: &Rect| r.min.x <= rect.min.x && r.min.y <= rect.min.y && r.max.x >= rect.max.x && r.max.y >= rect.max.y;
         if zone == Zone::City {
             // in its own city's square (whose plateau is a keep-out for every other lot), off every street of it
-            let Some(city) = g.cities.iter().find(|c| inside(&c.rect())) else {
-                return None;
-            };
+            let city = g.cities.iter().find(|c| inside(&c.rect()))?;
             if city.streets.iter().any(|st| rect_gap(&st.rect, &rect) < 0.5)
                 || g.keep_out.iter().any(|r| !inside(r) && rect_gap(r, &rect) < reach)
             {
