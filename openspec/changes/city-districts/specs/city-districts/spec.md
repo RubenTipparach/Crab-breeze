@@ -29,3 +29,13 @@ A city SHALL have no river, and the sea and a harbour only where it stands on th
 #### Scenario: An inland city
 - **WHEN** a city stands inland
 - **THEN** no water runs through it and no quay cranes stand in it
+
+### Requirement: One connected street network
+
+Every street of a city SHALL join the rest of its network, and the network SHALL join the highway (through frontage roads
+and interchanges, or through section roads to a bypass); no land inside a city's edge SHALL be left unbuilt between its
+parts.
+
+#### Scenario: Driving from a house to the highway
+- **WHEN** a car leaves any house block
+- **THEN** it can reach the highway on streets alone, without crossing a kerb or open ground

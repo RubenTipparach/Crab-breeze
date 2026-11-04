@@ -260,15 +260,17 @@ function buildToday() {
   return g;
 }
 
-// ---------------------------------------------------------------- FUTURE: a Fargo-like city, in variations
+// ---------------------------------------------------------------- FUTURE: a Fargo-like city on one street network
 // After the owner's reference (2026-11-04, Fargo): "a smaller city with some tall buildings in the middle, and lots of
 // housing around. It is close to a grid but not quite, it has a highway cutting through the city ... where almost all
-// the commerce is centered around. houses are arranged in many blocks". Then: "have a couple of variations of larger
+// the commerce is centered around. houses are arranged in many blocks"; "have a couple of variations of larger
 // downtowns", "another kind of highway that doesnt quite cut through the downtown", "different shapes of downtowns",
-// "I also like the bigger downtown we had, but we would need to scale up housing to match". No rivers (they were taken
-// out of the game). Options: the downtown small or large (a large one grows the housing round it 1.45 times across),
-// its shape compact, along one main street, or two cores; the highway through the middle or a bypass round the south
-// with a spur avenue into town; inland or on a coast.
+// "scale up housing to match that larger downtown"; no rivers. Then: "how do cars drive if the roads dont connect?".
+// So the streets come first: one grid for the whole city, gently bent (close to a grid but not quite), every street
+// running on to the next; every block is a cell of it (houses, downtown, the strip, a park, a school, the works);
+// frontage roads join the highway, the arterials cross it at interchanges, and carry on into the farmland as section
+// roads that meet the bypass. Options: downtown small or large (a large one grows the city 1.45 times), its shape,
+// the highway through or a bypass with a spur avenue, inland or coast.
 function buildFuture(o) {
   const g = new Geo(), rnd = mulberry32(23), labels = [];
   const R = (a, b) => a + (b - a) * rnd(), pick = a => a[Math.floor(rnd() * a.length)];
@@ -276,185 +278,187 @@ function buildFuture(o) {
   function segDist(p, a, b) { const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;
     const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / l2)); return Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dz * t); }
   function lineDist(p, pts) { let d = 1e9; for (let i = 0; i + 1 < pts.length; i++) d = Math.min(d, segDist(p, pts[i], pts[i + 1])); return d; }
-  // walk a polyline every `step` metres: the point and the unit direction there
-  function walk(pts, step, fn) { for (let i = 0; i + 1 < pts.length; i++) { const [x0, z0] = pts[i], [x1, z1] = pts[i + 1], l = Math.hypot(x1 - x0, z1 - z0);
-    for (let t = 0; t < l; t += step()) fn([x0 + (x1 - x0) * t / l, z0 + (z1 - z0) * t / l], [(x1 - x0) / l, (z1 - z0) / l]); } }
+
+  // ---- the grid: blocks 118 x 74 m between 14 m streets (22 m arterials every fourth line), bent by a slow warp
+  const SU = 132, SV = 88, ST = 14, ART = 22;
+  const warp = (u, v) => [u + 28 * Math.sin(v / 900 + 0.4) + 14 * Math.sin(u / 1300 + 1.1), v + 24 * Math.sin(u / 800 + 2.0) + 12 * Math.sin(v / 1100)];
+  const node = (i, j) => warp(i * SU, j * SV);
+  const centre = (i, j) => warp((i + 0.5) * SU, (j + 0.5) * SV);
+  const N = Math.ceil(AREA / SU) + 1, M = Math.ceil(AREA / SV) + 1;
+  const artI = i => ((i % 4) + 4) % 4 === 0, artJ = j => ((j % 6) + 6) % 6 === 0;
 
   const edgeR = p => { const a = Math.atan2(p[1], p[0]); return S * (1020 + 110 * Math.sin(3 * a + 0.7) + 60 * Math.sin(7 * a + 2.1)); };
   const shoreZ = x => -S * 1180 + 60 * Math.sin(x / 290);
   const wet = p => COAST && p[1] < shoreZ(p[0]) + 10;
 
-  // farmland round the city
+  // ---- the highway: through the city south of the downtown, or a bypass round the south
+  const hwR = S * 1200;
+  let HW;
+  if (!BYPASS) HW = [[-AREA, -110], [-700, -80], [-200, -60], [300, -40], [800, -10], [AREA, 40]].map(([x, z]) => [x, z * S]);
+  else { HW = [[-AREA, -hwR * 0.42]]; for (let a = 200; a <= 340; a += 5) { const r = a * Math.PI / 180; HW.push([Math.cos(r) * hwR, Math.sin(r) * hwR * 0.82]); } HW.push([AREA, -hwR * 0.42]); }
+  const hwDist = p => lineDist(p, HW);
+
+  // ---- the downtown's cells, by shape and size
+  const down = new Map();          // "i,j" -> heart 0..1, core
+  const addDown = (i, j, heart, core = 0) => down.set(i + ',' + j, [heart, core]);
+  const j0 = BYPASS ? -1 : 1;      // north of a highway through the city
+  if (o.shape === 'compact') {
+    const ni = LARGE ? 7 : 4, nj = LARGE ? 7 : 4;
+    for (let i = 0; i < ni; i++) for (let j = 0; j < nj; j++) {
+      const di = (i - (ni - 1) / 2) / (ni / 2), dj = (j - (nj - 1) / 2) / (nj / 2);
+      if (di * di + dj * dj > 1.15) continue;
+      addDown(i - Math.floor(ni / 2), j0 + j, 1 - Math.min(1, Math.hypot(di, dj)));
+    }
+  } else if (o.shape === 'street') {
+    const n = LARGE ? 13 : 8, rows = LARGE ? 3 : 2;
+    for (let i = 0; i < n; i++) for (let j = 0; j < rows; j++) addDown(i - Math.floor(n / 2), j0 + j, 1 - Math.abs(i - (n - 1) / 2) / (n / 2) * 0.8);
+  } else {
+    const n = LARGE ? 4 : 3, cores = [[-Math.round(5 * S), j0], [Math.round(3 * S), j0 + Math.round(3 * S)]];
+    cores.forEach(([ci, cj], k) => { for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) addDown(ci + i - 1, cj + j, 1 - Math.hypot(i - (n - 1) / 2, j - (n - 1) / 2) / n, k); });
+  }
+  const downCells = [...down.keys()].map(k => k.split(',').map(Number));
+  const downC = downCells.reduce((a, [i, j]) => { const c = centre(i, j); return [a[0] + c[0] / downCells.length, a[1] + c[1] / downCells.length]; }, [0, 0]);
+  const spurI = Math.round(downCells.reduce((a, [i]) => a + i, 0) / downCells.length / 4) * 4;   // an arterial line
+  const downJmin = Math.min(...downCells.map(([, j]) => j));
+
+  // ---- what each cell is
+  const kindCache = new Map();
+  function kind(i, j) {
+    const key = i + ',' + j; if (kindCache.has(key)) return kindCache.get(key);
+    const c = centre(i, j), r = Math.hypot(c[0], c[1]);
+    let k;
+    const corners = [node(i, j), node(i + 1, j), node(i, j + 1), node(i + 1, j + 1)];
+    if (corners.some(wet) || wet(c)) k = 'water';
+    else if (down.has(key)) k = 'down';
+    else if (r > edgeR(c)) k = 'rural';
+    else if (!BYPASS && corners.some(q => hwDist(q) < 34)) k = 'road';
+    else if (!BYPASS && hwDist(c) < 190) k = 'strip';
+    else if (BYPASS && (i === spurI || i === spurI - 1) && j < downJmin) k = 'strip';
+    else if (c[0] < -620 * S && Math.abs(c[1] - (BYPASS ? 200 : -260 * S)) < 190) k = 'works';
+    else {
+      const pr = mulberry32(5000 + (i + 60) * 197 + (j + 60));
+      const roll = pr(), dDown = Math.hypot(c[0] - downC[0], c[1] - downC[1]);
+      if (roll < 0.05 || (r > edgeR(c) - 130 && roll < 0.1)) k = 'park';
+      else if (roll < 0.075) k = 'school';
+      else if (LARGE && dDown < 650 && roll < 0.75) k = 'flats';
+      else k = 'houses';
+    }
+    kindCache.set(key, k); return k;
+  }
+  const built = (i, j) => !['rural', 'water', 'road'].includes(kind(i, j));
+
+  // farmland, the sea
   g.quad([-AREA, 0, -AREA], [AREA, 0, -AREA], [AREA, 0, AREA], [-AREA, 0, AREA], C.rural);
   for (let x = -AREA; x < AREA; x += 160) for (let z = -AREA; z < AREA; z += 160) {
     const c = [x + 80, z + 80];
-    if (Math.hypot(c[0], c[1]) < edgeR(c) - 40 || (COAST && z < shoreZ(c[0]) + 80)) continue;
-    g.box(c[0], c[1], 156, 156, 0, 0.03, col(pick(['#6f7d47', '#8a8a52', '#5d7040', '#9b9060', '#74804a'])));
+    if (Math.hypot(c[0], c[1]) < edgeR(c) + 60 || (COAST && z < shoreZ(c[0]) + 80)) continue;
+    g.box(c[0], c[1], 150, 150, 0, 0.03, col(pick(['#6f7d47', '#8a8a52', '#5d7040', '#9b9060', '#74804a'])));
   }
   if (COAST) { const sea = []; for (let x = -AREA; x <= AREA; x += 40) sea.push([x, shoreZ(x)]);
     for (let i = 0; i + 1 < sea.length; i++) g.quad([sea[i][0], 0.1, -AREA], [sea[i + 1][0], 0.1, -AREA], [sea[i + 1][0], 0.1, sea[i + 1][1]], [sea[i][0], 0.1, sea[i][1]], C.water);
     g.ribbon(sea.map(([x, z]) => [x, z + 8]), 18, 0.12, col('#c9b98f')); }
 
-  // ---- the downtown's blocks, by shape and size (92 m blocks, 14 m streets)
-  const B = 92, downBlocks = [];      // [centre x, z, heart 0..1, core]
-  if (o.shape === 'compact') {
-    const nx = LARGE ? 8 : 5, nz = LARGE ? 6 : 3, cx0 = 60, cz0 = (BYPASS ? -60 : 100) + (nz - 1) * B / 2;
-    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
-      const c = [cx0 + (i - (nx - 1) / 2) * B, cz0 + (j - (nz - 1) / 2) * B];
-      if (LARGE && (i === 0 || i === nx - 1) && (j === 0 || j === nz - 1)) continue;     // rounded corners
-      downBlocks.push([...c, 1 - Math.min(1, Math.hypot(c[0] - cx0, c[1] - cz0) / (B * (LARGE ? 4 : 2.4))), 0]);
-    }
-  } else if (o.shape === 'street') {
-    const n = LARGE ? 15 : 9, rows = LARGE ? 3 : 2, z0 = BYPASS ? -20 : 110;
-    for (let i = 0; i < n; i++) for (let j = 0; j < rows; j++) {
-      const c = [(i - (n - 1) / 2) * B, z0 + j * B + 0.04 * (i - n / 2) * B];         // the main street bends a little
-      downBlocks.push([...c, 1 - Math.abs(i - (n - 1) / 2) / (n / 2) * 0.8, 0]);
-    }
-  } else {
-    const cores = [[-300 * S, (BYPASS ? -40 : 140)], [320 * S, (BYPASS ? 120 : 240)]], n = LARGE ? 4 : 3;
-    cores.forEach(([cx, cz], k) => { for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const c = [cx + (i - (n - 1) / 2) * B, cz + (j - (n - 1) / 2) * B];
-      downBlocks.push([...c, 1 - Math.min(1, Math.hypot(c[0] - cx, c[1] - cz) / (B * n * 0.75)), k]);
-    } });
+  // ---- the streets: every grid segment beside a built cell; arterials and section roads run on through the farmland
+  const STREET = col('#2c2e32'), COUNTY = col('#55565a');
+  let segs = 0;
+  for (let i = -N; i <= N; i++) for (let j = -M; j < M; j++) {              // lines of constant u (running along v)
+    const a = node(i, j), b = node(i, j + 1), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    if (wet(m) || wet(a) || wet(b) || Math.max(Math.abs(a[0]), Math.abs(a[1]), Math.abs(b[0]), Math.abs(b[1])) > AREA) continue;
+    const cityside = built(i - 1, j) || built(i, j);
+    const nearHw = hwDist(m) < 40;
+    if (nearHw && !artI(i)) continue;                                        // only arterials cross the highway
+    if (cityside) { g.ribbon([a, b], artI(i) || i === spurI ? ART : ST, 0.06, STREET); segs++; if (artI(i)) g.ribbon([a, b], 0.6, 0.1, C.lane); }
+    else if (artI(i)) { g.ribbon([a, b], 9, 0.05, COUNTY); segs++; }       // a section road out in the fields
   }
-  const inDown = (p, pad = 50) => downBlocks.some(([x, z]) => Math.abs(p[0] - x) < B / 2 + pad && Math.abs(p[1] - z) < B / 2 + pad);
-  const downC = downBlocks.reduce((a, [x, z]) => [a[0] + x / downBlocks.length, a[1] + z / downBlocks.length], [0, 0]);
-
-  // ---- the highway: through the middle, beside the downtown; or a bypass round the south with a spur avenue in
-  const hwR = S * 1180;
-  let HW, SPUR = null;
-  if (!BYPASS) HW = [[-AREA, -70], [-700, -40], [-200, -10], [300, 15], [800, 45], [AREA, 95]].map(([x, z]) => [x, z * S]);
-  else {
-    HW = [[-AREA, -hwR * 0.42]];
-    for (let a = 200; a <= 340; a += 6) { const r = a * Math.PI / 180; HW.push([Math.cos(r) * hwR, Math.sin(r) * hwR * 0.82]); }
-    HW.push([AREA, -hwR * 0.42]);
-    SPUR = [[0, -hwR * 0.82], [10, -hwR * 0.5], [downC[0] * 0.5, -260], [downC[0], downC[1] - (B * 1.5)]];
+  for (let j = -M; j <= M; j++) for (let i = -N; i < N; i++) {              // lines of constant v (running along u)
+    const a = node(i, j), b = node(i + 1, j), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    if (wet(m) || wet(a) || wet(b) || Math.max(Math.abs(a[0]), Math.abs(a[1]), Math.abs(b[0]), Math.abs(b[1])) > AREA) continue;
+    if (!BYPASS && hwDist(m) < 40) continue;                                 // nothing runs along inside the highway
+    const cityside = built(i, j - 1) || built(i, j);
+    if (cityside) { g.ribbon([a, b], artJ(j) ? ART : ST, 0.07, STREET); segs++; if (artJ(j)) g.ribbon([a, b], 0.6, 0.11, C.lane); }
+    else if (artJ(j)) { g.ribbon([a, b], 9, 0.05, COUNTY); segs++; }
   }
-  const roads = SPUR ? [HW, SPUR] : [HW];
+  // the highway and its links: frontage roads alongside (through), an interchange where every arterial meets it
   g.ribbon(HW, 34, 0.3, C.highway); g.ribbon(HW, 0.8, 0.34, C.lane);
-  if (!BYPASS) for (const side of [-1, 1]) g.ribbon(HW.map(([x, z]) => [x, z + side * 46]), 12, 0.22, col('#2f3135'));
-  if (SPUR) { g.ribbon(SPUR, 26, 0.26, col('#2c2e32')); g.ribbon(SPUR, 0.8, 0.3, C.lane); const j = SPUR[0]; g.disk(j[0], j[1], 46, 0.28, C.highway, 20); g.disk(j[0], j[1], 26, 0.32, C.park, 16); }
-  else for (const x of [-700, -250, 250, 700]) { let z = 0; for (let i = 0; i + 1 < HW.length; i++) if (x >= HW[i][0] && x <= HW[i + 1][0]) z = HW[i][1] + (HW[i + 1][1] - HW[i][1]) * (x - HW[i][0]) / (HW[i + 1][0] - HW[i][0]);
-    g.disk(x, z, 40, 0.28, C.highway, 20); g.disk(x, z, 22, 0.32, C.park, 16); }
-  labels.push([BYPASS ? 'Bypass' : 'Highway and the strip', BYPASS ? [-hwR * 0.6, 40, -hwR * 0.7] : [-450, 40, -30]]);
-  if (SPUR) labels.push(['Spur avenue and the strip', [SPUR[1][0] + 60, 40, SPUR[1][1]]]);
+  if (!BYPASS) for (const side of [-1, 1]) { const f = HW.map(([x, z]) => [x, z + side * 30]).filter(p => Math.hypot(p[0], p[1]) < edgeR(p) + 40); if (f.length > 1) g.ribbon(f, 10, 0.24, STREET); }
+  for (let i = -N; i <= N; i++) { if (!artI(i)) continue;
+    for (let j = -M; j < M; j++) { const a = node(i, j), b = node(i, j + 1), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      if (hwDist(m) < 30 && !wet(m)) { g.disk(m[0], m[1], 46, 0.28, C.highway, 20); g.disk(m[0], m[1], 26, 0.32, C.park, 16); g.ribbon([a, b], 26, 1.4, col('#6d6a64')); } } }
+  labels.push([BYPASS ? 'Bypass' : 'Highway, frontage roads and the strip', BYPASS ? [-hwR * 0.6, 40, -hwR * 0.7] : [-450, 40, -60 * S]]);
+  if (BYPASS) labels.push(['Spur avenue and the strip', [...((p => [p[0] + 40, 40, p[1]])(centre(spurI, downJmin - 3)))].map((v, k) => k === 1 ? 40 : v)]);
+  labels.push(['Section roads', [AREA * 0.8, 10, -AREA * 0.35]]);
 
-  // ---- the strip: big-box stores, car lots and gas stations with their car parks, along the commerce road (the
-  // highway through the middle, or the spur avenue and the bypass near its interchange)
-  const stripLines = BYPASS ? [SPUR, HW.filter(([x]) => Math.abs(x) < 420)] : [HW];
-  const stripReach = BYPASS ? 150 : 190;
-  for (const line of stripLines) walk(line, () => R(70, 120), (p, d) => {
-    for (const side of [-1, 1]) {
-      const depth = R(70, 120), off = (BYPASS ? 24 : 56) + depth / 2, n = [-d[1] * side, d[0] * side];
-      const c = [p[0] + n[0] * off, p[1] + n[1] * off], ang = Math.atan2(d[1], d[0]);
-      if (Math.hypot(c[0], c[1]) > edgeR(c) + 60 || wet(c) || inDown(c, 30)) continue;
-      if (roads.some(r => r !== line && lineDist(c, r) < depth / 2 + 20)) continue;
-      const w = R(50, 100), toward = [-n[0], -n[1]];
-      g.box(c[0], c[1], w + 14, depth, 0, 0.05, C.asphalt, ang);
-      const back = [c[0] - toward[0] * depth * 0.2, c[1] - toward[1] * depth * 0.2], kind = rnd();
-      if (kind < 0.55) { const h = R(7, 11); g.box(back[0], back[1], w * 0.8, depth * 0.5, 0.05, h, col(pick(['#c9c2b2', '#b8b0a0', '#d3cbb8', '#a9a39a'])), ang, col('#7a7670')); g.note(h); }
-      else if (kind < 0.75) { g.box(back[0], back[1], 18, 10, 0.05, 4, col('#d8d8d2'), ang); g.box(c[0] + toward[0] * 14, c[1] + toward[1] * 14, 24, 14, 5.5, 0.8, col('#c8352a'), ang); g.note(6); }
-      else { g.box(back[0], back[1], 26, 18, 0.05, 6, col('#e2ddd2'), ang); for (let i = 0; i < 24; i++) { const u = R(-w / 2, w / 2), v = R(-depth / 3, depth / 6);
-        g.box(c[0] + d[0] * u + toward[0] * v, c[1] + d[1] * u + toward[1] * v, 4.6, 1.9, 0.05, 1.5, col(pick(['#b23a2e', '#2f5d8a', '#e9e6de', '#3a3a3a', '#8a8f96'])), ang); } g.note(6); }
-    }
-  });
-
-  // ---- downtown: a large one takes the towers we had before (setback tiers, round towers, twin slabs, crowns)
-  function tower(x, z, lw, ld, H, podium) {
+  // ---- buildings
+  function tower(x, z, lw, ld, H, podium, ang) {
     const style = rnd(), tw = Math.min(lw, ld) * R(0.5, 0.75), glass = col(pick(['#5f7c94', '#4c5f72', '#7d95a6', '#8a8f86', '#3f4a55']));
-    g.box(x, z, lw, ld, 0.25, podium, col('#7d858c'));
-    if (style < 0.35) { let y = podium, s2 = 1; for (let t = 0; t < 3; t++) { const hh = (H - podium) / 3; g.box(x, z, tw * s2, tw * s2 * R(0.8, 1.2), y, hh, glass); y += hh; s2 *= 0.78; } g.cyl(x, z, 0.6, y, H * 0.12, col('#d9d9d9'), 4); }
+    g.box(x, z, lw, ld, 0.25, podium, col('#7d858c'), ang);
+    if (style < 0.35) { let y = podium, s2 = 1; for (let t = 0; t < 3; t++) { const hh = (H - podium) / 3; g.box(x, z, tw * s2, tw * s2 * R(0.8, 1.2), y, hh, glass, ang); y += hh; s2 *= 0.78; } g.cyl(x, z, 0.6, y, H * 0.12, col('#d9d9d9'), 4); }
     else if (style < 0.55) g.cyl(x, z, tw / 2, podium, H - podium, glass, 14);
-    else if (style < 0.75) { g.box(x - lw / 5, z, tw * 0.45, tw, podium, H - podium, glass); g.box(x + lw / 5, z, tw * 0.45, tw, podium, (H - podium) * 0.8, glass); }
-    else { g.box(x, z, tw, tw * 0.6, podium, H - podium, glass); g.box(x, z, tw * 0.6, tw * 0.4, H, 8, col('#2e353c')); }
+    else if (style < 0.75) { const dx = Math.cos(ang) * lw / 5, dz = Math.sin(ang) * lw / 5; g.box(x - dx, z - dz, tw * 0.45, tw, podium, H - podium, glass, ang); g.box(x + dx, z + dz, tw * 0.45, tw, podium, (H - podium) * 0.8, glass, ang); }
+    else { g.box(x, z, tw, tw * 0.6, podium, H - podium, glass, ang); g.box(x, z, tw * 0.6, tw * 0.4, H, 8, col('#2e353c'), ang); }
     g.note(H * 1.1);
   }
-  for (const [cx, cz, heart, core] of downBlocks) {
-    g.box(cx, cz, B, B, 0, 0.04, C.asphalt); g.box(cx, cz, B - 14, B - 14, 0, 0.25, C.pavement);
-    const old = o.shape === 'twin' && core === 0;           // the twin's old core stays low and brick
-    const lots = rnd() < 0.5 ? [[-19, -19, 36], [19, -19, 36], [-19, 19, 36], [19, 19, 36]] : [[0, 0, 74]];
-    for (const [lx, lz, size] of lots) {
-      if (rnd() < 0.1) continue;
-      const towerChance = old ? 0.05 : (LARGE ? 0.3 + 0.6 * heart : 0.15 + 0.4 * heart);
-      if (rnd() < towerChance) {
-        const H = LARGE ? 60 + heart * R(80, 190) : 40 + heart * R(20, 50);
-        tower(cx + lx, cz + lz, size - 2, size - 2, H, R(9, 16));
-      } else {
-        const h = (old ? R(3, 7) : R(3, 8)) * 3.8, k2 = col(old ? pick(['#a8714f', '#9b5a43', '#b5865f', '#8e4b32']) : pick(['#a99a86', '#8f8a82', '#b7a58b', '#7d8790', '#c2b8a6']));
-        g.box(cx + lx, cz + lz, size - 2, size - 2, 0.25, h, k2, 0, col('#5f5a55')); g.note(h);
+  const BW = SU - ST, BD = SV - ST, ALLEY = 6;
+  for (let i = -N; i < N; i++) for (let j = -M; j < M; j++) {
+    const k = kind(i, j); if (!built(i, j)) continue;
+    // the cell's own frame: its centre, and its axes from the bent grid
+    const c = centre(i, j), ex0 = warp((i + 1) * SU, (j + 0.5) * SV), ez0 = warp((i + 0.5) * SU, (j + 1) * SV);
+    const ex = [(ex0[0] - c[0]) / (SU / 2), (ex0[1] - c[1]) / (SU / 2)], ez = [(ez0[0] - c[0]) / (SV / 2), (ez0[1] - c[1]) / (SV / 2)];
+    const ang = Math.atan2(ex[1], ex[0]);
+    const W = (x, z) => [c[0] + ex[0] * x + ez[0] * z, c[1] + ex[1] * x + ez[1] * z];
+    const pr = mulberry32(9000 + (i + 60) * 211 + (j + 60));
+    const ground = { down: C.pavement, strip: C.asphalt, works: col('#8d8b84'), park: C.park, school: col('#6f9150'), flats: col('#7f8f63'), houses: col('#6f8a4f') }[k];
+    g.box(c[0], c[1], BW, BD, 0, 0.2, ground, ang);
+    if (k === 'down') {
+      const [heart, core] = down.get(i + ',' + j), old = o.shape === 'twin' && core === 0;
+      const lots = pr() < 0.5 ? [[-30, -18, 54, 32], [30, -18, 54, 32], [-30, 18, 54, 32], [30, 18, 54, 32]] : [[-30, 0, 54, 70], [30, 0, 54, 70]];
+      for (const [lx, lz, lw, ld] of lots) {
+        if (pr() < 0.08) continue;
+        const q = W(lx, lz), towerChance = old ? 0.05 : (LARGE ? 0.3 + 0.6 * heart : 0.12 + 0.4 * heart);
+        if (pr() < towerChance) tower(q[0], q[1], lw - 2, ld - 2, LARGE ? 60 + heart * R(80, 190) : 40 + heart * R(15, 50), R(9, 16), ang);
+        else { const h = R(3, old ? 7 : 8) * 3.8; g.box(q[0], q[1], lw - 2, ld - 2, 0.25, h, col(old ? pick(['#a8714f', '#9b5a43', '#b5865f', '#8e4b32']) : pick(['#a99a86', '#8f8a82', '#b7a58b', '#7d8790', '#c2b8a6'])), ang, col('#5f5a55')); g.note(h); }
       }
-    }
-  }
-  if (o.shape === 'twin') { labels.push(['Old core', [-300 * S, 60, BYPASS ? -40 : 140]]); labels.push(['New core', [320 * S, 200, BYPASS ? 120 : 240]]); }
-  else labels.push([o.shape === 'street' ? 'Downtown main street' : 'Downtown', [downC[0], LARGE ? 240 : 140, downC[1]]]);
-
-  // ---- neighbourhoods: house blocks on grids that drift a few degrees, patch by patch
-  const PATCH = 520, BW = 118, BD = 74, ST = 14, ALLEY = 6;
-  const span = Math.ceil(1400 * S / PATCH);
-  const indZ = BYPASS ? 200 : -230 * S;                    // the industrial park, at the highway's west end
-  const INDUSTRY = p => p[0] < -650 * S && Math.abs(p[1] - indZ) < 200;
-  for (let px = -span; px <= span; px++) for (let pz = -span; pz <= span; pz++) {
-    const pr = mulberry32(1000 + (px + 9) * 31 + (pz + 9));
-    const ang = (pr() - 0.5) * 0.09, ox = pr() * 40, oz = pr() * 30, cs = Math.cos(ang), sn = Math.sin(ang);
-    const base = [px * PATCH, pz * PATCH];
-    for (let i = -3; i <= 3; i++) for (let j = -4; j <= 4; j++) {
-      const u = i * (BW + ST) + ox, v = j * (BD + ST) + oz;
-      const c = [base[0] + u * cs - v * sn, base[1] + u * sn + v * cs];
-      if (Math.abs(c[0] - base[0]) > PATCH / 2 || Math.abs(c[1] - base[1]) > PATCH / 2) continue;
-      const r = Math.hypot(c[0], c[1]), edge = edgeR(c);
-      if (r > edge) continue;
-      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b2]) => [c[0] + a * BW / 2 * cs - b2 * BD / 2 * sn, c[1] + a * BW / 2 * sn + b2 * BD / 2 * cs]);
-      const near = q => roads.some(rd => lineDist(q, rd) < (rd === HW && !BYPASS ? stripReach : rd === SPUR ? stripReach : 40)) ||
-        (BYPASS && Math.abs(q[0]) < 420 && lineDist(q, HW) < stripReach);
-      if ([c, ...corners].some(q => near(q) || wet(q) || inDown(q))) continue;
-      const W = (x, z) => [c[0] + x * cs - z * sn, c[1] + x * sn + z * cs];
-      g.box(c[0], c[1], BW + ST, BD + ST, 0, 0.04 + 0.003 * ((px + pz + 18) % 5), C.asphalt, ang);
-      if (INDUSTRY(c)) {
-        g.box(c[0], c[1], BW, BD, 0, 0.2, col('#8d8b84'), ang);
-        const h = R(8, 13); g.box(c[0], c[1], BW * 0.8, BD * 0.6, 0.2, h, col(pick(['#8a7f70', '#9a948a', '#7d7468'])), ang, col('#6a6660')); g.note(h);
-        continue;
-      }
-      const roll = pr();
-      if (roll < 0.05 || (r > edge - 120 && roll < 0.1)) {
-        g.box(c[0], c[1], BW, BD, 0, 0.2, C.park, ang);
-        for (let t = 0; t < 22; t++) { const q = W(R(-BW / 2 + 4, BW / 2 - 4), R(-BD / 2 + 4, BD / 2 - 4)); g.tree(q[0], q[1], R(0.9, 1.4), col('#3f6a34')); }
-        continue;
-      }
-      if (roll < 0.075) {
-        g.box(c[0], c[1], BW, BD, 0, 0.2, col('#6f9150'), ang);
-        const q = W(-BW / 4, 0); g.box(q[0], q[1], 50, 40, 0.2, 9, col('#b9894f'), ang, col('#6a5d50')); g.note(9);
-        const f = W(BW / 4, 0); g.box(f[0], f[1], 46, 60, 0.2, 0.05, col('#5f8c3d'), ang);
-        continue;
-      }
-      // near a large downtown, apartment blocks (three to five storeys) instead of houses, so the housing scales
-      const dDown = Math.hypot(c[0] - downC[0], c[1] - downC[1]);
-      if (LARGE && dDown < 700 && pr() < 0.7) {
-        g.box(c[0], c[1], BW, BD, 0, 0.2, col('#7f8f63'), ang);
-        for (const side of [-1, 1]) { const q = W(0, side * (BD / 4)); const h = Math.round(R(3, 5)) * 3.1;
-          g.box(q[0], q[1], BW - 16, BD / 2 - 12, 0.2, h, col(pick(['#b9a88f', '#a8977f', '#c4b49b', '#9f8f7c'])), ang, col('#5f5a55')); g.note(h); }
-        continue;
-      }
-      g.box(c[0], c[1], BW, BD, 0, 0.2, col('#6f8a4f'), ang);
-      const alley = W(0, 0); g.box(alley[0], alley[1], BW, ALLEY, 0.2, 0.04, col('#5a5853'), ang);
+    } else if (k === 'strip') {
+      for (let t = -BW / 2 + 6; t < BW / 2 - 4; t += 5) { const q = W(t, -BD * 0.15); g.box(q[0], q[1], 0.3, 10, 0.2, 0.03, col('#d8d4c6'), ang); }
+      const kd = pr();
+      if (kd < 0.55) { const q = W(0, BD * 0.18), h = R(7, 11); g.box(q[0], q[1], BW * 0.75, BD * 0.5, 0.2, h, col(pick(['#c9c2b2', '#b8b0a0', '#d3cbb8', '#a9a39a'])), ang, col('#7a7670')); g.note(h); }
+      else if (kd < 0.75) { const q = W(BW / 4, BD / 5); g.box(q[0], q[1], 18, 10, 0.2, 4, col('#d8d8d2'), ang); const r2 = W(-BW / 6, -BD / 6); g.box(r2[0], r2[1], 26, 14, 5.5, 0.8, col('#c8352a'), ang); g.note(6); }
+      else { const q = W(BW / 3, BD / 4); g.box(q[0], q[1], 26, 18, 0.2, 6, col('#e2ddd2'), ang); for (let n = 0; n < 26; n++) { const r2 = W(R(-BW / 2 + 4, BW / 5), R(-BD / 2 + 4, BD / 2 - 4)); g.box(r2[0], r2[1], 4.6, 1.9, 0.2, 1.5, col(pick(['#b23a2e', '#2f5d8a', '#e9e6de', '#3a3a3a', '#8a8f96'])), ang); } g.note(6); }
+    } else if (k === 'works') {
+      const q = W(0, 0), h = R(8, 13); g.box(q[0], q[1], BW * 0.8, BD * 0.62, 0.2, h, col(pick(['#8a7f70', '#9a948a', '#7d7468'])), ang, col('#6a6660')); g.note(h);
+    } else if (k === 'park') {
+      for (let t = 0; t < 22; t++) { const q = W(R(-BW / 2 + 4, BW / 2 - 4), R(-BD / 2 + 4, BD / 2 - 4)); g.tree(q[0], q[1], R(0.9, 1.4), col('#3f6a34')); }
+    } else if (k === 'school') {
+      const q = W(-BW / 4, 0); g.box(q[0], q[1], 50, 40, 0.2, 9, col('#b9894f'), ang, col('#6a5d50')); g.note(9);
+      const f = W(BW / 4, 0); g.box(f[0], f[1], 46, 60, 0.2, 0.05, col('#5f8c3d'), ang);
+    } else if (k === 'flats') {
+      for (const side of [-1, 1]) { const q = W(0, side * (BD / 4)), h = Math.round(R(3, 5)) * 3.1;
+        g.box(q[0], q[1], BW - 16, BD / 2 - 12, 0.2, h, col(pick(['#b9a88f', '#a8977f', '#c4b49b', '#9f8f7c'])), ang, col('#5f5a55')); g.note(h); }
+    } else {
+      const al = W(0, 0); g.box(al[0], al[1], BW, ALLEY, 0.2, 0.04, col('#5a5853'), ang);
       for (const side of [-1, 1]) {
         let t = -BW / 2 + 2;
         while (t < BW / 2 - 10) {
           const lot = R(13, 17);
           if (pr() > 0.06) {
-            const q = W(t + lot / 2, side * (BD / 2 - 12)), hw2 = R(8, 11), hd = R(8, 10), storeys = pr() < 0.25 ? 2 : 1, h = storeys * 3.1;
-            const k = col(pick(['#d6cdb8', '#c4b49b', '#b5c0c4', '#d9c9a5', '#c9a99a', '#e1ddd2', '#a7b39b', '#c8b8a0']));
-            g.box(q[0], q[1], hw2, hd, 0.2, h, k, ang); g.gable(q[0], q[1], hw2 + 0.6, hd + 0.6, h + 0.2, 2.6, col(pick(['#5b5f63', '#6b5a4c', '#4f4743', '#7a4a3a'])), ang); g.note(h + 2.6);
+            const q = W(t + lot / 2, side * (BD / 2 - 12)), hw2 = R(8, 11), hd = R(8, 10), h = (pr() < 0.25 ? 2 : 1) * 3.1;
+            g.box(q[0], q[1], hw2, hd, 0.2, h, col(pick(['#d6cdb8', '#c4b49b', '#b5c0c4', '#d9c9a5', '#c9a99a', '#e1ddd2', '#a7b39b', '#c8b8a0'])), ang);
+            g.gable(q[0], q[1], hw2 + 0.6, hd + 0.6, h + 0.2, 2.6, col(pick(['#5b5f63', '#6b5a4c', '#4f4743', '#7a4a3a'])), ang); g.note(h + 2.6);
             if (pr() < 0.55) { const tq = W(t + lot / 2 + R(-4, 4), side * (BD / 2 - 27)); g.tree(tq[0], tq[1], R(0.8, 1.3), col(pick(['#3f6a34', '#4a7a3a', '#365e2e']))); }
             if (pr() < 0.35) { const gq = W(t + lot / 2 + hw2 / 2 + 2, side * (ALLEY / 2 + 4)); g.box(gq[0], gq[1], 6, 6, 0.2, 2.6, col('#bdb6a8'), ang); }
           }
           t += lot;
         }
       }
-      if (((i % 4) + 4) % 4 === 0 && pr() < 0.4) { const q = W(-BW / 2 + 10, -BD / 2 + 9); g.box(q[0], q[1], 18, 14, 0.2, 4.5, col('#b07a5a'), ang); g.note(4.5); }
+      if (artI(i) && pr() < 0.4) { const q = W(-BW / 2 + 10, -BD / 2 + 9); g.box(q[0], q[1], 18, 14, 0.2, 4.5, col('#b07a5a'), ang); g.note(4.5); }
     }
   }
+  if (o.shape === 'twin') { const cs = [0, 1].map(k => downCells.filter(([i, j]) => down.get(i + ',' + j)[1] === k));
+    cs.forEach((cells, k) => { const m = cells.reduce((a, [i, j]) => { const c = centre(i, j); return [a[0] + c[0] / cells.length, a[1] + c[1] / cells.length]; }, [0, 0]);
+      labels.push([k ? 'New core' : 'Old core', [m[0], k ? 200 : 70, m[1]]]); }); }
+  else labels.push([o.shape === 'street' ? 'Downtown main street' : 'Downtown', [downC[0], LARGE ? 240 : 140, downC[1]]]);
   labels.push(['Neighbourhoods', [-420 * S, 30, 560 * S]]);
-  labels.push(['Industrial park', [-860 * S, 40, indZ]]);
+  labels.push(['Industrial park', [-860 * S, 40, BYPASS ? 200 : -260 * S]]);
   labels.push(['Farmland', [AREA * 0.75, 10, AREA * 0.75]]);
   if (COAST) {
     for (let x = 300; x < 700; x += 70) { const z = shoreZ(x) + 26; g.box(x - 6, z, 2, 2, 0, 30, col('#d9a12b')); g.box(x + 6, z, 2, 2, 0, 30, col('#d9a12b')); g.box(x, z - 12, 3, 50, 30, 3, col('#d9a12b')); g.note(33); }
