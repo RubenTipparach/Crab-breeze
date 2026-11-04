@@ -15,7 +15,7 @@
 - [x] 2.2 `build_city` by use; the lot placer fills house and strip blocks with drives and car parks onto the city's streets
 - [x] 2.3 Drawing: house and strip blocks as a pavement ring with the yards and car parks inside; car parks on `Surface::Lot`; the highway on Concrete047A
 - [x] 2.4 Tests: zoning, every city lot off the streets and joined to one, goldens re-pinned
-- [ ] 2.5 Headless stills of the new cities
+- [x] 2.5 Headless stills of the new cities (`docs/screenshots/city-districts/game/`)
 
 ## 3. Step 2: exits
 
