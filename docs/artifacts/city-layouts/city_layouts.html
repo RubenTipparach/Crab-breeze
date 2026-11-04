@@ -297,6 +297,7 @@ function buildFuture(o) {
   if (!BYPASS) HW = [[-AREA, -110], [-700, -80], [-200, -60], [300, -40], [800, -10], [AREA, 40]].map(([x, z]) => [x, z * S]);
   else { HW = [[-AREA, -hwR * 0.42]]; for (let a = 200; a <= 340; a += 5) { const r = a * Math.PI / 180; HW.push([Math.cos(r) * hwR, Math.sin(r) * hwR * 0.82]); } HW.push([AREA, -hwR * 0.42]); }
   const hwDist = p => lineDist(p, HW);
+  window.__hwDist = hwDist;        // for the page's own check
 
   // ---- the downtown's cells, by shape and size
   const down = new Map();          // "i,j" -> heart 0..1, core
@@ -321,6 +322,16 @@ function buildFuture(o) {
   const spurI = Math.round(downCells.reduce((a, [i]) => a + i, 0) / downCells.length / 4) * 4;   // an arterial line
   const downJmin = Math.min(...downCells.map(([, j]) => j));
 
+  // the interchanges: wherever an arterial line meets the highway
+  const ICH = [];
+  for (let i = -N; i <= N; i++) { if (!artI(i)) continue;
+    for (let j = -M; j < M; j++) { const a = node(i, j), b = node(i, j + 1), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      if (hwDist(m) < 30) ICH.push([m, a, b]); } }
+  // a cell the highway or an interchange reaches is road, never a building: sampled across the whole cell, not only
+  // at its corners (owner, 2026-11-04: "buildings in the middle of the highway")
+  const cellPts = (i, j) => { const out = []; for (const a of [0.05, 0.5, 0.95]) for (const b of [0.05, 0.5, 0.95]) out.push(warp((i + a) * SU, (j + b) * SV)); return out; };
+  const onRoad = (i, j) => cellPts(i, j).some(q => hwDist(q) < 17 + 8 || ICH.some(([m]) => Math.hypot(q[0] - m[0], q[1] - m[1]) < 46 + 8));
+
   // ---- what each cell is
   const kindCache = new Map();
   function kind(i, j) {
@@ -331,7 +342,7 @@ function buildFuture(o) {
     if (corners.some(wet) || wet(c)) k = 'water';
     else if (down.has(key)) k = 'down';
     else if (r > edgeR(c)) k = 'rural';
-    else if (!BYPASS && corners.some(q => hwDist(q) < 34)) k = 'road';
+    else if (onRoad(i, j)) k = 'road';
     else if (!BYPASS && hwDist(c) < 190) k = 'strip';
     else if (BYPASS && (i === spurI || i === spurI - 1) && j < downJmin) k = 'strip';
     else if (c[0] < -620 * S && Math.abs(c[1] - (BYPASS ? 200 : -260 * S)) < 190) k = 'works';
@@ -381,9 +392,7 @@ function buildFuture(o) {
   // the highway and its links: frontage roads alongside (through), an interchange where every arterial meets it
   g.ribbon(HW, 34, 0.3, C.highway); g.ribbon(HW, 0.8, 0.34, C.lane);
   if (!BYPASS) for (const side of [-1, 1]) { const f = HW.map(([x, z]) => [x, z + side * 30]).filter(p => Math.hypot(p[0], p[1]) < edgeR(p) + 40); if (f.length > 1) g.ribbon(f, 10, 0.24, STREET); }
-  for (let i = -N; i <= N; i++) { if (!artI(i)) continue;
-    for (let j = -M; j < M; j++) { const a = node(i, j), b = node(i, j + 1), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-      if (hwDist(m) < 30 && !wet(m)) { g.disk(m[0], m[1], 46, 0.28, C.highway, 20); g.disk(m[0], m[1], 26, 0.32, C.park, 16); g.ribbon([a, b], 26, 1.4, col('#6d6a64')); } } }
+  for (const [m, a, b] of ICH) if (!wet(m)) { g.disk(m[0], m[1], 46, 0.28, C.highway, 20); g.disk(m[0], m[1], 26, 0.32, C.park, 16); g.ribbon([a, b], 26, 1.4, col('#6d6a64')); }
   labels.push([BYPASS ? 'Bypass' : 'Highway, frontage roads and the strip', BYPASS ? [-hwR * 0.6, 40, -hwR * 0.7] : [-450, 40, -60 * S]]);
   if (BYPASS) labels.push(['Spur avenue and the strip', [...((p => [p[0] + 40, 40, p[1]])(centre(spurI, downJmin - 3)))].map((v, k) => k === 1 ? 40 : v)]);
   labels.push(['Section roads', [AREA * 0.8, 10, -AREA * 0.35]]);

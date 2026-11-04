@@ -12,3 +12,5 @@ Published: https://claude.ai/artifact/8TEjkZ4V2CpHyj2doztEHf
   - inland or on a coast.
 
 **What made it.** The page itself is `city_layouts.html`: three.js r128 from cdnjs, and every building generated in the page from a fixed seed. Its screenshots are in `docs/screenshots/city-districts/`.
+
+**Its check.** `check_roads.js` loads the page in headless Chromium and counts the building triangles that stand over the highway in every variation. The count must be 0. It was up to 1,330 with the bypass before the fix of 2026-11-04 (owner: "buildings in the middle of the highway").
