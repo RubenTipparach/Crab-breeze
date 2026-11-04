@@ -690,6 +690,7 @@ pub(crate) fn spawn_roads(
     // downtown"), patch repairs on the worn set; each its full PBR set.
     let mut set = |folder: &str, roughness: f32| crate::pbr_set::set_material(&mut images, &mut materials, folder, roughness);
     let suburb_mat = set("textures/roads/asphalt026c", 1.0);
+    let lot_mat = set("textures/road/asphalt_worn", 0.95);
     let blocks_mat = set("textures/road/paving", 0.85);
     let concrete_mat = set("textures/ground/concrete047a", 0.9);
     for (name, mesh, mat) in [
@@ -716,9 +717,10 @@ pub(crate) fn spawn_roads(
             asphalt_tile_m: rs.suburb_tile_m,
             concrete_tile_m: rs.paving_tile_m,
             asphalt: [rs.suburb_tone[0], rs.suburb_tone[1], rs.suburb_tone[2], 1.0],
+            lot_tile_m: rs.worn_tile_m * 2.0,
             lot: [rs.lot_tone[0], rs.lot_tone[1], rs.lot_tone[2], 1.0],
         },
-        materials: [suburb_mat, blocks_mat, mark_mat],
+        materials: [suburb_mat, blocks_mat, mark_mat, lot_mat],
     });
 }
 

@@ -83,5 +83,5 @@ striped car park out to its street; no house or business SHALL stand on a street
 
 #### Scenario: Car parks, streets and highways look apart
 - **WHEN** the city is drawn
-- **THEN** its streets are on Asphalt027C, its highways on Concrete047A and its car parks on a lighter asphalt of their own (`Surface::Lot`)
+- **THEN** its streets are on Asphalt027C, its highways on Concrete047A and its car parks on the worn asphalt set, paler than the streets (`Surface::Lot`)
 

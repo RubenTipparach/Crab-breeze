@@ -680,7 +680,8 @@ pub struct RoadSurfaceConfig {
     pub highway_tile_m: f32,
     /// Linear tone the highways' concrete is multiplied by.
     pub highway_tone: [f32; 3],
-    /// Linear tone of a car park's asphalt, the suburbs' set lighter than their streets: faded, oil-stained tarmac.
+    /// Linear tone of a car park: the worn asphalt set (as `worn_tone` multiplies it on a patch), paler than the
+    /// streets: faded, oil-stained tarmac.
     pub lot_tone: [f32; 3],
 }
 
@@ -706,7 +707,7 @@ impl Default for RoadSurfaceConfig {
             patch_tone: 0.75,
             highway_tile_m: 6.0,
             highway_tone: [0.92, 0.92, 0.90],
-            lot_tone: [2.1, 2.1, 2.15],
+            lot_tone: [0.5, 0.5, 0.5],
         }
     }
 }

@@ -103,7 +103,7 @@ three steps, each playable:
 
 The streets, lanes, traffic, lamps and the start point do not change. Every house, business and car park passes the
 suburbs' own rules (a drive no steeper than its limit, reaching the road, off the other lots). Car parks are their own
-surface (`Surface::Lot`) with their own material, lighter than the streets; the highway takes the CC0 Concrete047A set
+surface (`Surface::Lot`) on the worn asphalt set, paler than the streets; the highway takes the CC0 Concrete047A set
 the quays already use.
 
 ## 3. Cost
