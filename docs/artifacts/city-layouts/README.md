@@ -14,6 +14,8 @@ Published: https://claude.ai/artifact/8TEjkZ4V2CpHyj2doztEHf
 
 **What made it.** The page itself is `city_layouts.html`: three.js r128 from cdnjs, and every building generated in the page from a fixed seed. Its screenshots are in `docs/screenshots/city-districts/`.
 
+**Surfaces.** Each kind of ground has its own material and a small procedural texture tiled in metres: dark-grained asphalt streets, pale concrete for the highway and its ramps (with lane dashes and edge lines), lighter oil-stained car parks, gravel section roads (owner, 2026-11-04: "use different shading/materials for parking lot vs roads vs highways").
+
 **Drivable.** The page proves its own roads: `driveCheck` fills the road graph from the downtown (every road reached), checks clearances (4.5 m), grades (8 %), turns (400 m highway, 25 m ramp), ramp ends and piers, and a bot drives 12 trips whose cars you can watch on the page. The result is printed under the Future view (PASS or FAIL).
 
 **Its check.** `check_roads.js` loads the page in headless Chromium and counts the building triangles that stand over the highway in every variation. Road structures (decks, ramps, bridges, piers, embankments) are their own mesh and are not counted. The count must be 0, and the drive check must pass, in all 14 combinations it tries (the four highway modes, both downtowns, all three shapes, the coast). It exits non-zero on any failure. It was up to 1,330 with the bypass before the fix of 2026-11-04 (owner: "buildings in the middle of the highway").

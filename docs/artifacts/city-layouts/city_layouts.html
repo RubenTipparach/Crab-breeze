@@ -141,11 +141,11 @@ function chaikin(pts, n = 3) {
 
 // ---------------------------------------------------------------- one merged mesh, built from primitives
 class Geo {
-  constructor() { this.p = []; this.c = []; this.f = []; this.inf = false; this.tris = 0; this.buildings = 0; this.tallest = 0; }
+  constructor() { this.p = []; this.c = []; this.f = []; this.m = []; this.inf = false; this.mat = 'plain'; this.tris = 0; this.buildings = 0; this.tallest = 0; }
   tri(a, b, c, k) {
     this.p.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
     for (let i = 0; i < 3; i++) this.c.push(k.r, k.g, k.b);
-    this.f.push(this.inf); this.tris++;
+    this.f.push(this.inf); this.m.push(this.mat); this.tris++;
   }
   quad(a, b, c, d, k) { this.tri(a, b, c, k); this.tri(a, c, d, k); }
   // a box standing on y0, centre (x, z), size w (along the heading) by d, height h, turned by rot (radians)
@@ -196,9 +196,11 @@ class Geo {
       const dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2;
       const A = [x0 - nx, y0, z0 - nz], B = [x1 - nx, y1, z1 - nz], Cc = [x1 + nx, y1, z1 + nz], D = [x0 + nx, y0, z0 + nz];
       this.quad(A, B, Cc, D, k);
+      const top = this.mat; this.mat = 'plain';             // the sides are bare concrete or earth, whatever the top is
       if (skirt && (y0 > 0.4 || y1 > 0.4)) { const b0 = underside(depth, y0), b1 = underside(depth, y1);
         this.quad([A[0], b0, A[2]], [B[0], b1, B[2]], B, A, skirt); this.quad([D[0], b0, D[2]], [Cc[0], b1, Cc[2]], Cc, D, skirt);
         if (b0 > 0 && b1 > 0) this.quad([A[0], b0, A[2]], [D[0], b0, D[2]], [Cc[0], b1, Cc[2]], [B[0], b1, B[2]], skirt); }
+      this.mat = top;
     }
   }
   disk(x, z, r, y, k, seg = 24) { for (let i = 0; i < seg; i++) { const a0 = i / seg * 6.2832, a1 = (i + 1) / seg * 6.2832;
@@ -206,31 +208,60 @@ class Geo {
   poly(pts, y, k) { for (let i = 1; i + 1 < pts.length; i++) this.tri([pts[0][0], y, pts[0][1]], [pts[i + 1][0], y, pts[i + 1][1]], [pts[i][0], y, pts[i][1]], k); }
   tree(x, z, s, k) { this.cyl(x, z, 0.5 * s, 0, 2.5 * s, col('#4a3a28'), 5); this.cyl(x, z, 2.6 * s, 2.2 * s, 6 * s, k, 6, 0); }
   note(h) { this.buildings++; this.tallest = Math.max(this.tallest, h); }
-  // three meshes: everything standing up casts shadows; the flat ground (every triangle under 0.5 m) only takes them,
-  // so the ground never shadows itself into rings; road structures (decks, ramps, bridges, piers, embankments: drawn
-  // while `inf` is set) are kept apart and marked, so the page's own check can tell them from buildings
+  // a mesh per (part, surface): everything standing up casts shadows; the flat ground (every triangle under 0.5 m)
+  // only takes them, so the ground never shadows itself into rings; road structures (decks, ramps, bridges, piers,
+  // embankments: drawn while `inf` is set) are kept apart and marked, so the page's own check can tell them from
+  // buildings. Each surface (SURF) has its own material and a texture tiled in world metres.
   mesh() {
-    const out = new THREE.Group(), mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0.0, side: THREE.DoubleSide });
-    const parts = [[[], []], [[], []], [[], []]];
+    const out = new THREE.Group(), parts = new Map();
     for (let t = 0; t < this.p.length; t += 9) {
-      const flat = Math.max(this.p[t + 1], this.p[t + 4], this.p[t + 7]) < 0.5 ? 1 : this.f[t / 9] ? 2 : 0;
-      parts[flat][0].push(...this.p.slice(t, t + 9)); parts[flat][1].push(...this.c.slice(t, t + 9));
+      const flat = Math.max(this.p[t + 1], this.p[t + 4], this.p[t + 7]) < 0.5 ? 1 : this.f[t / 9] ? 2 : 0, key = flat + ':' + this.m[t / 9];
+      if (!parts.has(key)) parts.set(key, [[], [], []]);
+      const [pp, cc, uu] = parts.get(key), T = SURF[this.m[t / 9]].tile_m;
+      pp.push(...this.p.slice(t, t + 9)); cc.push(...this.c.slice(t, t + 9));
+      for (let v = 0; v < 3; v++) uu.push(this.p[t + v * 3] / T, this.p[t + v * 3 + 2] / T);
     }
-    parts.forEach(([pp, cc], flat) => {
-      if (!pp.length) return;
-      const g = new THREE.BufferGeometry();
+    for (const [key, [pp, cc, uu]] of parts) {
+      const [flat, name] = key.split(':'), g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(cc, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uu, 2));
       g.computeVertexNormals();
-      const m = new THREE.Mesh(g, mat); m.castShadow = flat !== 1; m.receiveShadow = true; m.userData.road = flat === 2; out.add(m);
-    });
-    return out;
+      const m = new THREE.Mesh(g, surfMaterial(name)); m.castShadow = flat !== '1'; m.receiveShadow = true; m.userData.road = flat === '2'; out.add(m);
+    }
+    this.draws = out.children.length; return out;
   }
+}
+
+// ---------------------------------------------------------------- surfaces: how each kind of ground is shaded
+// Each is a material with its own roughness and a small procedural texture (grain, joints, stains) tiled in metres, so
+// a street, a highway, a car park and a section road read apart even from the air.
+const SURF = {
+  plain:    { tile_m: 10, rough: 0.92 },
+  asphalt:  { tile_m: 4,  rough: 0.96, grain: 0.22, speck: 900 },                        // streets: dark, fine grain
+  concrete: { tile_m: 9,  rough: 0.78, grain: 0.10, speck: 260, joints: true },          // the highway, ramps: pale slabs
+  lot:      { tile_m: 7,  rough: 0.88, grain: 0.14, speck: 500, stains: 9 },             // car parks: lighter, oil-stained
+  gravel:   { tile_m: 3,  rough: 1.0,  grain: 0.35, speck: 1400 },                       // section roads: loose stone
+};
+const surfMats = new Map();
+function surfMaterial(name) {
+  if (surfMats.has(name)) return surfMats.get(name);
+  const S = SURF[name], m = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: S.rough, metalness: 0, side: THREE.DoubleSide });
+  if (S.grain) {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d'), rnd = mulberry32(name.length * 977);
+    x.fillStyle = '#e6e6e6'; x.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < S.speck * 6; i++) { const v = Math.round(230 + (rnd() - 0.5) * 2 * 255 * S.grain); x.fillStyle = `rgb(${v},${v},${v})`; x.fillRect(rnd() * 256, rnd() * 256, 1 + rnd() * 2, 1 + rnd() * 2); }
+    for (let i = 0; i < (S.stains || 0); i++) { const g = x.createRadialGradient(0, 0, 0, 0, 0, 30); g.addColorStop(0, 'rgba(60,60,60,0.35)'); g.addColorStop(1, 'rgba(60,60,60,0)');
+      x.save(); x.translate(rnd() * 256, rnd() * 256); x.scale(1, 0.5 + rnd()); x.fillStyle = g; x.fillRect(-30, -30, 60, 60); x.restore(); }
+    if (S.joints) { x.fillStyle = 'rgba(90,90,90,0.55)'; x.fillRect(0, 0, 256, 2); x.fillRect(0, 0, 2, 256); }
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.encoding = THREE.sRGBEncoding; m.map = t;
+  }
+  surfMats.set(name, m); return m;
 }
 
 const C = {
   rural: col('#5f6e43'), asphalt: col('#2b2d31'), pavement: col('#a4a6a7'), park: col('#4e7a3a'), water: col('#3c6a8c'),
-  concrete: col('#a2a6ab'), roofGrey: col('#5c5f63'), highway: col('#2f3236'), lane: col('#c9c3a8'),
+  concrete: col('#a2a6ab'), roofGrey: col('#5c5f63'), highway: col('#8c8b86'), lane: col('#d8c873'), edge: col('#ecebe6'), lot: col('#5a5d62'),
 };
 
 // ---------------------------------------------------------------- TODAY: the generator's own rules
@@ -240,7 +271,7 @@ function buildToday() {
   const half = 480, cfg = { block: [70, 110], street: 24, arterial: 36, every: 4, lot: [18, 36], park: 0.06, plaza: 0.08,
     sidewalk: 4, setback: [1, 3], down: 60, edge: 2, fall: 0.7, fill: [0.35, 1], storey: 3.5 };
   g.quad([-AREA, 0, -AREA], [AREA, 0, -AREA], [AREA, 0, AREA], [-AREA, 0, AREA], C.rural);
-  g.quad([-half, 0.05, -half], [half, 0.05, -half], [half, 0.05, half], [-half, 0.05, half], C.asphalt);
+  g.mat = 'asphalt'; g.quad([-half, 0.05, -half], [half, 0.05, -half], [half, 0.05, half], [-half, 0.05, half], C.asphalt); g.mat = 'plain';
   // street_lines: blocks drawn until the next would not fit, then stretched to fill exactly
   function lines(lo, hi) {
     const width = i => (i % cfg.every === 0 ? cfg.arterial : cfg.street);
@@ -287,8 +318,8 @@ function buildToday() {
     }
   }
   // two straight highways out to neighbouring cities
-  g.ribbon([[half, 40], [AREA, 140]], 28, 0.08, C.highway);
-  g.ribbon([[-120, -half], [-420, -AREA]], 28, 0.08, C.highway);
+  g.mat = 'concrete'; g.ribbon([[half, 40], [AREA, 140]], 28, 0.08, C.highway);
+  g.ribbon([[-120, -half], [-420, -AREA]], 28, 0.08, C.highway); g.mat = 'plain';
   return g;
 }
 
@@ -570,7 +601,7 @@ function buildFuture(o) {
     }
     return false;
   }
-  const draw = d => { const [r, w, y, k, lane] = d.draw; g.ribbon(r, w, y, k); if (lane) g.ribbon(r, 0.6, y + 0.04, C.lane); segs++; };
+  const draw = d => { const [r, w, y, k, lane] = d.draw; g.mat = k === COUNTY ? 'gravel' : 'asphalt'; g.ribbon(r, w, y, k); g.mat = 'plain'; if (lane) g.ribbon(r, 0.6, y + 0.04, C.lane); segs++; };
   function street(pts, w, y, k, lane) {
     const near = pts.some(p => RIDX.has(ckey(p[0], p[1]))) || RIDX.has(ckey((pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2));
     let runs = [pts], cut = false;
@@ -625,12 +656,25 @@ function buildFuture(o) {
 
   // ---- draw the highway and every raised structure
   g.inf = true;
-  if (!ELEV) { g.ribbon(HW, 34, 0.3, C.highway); g.ribbon(HW, 0.8, 0.34, C.lane); }
-  for (const r of RAISED) {
-    if (r.earth) g.ribbonY(r.pts.map(([x, z, y]) => [x, z, y - 0.08]), r.earth, EARTH, EARTH);   // the embankment, a levee of earth
-    g.ribbonY(r.pts, r.w, r.top, r.side, r.depth);
-    if (r.lane) g.ribbonY(r.pts.map(([x, z, y]) => [x, z, y + 0.05]), 0.8, C.lane);
+  // the highway's paint: a yellow median line, dashed lane lines (3 m in every 12 m) and white edge lines, two lanes
+  // and a shoulder each way
+  function offsetLine(pts, d) { return pts.map((p, k) => { const a = pts[Math.max(0, k - 1)], b = pts[Math.min(pts.length - 1, k + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [p[0] - (b[1] - a[1]) / l * d, p[1] + (b[0] - a[0]) / l * d, p[2]]; }); }
+  function paint(pts3) {
+    const line = (q, w, k) => g.ribbonY(q.map(([x, z, y]) => [x, z, y + 0.05]), w, k);
+    line(pts3, 0.8, C.lane);
+    for (const d of [-14.5, 14.5]) line(offsetLine(pts3, d), 0.5, C.edge);
+    for (const d of [-7.5, 7.5]) { const q = dens(offsetLine(pts3, d), 3); for (let k = 0; k + 1 < q.length; k += 4) line([q[k], q[k + 1]], 0.4, C.edge); }
   }
+  g.mat = 'concrete';
+  if (!ELEV) g.ribbon(HW, 34, 0.3, C.highway);
+  for (const r of RAISED) {
+    if (r.earth) { g.mat = 'plain'; g.ribbonY(r.pts.map(([x, z, y]) => [x, z, y - 0.08]), r.earth, EARTH, EARTH); }   // the embankment, a levee of earth
+    g.mat = r.top === STREET ? 'asphalt' : 'concrete';
+    g.ribbonY(r.pts, r.w, r.top, r.side, r.depth);
+  }
+  g.mat = 'plain';
+  paint(dens(HW.map(([x, z]) => [x, z, HWY]), 12));
   for (const p of PIERS) g.box(p.x, p.z, p.w, p.d, p.y0, p.h, PIER, p.rot);
   labels.push([BYPASS ? 'Bypass' : ELEV ? 'Elevated highway' : OVER ? 'Highway under overpasses' : 'Highway at grade', BYPASS ? [-hwR * 0.6, 40, -hwR * 0.7] : [-450, 40, -60 * S]]);
   g.inf = false;
@@ -662,8 +706,9 @@ function buildFuture(o) {
     const ang = Math.atan2(ex[1], ex[0]);
     const W = (x, z) => [c[0] + ex[0] * x + ez[0] * z, c[1] + ex[1] * x + ez[1] * z];
     const pr = mulberry32(9000 + (i + 60) * 211 + (j + 60));
-    const ground = { under: C.asphalt, down: C.pavement, strip: C.asphalt, works: col('#8d8b84'), park: C.park, school: col('#6f9150'), flats: col('#7f8f63'), houses: col('#6f8a4f') }[k];
-    g.box(c[0], c[1], BW, BD, 0, 0.2, ground, ang);
+    const ground = { under: C.lot, down: C.pavement, strip: C.lot, works: col('#8d8b84'), park: C.park, school: col('#6f9150'), flats: col('#7f8f63'), houses: col('#6f8a4f') }[k];
+    g.mat = k === 'strip' || k === 'under' ? 'lot' : 'plain';
+    g.box(c[0], c[1], BW, BD, 0, 0.2, ground, ang); g.mat = 'plain';
     if (k === 'under') {                                      // car parks under the viaduct
       for (let t = -BW / 2 + 4; t < BW / 2 - 2; t += 5) for (const zz of [-BD / 4, BD / 4]) { const q = W(t, zz); g.box(q[0], q[1], 0.3, 10, 0.2, 0.03, col('#d8d4c6'), ang); }
       for (let n = 0; n < 30; n++) { const q = W(R(-BW / 2 + 4, BW / 2 - 4), R(-BD / 2 + 4, BD / 2 - 4)); if (hwDist(q) < 9) continue; g.box(q[0], q[1], 4.6, 1.9, 0.2, 1.5, col(pick(['#b23a2e', '#2f5d8a', '#e9e6de', '#3a3a3a', '#8a8f96'])), ang); }
@@ -906,8 +951,8 @@ function layout() {
 new ResizeObserver(layout).observe(view);
 
 const fmt = n => n.toLocaleString('en-GB');
-document.getElementById('numsToday').textContent = `${fmt(today.buildings)} buildings, tallest ${Math.round(today.tallest)} m, ${fmt(today.tris)} triangles, two draw calls (ground and buildings)`;
-function showNums() { document.getElementById('numsFuture').textContent = `${fmt(future.buildings)} buildings, tallest ${Math.round(future.tallest)} m, ${fmt(future.tris)} triangles, three draw calls (ground, buildings, road structures). ${driveLine(drive)}`; }
+document.getElementById('numsToday').textContent = `${fmt(today.buildings)} buildings, tallest ${Math.round(today.tallest)} m, ${fmt(today.tris)} triangles, ${today.draws} draw calls (one a surface)`;
+function showNums() { document.getElementById('numsFuture').textContent = `${fmt(future.buildings)} buildings, tallest ${Math.round(future.tallest)} m, ${fmt(future.tris)} triangles, ${future.draws} draw calls (one a surface). ${driveLine(drive)}`; }
 showNums();
 
 setCam('air'); setMode('both');
