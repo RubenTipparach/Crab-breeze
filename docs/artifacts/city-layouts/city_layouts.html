@@ -74,7 +74,9 @@ button:focus-visible { outline: 2px solid var(--future); outline-offset: 2px; }
   </div>
   <div class="group" role="group" aria-label="Highway">
     <span class="label">Highway</span>
-    <button id="w-through" data-opt="hw" data-val="through" aria-pressed="true">Through</button>
+    <button id="w-through" data-opt="hw" data-val="through" aria-pressed="true">At grade</button>
+    <button id="w-over" data-opt="hw" data-val="over" aria-pressed="false">Overpasses</button>
+    <button id="w-elevated" data-opt="hw" data-val="elevated" aria-pressed="false">Elevated</button>
     <button id="w-bypass" data-opt="hw" data-val="bypass" aria-pressed="false">Bypass</button>
   </div>
   <div class="group" role="group" aria-label="Coast">
@@ -106,8 +108,11 @@ button:focus-visible { outline: 2px solid var(--future); outline-offset: 2px; }
     block of houses with yards, alleys, garages and trees, on grids that drift a few degrees between neighbourhoods;
     parks, schools and corner shops among them, an industrial park, a ragged edge into farmland. Try the variations: a
     small or large downtown (a large one takes the towers and grows the housing round it, with apartment blocks near the
-    centre), compact, along one main street or in two cores; the highway through the middle or a bypass round the edge
-    with a spur avenue into town; inland or on a coast. No rivers (they were taken out of the game).</p>
+    centre), compact, along one main street or in two cores; the highway at grade (only arterials cross it), under
+    overpasses (every street bridges over it on embankments), elevated on a viaduct (the streets run on under it), or a
+    bypass round the edge with a spur avenue into town; inland or on a coast. It meets the town at real exits: a SPUI by
+    the downtown, diamonds, a single quadrant, a partial cloverleaf and a cloverleaf at the ends, a trumpet on the bypass.
+    No rivers (they were taken out of the game).</p>
     <p class="nums" id="numsFuture"></p></div>
 </div>
 
@@ -122,13 +127,25 @@ function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = 
   t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const col = h => new THREE.Color(h);
 
+// the underside of a raised road at height y: depth 0 is solid to the ground, a number is a deck that thick, 'auto' is
+// fill while low and a 1.2 m deck once high enough to pass under
+const underside = (depth, y) => depth === 'auto' ? (y > 5.5 ? y - 1.2 : 0) : depth > 0 ? Math.max(0, y - depth) : 0;
+
+// Chaikin's corner cutting: a polyline (of 2 or 3 numbers a point) rounded into a curve, its two ends kept
+function chaikin(pts, n = 3) {
+  for (let it = 0; it < n; it++) { const out = [pts[0]];
+    for (let k = 0; k + 1 < pts.length; k++) { const a = pts[k], b = pts[k + 1]; out.push(a.map((v, i) => 0.75 * v + 0.25 * b[i]), a.map((v, i) => 0.25 * v + 0.75 * b[i])); }
+    out.push(pts[pts.length - 1]); pts = out; }
+  return pts;
+}
+
 // ---------------------------------------------------------------- one merged mesh, built from primitives
 class Geo {
-  constructor() { this.p = []; this.c = []; this.tris = 0; this.buildings = 0; this.tallest = 0; }
+  constructor() { this.p = []; this.c = []; this.f = []; this.inf = false; this.tris = 0; this.buildings = 0; this.tallest = 0; }
   tri(a, b, c, k) {
     this.p.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
     for (let i = 0; i < 3; i++) this.c.push(k.r, k.g, k.b);
-    this.tris++;
+    this.f.push(this.inf); this.tris++;
   }
   quad(a, b, c, d, k) { this.tri(a, b, c, k); this.tri(a, c, d, k); }
   // a box standing on y0, centre (x, z), size w (along the heading) by d, height h, turned by rot (radians)
@@ -170,18 +187,33 @@ class Geo {
       this.quad([x0 - nx, y, z0 - nz], [x1 - nx, y, z1 - nz], [x1 + nx, y, z1 + nz], [x0 + nx, y, z0 + nz], k);
     }
   }
+  // a ribbon along [x, z, y] points, with walls from its edges when `skirt` is given: down to the ground (depth 0, an
+  // embankment's or a ramp's side), or a fascia `depth` deep with an underside (a deck); 'auto' is fill while low and a
+  // deck once high enough to drive under (the same rule the drive check uses, `underside`)
+  ribbonY(pts, w, k, skirt, depth) {
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [x0, z0, y0] = pts[i], [x1, z1, y1] = pts[i + 1];
+      const dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2;
+      const A = [x0 - nx, y0, z0 - nz], B = [x1 - nx, y1, z1 - nz], Cc = [x1 + nx, y1, z1 + nz], D = [x0 + nx, y0, z0 + nz];
+      this.quad(A, B, Cc, D, k);
+      if (skirt && (y0 > 0.4 || y1 > 0.4)) { const b0 = underside(depth, y0), b1 = underside(depth, y1);
+        this.quad([A[0], b0, A[2]], [B[0], b1, B[2]], B, A, skirt); this.quad([D[0], b0, D[2]], [Cc[0], b1, Cc[2]], Cc, D, skirt);
+        if (b0 > 0 && b1 > 0) this.quad([A[0], b0, A[2]], [D[0], b0, D[2]], [Cc[0], b1, Cc[2]], [B[0], b1, B[2]], skirt); }
+    }
+  }
   disk(x, z, r, y, k, seg = 24) { for (let i = 0; i < seg; i++) { const a0 = i / seg * 6.2832, a1 = (i + 1) / seg * 6.2832;
     this.tri([x, y, z], [x + Math.cos(a1) * r, y, z + Math.sin(a1) * r], [x + Math.cos(a0) * r, y, z + Math.sin(a0) * r], k); } }
   poly(pts, y, k) { for (let i = 1; i + 1 < pts.length; i++) this.tri([pts[0][0], y, pts[0][1]], [pts[i + 1][0], y, pts[i + 1][1]], [pts[i][0], y, pts[i][1]], k); }
   tree(x, z, s, k) { this.cyl(x, z, 0.5 * s, 0, 2.5 * s, col('#4a3a28'), 5); this.cyl(x, z, 2.6 * s, 2.2 * s, 6 * s, k, 6, 0); }
   note(h) { this.buildings++; this.tallest = Math.max(this.tallest, h); }
-  // two meshes: everything standing up casts shadows; the flat ground (every triangle under 0.5 m) only takes them,
-  // so the ground never shadows itself into rings
+  // three meshes: everything standing up casts shadows; the flat ground (every triangle under 0.5 m) only takes them,
+  // so the ground never shadows itself into rings; road structures (decks, ramps, bridges, piers, embankments: drawn
+  // while `inf` is set) are kept apart and marked, so the page's own check can tell them from buildings
   mesh() {
     const out = new THREE.Group(), mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0.0, side: THREE.DoubleSide });
-    const parts = [[[], []], [[], []]];
+    const parts = [[[], []], [[], []], [[], []]];
     for (let t = 0; t < this.p.length; t += 9) {
-      const flat = Math.max(this.p[t + 1], this.p[t + 4], this.p[t + 7]) < 0.5 ? 1 : 0;
+      const flat = Math.max(this.p[t + 1], this.p[t + 4], this.p[t + 7]) < 0.5 ? 1 : this.f[t / 9] ? 2 : 0;
       parts[flat][0].push(...this.p.slice(t, t + 9)); parts[flat][1].push(...this.c.slice(t, t + 9));
     }
     parts.forEach(([pp, cc], flat) => {
@@ -190,7 +222,7 @@ class Geo {
       g.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(cc, 3));
       g.computeVertexNormals();
-      const m = new THREE.Mesh(g, mat); m.castShadow = !flat; m.receiveShadow = true; out.add(m);
+      const m = new THREE.Mesh(g, mat); m.castShadow = flat !== 1; m.receiveShadow = true; m.userData.road = flat === 2; out.add(m);
     });
     return out;
   }
@@ -275,6 +307,12 @@ function buildFuture(o) {
   const g = new Geo(), rnd = mulberry32(23), labels = [];
   const R = (a, b) => a + (b - a) * rnd(), pick = a => a[Math.floor(rnd() * a.length)];
   const LARGE = o.down === 'large', S = LARGE ? 1.45 : 1, COAST = o.coast === 'yes', BYPASS = o.hw === 'bypass';
+  // the highway's relation to the city's streets (owner, 2026-11-04: "highways can cut through cities, can go over
+  // cities or under cities, because of one simple thing: EXITS!", "under cities is with bypass and bridges, and levies"):
+  // at grade (only the arterials cross, at interchanges); overpasses (every street crosses over it on a bridge with
+  // embankments); elevated (a viaduct over the streets, which run on under it); or the bypass round the edge
+  const MODE = BYPASS ? 'bypass' : o.hw, ELEV = MODE === 'elevated', OVER = MODE === 'over';
+  const HWY = ELEV ? 10 : 0.3, DECK = 8;   // m: the viaduct deck, the clearance under an overpass
   function segDist(p, a, b) { const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;
     const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / l2)); return Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dz * t); }
   function lineDist(p, pts) { let d = 1e9; for (let i = 0; i + 1 < pts.length; i++) d = Math.min(d, segDist(p, pts[i], pts[i + 1])); return d; }
@@ -294,9 +332,17 @@ function buildFuture(o) {
   // ---- the highway: through the city south of the downtown, or a bypass round the south
   const hwR = S * 1200;
   let HW;
-  if (!BYPASS) HW = [[-AREA, -110], [-700, -80], [-200, -60], [300, -40], [800, -10], [AREA, 40]].map(([x, z]) => [x, z * S]);
-  else { HW = [[-AREA, -hwR * 0.42]]; for (let a = 200; a <= 340; a += 5) { const r = a * Math.PI / 180; HW.push([Math.cos(r) * hwR, Math.sin(r) * hwR * 0.82]); } HW.push([AREA, -hwR * 0.42]); }
+  // one smooth curve each, with no corner a car could not take at speed (the drive check holds it to a 400 m radius)
+  if (!BYPASS) HW = chaikin([[-AREA, -110], [-700, -80], [-200, -60], [300, -40], [800, -10], [AREA, 40]].map(([x, z]) => [x, z * S]), 4);
+  else { HW = []; for (let x = -AREA; x <= AREA; x += 10) { const c = 1 / Math.cosh(x / (hwR * 0.75)); HW.push([x, -hwR * 0.42 - hwR * 0.40 * c * c]); } }
   const hwDist = p => lineDist(p, HW);
+  const HWL = [0]; for (let k = 1; k < HW.length; k++) HWL.push(HWL[k - 1] + Math.hypot(HW[k][0] - HW[k - 1][0], HW[k][1] - HW[k - 1][1]));
+  function hwAt(sa) { sa = Math.max(0, Math.min(HWL[HWL.length - 1], sa)); let k = 1; while (k < HW.length - 1 && HWL[k] < sa) k++;
+    const t = (sa - HWL[k - 1]) / (HWL[k] - HWL[k - 1]); return [HW[k - 1][0] + (HW[k][0] - HW[k - 1][0]) * t, HW[k - 1][1] + (HW[k][1] - HW[k - 1][1]) * t]; }
+  function hwProj(p) { let best = 1e18, sa = 0;
+    for (let k = 0; k + 1 < HW.length; k++) { const a = HW[k], b = HW[k + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / l2));
+      const d = (p[0] - a[0] - dx * t) ** 2 + (p[1] - a[1] - dz * t) ** 2; if (d < best) { best = d; sa = HWL[k] + t * Math.sqrt(l2); } }
+    return sa; }
   window.__hwDist = hwDist;        // for the page's own check
 
   // ---- the downtown's cells, by shape and size
@@ -322,15 +368,50 @@ function buildFuture(o) {
   const spurI = Math.round(downCells.reduce((a, [i]) => a + i, 0) / downCells.length / 4) * 4;   // an arterial line
   const downJmin = Math.min(...downCells.map(([, j]) => j));
 
-  // the interchanges: wherever an arterial line meets the highway
-  const ICH = [];
-  for (let i = -N; i <= N; i++) { if (!artI(i)) continue;
-    for (let j = -M; j < M; j++) { const a = node(i, j), b = node(i, j + 1), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-      if (hwDist(m) < 30) ICH.push([m, a, b]); } }
+  // ---- crossings: wherever a street line (constant u) meets the highway. Arterials get an exit, by the owner's chart:
+  // a SPUI at the exit nearest the downtown, a partial cloverleaf at the west end, a full cloverleaf at the east end, a
+  // single-quadrant exit second from the west, a trumpet where the spur avenue meets the bypass, diamonds elsewhere.
+  // Every other street crosses with no exit: over it on a bridge (overpasses), under it (elevated), or not at all.
+  function hwFrame(m) {
+    let best = 1e9, t = [1, 0];
+    for (let k = 0; k + 1 < HW.length; k++) { const d = segDist(m, HW[k], HW[k + 1]); if (d < best) { best = d; const dx = HW[k + 1][0] - HW[k][0], dz = HW[k + 1][1] - HW[k][1], l = Math.hypot(dx, dz); t = [dx / l, dz / l]; } }
+    return t;
+  }
+  function hwHit(a, b) {
+    for (let k = 0; k + 1 < HW.length; k++) { const p = HW[k], q = HW[k + 1];
+      const d = (b[0] - a[0]) * (q[1] - p[1]) - (b[1] - a[1]) * (q[0] - p[0]); if (Math.abs(d) < 1e-9) continue;
+      const u = ((p[0] - a[0]) * (q[1] - p[1]) - (p[1] - a[1]) * (q[0] - p[0])) / d, v = ((p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0])) / d;
+      if (u >= 0 && u < 1 && v >= 0 && v <= 1) { const r = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]; r.sa = HWL[k] + v * (HWL[k + 1] - HWL[k]); return r; } }
+    return null;
+  }
+  const CROSS = [];
+  for (let i = -N; i <= N; i++) for (let j = -M; j < M; j++) {
+    const a = node(i, j), b = node(i, j + 1), m = hwHit(a, b);              // where the street meets the highway, if it does
+    if (!m || Math.abs(m[0]) > AREA - 10 || Math.abs(m[1]) > AREA - 140) continue;
+    const t = hwFrame(m), ab = Math.hypot(b[0] - a[0], b[1] - a[1]), n = [(b[0] - a[0]) / ab, (b[1] - a[1]) / ab];   // w runs along the street
+    // k: how much longer a bridge must be when the street meets the highway at a slant (1 when square)
+    CROSS.push({ i, j, m, t, n, sa: m.sa, k: 1 / Math.max(0.4, Math.abs(t[0] * n[1] - t[1] * n[0])), art: artI(i), type: null });
+  }
+  const inCity = c => Math.hypot(c.m[0], c.m[1]) < edgeR(c.m) + 200;
+  const exits = CROSS.filter(c => c.art && (BYPASS || inCity(c))).sort((p, q) => p.m[0] - q.m[0]);
+  if (BYPASS) exits.forEach((c, k) => { c.type = c.i === spurI ? 'trumpet' : (k % 2 === 0 && c.k < 1.3 ? 'diamond' : null); });
+  else {
+    exits.forEach(c => { c.type = 'diamond'; });
+    const nearDown = exits.reduce((b, c) => (!b || Math.hypot(c.m[0] - downC[0], c.m[1] - downC[1]) < Math.hypot(b.m[0] - downC[0], b.m[1] - downC[1]) ? c : b), null);
+    if (exits.length) { exits[0].type = 'parclo'; exits[exits.length - 1].type = 'clover'; }
+    if (exits.length > 3) exits[1].type = 'single';
+    if (nearDown && nearDown.type === 'diamond') nearDown.type = 'spui';
+  }
+  // what each interchange covers, in its own frame (s along the highway, w across): no building stands inside
+  const FOOT = { diamond: [270, 105], spui: [270, 40], single: [270, 175], parclo: [270, 115], clover: [320, 195], trumpet: [280, 160] };
+  const local = (c, q) => { const sa = hwProj(q), h = hwAt(sa); return [sa - c.sa, (q[0] - h[0]) * c.n[0] + (q[1] - h[1]) * c.n[1]]; };
+  const inFoot = q => CROSS.some(c => c.type && (([s2, w2]) => Math.abs(s2) < FOOT[c.type][0] && Math.abs(w2) < FOOT[c.type][1])(local(c, q)));
   // a cell the highway or an interchange reaches is road, never a building: sampled across the whole cell, not only
-  // at its corners (owner, 2026-11-04: "buildings in the middle of the highway")
+  // at its corners (owner, 2026-11-04: "buildings in the middle of the highway"); under a viaduct, a car park
   const cellPts = (i, j) => { const out = []; for (const a of [0.05, 0.5, 0.95]) for (const b of [0.05, 0.5, 0.95]) out.push(warp((i + a) * SU, (j + b) * SV)); return out; };
-  const onRoad = (i, j) => cellPts(i, j).some(q => hwDist(q) < 17 + 8 || ICH.some(([m]) => Math.hypot(q[0] - m[0], q[1] - m[1]) < 46 + 8));
+  const onRoad = (i, j) => cellPts(i, j).some(q => (!ELEV && hwDist(q) < 17 + 8) || inFoot(q));
+  const underDeck = (i, j) => ELEV && cellPts(i, j).some(q => hwDist(q) < 17 + 8);
+  window.__cross = CROSS.filter(c => c.type).map(c => ({ type: c.type, m: c.m, t: c.t }));   // for the screenshot script
 
   // ---- what each cell is
   const kindCache = new Map();
@@ -343,6 +424,7 @@ function buildFuture(o) {
     else if (down.has(key)) k = 'down';
     else if (r > edgeR(c)) k = 'rural';
     else if (onRoad(i, j)) k = 'road';
+    else if (underDeck(i, j)) k = 'under';
     else if (!BYPASS && hwDist(c) < 190) k = 'strip';
     else if (BYPASS && (i === spurI || i === spurI - 1) && j < downJmin) k = 'strip';
     else if (c[0] < -620 * S && Math.abs(c[1] - (BYPASS ? 200 : -260 * S)) < 190) k = 'works';
@@ -369,31 +451,189 @@ function buildFuture(o) {
     for (let i = 0; i + 1 < sea.length; i++) g.quad([sea[i][0], 0.1, -AREA], [sea[i + 1][0], 0.1, -AREA], [sea[i + 1][0], 0.1, sea[i + 1][1]], [sea[i][0], 0.1, sea[i][1]], C.water);
     g.ribbon(sea.map(([x, z]) => [x, z + 8]), 18, 0.12, col('#c9b98f')); }
 
-  // ---- the streets: every grid segment beside a built cell; arterials and section roads run on through the farmland
-  const STREET = col('#2c2e32'), COUNTY = col('#55565a');
+  // ---- the road network. Every surface a car drives on goes into DRIVE (a centre line of [x, z, y] points, its width,
+  // and what lies under it), every pier into PIERS, so the page's drive check (driveCheck, below) can prove where a car
+  // can go (owner, 2026-11-04: "make sure cars can actually drive on these!", "you need a driving bot or some sort of
+  // fill system to verify geometry+ colliders are valid for driving along them"). Raised structures (bridges, ramps, a
+  // viaduct) are planned first, so a street that meets one stops short of it instead of running into its side.
+  const STREET = col('#2c2e32'), COUNTY = col('#55565a'), CONCRETE = col('#8f8c86'), EARTH = col('#7c7458'), PIER = col('#a19d95');
+  const DRIVE = [], PIERS = [], RAISED = [];
   let segs = 0;
+  const cityside = (i, j) => built(i - 1, j) || built(i, j);
+  const roadW = c => (c.art || c.i === spurI ? ART : ST);
+  // a bridge is one span, flat for 26 m either side of the highway's centre line (17 m of carriageway and its
+  // shoulders), then comes down an embankment 100 m long (an 8 % grade) to the street
+  const SPAN = 26, EMB = 100;
+  // (a street that meets the highway at a slant needs a longer flat span, by c.k, to clear the carriageway square on)
+  // (c.sp: the half length of a bridge's flat span; longer where an overpass must also carry over an exit's ramps)
+  // (c.deck, c.emb: its deck height and embankment length, higher and longer where it must clear ramps under it)
+  const brOf = c => c.sp + c.emb;
+  const roadY = (w, c) => ELEV ? 0.06 : Math.max(0.06, Math.min(c.deck, c.deck * (1 - (Math.abs(w) - c.sp) / c.emb)));
+  // a crossing's frame: s is distance along the highway itself (it may curve, as a bypass does), w along the street
+  const frame = (c, sw = 1, ss = 1) => (s2, w2) => { const h = hwAt(c.sa + s2 * ss); return [h[0] + c.n[0] * w2 * sw, h[1] + c.n[1] * w2 * sw]; };
+  const steps = (a, b, n) => Array.from({ length: n + 1 }, (_, k) => a + (b - a) * k / n);
+  function dens(pts, step) { const out = [pts[0]];
+    for (let k = 1; k < pts.length; k++) { const a = pts[k - 1], b = pts[k], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+      for (let q = 1; q <= n; q++) out.push(a.map((v, x) => v + (b[x] - v) * q / n)); }
+    return out; }
+  // depth: what is under a raised surface: 0 solid ground (an embankment, a ramp on fill), a number the thickness of a
+  // deck on piers, 'auto' fill while low and a 1.2 m deck once it is high enough to pass under
+  const raise = (pts, w, top, side, depth, extra = {}) => { RAISED.push(Object.assign({ pts, w, top, side, depth }, extra)); DRIVE.push({ pts, w, depth, kind: extra.kind || 'ramp' }); };
+
+  function bridge(c) {                         // a street carried over the highway
+    const L = (s2, w2) => [c.m[0] + c.n[0] * w2, c.m[1] + c.n[1] * w2], at = w2 => { const q = L(0, w2); return [q[0], q[1], roadY(w2, c)]; };
+    const sp = c.sp, br = brOf(c);
+    raise(steps(-sp, sp, Math.max(8, Math.ceil(sp / 6))).map(at), roadW(c), STREET, CONCRETE, 1.2, { kind: 'bridge' });
+    for (const [a, b] of [[-br, -sp], [sp, br]]) raise(steps(a, b, Math.ceil(c.emb / 9.5)).map(at), roadW(c), STREET, null, 0, { kind: 'bridge', earth: roadW(c) + 4 });
+  }
+  // a ramp: points [s, w] (or [s, w, y]) in the crossing's frame, from the highway to the street. It stays level with the
+  // highway until it is clear of it (26 m out), ends level with the street, and eases between by the distance driven
+  // A point marked with a fourth element is placed square to the street instead (a landing), so that where the
+  // highway meets the street at a slant the landing still runs level along the street's embankment.
+  function ramp(c, sw, ss, pts2) {
+    const L = frame(c, sw, ss), q = (([x, z]) => (x * c.t[0] + z * c.t[1] < 0 ? [-x, -z] : [x, z]))([-c.n[1], c.n[0]]);
+    const Lst = (s2, w2) => [c.m[0] + q[0] * s2 * ss + c.n[0] * w2 * sw, c.m[1] + q[1] * s2 * ss + c.n[1] * w2 * sw];
+    const xz = pts2.map(p => (p[3] ? Lst(p[0], p[1]) : L(p[0], p[1]))), n = pts2.length;
+    const ys = pts2.map(p => (p[2] !== undefined ? p[2] : null));
+    for (let k = 0; k < n && Math.abs(pts2[k][1]) <= 26; k++) if (ys[k] === null) ys[k] = HWY;
+    if (ys[n - 1] === null) ys[n - 1] = roadY(pts2[n - 1][1], c);
+    const d = [0]; for (let k = 1; k < n; k++) d.push(d[k - 1] + Math.hypot(xz[k][0] - xz[k - 1][0], xz[k][1] - xz[k - 1][1]));
+    const anchors = ys.map((y, k) => (y === null ? -1 : k)).filter(k => k >= 0);
+    const y = ys.map((v, k) => { if (v !== null) return v;
+      const a = anchors.filter(q => q < k).pop(), b = anchors.find(q => q > k), u = (d[k] - d[a]) / (d[b] - d[a]);
+      return ys[a] + (ys[b] - ys[a]) * u * u * (3 - 2 * u); });
+    raise(dens(chaikin(xz.map((q, k) => [q[0], q[1], y[k] + 0.12]), 4), 6), 9, C.highway, CONCRETE, 'auto', { kind: 'ramp' });
+  }
+  // a 270 degree loop: off the highway just past the bridge, round, and onto the street heading back toward the
+  // highway, merging with it on its embankment (as a cloverleaf's loops do), level with it where they meet
+  function loop(c, sw, ss, r = 42) {
+    const cs = 16 + r, cw = 26 + r, pts = [[-60, 12], [0, 18]];
+    for (let k = 0; k <= 24; k++) { const th = -Math.PI / 2 + k / 24 * (1.5 * Math.PI); pts.push([cs + r * Math.cos(th), cw + r * Math.sin(th)]); }
+    pts.push([13, 52, roadY(52, c), 1], [0, 30 * c.k + 6, roadY(30 * c.k + 6, c), 1]);
+    ramp(c, sw, ss, pts);
+  }
+  const LAND = (w2, c) => [[50, w2, roadY(w2, c), 1], [0, w2, roadY(w2, c), 1]];   // a landing square to the street, level with it
+  const DIAMOND = c => [[260, 12], [180, 24], [100, 50], ...LAND(100, c)];
+  const NAMES = { diamond: 'Diamond', spui: 'SPUI', single: 'Single quadrant', parclo: 'Partial cloverleaf', clover: 'Cloverleaf', trumpet: 'Trumpet' };
+  for (const c of CROSS) {                                              // which streets cross, and the exits' ramps first
+    c.sp = SPAN * c.k; c.deck = DECK; c.emb = EMB;
+    if (!c.art && !(OVER || ELEV)) continue;                              // at grade, only the arterials cross (at an exit, or on a bridge)
+    if (!c.art && !((cityside(c.i, c.j - 1) || cityside(c.i, c.j - 2)) && (cityside(c.i, c.j + 1) || cityside(c.i, c.j + 2)))) continue;   // a street on both sides to carry over
+    c.through = true;
+    if (!c.type) continue;
+    if (c.type === 'diamond') for (const sw of [-1, 1]) for (const ss of [-1, 1]) ramp(c, sw, ss, DIAMOND(c));
+    if (c.type === 'spui') for (const sw of [-1, 1]) for (const ss of [-1, 1]) ramp(c, sw, ss, [[260, 12], [170, 22], [90, 27], [26, 24, roadY(24, c), 1], [0, 24, roadY(24, c), 1]]);
+    if (c.type === 'single') ramp(c, 1, 1, [[260, 12], [215, 26], [150, 90], [80, 140], ...LAND(165, c)]);
+    if (c.type === 'parclo') { loop(c, 1, 1); loop(c, -1, -1); ramp(c, -1, 1, DIAMOND(c)); ramp(c, 1, -1, DIAMOND(c)); }
+    if (c.type === 'clover') for (const sw of [-1, 1]) for (const ss of [-1, 1]) { loop(c, sw, ss); ramp(c, sw, -ss, [[300, 12], [230, 26], [170, 90], [110, 150], ...LAND(186, c)]); }
+    if (c.type === 'trumpet') {                // the spur ends here (a T): over the highway, then a loop and a ramp beyond it
+      const sg = c.n[0] * (downC[0] - c.m[0]) + c.n[1] * (downC[1] - c.m[1]) > 0 ? 1 : -1; c.sg = sg;
+      loop(c, -sg, -1); ramp(c, -sg, 1, DIAMOND(c));
+    }
+    if (c.type !== 'diamond' || !labels.some(l => l[0] === 'Diamond exit')) labels.push([NAMES[c.type] + ' exit', [c.m[0], 30, c.m[1]]]);
+  }
+  // then the bridges: an overpass beside an exit spans its ramps as well as the highway (ramp edge plus a 3 m shoulder);
+  // one that would need more than 140 m of span stops short of the highway instead
+  const rampPts = RAISED.filter(r => r.kind === 'ramp').flatMap(r => r.pts);
+  for (const c of CROSS) { if (!c.through || ELEV) continue;
+    let under = 0;
+    if (!c.type) for (const q of rampPts) { const dx = q[0] - c.m[0], dz = q[1] - c.m[1], w2 = dx * c.n[0] + dz * c.n[1];
+      if (Math.abs(dx * c.n[1] - dz * c.n[0]) < roadW(c) / 2 + 6) { c.sp = Math.max(c.sp, Math.abs(w2) + 4.5 + 3); under = Math.max(under, q[2]); } }
+    c.deck = Math.max(DECK, under + CLEAR_M + 0.3 + 1.2); c.emb = Math.max(EMB, c.deck / MAX_GRADE);   // clear the ramps it spans
+    if (c.sp > 140) { c.through = false; c.sp = SPAN * c.k; continue; }
+    bridge(c);
+  }
+  // the highway itself: on the ground, or a viaduct on piers clear of every street that passes under it
+  if (ELEV) {
+    raise(HW.map(([x, z]) => [x, z, HWY]), 34, C.highway, CONCRETE, 1.6, { kind: 'highway', lane: true });
+    let acc = 0; for (let k = 0; k + 1 < HW.length; k++) { const [x0, z0] = HW[k], [x1, z1] = HW[k + 1], l = Math.hypot(x1 - x0, z1 - z0);
+      for (let t = (40 - acc % 40); t < l; t += 40) { const x = x0 + (x1 - x0) * t / l, z = z0 + (z1 - z0) * t / l;
+        if (!CROSS.some(c => Math.hypot(x - c.m[0], z - c.m[1]) < 26)) PIERS.push({ x, z, w: 4, d: 10, rot: Math.atan2(z1 - z0, x1 - x0), y0: 0, h: HWY - 1.6 }); } acc += l; }
+  } else DRIVE.push({ pts: HW.map(([x, z]) => [x, z, HWY]), w: 34, depth: 0, kind: 'highway' });
+
+  // where a street at grade would run into a raised structure: within reach of its side, and too low to pass under
+  const RIDX = new Map(), CELL = 40, ckey = (x, z) => Math.floor(x / CELL) + ',' + Math.floor(z / CELL);
+  for (const r of RAISED) { const w = r.earth || r.w;
+    for (let k = 0; k + 1 < r.pts.length; k++) { const a = r.pts[k], b = r.pts[k + 1], s = { a, b, w, depth: r.depth };
+      for (let x = Math.floor((Math.min(a[0], b[0]) - w) / CELL); x <= Math.floor((Math.max(a[0], b[0]) + w) / CELL); x++)
+        for (let z = Math.floor((Math.min(a[1], b[1]) - w) / CELL); z <= Math.floor((Math.max(a[1], b[1]) + w) / CELL); z++) { const kk = x + ',' + z; if (!RIDX.has(kk)) RIDX.set(kk, []); RIDX.get(kk).push(s); } } }
+  // (the same thresholds the drive check holds the network to: a level join within MERGE_DY_M, a pass under with CLEAR_M)
+  function blocked(p, hw, ys, dir) {
+    for (const s of RIDX.get(ckey(p[0], p[1])) || []) {
+      const dx = s.b[0] - s.a[0], dz = s.b[1] - s.a[1], l2 = dx * dx + dz * dz || 1, t = ((p[0] - s.a[0]) * dx + (p[1] - s.a[1]) * dz) / l2;
+      if (t < -0.02 || t > 1.02 || Math.hypot(p[0] - s.a[0] - dx * t, p[1] - s.a[1] - dz * t) > s.w / 2 + hw + 0.5) continue;
+      // the structure's height anywhere across the street's own width, not only at its centre line (the width that lies
+      // along the structure: all of it where they cross square, none where the street carries straight on from it)
+      const sinA = Math.abs(dir[0] * dz - dir[1] * dx) / Math.sqrt(l2), dt = (hw * sinA + 1) / Math.sqrt(l2), ys3 = [t - dt, t, t + dt].map(u => s.a[2] + (s.b[2] - s.a[2]) * Math.max(0, Math.min(1, u)));
+      if (Math.max(...ys3) - ys <= MERGE_DY_M - 0.1 || underside(s.depth, Math.min(...ys3)) - ys >= CLEAR_M + 0.1) continue;   // a level junction, or high enough to pass under
+      return true;
+    }
+    return false;
+  }
+  const draw = d => { const [r, w, y, k, lane] = d.draw; g.ribbon(r, w, y, k); if (lane) g.ribbon(r, 0.6, y + 0.04, C.lane); segs++; };
+  function street(pts, w, y, k, lane) {
+    const near = pts.some(p => RIDX.has(ckey(p[0], p[1]))) || RIDX.has(ckey((pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2));
+    let runs = [pts], cut = false;
+    const L0 = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) || 1, dir = [(pts[1][0] - pts[0][0]) / L0, (pts[1][1] - pts[0][1]) / L0];
+    if (near) { runs = []; let run = []; for (const p of dens(pts, 4)) { if (blocked(p, w / 2, y, dir)) { cut = true; if (run.length > 1) runs.push(run); run = []; } else run.push(p); } if (run.length > 1) runs.push(run);
+      if (cut) runs = runs.filter(r => Math.hypot(r[r.length - 1][0] - r[0][0], r[r.length - 1][1] - r[0][1]) > 60); }   // a stub between two structures serves nothing
+    for (const r of runs) { const d = { pts: r.map(([x, z]) => [x, z, y]), w, depth: 0, kind: 'street', draw: [r, w, y, k, lane] };
+      if (k === COUNTY || cut) d.prune = true; else draw(d); DRIVE.push(d); }
+  }
+
+  // ---- the streets: every grid segment beside a built cell; arterials and section roads run on through the farmland.
+  // Where a street meets the highway it is cut: back to the end of its bridge, to where a trumpet takes it, or (with no
+  // bridge) 40 m short of the carriageway; under a viaduct it runs straight on
+  const crossOn = new Map(); for (const c of CROSS) { if (!crossOn.has(c.i)) crossOn.set(c.i, []); crossOn.get(c.i).push(c); }
+  const cutFor = c => ELEV ? null : c.type === 'trumpet' ? (c.sg > 0 ? [-1e9, brOf(c)] : [-brOf(c), 1e9]) : c.through ? [-brOf(c), brOf(c)] : [-40, 40];
+  // a street that crosses is drawn on beyond its bridge, at least to the next block, so the bridge never ends in a field
+  const reachOf = (i, a, b) => { let w = 0; for (const c of crossOn.get(i) || []) { if (!c.through) continue;
+    const wa = (a[0] - c.m[0]) * c.n[0] + (a[1] - c.m[1]) * c.n[1], wb = (b[0] - c.m[0]) * c.n[0] + (b[1] - c.m[1]) * c.n[1], R2 = brOf(c) + SV;
+    if (Math.max(wa, wb) > -R2 && Math.min(wa, wb) < R2) w = Math.max(w, roadW(c)); } return w; };
   for (let i = -N; i <= N; i++) for (let j = -M; j < M; j++) {              // lines of constant u (running along v)
     const a = node(i, j), b = node(i, j + 1), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     if (wet(m) || wet(a) || wet(b) || Math.max(Math.abs(a[0]), Math.abs(a[1]), Math.abs(b[0]), Math.abs(b[1])) > AREA) continue;
-    const cityside = built(i - 1, j) || built(i, j);
-    const nearHw = hwDist(m) < 40;
-    if (nearHw && !artI(i)) continue;                                        // only arterials cross the highway
-    if (cityside) { g.ribbon([a, b], artI(i) || i === spurI ? ART : ST, 0.06, STREET); segs++; if (artI(i)) g.ribbon([a, b], 0.6, 0.1, C.lane); }
-    else if (artI(i)) { g.ribbon([a, b], 9, 0.05, COUNTY); segs++; }       // a section road out in the fields
+    const w = cityside(i, j) || (artI(i) && Math.hypot(m[0], m[1]) < edgeR(m) + 60) ? (artI(i) || i === spurI ? ART : ST) : artI(i) ? 9 : reachOf(i, a, b);
+    if (!w) continue;
+    const hit = hwHit(a, b);
+    if (hit && !(crossOn.get(i) || []).some(c => c.j === j)) continue;     // a crossing too near the edge of the map
+    if (!hit && !ELEV && [0, 0.25, 0.5, 0.75, 1].some(t => hwDist([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]) < 24)) continue;   // alongside it
+    let pieces = [[0, 1]];
+    for (const c of crossOn.get(i) || []) { const cut = cutFor(c); if (!cut) continue;
+      const wa = (a[0] - c.m[0]) * c.n[0] + (a[1] - c.m[1]) * c.n[1], wb = (b[0] - c.m[0]) * c.n[0] + (b[1] - c.m[1]) * c.n[1];
+      const t0 = (cut[0] - wa) / (wb - wa), t1 = (cut[1] - wa) / (wb - wa);
+      pieces = pieces.flatMap(([p, q]) => [[p, Math.min(q, t0)], [Math.max(p, t1), q]]).filter(([p, q]) => q - p > 0.02); }
+    for (const [p, q] of pieces) {
+      const pts = [[a[0] + (b[0] - a[0]) * p, a[1] + (b[1] - a[1]) * p], [a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q]];
+      if (w === 9) street(pts, 9, 0.05, COUNTY); else street(pts, w, 0.06, STREET, artI(i));
+    }
   }
   for (let j = -M; j <= M; j++) for (let i = -N; i < N; i++) {              // lines of constant v (running along u)
     const a = node(i, j), b = node(i + 1, j), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     if (wet(m) || wet(a) || wet(b) || Math.max(Math.abs(a[0]), Math.abs(a[1]), Math.abs(b[0]), Math.abs(b[1])) > AREA) continue;
-    if (!BYPASS && hwDist(m) < 40) continue;                                 // nothing runs along inside the highway
-    const cityside = built(i, j - 1) || built(i, j);
-    if (cityside) { g.ribbon([a, b], artJ(j) ? ART : ST, 0.07, STREET); segs++; if (artJ(j)) g.ribbon([a, b], 0.6, 0.11, C.lane); }
-    else if (artJ(j)) { g.ribbon([a, b], 9, 0.05, COUNTY); segs++; }
+    if ([0, 0.25, 0.5, 0.75, 1].some(t => hwDist([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]) < (ELEV ? 22 : 40))) continue;   // nothing runs along inside the highway
+    if (BYPASS && hwHit(a, b)) continue;                                     // nor across a bypass, but on a bridge
+    const cs = built(i, j - 1) || built(i, j);
+    if (cs) street([a, b], artJ(j) ? ART : ST, 0.07, STREET, artJ(j));
+    else if (artJ(j)) street([a, b], 9, 0.05, COUNTY);
   }
-  // the highway and its links: frontage roads alongside (through), an interchange where every arterial meets it
-  g.ribbon(HW, 34, 0.3, C.highway); g.ribbon(HW, 0.8, 0.34, C.lane);
-  if (!BYPASS) for (const side of [-1, 1]) { const f = HW.map(([x, z]) => [x, z + side * 30]).filter(p => Math.hypot(p[0], p[1]) < edgeR(p) + 40); if (f.length > 1) g.ribbon(f, 10, 0.24, STREET); }
-  for (const [m, a, b] of ICH) if (!wet(m)) { g.disk(m[0], m[1], 46, 0.28, C.highway, 20); g.disk(m[0], m[1], 26, 0.32, C.park, 16); g.ribbon([a, b], 26, 1.4, col('#6d6a64')); }
-  labels.push([BYPASS ? 'Bypass' : 'Highway, frontage roads and the strip', BYPASS ? [-hwR * 0.6, 40, -hwR * 0.7] : [-450, 40, -60 * S]]);
+
+  // a section road out in the fields, or a street cut by a structure, is built only where the network reaches it: the
+  // drive check's own fill decides (a piece cut off between embankments, or at the map's edge, leads nowhere)
+  { const rep0 = driveCheck({ drive: DRIVE, piers: [], home: downC }, 0, 0);
+    for (let k = DRIVE.length - 1; k >= 0; k--) if (DRIVE[k].prune) { if (rep0.reach[k]) draw(DRIVE[k]); else DRIVE.splice(k, 1); } }
+
+  // ---- draw the highway and every raised structure
+  g.inf = true;
+  if (!ELEV) { g.ribbon(HW, 34, 0.3, C.highway); g.ribbon(HW, 0.8, 0.34, C.lane); }
+  for (const r of RAISED) {
+    if (r.earth) g.ribbonY(r.pts.map(([x, z, y]) => [x, z, y - 0.08]), r.earth, EARTH, EARTH);   // the embankment, a levee of earth
+    g.ribbonY(r.pts, r.w, r.top, r.side, r.depth);
+    if (r.lane) g.ribbonY(r.pts.map(([x, z, y]) => [x, z, y + 0.05]), 0.8, C.lane);
+  }
+  for (const p of PIERS) g.box(p.x, p.z, p.w, p.d, p.y0, p.h, PIER, p.rot);
+  labels.push([BYPASS ? 'Bypass' : ELEV ? 'Elevated highway' : OVER ? 'Highway under overpasses' : 'Highway at grade', BYPASS ? [-hwR * 0.6, 40, -hwR * 0.7] : [-450, 40, -60 * S]]);
+  g.inf = false;
   if (BYPASS) labels.push(['Spur avenue and the strip', [...((p => [p[0] + 40, 40, p[1]])(centre(spurI, downJmin - 3)))].map((v, k) => k === 1 ? 40 : v)]);
   labels.push(['Section roads', [AREA * 0.8, 10, -AREA * 0.35]]);
 
@@ -409,16 +649,25 @@ function buildFuture(o) {
   }
   const BW = SU - ST, BD = SV - ST, ALLEY = 6;
   for (let i = -N; i < N; i++) for (let j = -M; j < M; j++) {
-    const k = kind(i, j); if (!built(i, j)) continue;
+    const k = kind(i, j);
+    if (k === 'road' && !wet(centre(i, j))) {            // the highway's verge, where no ramp runs: planted, a green buffer
+      const vr = mulberry32(7000 + (i + 60) * 211 + (j + 60));
+      for (let n = 0; n < 26; n++) { const q = warp((i + 0.1 + 0.8 * vr()) * SU, (j + 0.1 + 0.8 * vr()) * SV);
+        if (hwDist(q) > 44 && !inFoot(q) && Math.hypot(q[0], q[1]) < edgeR(q) + 60) g.tree(q[0], q[1], 0.9 + 0.5 * vr(), col(vr() < 0.5 ? '#3f6b35' : '#4d7a3c')); }
+    }
+    if (!built(i, j)) continue;
     // the cell's own frame: its centre, and its axes from the bent grid
     const c = centre(i, j), ex0 = warp((i + 1) * SU, (j + 0.5) * SV), ez0 = warp((i + 0.5) * SU, (j + 1) * SV);
     const ex = [(ex0[0] - c[0]) / (SU / 2), (ex0[1] - c[1]) / (SU / 2)], ez = [(ez0[0] - c[0]) / (SV / 2), (ez0[1] - c[1]) / (SV / 2)];
     const ang = Math.atan2(ex[1], ex[0]);
     const W = (x, z) => [c[0] + ex[0] * x + ez[0] * z, c[1] + ex[1] * x + ez[1] * z];
     const pr = mulberry32(9000 + (i + 60) * 211 + (j + 60));
-    const ground = { down: C.pavement, strip: C.asphalt, works: col('#8d8b84'), park: C.park, school: col('#6f9150'), flats: col('#7f8f63'), houses: col('#6f8a4f') }[k];
+    const ground = { under: C.asphalt, down: C.pavement, strip: C.asphalt, works: col('#8d8b84'), park: C.park, school: col('#6f9150'), flats: col('#7f8f63'), houses: col('#6f8a4f') }[k];
     g.box(c[0], c[1], BW, BD, 0, 0.2, ground, ang);
-    if (k === 'down') {
+    if (k === 'under') {                                      // car parks under the viaduct
+      for (let t = -BW / 2 + 4; t < BW / 2 - 2; t += 5) for (const zz of [-BD / 4, BD / 4]) { const q = W(t, zz); g.box(q[0], q[1], 0.3, 10, 0.2, 0.03, col('#d8d4c6'), ang); }
+      for (let n = 0; n < 30; n++) { const q = W(R(-BW / 2 + 4, BW / 2 - 4), R(-BD / 2 + 4, BD / 2 - 4)); if (hwDist(q) < 9) continue; g.box(q[0], q[1], 4.6, 1.9, 0.2, 1.5, col(pick(['#b23a2e', '#2f5d8a', '#e9e6de', '#3a3a3a', '#8a8f96'])), ang); }
+    } else if (k === 'down') {
       const [heart, core] = down.get(i + ',' + j), old = o.shape === 'twin' && core === 0;
       const lots = pr() < 0.5 ? [[-30, -18, 54, 32], [30, -18, 54, 32], [-30, 18, 54, 32], [30, 18, 54, 32]] : [[-30, 0, 54, 70], [30, 0, 54, 70]];
       for (const [lx, lz, lw, ld] of lots) {
@@ -473,7 +722,101 @@ function buildFuture(o) {
     for (let x = 300; x < 700; x += 70) { const z = shoreZ(x) + 26; g.box(x - 6, z, 2, 2, 0, 30, col('#d9a12b')); g.box(x + 6, z, 2, 2, 0, 30, col('#d9a12b')); g.box(x, z - 12, 3, 50, 30, 3, col('#d9a12b')); g.note(33); }
     labels.push(['Harbour', [500, 50, shoreZ(500) + 30]]);
   }
-  return { g, labels };
+  return { g, labels, drive: DRIVE, piers: PIERS, raised: RAISED, home: downC, hw: HW };
+}
+
+// ---------------------------------------------------------------- the drive check: a fill, and a driving bot
+// Every road surface (DRIVE) is sampled every 6 m into a graph. Two samples join when they follow each other along one
+// road, or when one lies on another road's surface within 0.5 m of its height (a junction, a ramp's merge). A fill from
+// the downtown says what a car can reach. Where two roads overlap at different heights, the upper one's underside must
+// clear the lower by 4.5 m or a car hits it; no road climbs more than 8 %; no pier stands in a lane. Then a bot drives
+// trips, by the shortest path through the graph, from random streets to the downtown and to both ends of the highway.
+// What it proves is the road surfaces of this mockup; the game's colliders get the same check when the generator is built.
+const CLEAR_M = 4.5, MAX_GRADE = 0.08, MERGE_DY_M = 0.5, MIN_RADIUS_M = { highway: 400, ramp: 25 };   // 25 m: a ramp's tightest turn at 30 km/h
+function driveCheck(net, seed = 11, nTrips = 12) {
+  const D = net.drive, nodes = [], polys = [];
+  D.forEach((d, r) => { const ids = [];
+    for (let k = 0; k + 1 < d.pts.length; k++) { const a = d.pts[k], b = d.pts[k + 1], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 6));
+      for (let q = k === 0 ? 0 : 1; q <= n; q++) { const t = q / n; ids.push(nodes.length); nodes.push({ x: a[0] + (b[0] - a[0]) * t, z: a[1] + (b[1] - a[1]) * t, y: a[2] + (b[2] - a[2]) * t, r }); } }
+    polys.push(ids); });
+  const adj = nodes.map(() => []);
+  const link = (u, v) => { const l = Math.hypot(nodes[u].x - nodes[v].x, nodes[u].z - nodes[v].z, nodes[u].y - nodes[v].y) + 0.01; adj[u].push([v, l]); adj[v].push([u, l]); };
+  const CELL = 30, key = (x, z) => Math.floor(x / CELL) + ',' + Math.floor(z / CELL), idx = new Map();
+  const steep = [], hits = new Map(), pierHits = [], tight = [];
+  let km = 0;
+  polys.forEach((ids, r) => { const w = D[r].w;
+    for (let k = 0; k + 1 < ids.length; k++) { const a = nodes[ids[k]], b = nodes[ids[k + 1]], l = Math.hypot(b.x - a.x, b.z - a.z);
+      link(ids[k], ids[k + 1]); km += l / 1000;
+      if (l > 0.5 && Math.abs(b.y - a.y) / l > MAX_GRADE + 0.002) steep.push({ kind: D[r].kind, grade: Math.abs(b.y - a.y) / l, at: [a.x, a.z] });
+      for (let x = Math.floor((Math.min(a.x, b.x) - w) / CELL); x <= Math.floor((Math.max(a.x, b.x) + w) / CELL); x++)
+        for (let z = Math.floor((Math.min(a.z, b.z) - w) / CELL); z <= Math.floor((Math.max(a.z, b.z) + w) / CELL); z++) { const kk = x + ',' + z; if (!idx.has(kk)) idx.set(kk, []); idx.get(kk).push([ids[k], ids[k + 1], r]); } } });
+  const proj = (p, a, b) => { const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz || 1, raw = ((p.x - a.x) * dx + (p.z - a.z) * dz) / l2, t = Math.max(0, Math.min(1, raw));
+    return [Math.hypot(p.x - a.x - dx * t, p.z - a.z - dz * t), t, a.y + (b.y - a.y) * t, raw >= 0 && raw <= 1]; };
+  nodes.forEach((p, u) => {
+    for (const [ia, ib, r] of idx.get(key(p.x, p.z)) || []) { if (r === p.r) continue;
+      const [dist, t, y, inside] = proj(p, nodes[ia], nodes[ib]), dy = p.y - y;
+      if (dist < D[r].w / 2 + 0.3 && Math.abs(dy) <= MERGE_DY_M) { link(u, t < 0.5 ? ia : ib); continue; }
+      if (inside && dist < D[r].w / 2 && Math.abs(dy) > MERGE_DY_M) {                      // one road over the other: does it clear?
+        const [hiR, hiY, loY] = dy > 0 ? [p.r, p.y, y] : [r, y, p.y], clear = underside(D[hiR].depth, hiY) - loY;
+        if (clear < CLEAR_M) { const kk = Math.min(r, p.r) + ',' + Math.max(r, p.r); if (!hits.has(kk)) hits.set(kk, { a: D[p.r].kind, b: D[r].kind, clear, at: [p.x, p.z] }); }
+      } } });
+  for (const pr of net.piers) {                    // a pier's footprint inside a lane, at the lane's height
+    const c = Math.cos(pr.rot), s = Math.sin(pr.rot), pts = [];
+    for (const a of [-0.5, 0, 0.5]) for (const b of [-0.5, 0, 0.5]) pts.push({ x: pr.x + c * pr.w * a - s * pr.d * b, z: pr.z + s * pr.w * a + c * pr.d * b });
+    let hit = false;
+    for (const q of pts) for (const [ia, ib, r] of idx.get(key(q.x, q.z)) || []) { const [dist, , y] = proj(q, nodes[ia], nodes[ib]);
+      if (dist < D[r].w / 2 && y > pr.y0 - 0.5 && y < pr.y0 + pr.h) hit = D[r].kind; }
+    if (hit) pierHits.push({ at: [pr.x, pr.z], kind: hit });
+  }
+  polys.forEach((ids, r) => { const lim = MIN_RADIUS_M[D[r].kind]; if (!lim) return; let worst = null;   // the tightest turn on a highway or a ramp
+    for (let k = 3; k + 3 < ids.length; k++) { const a = nodes[ids[k - 3]], b = nodes[ids[k]], c = nodes[ids[k + 3]];
+      const a1 = Math.atan2(b.z - a.z, b.x - a.x), a2 = Math.atan2(c.z - b.z, c.x - b.x), th = Math.abs(Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1)));
+      const rad = th > 1e-6 ? (Math.hypot(b.x - a.x, b.z - a.z) + Math.hypot(c.x - b.x, c.z - b.z)) / 2 / th : 1e9;
+      if (rad < lim && (!worst || rad < worst.r)) worst = { kind: D[r].kind, r: rad, at: [b.x, b.z] }; }
+    if (worst) tight.push(worst); });
+  // every ramp joins another road at both its ends: none stops in the air or in a field
+  const loose = []; polys.forEach((ids, r) => { if (D[r].kind !== 'ramp') return;
+    for (const u of [ids[0], ids[ids.length - 1]]) if (!adj[u].some(([v]) => nodes[v].r !== r)) loose.push({ at: [nodes[u].x, nodes[u].z] }); });
+  // the fill: components, and the one the downtown is in
+  const comp = new Int32Array(nodes.length).fill(-1); let nc = 0;
+  for (let s0 = 0; s0 < nodes.length; s0++) { if (comp[s0] >= 0) continue; const st = [s0]; comp[s0] = nc;
+    while (st.length) { const u = st.pop(); for (const [v] of adj[u]) if (comp[v] < 0) { comp[v] = nc; st.push(v); } } nc++; }
+  let homeN = 0, best = 1e18; nodes.forEach((p, u) => { if (D[p.r].kind !== 'street') return; const d = (p.x - net.home[0]) ** 2 + (p.z - net.home[1]) ** 2; if (d < best) { best = d; homeN = u; } });
+  const main = comp[homeN];
+  const lost = []; polys.forEach((ids, r) => { const out = ids.filter(u => comp[u] !== main); if (!out.length) return;
+    let l = 0; for (let k = 0; k + 1 < ids.length; k++) if (comp[ids[k]] !== main) l += Math.hypot(nodes[ids[k + 1]].x - nodes[ids[k]].x, nodes[ids[k + 1]].z - nodes[ids[k]].z);
+    lost.push({ kind: D[r].kind, m: l, at: [nodes[out[0]].x, nodes[out[0]].z] }); });
+  const lostKm = lost.reduce((a, b) => a + b.m, 0) / 1000;
+  // the bot: shortest paths (Dijkstra on a binary heap) from random streets
+  function path(src, dst) {
+    const dist = new Float64Array(nodes.length).fill(Infinity), prev = new Int32Array(nodes.length).fill(-1), h = [];
+    const push = (d, u) => { h.push([d, u]); let i = h.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (h[p][0] <= h[i][0]) break; [h[p], h[i]] = [h[i], h[p]]; i = p; } };
+    const pop = () => { const top = h[0], last = h.pop(); if (h.length) { h[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < h.length && h[l][0] < h[m][0]) m = l; if (r < h.length && h[r][0] < h[m][0]) m = r; if (m === i) break; [h[m], h[i]] = [h[i], h[m]]; i = m; } } return top; };
+    dist[src] = 0; push(0, src);
+    while (h.length) { const [d, u] = pop(); if (u === dst) break; if (d > dist[u]) continue; for (const [v, l] of adj[u]) if (d + l < dist[v]) { dist[v] = d + l; prev[v] = u; push(d + l, v); } }
+    if (!isFinite(dist[dst])) return null;
+    const out = []; for (let u = dst; u >= 0; u = prev[u]) out.push(u); return out.reverse();
+  }
+  const rnd = mulberry32(seed), streets = nodes.map((p, u) => u).filter(u => D[nodes[u].r].kind === 'street');
+  const hwNodes = nodes.map((p, u) => u).filter(u => D[nodes[u].r].kind === 'highway');
+  const ends = hwNodes.length ? [hwNodes.reduce((a, b) => (nodes[b].x < nodes[a].x ? b : a)), hwNodes.reduce((a, b) => (nodes[b].x > nodes[a].x ? b : a))] : [];
+  const trips = [];
+  for (let k = 0; k < nTrips; k++) {
+    const from = streets[Math.floor(rnd() * streets.length)], to = k % 3 === 2 ? homeN : ends[k % 2];
+    const p = path(from, to);
+    trips.push({ ok: !!p, km: p ? p.reduce((a, u, i) => a + (i ? Math.hypot(nodes[u].x - nodes[p[i - 1]].x, nodes[u].z - nodes[p[i - 1]].z) : 0), 0) / 1000 : 0,
+      ramps: p ? new Set(p.filter(u => D[nodes[u].r].kind === 'ramp').map(u => nodes[u].r)).size : 0,
+      route: p ? p.map(u => [nodes[u].x, nodes[u].y, nodes[u].z]) : null });
+  }
+  const reach = polys.map(ids => ids.some(u => comp[u] === main));        // which roads the fill reaches at all
+  return { km, nodes: nodes.length, reach, lostKm, lost: lost.sort((a, b) => b.m - a.m).slice(0, 12), collisions: [...hits.values()], steep, pierHits, tight, loose, trips,
+    ok: lostKm < 0.001 && !hits.size && !steep.length && !pierHits.length && !tight.length && !loose.length && trips.every(t => t.ok) };
+}
+function driveLine(rep) {
+  const arrived = rep.trips.filter(t => t.ok).length, viaExit = rep.trips.filter(t => t.ramps > 0).length;
+  return `Drive check: ${rep.km.toFixed(0)} km of road, ${rep.lostKm < 0.001 ? 'all of it' : (100 * (1 - rep.lostKm / rep.km)).toFixed(1) + ' %'} reachable from the downtown` +
+    `${rep.lostKm >= 0.001 ? ` (${(rep.lostKm * 1000).toFixed(0)} m cut off)` : ''}; ${rep.collisions.length} places a car would hit a structure, ${rep.steep.length} grades over 8 %, ${rep.tight.length} turns too tight, ${rep.loose.length} ramp ends in the air, ${rep.pierHits.length} piers in a lane. ` +
+    `Bot: ${arrived} of ${rep.trips.length} trips arrived, ${viaExit} through an exit. ${rep.ok ? 'PASS' : 'FAIL'}`;
 }
 
 // ---------------------------------------------------------------- scenes, one camera, two viewports
@@ -503,9 +846,21 @@ function makeScene(geo) {
 }
 const today = buildToday();
 const OPTS = { down: 'small', shape: 'compact', hw: 'through', coast: 'no' };
-let { g: future, labels } = buildFuture(OPTS);
+let net = buildFuture(OPTS), { g: future, labels } = net, drive = driveCheck(net);
+window.__drive = drive;
+// the bot's cars: one per trip that arrived, driving its route there and back (sped up 4 times)
+let bots = [];
+function addBots(scene) {
+  bots = [];
+  const cols = ['#ff3b30', '#ffcc00', '#34c759', '#0a84ff', '#ff9f0a', '#bf5af2'];
+  drive.trips.filter(t => t.ok && t.route.length > 1).forEach((t, k) => {
+    const d = [0]; for (let i = 1; i < t.route.length; i++) d.push(d[i - 1] + Math.hypot(t.route[i][0] - t.route[i - 1][0], t.route[i][2] - t.route[i - 1][2]));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 6), new THREE.MeshBasicMaterial({ color: cols[k % cols.length] }));
+    scene.add(m); bots.push({ m, r: t.route, d, s: k * 300 });
+  });
+}
 const sceneToday = makeScene(today);
-let sceneFuture = makeScene(future);
+let sceneFuture = makeScene(future); addBots(sceneFuture);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 2, 12000);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -529,8 +884,8 @@ function makeTags() {
 makeTags();
 function setOpt(k, v) {
   OPTS[k] = v;
-  ({ g: future, labels } = buildFuture(OPTS));
-  sceneFuture = makeScene(future);
+  net = buildFuture(OPTS); ({ g: future, labels } = net); drive = driveCheck(net); window.__drive = drive;
+  sceneFuture = makeScene(future); addBots(sceneFuture);
   makeTags(); showNums();
   document.querySelectorAll(`[data-opt="${k}"]`).forEach(b => b.setAttribute('aria-pressed', b.dataset.val === v));
 }
@@ -552,13 +907,22 @@ new ResizeObserver(layout).observe(view);
 
 const fmt = n => n.toLocaleString('en-GB');
 document.getElementById('numsToday').textContent = `${fmt(today.buildings)} buildings, tallest ${Math.round(today.tallest)} m, ${fmt(today.tris)} triangles, two draw calls (ground and buildings)`;
-function showNums() { document.getElementById('numsFuture').textContent = `${fmt(future.buildings)} buildings, tallest ${Math.round(future.tallest)} m, ${fmt(future.tris)} triangles, two draw calls (ground and buildings)`; }
+function showNums() { document.getElementById('numsFuture').textContent = `${fmt(future.buildings)} buildings, tallest ${Math.round(future.tallest)} m, ${fmt(future.tris)} triangles, three draw calls (ground, buildings, road structures). ${driveLine(drive)}`; }
 showNums();
 
 setCam('air'); setMode('both');
 const v3 = new THREE.Vector3();
+let lastT = performance.now();
 renderer.setAnimationLoop(() => {
   controls.update();
+  const now = performance.now(), dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+  for (const b of bots) {                         // 4 x 25 m/s, out and back along the route
+    const L = b.d[b.d.length - 1]; b.s = (b.s + dt * 100) % (2 * L); const s = b.s < L ? b.s : 2 * L - b.s;
+    let i = 1; while (i < b.d.length - 1 && b.d[i] < s) i++;
+    const t = (s - b.d[i - 1]) / ((b.d[i] - b.d[i - 1]) || 1), p = b.r[i - 1], q = b.r[i];
+    b.m.position.set(p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t + 3.2, p[2] + (q[2] - p[2]) * t);
+    b.m.rotation.y = -Math.atan2(q[2] - p[2], q[0] - p[0]);
+  }
   const h = view.clientHeight;
   renderer.setScissorTest(true);
   for (const [which, x, y, w, hh] of vps) {

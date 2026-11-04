@@ -40,6 +40,7 @@ A city is a Fargo-like town on open ground:
 - **A large downtown grows its housing**: the city is 1.45 times wider, and apartment blocks stand near the centre.
 - **An industrial park** stands at the highway's end.
 - **A ragged edge** fades into farmland. No slab, no ring.
+- **Exits** (owner, 2026-11-04: "highways can cut through cities, can go over cities or under cities, because of one simple thing: EXITS!", "under cities is with bypass and bridges, and levies, not litteral tunneling"): real interchanges from the owner's chart at the arterials (a SPUI by the downtown, diamonds, a single quadrant, a partial cloverleaf and a cloverleaf at the ends, a trumpet on a bypass), and four ways the highway meets the streets: at grade, under overpasses on embankments, elevated on a viaduct, or round the city as a bypass.
 - **The highway** either runs through the middle (beside the downtown, never through it) or bypasses the city round
   its edge, with a spur avenue into town.
 - **Water only where the island has it**: inland, or on a coast with a small harbour. No rivers.

@@ -39,3 +39,33 @@ parts.
 #### Scenario: Driving from a house to the highway
 - **WHEN** a car leaves any house block
 - **THEN** it can reach the highway on streets alone, without crossing a kerb or open ground
+
+### Requirement: A highway meets its city at exits
+
+A city's highway SHALL meet its arterials at interchanges with real ramps (a SPUI, diamonds, a single quadrant, a partial
+cloverleaf, a cloverleaf, or a trumpet where a spur meets a bypass), and every other street that crosses it SHALL cross on
+a bridge over it or under its viaduct, never at grade and never in a tunnel; no building SHALL stand inside an
+interchange's footprint.
+
+#### Scenario: Leaving the highway
+- **WHEN** a car on the highway reaches an arterial
+- **THEN** a ramp leads it off the highway onto the arterial, at the arterial's own height
+
+#### Scenario: A street that has no exit
+- **WHEN** a street with houses on both sides meets a highway with overpasses
+- **THEN** it crosses over the highway on a bridge with an embankment each side and carries on into the next block
+
+### Requirement: Every road can be driven
+
+A city's road network SHALL be drivable end to end: every road reachable by car from the downtown, every ramp joined to
+a road at both ends, every road that passes over another clearing it by 4.5 m, no grade over 8 %, no highway turn
+tighter than 400 m in radius nor ramp turn tighter than 25 m, and no pier in a lane. A driving check SHALL prove it,
+with a bot that drives trips through the network.
+
+#### Scenario: The owner's ramp
+- **WHEN** a ramp stops short of the street it leads to
+- **THEN** the drive check fails and names the ramp end left in the air
+
+#### Scenario: A bot trip
+- **WHEN** the bot drives from a random street to the far end of the highway
+- **THEN** it arrives, by streets, a ramp and the highway
