@@ -1,0 +1,578 @@
+<title>City Layouts: Today and Future</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a planning table. Two city models on one camera fill the page; a thin strip of controls on top, a legend
+   and the numbers under each model. One look, a dusk map room: it is a model, not a page to read. */
+:root {
+  --bg: #101214;
+  --strip: #181b1f;
+  --fg: #e8e4da;
+  --dim: #8f959c;
+  --line: #2b3036;
+  --today: #9fb3c8;
+  --future: #f0b25a;
+  --font-ui: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.35 var(--font-ui);
+  display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px;
+}
+header { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.label { font: 11px var(--font-data); letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+button {
+  font: 600 14px var(--font-ui); letter-spacing: 0.05em; color: var(--fg); background: var(--strip);
+  border: 1px solid var(--line); border-radius: 3px; padding: 5px 12px; cursor: pointer;
+}
+button[aria-pressed="true"] { border-color: var(--future); color: var(--future); }
+button:focus-visible { outline: 2px solid var(--future); outline-offset: 2px; }
+#view { position: relative; flex: 1; min-height: 300px; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: #0b0d0f; }
+#view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.tag { position: absolute; top: 10px; font: 600 15px var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase;
+       padding: 3px 9px; border-radius: 3px; background: rgba(10, 12, 14, 0.75); pointer-events: none; }
+#tagToday { color: var(--today); }
+#tagFuture { color: var(--future); }
+.district { position: absolute; transform: translate(-50%, -50%); font: 500 12px var(--font-data); color: #fff3dc;
+            background: rgba(20, 16, 10, 0.62); padding: 1px 6px; border-radius: 2px; white-space: nowrap; pointer-events: none; }
+#hint { position: absolute; left: 10px; bottom: 8px; font: 11px var(--font-data); color: var(--dim); pointer-events: none; }
+#notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 6px 24px; font-size: 14px; color: var(--dim); }
+#notes > div { min-width: 0; }
+#notes h2 { margin: 0 0 2px; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+#notes .t h2 { color: var(--today); }
+#notes .f h2 { color: var(--future); }
+#notes p { margin: 0; }
+.nums { font: 12px var(--font-data); color: var(--fg); font-variant-numeric: tabular-nums; }
+</style>
+
+<header>
+  <h1>City layouts</h1>
+  <div class="group" role="group" aria-label="View">
+    <span class="label">Show</span>
+    <button id="m-both" data-mode="both" aria-pressed="true">Side by side</button>
+    <button id="m-today" data-mode="today" aria-pressed="false">Today</button>
+    <button id="m-future" data-mode="future" aria-pressed="false">Future</button>
+  </div>
+  <div class="group" role="group" aria-label="Camera">
+    <span class="label">Camera</span>
+    <button id="c-air" data-cam="air" aria-pressed="true">From the air</button>
+    <button id="c-low" data-cam="low" aria-pressed="false">Mech height</button>
+    <button id="c-top" data-cam="top" aria-pressed="false">Plan</button>
+  </div>
+</header>
+<div id="view">
+  <div class="tag" id="tagToday">Today: the generator now</div>
+  <div class="tag" id="tagFuture">Future: how cities are built</div>
+  <div id="hint">Drag to turn, right-drag to pan, scroll to zoom. Both models share the camera and the scale.</div>
+</div>
+<div id="notes">
+  <div class="t"><h2>Today</h2>
+    <p>The real rules of <code>cb_core::world::layout</code>: one flat square, a straight grid of 70-110 m blocks with a 36 m
+    arterial every fourth street, every block cut into equal 18-36 m lots, one box on each, taller toward the middle
+    (up to 60 storeys), 6 % of blocks parks, 8 % of lots plazas, a ring of house rows round the edge, straight highways out.</p>
+    <p class="nums" id="numsToday"></p></div>
+  <div class="f"><h2>Future</h2>
+    <p>Grown like a real city, in the 1980s industrial setting: a river and an old town of radial lanes on its bend,
+    a tower downtown on its own grid, mid-rise perimeter blocks round courtyards, rowhouse streets, an apartment estate,
+    a port and factories with tanks, stacks and cranes, a rail line and station, a stadium, a central park, a ring road
+    and curving suburbs. Each district on its own grid angle and block size.</p>
+    <p class="nums" id="numsFuture"></p></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Both models are built in metres, y up, on the same 2.6 km square of ground. Every surface is merged into one mesh
+// per model with vertex colours, so thousands of buildings cost one draw call each side.
+const AREA = 1300;          // half the ground square, m
+
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const col = h => new THREE.Color(h);
+
+// ---------------------------------------------------------------- one merged mesh, built from primitives
+class Geo {
+  constructor() { this.p = []; this.c = []; this.tris = 0; this.buildings = 0; this.tallest = 0; }
+  tri(a, b, c, k) {
+    this.p.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+    for (let i = 0; i < 3; i++) this.c.push(k.r, k.g, k.b);
+    this.tris++;
+  }
+  quad(a, b, c, d, k) { this.tri(a, b, c, k); this.tri(a, c, d, k); }
+  // a box standing on y0, centre (x, z), size w (along the heading) by d, height h, turned by rot (radians)
+  box(x, z, w, d, y0, h, k, rot = 0, top) {
+    const cs = Math.cos(rot), sn = Math.sin(rot), hw = w / 2, hd = d / 2;
+    const P = (u, v, y) => [x + u * cs - v * sn, y, z + u * sn + v * cs];
+    const y1 = y0 + h;
+    const a = P(-hw, -hd, y0), b = P(hw, -hd, y0), c = P(hw, hd, y0), e = P(-hw, hd, y0);
+    const A = P(-hw, -hd, y1), B = P(hw, -hd, y1), C = P(hw, hd, y1), E = P(-hw, hd, y1);
+    const side = k.clone().multiplyScalar(0.86), side2 = k.clone().multiplyScalar(0.72);
+    this.quad(a, b, B, A, side); this.quad(b, c, C, B, side2); this.quad(c, e, E, C, side); this.quad(e, a, A, E, side2);
+    this.quad(A, B, C, E, top || k);
+  }
+  // a gabled roof over a w by d footprint (ridge along w), from y0 up rise
+  gable(x, z, w, d, y0, rise, k, rot = 0) {
+    const cs = Math.cos(rot), sn = Math.sin(rot), hw = w / 2, hd = d / 2;
+    const P = (u, v, y) => [x + u * cs - v * sn, y, z + u * sn + v * cs];
+    const a = P(-hw, -hd, y0), b = P(hw, -hd, y0), c = P(hw, hd, y0), e = P(-hw, hd, y0);
+    const r0 = P(-hw, 0, y0 + rise), r1 = P(hw, 0, y0 + rise);
+    this.quad(a, b, r1, r0, k); this.quad(c, e, r0, r1, k.clone().multiplyScalar(0.8));
+    const end = k.clone().multiplyScalar(0.7);
+    this.tri(b, c, r1, end); this.tri(e, a, r0, end);
+  }
+  cyl(x, z, r, y0, h, k, seg = 12, rTop = r) {
+    const top = [];
+    for (let i = 0; i < seg; i++) {
+      const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
+      const p0 = [x + Math.cos(a0) * r, y0, z + Math.sin(a0) * r], p1 = [x + Math.cos(a1) * r, y0, z + Math.sin(a1) * r];
+      const q0 = [x + Math.cos(a0) * rTop, y0 + h, z + Math.sin(a0) * rTop], q1 = [x + Math.cos(a1) * rTop, y0 + h, z + Math.sin(a1) * rTop];
+      this.quad(p0, p1, q1, q0, k.clone().multiplyScalar(0.75 + 0.25 * Math.abs(Math.cos(a0 + 0.6))));
+      if (rTop > 0) this.tri([x, y0 + h, z], q1, q0, k);
+    }
+  }
+  // a flat ribbon along a polyline, width w, at height y
+  ribbon(pts, w, y, k) {
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [x0, z0] = pts[i], [x1, z1] = pts[i + 1];
+      const dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2;
+      this.quad([x0 - nx, y, z0 - nz], [x1 - nx, y, z1 - nz], [x1 + nx, y, z1 + nz], [x0 + nx, y, z0 + nz], k);
+    }
+  }
+  disk(x, z, r, y, k, seg = 24) { for (let i = 0; i < seg; i++) { const a0 = i / seg * 6.2832, a1 = (i + 1) / seg * 6.2832;
+    this.tri([x, y, z], [x + Math.cos(a1) * r, y, z + Math.sin(a1) * r], [x + Math.cos(a0) * r, y, z + Math.sin(a0) * r], k); } }
+  poly(pts, y, k) { for (let i = 1; i + 1 < pts.length; i++) this.tri([pts[0][0], y, pts[0][1]], [pts[i + 1][0], y, pts[i + 1][1]], [pts[i][0], y, pts[i][1]], k); }
+  tree(x, z, s, k) { this.cyl(x, z, 0.5 * s, 0, 2.5 * s, col('#4a3a28'), 5); this.cyl(x, z, 2.6 * s, 2.2 * s, 6 * s, k, 6, 0); }
+  note(h) { this.buildings++; this.tallest = Math.max(this.tallest, h); }
+  mesh() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0.0, side: THREE.DoubleSide }));
+    m.castShadow = m.receiveShadow = true;
+    return m;
+  }
+}
+
+const C = {
+  rural: col('#5f6e43'), asphalt: col('#383b40'), pavement: col('#8a8c8e'), park: col('#4e7a3a'), water: col('#3c6a8c'),
+  concrete: col('#a2a6ab'), roofGrey: col('#5c5f63'), highway: col('#2f3236'), lane: col('#c9c3a8'),
+};
+
+// ---------------------------------------------------------------- TODAY: the generator's own rules
+function buildToday() {
+  const g = new Geo(), rnd = mulberry32(7);
+  const R = (a, b) => a + (b - a) * rnd();
+  const half = 480, cfg = { block: [70, 110], street: 24, arterial: 36, every: 4, lot: [18, 36], park: 0.06, plaza: 0.08,
+    sidewalk: 4, setback: [1, 3], down: 60, edge: 2, fall: 0.7, fill: [0.35, 1], storey: 3.5 };
+  g.quad([-AREA, 0, -AREA], [AREA, 0, -AREA], [AREA, 0, AREA], [-AREA, 0, AREA], C.rural);
+  g.quad([-half, 0.05, -half], [half, 0.05, -half], [half, 0.05, half], [-half, 0.05, half], C.asphalt);
+  // street_lines: blocks drawn until the next would not fit, then stretched to fill exactly
+  function lines(lo, hi) {
+    const width = i => (i % cfg.every === 0 ? cfg.arterial : cfg.street);
+    const blocks = []; let used = width(0);
+    for (;;) { const b = R(...cfg.block), next = used + b + width(blocks.length + 1); if (next > hi - lo && blocks.length) break; blocks.push(b); used = next; }
+    const stretch = 1 + ((hi - lo) - used) / blocks.reduce((a, b) => a + b, 0);
+    const spans = []; let at = lo;
+    blocks.forEach((b, i) => { at += width(i); spans.push([at, at + b * stretch]); at += b * stretch; });
+    return spans;
+  }
+  const xs = lines(-half, half), zs = lines(-half, half);
+  for (const [z0, z1] of zs) for (const [x0, x1] of xs) {
+    const park = rnd() < cfg.park;
+    g.box((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, 0, 0.25, park ? C.park : C.pavement);
+    if (park) { for (let i = 0; i < 14; i++) g.tree(R(x0 + 6, x1 - 6), R(z0 + 6, z1 - 6), R(0.9, 1.4), C.park.clone().multiplyScalar(0.8)); continue; }
+    const ix0 = x0 + cfg.sidewalk, ix1 = x1 - cfg.sidewalk, iz0 = z0 + cfg.sidewalk, iz1 = z1 - cfg.sidewalk;
+    const lot = R(...cfg.lot), nx = Math.max(1, Math.floor((ix1 - ix0) / lot)), nz = Math.max(1, Math.floor((iz1 - iz0) / lot));
+    const cx = (ix1 - ix0) / nx, cz = (iz1 - iz0) / nz;
+    for (let a = 0; a < nz; a++) for (let b = 0; b < nx; b++) {
+      const plaza = rnd() < cfg.plaza, sb = R(...cfg.setback), fill = R(...cfg.fill);
+      if (plaza) continue;
+      const fx0 = ix0 + b * cx + sb, fx1 = ix0 + (b + 1) * cx - sb, fz0 = iz0 + a * cz + sb, fz1 = iz0 + (a + 1) * cz - sb;
+      if (fx1 <= fx0 || fz1 <= fz0) continue;
+      const mx = (fx0 + fx1) / 2, mz = (fz0 + fz1) / 2;
+      const d = Math.min(1, Math.hypot(mx, mz) / half);
+      const max = cfg.down + (cfg.edge - cfg.down) * Math.pow(d, cfg.fall);
+      const storeys = Math.max(cfg.edge, Math.round(max * fill)), h = storeys * cfg.storey;
+      const tone = 0.82 + 0.2 * rnd();
+      g.box(mx, mz, fx1 - fx0, fz1 - fz0, 0.25, h, C.concrete.clone().multiplyScalar(tone), 0, C.roofGrey);
+      g.note(h);
+    }
+  }
+  // suburbs: rows 40-150 m out from each side of the square, 36 m apart, houses 12 m apart facing the city
+  for (let side = 0; side < 4; side++) {
+    for (let off = 40; off <= 150; off += 36) {
+      const out = half + off;
+      for (let t = -half; t < half; t += 12 + 11) {
+        if (rnd() < 0.15) continue;
+        const wander = R(-6, 6), u = t + 5.5, rot0 = [0, Math.PI / 2, Math.PI, -Math.PI / 2][side] + R(-0.14, 0.14);
+        const pos = [[u, -out - wander], [out + wander, u], [-u, out + wander], [-out - wander, -u]][side];
+        const k = col(['#c8bca6', '#b9a58d', '#d4cbb8', '#a9b3b8'][Math.floor(rnd() * 4)]);
+        g.box(pos[0], pos[1], 11, 9, 0, 3.2, k, rot0); g.gable(pos[0], pos[1], 11.4, 9.4, 3.2, 2.6, col('#6b5a4c'), rot0); g.note(5.8);
+      }
+    }
+  }
+  // two straight highways out to neighbouring cities
+  g.ribbon([[half, 40], [AREA, 140]], 28, 0.08, C.highway);
+  g.ribbon([[-120, -half], [-420, -AREA]], 28, 0.08, C.highway);
+  return g;
+}
+
+// ---------------------------------------------------------------- FUTURE: districts, each grown its own way
+function buildFuture() {
+  const g = new Geo(), rnd = mulberry32(11), labels = [];
+  const R = (a, b) => a + (b - a) * rnd(), pick = a => a[Math.floor(rnd() * a.length)];
+  g.quad([-AREA, 0, -AREA], [AREA, 0, -AREA], [AREA, 0, AREA], [-AREA, 0, AREA], C.rural);
+
+  // the river, a curve across the city from west to east
+  const river = [[-1300, -420], [-900, -300], [-560, -190], [-300, -110], [-60, -130], [200, -110], [460, -30], [760, 110], [1040, 230], [1300, 300]];
+  const RIVER_W = 80;
+  function segDist(p, a, b) { const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / l2)); return Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dz * t); }
+  function lineDist(p, pts) { let d = 1e9; for (let i = 0; i + 1 < pts.length; i++) d = Math.min(d, segDist(p, pts[i], pts[i + 1])); return d; }
+  function riverZ(x) { for (let i = 0; i + 1 < river.length; i++) { const [x0, z0] = river[i], [x1, z1] = river[i + 1];
+    if (x >= x0 && x <= x1) return z0 + (z1 - z0) * (x - x0) / (x1 - x0); } return 0; }
+  const north = p => p[1] > riverZ(p[0]);
+
+  // the ring road, the arterial spokes, the rail line
+  const CEN = [0, 60], RING = 990;
+  const ring = []; for (let i = 0; i <= 96; i++) { const a = i / 96 * 6.2832; ring.push([CEN[0] + Math.cos(a) * RING, CEN[1] + Math.sin(a) * RING * 0.92]); }
+  const OLD = [-300, 70], OLD_R = 235;
+  const spokes = [];
+  for (const a of [0.35, 1.25, 2.05, 2.75, 3.6, 4.5, 5.35]) {
+    const pts = []; for (let r = OLD_R; r <= RING * 1.06; r += 40) { const b = a + 0.18 * Math.sin(r / 260); pts.push([OLD[0] + Math.cos(b) * r, OLD[1] + Math.sin(b) * r]); }
+    spokes.push(pts);
+  }
+  const rail = [[-1300, 520], [-900, 470], [-500, 400], [-150, 360], [120, 380], [420, 470], [760, 640], [1300, 980]];
+  const STATION = [100, 378];
+  const PARK = [[-170, 520], [210, 560], [230, 760], [-190, 720]];
+  const CBD = [330, 250];
+  const inPoly = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > p[1]) !== (zj > p[1]) && p[0] < (xj - xi) * (p[1] - zi) / (zj - zi) + xi) c = !c; } return c; };
+  const ringR = p => Math.hypot(p[0] - CEN[0], (p[1] - CEN[1]) / 0.92);
+
+  // what is built at a point
+  function zone(p) {
+    if (lineDist(p, river) < RIVER_W / 2 + 14) return 'river';
+    if (inPoly(p, PARK)) return 'park';
+    const r = ringR(p);
+    if (r > 1240) return 'rural';
+    if (r > RING + 25) return 'suburb';
+    if (Math.hypot(p[0] - OLD[0], p[1] - OLD[1]) < OLD_R && north(p)) return 'old';
+    if (Math.hypot((p[0] - CBD[0]) / 300, (p[1] - CBD[1]) / 220) < 1 && north(p)) return 'cbd';
+    if (!north(p)) {
+      if (p[0] > 120) return 'industry';
+      if (p[0] < -380) return 'estate';
+      return 'midsouth';
+    }
+    return r < 660 ? 'mid' : 'row';
+  }
+  // nothing stands on a road, the rail or the river bank
+  function clear(p, pad = 6) {
+    if (Math.abs(ringR(p) - RING) * 0.95 < 18 + pad) return false;
+    for (const s of spokes) if (lineDist(p, s) < 14 + pad) return false;
+    if (lineDist(p, rail) < 12 + pad) return false;
+    return lineDist(p, river) > RIVER_W / 2 + 14;
+  }
+
+  // the urban ground is asphalt (the streets show between the pavement slabs); water; the park
+  const urban = []; for (let i = 0; i <= 64; i++) { const a = i / 64 * 6.2832; urban.push([CEN[0] + Math.cos(a) * (RING + 22), CEN[1] + Math.sin(a) * (RING + 22) * 0.92]); }
+  g.poly(urban, 0.04, C.asphalt);
+  g.ribbon(river, RIVER_W, 0.12, C.water);
+  g.ribbon(river.map(([x, z]) => [x, z]), RIVER_W + 26, 0.08, col('#7d7a70'));       // the stone embankments
+  g.poly(PARK, 0.2, C.park);
+  for (let i = 0; i < 160; i++) { const p = [R(-180, 230), R(520, 760)]; if (inPoly(p, PARK)) g.tree(p[0], p[1], R(0.9, 1.5), C.park.clone().multiplyScalar(R(0.7, 0.95))); }
+  g.ribbon(ring, 36, 0.3, C.highway); g.ribbon(ring, 1.2, 0.34, C.lane);
+  for (const s of spokes) g.ribbon(s, 26, 0.22, col('#33363b'));
+  g.ribbon(rail, 18, 0.26, col('#4a443c')); g.ribbon(rail.map(([x, z]) => [x, z - 3]), 1, 0.3, col('#8d8b86')); g.ribbon(rail.map(([x, z]) => [x, z + 3]), 1, 0.3, col('#8d8b86'));
+  // bridges where the ring and the spokes cross the river
+  for (const s of [...spokes, ring]) for (let i = 0; i + 1 < s.length; i++) { const m = [(s[i][0] + s[i + 1][0]) / 2, (s[i][1] + s[i + 1][1]) / 2];
+    if (lineDist(m, river) < RIVER_W / 2 + 10) g.ribbon([s[i], s[i + 1]], 30, 1.6, col('#6d6a64')); }
+
+  // ---- the old town: rings and spokes round a cathedral square, attached houses along every lane
+  for (const rr of [70, 130, 185, OLD_R]) { const pts = []; for (let i = 0; i <= 48; i++) { const a = i / 48 * 6.2832; pts.push([OLD[0] + Math.cos(a) * rr, OLD[1] + Math.sin(a) * rr]); } g.ribbon(pts, 9, 0.18, col('#6f6556')); }
+  g.disk(OLD[0], OLD[1], 62, 0.2, col('#9a8a70'));
+  g.box(OLD[0], OLD[1] + 8, 52, 20, 0.2, 24, col('#c2a77f'), 0.3, col('#6d4636')); g.gable(OLD[0], OLD[1] + 8, 52, 20, 24.2, 9, col('#6d4636'), 0.3);
+  g.box(OLD[0] - 24, OLD[1] + 0, 11, 11, 0.2, 58, col('#c9ae86'), 0.3); g.cyl(OLD[0] - 24, OLD[1], 6, 58, 16, col('#5d6e66'), 8, 0); g.note(74);
+  labels.push(['Old town', [OLD[0], 40, OLD[1] - 150]]);
+  const bands = [[70, 130], [130, 185], [185, OLD_R]];
+  for (const [r0, r1] of bands) {
+    const nsec = Math.round(r1 / 14);
+    for (let s = 0; s < nsec; s++) {
+      const a0 = s / nsec * 6.2832 + 0.05, a1 = (s + 1) / nsec * 6.2832 - 0.05;
+      for (const rEdge of [r0 + 12, r1 - 12]) {
+        const n = Math.max(1, Math.round((a1 - a0) * rEdge / 10));
+        for (let i = 0; i < n; i++) {
+          const a = a0 + (a1 - a0) * (i + 0.5) / n, p = [OLD[0] + Math.cos(a) * rEdge, OLD[1] + Math.sin(a) * rEdge];
+          if (!north(p) || !clear(p, 2)) continue;
+          const h = R(3, 6) * 3.2, w = (a1 - a0) * rEdge / n - 0.6;
+          const k = col(pick(['#c9a77c', '#d3b48a', '#b98c66', '#cdbb98', '#a97b5c']));
+          g.box(p[0], p[1], w, 13, 0.2, h, k, a + Math.PI / 2); g.gable(p[0], p[1], w + 0.4, 13.4, h + 0.2, 4, col(pick(['#8e4b32', '#7a3f2c', '#9c5a3a'])), a + Math.PI / 2); g.note(h + 4);
+        }
+      }
+    }
+  }
+
+  const tried = {}, built = {};      // blocks tried and built per district (a check while tuning)
+  // ---- a district on its own grid: blocks of a size and angle, each filled by the district's own builder
+  function district(name, ang, bw, bd, street, fillFn, origin = [0, 0]) {
+    const cs = Math.cos(ang), sn = Math.sin(ang), stepX = bw + street, stepZ = bd + street;
+    for (let i = -24; i <= 24; i++) for (let j = -24; j <= 24; j++) {
+      const u = origin[0] + i * stepX, v = origin[1] + j * stepZ;
+      tryBlock([u * cs - v * sn, u * sn + v * cs], bw, bd, 0);
+    }
+    // a block that does not fit (an avenue, the river, another district crossing it) tries again as four quarters
+    function tryBlock(c, w, d, depth) {
+      if (zone(c) !== name && depth === 0) return;
+      tried[name] = (tried[name] || 0) + 1;
+      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => [c[0] + (a * w / 2) * cs - (b * d / 2) * sn, c[1] + (a * w / 2) * sn + (b * d / 2) * cs]);
+      if (zone(c) === name && clear(c) && corners.every(q => zone(q) === name && clear(q))) {
+        built[name] = (built[name] || 0) + 1;
+        g.box(c[0], c[1], w, d, 0, 0.25, C.pavement, ang);
+        const W = (x, z) => [c[0] + x * cs - z * sn, c[1] + x * sn + z * cs];   // the block's own frame to the world
+        fillFn(W, w - 8, d - 8, ang, c);
+        return;
+      }
+      if (depth > 0 || w < 60) return;
+      for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        const q = [c[0] + (a * (w + street) / 4) * cs - (b * (d + street) / 4) * sn, c[1] + (a * (w + street) / 4) * sn + (b * (d + street) / 4) * cs];
+        tryBlock(q, (w - street) / 2, (d - street) / 2, 1);
+      }
+    }
+  }
+
+  // downtown: podiums and towers, tallest at the heart
+  district('cbd', 0.22, 84, 84, 18, (W, w, d, a, c) => {
+    const heart = 1 - Math.min(1, Math.hypot((c[0] - CBD[0]) / 300, (c[1] - CBD[1]) / 220));
+    const lots = rnd() < 0.55 ? [[-w / 4, 0, w / 2 - 3, d]] .concat([[w / 4, 0, w / 2 - 3, d]]) : [[0, 0, w, d]];
+    for (const [lx, lz, lw, ld] of lots) {
+      const p = W(lx, lz), podium = R(9, 16);
+      g.box(p[0], p[1], lw, ld, 0.25, podium, col('#7d858c'), a);
+      const H = 40 + heart * R(90, 210) * (rnd() < 0.2 ? 1.25 : 1), style = rnd();
+      const tw = Math.min(lw, ld) * R(0.5, 0.75), glass = col(pick(['#5f7c94', '#4c5f72', '#7d95a6', '#8a8f86', '#3f4a55']));
+      if (style < 0.35) {              // setback tiers
+        let y = podium, s = 1;
+        for (let t = 0; t < 3; t++) { const hh = (H - podium) / 3; g.box(p[0], p[1], tw * s, tw * s * R(0.8, 1.2), y, hh, glass, a); y += hh; s *= 0.78; }
+        g.cyl(p[0], p[1], 0.6, y, H * 0.12, col('#d9d9d9'), 4);
+      } else if (style < 0.55) {       // a round tower
+        g.cyl(p[0], p[1], tw / 2, podium, H - podium, glass, 14);
+      } else if (style < 0.75) {       // twin slabs
+        g.box(W(lx - lw / 5, lz)[0], W(lx - lw / 5, lz)[1], tw * 0.45, tw, podium, H - podium, glass, a);
+        g.box(W(lx + lw / 5, lz)[0], W(lx + lw / 5, lz)[1], tw * 0.45, tw, podium, (H - podium) * 0.8, glass, a);
+      } else {                         // a slab with a crown
+        g.box(p[0], p[1], tw, tw * 0.6, podium, H - podium, glass, a); g.box(p[0], p[1], tw * 0.6, tw * 0.4, H, 8, col('#2e353c'), a);
+      }
+      g.note(H);
+    }
+  });
+  labels.push(['Downtown', [CBD[0], 260, CBD[1]]]);
+
+  // mid-rise perimeter blocks round courtyards
+  function perimeter(W, w, d, a, lo, hi) {
+    const depth = Math.min(14, d / 2.6, w / 2.6), k = col(pick(['#c9b89a', '#b9a888', '#d2c2a4', '#a8a091', '#bfae8f']));
+    for (const [sx, sz, len, horiz] of [[0, -d / 2 + depth / 2, w, true], [0, d / 2 - depth / 2, w, true], [-w / 2 + depth / 2, 0, d - 2 * depth, false], [w / 2 - depth / 2, 0, d - 2 * depth, false]]) {
+      let t = -len / 2;
+      while (t < len / 2 - 4) {
+        const unit = Math.min(R(14, 30), len / 2 - t);
+        if (rnd() > 0.08) {
+          const h = Math.round(R(lo, hi)) * 3.3, cx = horiz ? sx + t + unit / 2 : sx, cz = horiz ? sz : sz + t + unit / 2;
+          const p = W(cx, cz), uw = horiz ? unit - 0.4 : depth, ud = horiz ? depth : unit - 0.4;
+          g.box(p[0], p[1], uw, ud, 0.25, h, k.clone().multiplyScalar(R(0.9, 1.06)), a, col('#5f5a55')); g.note(h);
+        }
+        t += unit;
+      }
+    }
+    if (w > 2 * depth + 6 && d > 2 * depth + 6) { const q = W(0, 0); g.box(q[0], q[1], w - 2 * depth - 4, d - 2 * depth - 4, 0.25, 0.1, col('#5d7d45'), a); }
+  }
+  district('mid', -0.08, 96, 78, 16, (W, w, d, a) => perimeter(W, w, d, a, 4, 8), [12, 20]);
+  district('midsouth', 0.12, 90, 74, 16, (W, w, d, a) => perimeter(W, w, d, a, 3, 6));
+  labels.push(['Courtyard blocks', [-90, 40, 340]]);
+
+  // rowhouses back to back, gardens between
+  district('row', -0.08, 112, 46, 12, (W, w, d, a) => {
+    const sides = d >= 30 ? [-1, 1] : [0];                 // a narrow block takes one row
+    for (const side of sides) {
+      let t = -w / 2;
+      while (t < w / 2 - 6) {
+        const uw = R(5.5, 7.5), h = Math.round(R(2, 3)) * 3, p = W(t + uw / 2, side * (d / 2 - 5.5));
+        const k = col(pick(['#9b5a43', '#8a4e3a', '#a86a50', '#b28b6a', '#7d4a3a']));
+        g.box(p[0], p[1], uw - 0.2, 10, 0.25, h, k, a); g.gable(p[0], p[1], uw, 10.4, h + 0.25, 3.2, col(pick(['#4f4743', '#5b4a42', '#3f3c3a'])), a + Math.PI / 2 * 0); g.note(h + 3);
+        t += uw;
+      }
+    }
+    if (d >= 30) { const q = W(0, 0); g.box(q[0], q[1], w, d - 24, 0.25, 0.1, col('#5f8448'), a); }
+  }, [0, 8]);
+  labels.push(['Rowhouses', [-560, 40, 520]]);
+
+  // an apartment estate: slabs and point towers set in green
+  district('estate', -0.4, 150, 120, 20, (W, w, d, a) => {
+    const q = W(0, 0); g.box(q[0], q[1], w, d, 0.25, 0.1, col('#577c42'), a);
+    const n = 2 + Math.floor(rnd() * 3);
+    for (let i = 0; i < n; i++) {
+      const p = W(R(-w / 3, w / 3), R(-d / 3, d / 3)), h = Math.round(R(9, 16)) * 2.9;
+      if (rnd() < 0.3) g.box(p[0], p[1], 22, 22, 0.25, h * 1.3, col('#b7b2a6'), a);
+      else g.box(p[0], p[1], R(55, 80), 13, 0.25, h, col(pick(['#b3ada0', '#a6a196', '#c1bbae'])), a + (rnd() < 0.5 ? 0 : Math.PI / 2));
+      g.note(h * 1.3);
+    }
+    for (let i = 0; i < 10; i++) { const p = W(R(-w / 2 + 6, w / 2 - 6), R(-d / 2 + 6, d / 2 - 6)); g.tree(p[0], p[1], R(0.8, 1.3), col('#3f6a34')); }
+  });
+  labels.push(['Apartment estate', [-760, 50, -560]]);
+
+  // the port and the works: sheds with sawtooth roofs, tanks, stacks, yards
+  district('industry', 0.32, 150, 110, 18, (W, w, d, a) => {
+    const kind = rnd();
+    if (kind < 0.55) {
+      const hh = R(10, 16), p = W(0, 0), k = col(pick(['#8a6a4e', '#7d7468', '#94826a', '#6f6a62']));
+      g.box(p[0], p[1], w * 0.9, d * 0.75, 0.25, hh, k, a, col('#585450'));
+      const teeth = Math.floor(w * 0.9 / 10);
+      for (let t = 0; t < teeth; t++) { const q = W(-w * 0.45 + 5 + t * 10, 0); g.gable(q[0], q[1], 10, d * 0.75, hh + 0.25, 4, col('#6a6660'), a + Math.PI / 2); }
+      g.note(hh + 4);
+      if (rnd() < 0.45) { const s = W(w * 0.38, d * 0.42); g.cyl(s[0], s[1], 3.2, 0, 62, col('#9b3b2f'), 10, 2.4); g.cyl(s[0], s[1], 2.5, 52, 6, col('#e9e4da'), 10, 2.45); g.note(62); }
+    } else if (kind < 0.8) {
+      for (let i = 0; i < 4; i++) { const q = W(-w / 3 + (i % 2) * w / 1.6, -d / 4 + Math.floor(i / 2) * d / 2.2); g.cyl(q[0], q[1], R(12, 17), 0.25, R(10, 18), col('#d8d6cc'), 16); }
+      g.note(18);
+    } else {
+      for (let i = 0; i < 40; i++) { const q = W(R(-w / 2 + 6, w / 2 - 6), R(-d / 2 + 4, d / 2 - 4)); g.box(q[0], q[1], 12, 2.4, 0.25, 2.6 * (1 + Math.floor(rnd() * 3)), col(pick(['#9c3b2a', '#2f5d8a', '#c99a2e', '#3f6e4b', '#8c8c86'])), a); }
+    }
+  });
+  // quay cranes along the south bank
+  for (let x = 260; x < 980; x += 70) {
+    const z = riverZ(x) - RIVER_W / 2 - 22, rot = Math.atan2(riverZ(x + 5) - riverZ(x - 5), 10);
+    g.box(x - 6, z, 2, 2, 0, 34, col('#d9a12b'), rot); g.box(x + 6, z, 2, 2, 0, 34, col('#d9a12b'), rot);
+    g.box(x, z + 12, 3, 58, 34, 3, col('#d9a12b'), rot); g.note(37);
+  }
+  labels.push(['Port and works', [640, 70, -300]]);
+
+  // the station on the rail line, a vaulted shed
+  g.box(STATION[0], STATION[1], 190, 46, 0.3, 10, col('#8e8a82'), Math.atan2(20, 270));
+  g.cyl(STATION[0], STATION[1], 0, 0, 0, C.pavement);
+  for (let i = 0; i < 8; i++) { const t = -80 + i * 23; g.gable(STATION[0] + t * Math.cos(0.074), STATION[1] + t * Math.sin(0.074), 22, 46, 10.3, 9, col('#5f6e78'), 0.074 + Math.PI / 2 * 0); }
+  g.note(19);
+  labels.push(['Station', [STATION[0], 45, STATION[1]]]);
+
+  // the stadium south of the river
+  const ST = [-200, -380];
+  g.disk(ST[0], ST[1], 70, 0.3, col('#4e8a3c'), 32);
+  for (let i = 0; i < 36; i++) { const a = i / 36 * 6.2832; g.box(ST[0] + Math.cos(a) * 88, ST[1] + Math.sin(a) * 66, 16, 22, 0.25, 18 + 4 * Math.abs(Math.sin(a)), col('#b9b6ad'), a + Math.PI / 2); }
+  g.note(22);
+  labels.push(['Stadium', [ST[0], 50, ST[1]]]);
+  labels.push(['Central park', [20, 30, 640]]);
+  labels.push(['River', [-760, 20, -270]]);
+
+  // suburbs: curving streets in loops off the ring, detached houses with gardens, cul-de-sacs
+  for (let rr = RING + 70; rr < 1235; rr += 58) {
+    const pts = [];
+    for (let i = 0; i <= 200; i++) { const a = i / 200 * 6.2832, w = rr + 14 * Math.sin(a * 7 + rr * 0.01); pts.push([CEN[0] + Math.cos(a) * w, CEN[1] + Math.sin(a) * w * 0.92]); }
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const m = pts[i]; if (zone(m) !== 'suburb' || lineDist(m, river) < RIVER_W / 2 + 30 || lineDist(m, rail) < 20) continue;
+      g.ribbon([pts[i], pts[i + 1]], 9, 0.1, col('#45474b'));
+      const dx = pts[i + 1][0] - m[0], dz = pts[i + 1][1] - m[1], l = Math.hypot(dx, dz), rot = Math.atan2(dz, dx);
+      for (const side of [-1, 1]) {
+        if (rnd() < 0.12) continue;
+        const hx = m[0] + (-dz / l) * side * 17, hz = m[1] + (dx / l) * side * 17;
+        if (!clear([hx, hz], 4)) continue;
+        const k = col(pick(['#d6cdb8', '#c4b49b', '#b5c0c4', '#d9c9a5', '#c9a99a']));
+        g.box(hx, hz, 12, 9, 0, 3.2, k, rot); g.gable(hx, hz, 12.4, 9.4, 3.2, 2.8, col(pick(['#6b5a4c', '#5b5f63', '#7a4a3a'])), rot); g.note(6);
+        if (rnd() < 0.3) g.tree(hx + (-dz / l) * side * 10, hz + (dx / l) * side * 10, 0.8, col('#3f6a34'));
+      }
+    }
+  }
+  labels.push(['Suburbs', [CEN[0] + 1100, 30, CEN[1] - 380]]);
+  labels.push(['Ring road', [CEN[0] - 700, 20, CEN[1] + 700]]);
+  return { g, labels };
+}
+
+// ---------------------------------------------------------------- scenes, one camera, two viewports
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+view.prepend(renderer.domElement);
+
+function makeScene(geo) {
+  const s = new THREE.Scene();
+  s.background = new THREE.Color('#c9d3d8');
+  s.fog = new THREE.Fog('#c9d3d8', 2200, 5200);
+  s.add(new THREE.HemisphereLight('#dfe8ef', '#4a4436', 0.55));
+  const sun = new THREE.DirectionalLight('#fff1dc', 1.05);
+  sun.position.set(900, 1200, 600); sun.castShadow = true;
+  Object.assign(sun.shadow.camera, { left: -1400, right: 1400, top: 1400, bottom: -1400, near: 10, far: 4000 });
+  sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0006;
+  s.add(sun);
+  s.add(geo.mesh());
+  // the 24 m mech for scale, at the same spot in both
+  const mech = new Geo(); mech.box(-40, -560, 6, 4, 0, 13, col('#d0a020')); mech.box(-40, -560, 10, 7, 13, 11, col('#d0a020'));
+  s.add(mech.mesh());
+  return s;
+}
+const today = buildToday();
+const { g: future, labels } = buildFuture();
+const sceneToday = makeScene(today), sceneFuture = makeScene(future);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 2, 12000);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI / 2 - 0.02; controls.minDistance = 40; controls.maxDistance = 6000;
+const CAMS = { air: [[1500, 1300, 1700], [0, 0, 0]], low: [[-60, 30, -700], [80, 40, 0]], top: [[0, 3300, 1], [0, 0, 0]] };
+function setCam(k) {
+  const [p, t] = CAMS[k]; camera.position.set(...p); controls.target.set(...t); controls.update();
+  document.querySelectorAll('[data-cam]').forEach(b => b.setAttribute('aria-pressed', b.dataset.cam === k));
+}
+let mode = 'both';
+function setMode(m) { mode = m; document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === m)); layout(); }
+document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => setCam(b.dataset.cam)));
+
+// district names over the future model
+const tagEls = labels.map(([name]) => { const d = document.createElement('div'); d.className = 'district'; d.textContent = name; view.appendChild(d); return d; });
+let vps = [];
+function layout() {
+  const w = view.clientWidth, h = view.clientHeight, stacked = w < 700;
+  renderer.setSize(w, h, false);
+  if (mode === 'today') vps = [['today', 0, 0, w, h]];
+  else if (mode === 'future') vps = [['future', 0, 0, w, h]];
+  else vps = stacked ? [['today', 0, h / 2, w, h / 2], ['future', 0, 0, w, h / 2]] : [['today', 0, 0, w / 2, h], ['future', w / 2, 0, w / 2, h]];
+  const tT = document.getElementById('tagToday'), tF = document.getElementById('tagFuture');
+  const vT = vps.find(v => v[0] === 'today'), vF = vps.find(v => v[0] === 'future');
+  tT.hidden = !vT; tF.hidden = !vF;
+  if (vT) { tT.style.left = (vT[1] + 10) + 'px'; tT.style.top = (h - vT[2] - vT[4] + 10) + 'px'; }
+  if (vF) { tF.style.left = (vF[1] + 10) + 'px'; tF.style.top = (h - vF[2] - vF[4] + 10) + 'px'; }
+}
+new ResizeObserver(layout).observe(view);
+
+const fmt = n => n.toLocaleString('en-GB');
+document.getElementById('numsToday').textContent = `${fmt(today.buildings)} buildings, tallest ${Math.round(today.tallest)} m, ${fmt(today.tris)} triangles, one draw call`;
+document.getElementById('numsFuture').textContent = `${fmt(future.buildings)} buildings, tallest ${Math.round(future.tallest)} m, ${fmt(future.tris)} triangles, one draw call`;
+
+setCam('air'); setMode('both');
+const v3 = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  controls.update();
+  const h = view.clientHeight;
+  renderer.setScissorTest(true);
+  for (const [which, x, y, w, hh] of vps) {
+    renderer.setViewport(x, y, w, hh); renderer.setScissor(x, y, w, hh);
+    camera.aspect = w / hh; camera.updateProjectionMatrix();
+    renderer.render(which === 'today' ? sceneToday : sceneFuture, camera);
+  }
+  const vF = vps.find(v => v[0] === 'future');
+  labels.forEach(([, p], i) => {
+    const el = tagEls[i];
+    if (!vF) { el.hidden = true; return; }
+    camera.aspect = vF[3] / vF[4]; camera.updateProjectionMatrix();
+    v3.set(...p).project(camera);
+    const sx = vF[1] + (v3.x + 1) / 2 * vF[3], sy = h - vF[2] - vF[4] + (1 - v3.y) / 2 * vF[4];
+    el.hidden = v3.z > 1 || sx < vF[1] || sx > vF[1] + vF[3] || sy < h - vF[2] - vF[4] || sy > h - vF[2];
+    el.style.left = sx + 'px'; el.style.top = sy + 'px';
+  });
+});
+</script>
