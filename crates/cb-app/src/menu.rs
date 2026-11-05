@@ -147,6 +147,10 @@ pub(crate) enum Tweak {
     Shadows,
     Vsync,
     Fullscreen,
+    /// A stolen aircraft's assists, each on or off (`fly-stolen-aircraft`).
+    AssistStall,
+    AssistTrim,
+    AssistHover,
 }
 
 impl Tweak {
@@ -161,6 +165,9 @@ impl Tweak {
             Tweak::Shadows => s.shadows ^= true,
             Tweak::Vsync => s.vsync ^= true,
             Tweak::Fullscreen => s.fullscreen ^= true,
+            Tweak::AssistStall => s.assist_stall ^= true,
+            Tweak::AssistTrim => s.assist_trim ^= true,
+            Tweak::AssistHover => s.assist_hover ^= true,
         }
     }
 }
@@ -224,6 +231,9 @@ pub(crate) fn options_rows(p: &mut ChildSpawnerCommands, s: &cb_core::settings::
     option_row(p, "Shadows", on(s.shadows), &[("Flip", Tweak::Shadows)]);
     option_row(p, "Vsync", on(s.vsync), &[("Flip", Tweak::Vsync)]);
     option_row(p, "Fullscreen", on(s.fullscreen), &[("Flip", Tweak::Fullscreen)]);
+    option_row(p, "Stall protection", on(s.assist_stall), &[("Flip", Tweak::AssistStall)]);
+    option_row(p, "Auto-trim", on(s.assist_trim), &[("Flip", Tweak::AssistTrim)]);
+    option_row(p, "Hover hold", on(s.assist_hover), &[("Flip", Tweak::AssistHover)]);
 }
 
 /// Opens, closes and draws the menu.

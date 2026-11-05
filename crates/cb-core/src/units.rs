@@ -72,6 +72,9 @@ pub struct UnitSpec {
     /// Gunboat: how deep its keel sits under the waterline, metres.
     #[serde(default)]
     pub draft_m: f32,
+    /// Drawn as this air traffic kind's model, not boxes (a base's scrambled aircraft, `airfield-traffic`).
+    #[serde(default)]
+    pub look: Option<String>,
 }
 
 fn one() -> u32 {

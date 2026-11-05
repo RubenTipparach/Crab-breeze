@@ -64,8 +64,44 @@ mod tests {
             for h in &plan.highways {
                 assert!(h.project(a.centre).0 > h.width_m * 0.5, "lot {i} on a highway");
             }
-            assert!(plan.cities.iter().all(|c| !c.rect().overlaps(&a.rect)), "lot {i} in a city square");
+            if a.zone == Zone::City {
+                // in one of its city's house or strip blocks, inside the pavement round it, off every street
+                let city = plan
+                    .cities
+                    .iter()
+                    .find(|c| c.rect().distance(a.centre) <= 0.0)
+                    .expect("a city lot in a city");
+                let block = city
+                    .blocks
+                    .iter()
+                    .find(|b| b.rect.distance(a.centre) <= 0.0)
+                    .expect("a city lot on a block");
+                assert!(block.kind.has_lots(), "city lot {i} on a {:?} block", block.kind);
+                assert!(city.streets.iter().all(|st| !st.rect.overlaps(&a.rect)), "city lot {i} on a street");
+            } else {
+                assert!(plan.cities.iter().all(|c| !c.rect().overlaps(&a.rect)), "lot {i} in a city square");
+            }
         }
+    }
+
+    #[test]
+    fn a_citys_house_blocks_are_full_of_houses_and_its_strip_of_businesses() {
+        let plan = island();
+        let kind = |i: usize| plan.small.kit(i as u32).kind;
+        let city_lots: Vec<usize> = (0..plan.small.lots.len())
+            .filter(|&i| plan.small.lots[i].zone == Zone::City)
+            .collect();
+        let houses = city_lots.iter().filter(|&&i| kind(i) == super::kit::Kind::House).count();
+        let businesses = city_lots.iter().filter(|&&i| kind(i) == super::kit::Kind::Business).count();
+        let blocks = plan
+            .cities
+            .iter()
+            .flat_map(|c| &c.blocks)
+            .filter(|b| b.kind == crate::world::BlockUse::Houses)
+            .count();
+        eprintln!("{houses} houses and {businesses} businesses in {blocks} house blocks");
+        assert!(houses as f32 > blocks as f32 * 6.0, "{houses} houses in {blocks} house blocks");
+        assert!(businesses >= 10, "{businesses} businesses on the strips");
     }
 
     #[test]
@@ -126,9 +162,18 @@ mod tests {
             let zone = match s.template.kind {
                 crate::world::sites::SiteKind::Airport => Zone::Airport,
                 crate::world::sites::SiteKind::Seaport => Zone::Seaport,
+                crate::world::sites::SiteKind::MilitaryBase => Zone::MilitaryBase,
             };
+            // every site of its kind (two airports, two seaports: island-sites-layout), each building but a port's
+            // ships (they sail: ship-traffic)
             let n = plan.small.lots.iter().filter(|l| l.zone == zone).count();
-            assert_eq!(n, s.template.placements.len(), "{:?}'s lots", s.template.kind);
+            let built: usize = plan
+                .sites
+                .iter()
+                .filter(|o| o.template.kind == s.template.kind)
+                .map(|o| o.template.placements.iter().filter(|p| !p.ship).count())
+                .sum();
+            assert_eq!(n, built, "{:?}'s lots", s.template.kind);
             // The ground is shaped to every pad: flat at its height a cell inside its edges.
             for (r, y) in s.pads() {
                 let m = Vec2::splat(30.0);
@@ -185,6 +230,7 @@ mod tests {
             .iter()
             .any(|s| paving::path_distance(&s.path, p) <= s.width_m * 0.5)
             || plan.highways.iter().any(|h| h.project(p).0 <= h.width_m * 0.5)
+            || plan.cities.iter().any(|c| c.streets.iter().any(|st| st.rect.distance(p) <= 0.0))
     }
 
     #[test]

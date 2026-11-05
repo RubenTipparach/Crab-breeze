@@ -17,6 +17,10 @@ fn full() -> f32 {
     1.0
 }
 
+fn on() -> bool {
+    true
+}
+
 /// The player's settings.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,6 +48,17 @@ pub struct Settings {
     /// `cockpit-shake`, CS2).
     #[serde(default = "full")]
     pub camera_shake: f32,
+    /// A stolen plane's stall protection (`fly-stolen-aircraft` section 4; surveys G2 and G5: assists that can be
+    /// turned off). On if the file has none.
+    #[serde(default = "on")]
+    pub assist_stall: bool,
+    /// A stolen plane's auto-trim: it holds its pitch with the stick centred.
+    #[serde(default = "on")]
+    pub assist_trim: bool,
+    /// A stolen helicopter's hover hold: it holds its place with the cyclic centred and its height with the collective
+    /// at half.
+    #[serde(default = "on")]
+    pub assist_hover: bool,
 }
 
 impl Settings {
@@ -59,6 +74,18 @@ impl Settings {
             sfx_volume: 1.0,
             music_volume: 1.0,
             camera_shake: 1.0,
+            assist_stall: true,
+            assist_trim: true,
+            assist_hover: true,
+        }
+    }
+
+    /// The flight assists as the flight model takes them.
+    pub fn flight_assists(&self) -> crate::flight_model::Assists {
+        crate::flight_model::Assists {
+            stall: self.assist_stall,
+            trim: self.assist_trim,
+            hover: self.assist_hover,
         }
     }
 
@@ -160,6 +187,20 @@ mod tests {
         assert_eq!(s.invert_pitch, b.invert_pitch);
         assert!(s.shadows && s.vsync && !s.fullscreen);
         assert!(s.validate().is_ok());
+    }
+
+    #[test]
+    fn the_flight_assists_are_on_unless_turned_off_and_an_old_file_keeps_them_on() {
+        let mut s = defaults();
+        assert_eq!(s.flight_assists(), crate::flight_model::Assists::default());
+        s.assist_trim = false;
+        assert!(!s.flight_assists().trim && s.flight_assists().stall && s.flight_assists().hover);
+        let old = "(mouse_deg_per_px: 0.1, invert_pitch: false, fov_deg: 90.0, shadows: true, vsync: true, fullscreen: false)";
+        let read: Settings = ron::from_str(old).unwrap();
+        assert!(
+            read.assist_stall && read.assist_trim && read.assist_hover,
+            "a settings file from before has them on"
+        );
     }
 
     #[test]

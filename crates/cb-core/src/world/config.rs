@@ -675,6 +675,14 @@ pub struct RoadSurfaceConfig {
     pub patch_chance: f32,
     /// A patch's tone as a share of the road's.
     pub patch_tone: f32,
+    /// Metres per tile of the highways' concrete (Concrete047A, the quays' set; owner, 2026-11-04: "use different
+    /// shading/materials for parking lot vs roads vs highways").
+    pub highway_tile_m: f32,
+    /// Linear tone the highways' concrete is multiplied by.
+    pub highway_tone: [f32; 3],
+    /// Linear tone of a car park: the worn asphalt set (as `worn_tone` multiplies it on a patch), paler than the
+    /// streets: faded, oil-stained tarmac.
+    pub lot_tone: [f32; 3],
 }
 
 impl Default for RoadSurfaceConfig {
@@ -697,6 +705,9 @@ impl Default for RoadSurfaceConfig {
             track_dark: 0.22,
             patch_chance: 0.06,
             patch_tone: 0.75,
+            highway_tile_m: 6.0,
+            highway_tone: [0.92, 0.92, 0.90],
+            lot_tone: [0.5, 0.5, 0.5],
         }
     }
 }
@@ -767,6 +778,7 @@ impl RoadSurfaceConfig {
 impl Validate for RoadSurfaceConfig {
     fn validate(&self) -> Result<(), String> {
         positive("road_surfaces.street_tile_m", self.street_tile_m)?;
+        positive("road_surfaces.highway_tile_m", self.highway_tile_m)?;
         positive("road_surfaces.suburb_tile_m", self.suburb_tile_m)?;
         positive("road_surfaces.worn_tile_m", self.worn_tile_m)?;
         positive("road_surfaces.paving_tile_m", self.paving_tile_m)?;
@@ -861,6 +873,8 @@ pub struct WorldConfig {
     pub highway_blend_m: f32,
     /// Air bases (air-bases).
     pub bases: super::bases::BasesConfig,
+    /// The offshore limit (offshore-limit).
+    pub bounds: crate::bounds::BoundsConfig,
     /// The terrain's baked shadow for far ground (distant-shadows).
     pub sun_shade: super::sun_shade::SunShadeConfig,
     /// Height of a road surface above the ground under it (no z-fighting).
@@ -916,6 +930,8 @@ pub struct WorldConfig {
     pub interiors: super::interior::InteriorConfig,
     /// Physics debris (openspec change `debris-physics`).
     pub debris: DebrisConfig,
+    /// What each city block is used for (openspec change `city-districts`).
+    pub zones: super::layout::ZonesConfig,
     /// Where the houses and small businesses stand (openspec change `small-buildings`).
     pub small_buildings: super::small_buildings::SmallBuildingsConfig,
     /// The houses' and small businesses' kits, read from `assets/models/small_buildings/` by
@@ -1010,6 +1026,7 @@ impl Default for WorldConfig {
             highway_flat_margin_m: 12.0,
             highway_blend_m: 60.0,
             bases: super::bases::BasesConfig::default(),
+            bounds: crate::bounds::BoundsConfig::default(),
             sun_shade: super::sun_shade::SunShadeConfig::default(),
             road_lift_m: 0.15,
             kerb_height_m: 0.2,
@@ -1036,6 +1053,7 @@ impl Default for WorldConfig {
             structure: super::structure::StructureConfig::default(),
             dressing: super::dressing::DressingConfig::default(),
             interiors: super::interior::InteriorConfig::default(),
+            zones: super::layout::ZonesConfig::default(),
             small_buildings: super::small_buildings::SmallBuildingsConfig::default(),
             small_kits: Default::default(),
             sites: super::sites::SitesConfig::default(),
@@ -1097,6 +1115,7 @@ impl Validate for WorldConfig {
         positive("highway_blend_m", self.highway_blend_m)?;
         positive("road_lift_m", self.road_lift_m)?;
         self.bases.validate()?;
+        self.bounds.validate()?;
         self.sun_shade.validate()?;
         positive("kerb_height_m", self.kerb_height_m)?;
         self.road_surfaces.validate()?;
@@ -1139,6 +1158,7 @@ impl Validate for WorldConfig {
         self.structure.validate()?;
         self.dressing.validate()?;
         self.interiors.validate()?;
+        self.zones.validate()?;
         self.small_buildings.validate()?;
         self.sites.validate()?;
         self.debris.validate()?;

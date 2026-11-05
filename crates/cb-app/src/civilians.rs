@@ -288,7 +288,7 @@ fn spawn_benches(
     let mut n = 0;
     for city in &plan.cities {
         let y = city.ground_m + data.0.world.kerb_height_m;
-        for b in city.blocks.iter().filter(|b| b.park) {
+        for b in city.blocks.iter().filter(|b| b.is_park()) {
             let Some(path) = b.rect.inset(data.0.people.cfg.park_path_inset_m) else {
                 continue;
             };

@@ -307,7 +307,8 @@ fn street_axes(city: &City) -> (Vec<(f32, f32)>, Vec<(f32, f32)>) {
 
 impl LaneGraph {
     /// The graph for these cities and highways: each city's street grid, junctions where its street
-    /// lines cross, every highway joined at each end to the nearest junction of its city.
+    /// lines cross, every highway joined at each end to the nearest junction of its city (a site's access road at its
+    /// far end to a gate node of its own).
     pub fn build(cities: &[City], highways: &[Highway], layout: &LaneLayout, arterial_width_m: f32) -> Self {
         let mut g = LaneGraph::default();
         // the junction nearest each point, per city, for joining highways
@@ -362,12 +363,32 @@ impl LaneGraph {
                         .min_by(|&a, &b| g.nodes[a as usize].at.distance(p).total_cmp(&g.nodes[b as usize].at.distance(p)))
                 })
             };
-            let (Some(a), Some(b)) = (nearest(h.cities[0], h.ends[0]), nearest(h.cities[1], h.ends[1])) else {
+            let near = nearest(h.cities[0], h.ends[0]);
+            // A site's access road ends at a gate of its own (`roads::SITE_END`): a dead end cars turn round at.
+            let far = if h.cities[1] == super::roads::SITE_END {
+                near.map(|_| {
+                    let id = g.nodes.len() as u32;
+                    g.nodes.push(Node {
+                        id,
+                        at: h.ends[1],
+                        city: h.cities[0],
+                        connectors: Vec::new(),
+                        radius_m: h.width_m * 0.5,
+                        signal: false,
+                    });
+                    id
+                })
+            } else {
+                nearest(h.cities[1], h.ends[1])
+            };
+            let (Some(a), Some(b)) = (near, far) else {
                 continue;
             };
             let mut line = vec![g.nodes[a as usize].at];
             line.extend(h.path.iter().copied());
-            line.push(g.nodes[b as usize].at);
+            if h.cities[1] != super::roads::SITE_END {
+                line.push(g.nodes[b as usize].at);
+            }
             g.add_road(a, b, Some(line), h.width_m, LaneKind::Highway);
         }
         g.lay_lanes(layout);

@@ -9,7 +9,7 @@ use crate::data::{Validate, positive, positive_range};
 use crate::rng::SimRng;
 use crate::world::biome::Biome;
 use crate::world::grid::CellIndex;
-use crate::world::layout::{City, Highway, Rect};
+use crate::world::layout::{BlockUse, City, Highway, Rect};
 use glam::{Vec2, Vec3};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -93,6 +93,13 @@ pub struct SmallBuildingsConfig {
     pub cut_width_m: f32,
     /// A car park wider than this has a cut at each end, otherwise one in its middle.
     pub two_cuts_over_m: f32,
+    /// In a city's house block (openspec change `city-districts`): a house's front stands this far in from the
+    /// block's pavement (its front yard).
+    pub city_front_yard_m: f32,
+    /// ...with this between neighbours...
+    pub city_gap_m: f32,
+    /// ...and none within this of a block's corner.
+    pub city_corner_m: f32,
 }
 
 impl Default for SmallBuildingsConfig {
@@ -147,6 +154,9 @@ impl Default for SmallBuildingsConfig {
             lot_lift_m: 0.05,
             cut_width_m: 7.0,
             two_cuts_over_m: 30.0,
+            city_front_yard_m: 7.0,
+            city_gap_m: 4.0,
+            city_corner_m: 6.0,
         }
     }
 }
@@ -164,6 +174,9 @@ impl Validate for SmallBuildingsConfig {
             ("street_break_m", self.street_break_m),
             ("connector_every_m", self.connector_every_m),
             ("drive_reach_m", self.drive_reach_m),
+            ("city_front_yard_m", self.city_front_yard_m),
+            ("city_gap_m", self.city_gap_m),
+            ("city_corner_m", self.city_corner_m),
             ("drive_max_grade", self.drive_max_grade),
             ("parking_depth_m", self.parking_depth_m),
             ("stall_width_m", self.stall_width_m),
@@ -242,16 +255,20 @@ pub enum Zone {
     Town,
     /// A roadside stop.
     Roadside,
+    /// In one of a city's own house or strip blocks (openspec change `city-districts`).
+    City,
     /// The airport's (`sites`): its own ground, never a pad of its own.
     Airport,
     /// The seaport's (`sites`).
     Seaport,
+    /// A military base's (`sites`, `military-base`).
+    MilitaryBase,
 }
 
 impl Zone {
     /// True for a site's lots, which stand on their site's ground rather than levelling their own.
     pub fn is_site(self) -> bool {
-        matches!(self, Zone::Airport | Zone::Seaport)
+        matches!(self, Zone::Airport | Zone::Seaport | Zone::MilitaryBase)
     }
 }
 
@@ -517,7 +534,16 @@ impl Placer<'_> {
             return None;
         }
         let reach = self.cfg.pad_blend_m;
-        if g.cities.iter().any(|c| rect_gap(&c.rect(), &rect) < self.cfg.city_clearance_m)
+        let inside = |r: &Rect| r.min.x <= rect.min.x && r.min.y <= rect.min.y && r.max.x >= rect.max.x && r.max.y >= rect.max.y;
+        if zone == Zone::City {
+            // in its own city's square (whose plateau is a keep-out for every other lot), off every street of it
+            let city = g.cities.iter().find(|c| inside(&c.rect()))?;
+            if city.streets.iter().any(|st| rect_gap(&st.rect, &rect) < 0.5)
+                || g.keep_out.iter().any(|r| !inside(r) && rect_gap(r, &rect) < reach)
+            {
+                return None;
+            }
+        } else if g.cities.iter().any(|c| rect_gap(&c.rect(), &rect) < self.cfg.city_clearance_m)
             || g.keep_out.iter().any(|r| rect_gap(r, &rect) < reach)
         {
             return None;
@@ -679,6 +705,7 @@ pub fn place(rng: &SimRng, cfg: &SmallBuildingsConfig, kits: &Kits, ground: &Gro
         slabs: Vec::new(),
     };
     suburbs(rng, &choices, &mut placer);
+    city_blocks(rng, &choices, &mut placer);
     let towns = towns(rng, &choices, &mut placer);
     roadside(rng, &choices, &mut placer, &towns);
     on_the_highways(&mut placer);
@@ -904,14 +931,23 @@ fn reach_the_highway(placer: &mut Placer, id: usize) -> bool {
         if lot.zone == Zone::Suburb {
             return true;
         }
-        let Some(h) = g
+        // A city lot's road is its city's streets (drawn at the same `road_lift_m` as a highway); any other's, the
+        // highway it faces.
+        let city = (lot.zone == Zone::City)
+            .then(|| g.cities.iter().find(|c| c.rect().distance(lot.centre) <= 0.0))
+            .flatten();
+        let nearest = g
             .highways
             .iter()
-            .min_by(|a, b| a.project(lot.centre).0.total_cmp(&b.project(lot.centre).0))
-        else {
+            .min_by(|a, b| a.project(lot.centre).0.total_cmp(&b.project(lot.centre).0));
+        if city.is_none() && nearest.is_none() {
             return true;
+        }
+        let on_road = |q: Vec2| match (city, nearest) {
+            (Some(c), _) => c.streets.iter().any(|st| st.rect.inset(0.5).is_some_and(|r| r.distance(q) <= 0.0)),
+            (None, Some(h)) => h.project(q).0 <= h.width_m * 0.5 - 0.5,
+            (None, None) => false,
         };
-        let on_road = |q: Vec2| h.project(q).0 <= h.width_m * 0.5 - 0.5;
         let end_lift = g.road_lift_m - 0.01;
         let k = &placer.kits.kits[lot.kit as usize];
         match k.access {
@@ -930,7 +966,7 @@ fn reach_the_highway(placer: &mut Placer, id: usize) -> bool {
                 placer.slabs.push(Slab {
                     corners: [at(x0, z_m), at(x1, z_m), at(x1, far), at(x0, far)],
                     lift_m: [lift; 4],
-                    surface: Surface::Asphalt,
+                    surface: Surface::Lot,
                 });
                 if stalls {
                     let n = ((x1 - x0) / cfg.stall_width_m).floor();
@@ -1014,6 +1050,69 @@ fn suburbs(rng: &SimRng, choices: &Choices, placer: &mut Placer) {
             street_row(placer, &line, &square, &placed, row_start, first_street);
             row += 1;
             d += cfg.suburb_row_spacing_m + r.range_f32(-4.0, 4.0) * (row as f32).min(1.0);
+        }
+    }
+}
+
+/// The houses and businesses of a city's own blocks (openspec change `city-districts`, design section 4): along each
+/// long side of a house block a row of houses facing its street across a front yard, backs to the other row's; along
+/// each long side of a strip block, businesses side by side, each car park running out to the pavement. Their drives
+/// and car parks reach the city's streets (`on_the_highways`).
+fn city_blocks(rng: &SimRng, choices: &Choices, placer: &mut Placer) {
+    let cfg = placer.cfg;
+    for city in placer.ground.cities {
+        let mut r = rng.fork(&format!("city_blocks/{}", city.id));
+        for block in city.blocks.iter().filter(|b| b.kind.has_lots()) {
+            let Some(inner) = block.rect.inset(city.sidewalk_m) else {
+                continue;
+            };
+            let strip = block.kind == BlockUse::Strip;
+            let (lo, hi) = (inner.min, inner.max);
+            // the two long sides: (start, end, outward normal)
+            let sides = if inner.size().x >= inner.size().y {
+                [(lo, Vec2::new(hi.x, lo.y), -Vec2::Y), (Vec2::new(lo.x, hi.y), hi, Vec2::Y)]
+            } else {
+                [(lo, Vec2::new(lo.x, hi.y), -Vec2::X), (Vec2::new(hi.x, lo.y), hi, Vec2::X)]
+            };
+            for (a, b, face) in sides {
+                let len = a.distance(b);
+                let dir = (b - a) / len.max(1e-3);
+                let inset = if strip { cfg.parking_depth_m + 1.0 } else { cfg.city_front_yard_m };
+                let mut s = cfg.city_corner_m;
+                let mut misses = 0;
+                while s < len - cfg.city_corner_m && misses < 8 {
+                    let p = a + dir * s;
+                    let kits = if strip {
+                        &choices.town
+                    } else {
+                        choices.houses_in(placer.biome_at(p))
+                    };
+                    let Some(kit) = pick(&mut r, kits) else { break };
+                    let k = &placer.kits.kits[kit as usize];
+                    let width = k.hi.x - k.lo.x;
+                    if s + width > len - cfg.city_corner_m {
+                        misses += 1;
+                        continue;
+                    }
+                    // the kit's x runs along the street (its front, +z, faces out): its left edge at `s`
+                    let heading = heading_facing(face);
+                    let (sn, cs) = heading.sin_cos();
+                    let x_world = Vec2::new(cs, -sn);
+                    let along = if x_world.dot(dir) >= 0.0 { -k.lo.x } else { k.hi.x };
+                    let front = a + dir * (s + along) - face * inset;
+                    let centre = front - face * k.hi.z;
+                    match placer.try_lot(kit, centre, heading, Zone::City) {
+                        Some(lot) => {
+                            placer.add(lot);
+                            s += width + cfg.city_gap_m;
+                        }
+                        None => {
+                            misses += 1;
+                            s += 4.0;
+                        }
+                    }
+                }
+            }
         }
     }
 }

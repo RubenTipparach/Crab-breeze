@@ -12,3 +12,7 @@ tools/materials/raw/
 # itch.bat packages the game here
 /dist/
 target-trace/
+
+# the airliners page's models, written beside it by tools/mockups/gen_airliners.py from assets/models/aircraft/
+/docs/mockups/airliners/
+/docs/mockups/military-base/

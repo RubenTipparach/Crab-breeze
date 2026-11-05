@@ -132,8 +132,8 @@ fn land(
             });
         }
         // A civil aircraft (civil-air-traffic), by the same armour rule as a vehicle.
-        Struck::Mech { mech, .. } if crate::air_traffic::is_civil(mech) => {
-            civil.hit(mech, power.owner, at, power.penetration_mm, power.damage, data, fx);
+        Struck::Mech { mech, part } if crate::air_traffic::is_civil(mech) => {
+            civil.hit(mech, part, power.owner, at, power.penetration_mm, power.damage, data, fx);
             fx.write(Fx::new("impact_mech", at).toward(-dir));
         }
         // A boat takes it by the vehicles' rule, in `boats` (harbours); its ids sit below the civil aircraft's.

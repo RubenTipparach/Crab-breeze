@@ -410,8 +410,10 @@ fn node_meshes(
     skip: &HashSet<(usize, usize)>,
     dug: &Deformation,
 ) -> NodeMeshes {
+    // the drives, car parks and suburb streets a crater dug through are gone with the ground they lay on
+    let cuts = crate::world::crater_cuts(&dug.digs);
     let laid = paving.map_or_else(Default::default, |style| {
-        node_paving(plan, style, node.rect(&plan.terrain, cells), node.step())
+        node_paving(plan, style, node.rect(&plan.terrain, cells), node.step(), &cuts)
     });
     (node_mesh(plan, grass, node, cells, skip, dug), laid)
 }

@@ -2008,7 +2008,7 @@ mod tests {
             let city = &plan.cities[0];
             let (cell, r) = (0.5f32, PilotConfig::default().body_radius_m);
             let mut checked = 0;
-            for block in city.blocks.iter().filter(|k| !k.park) {
+            for block in city.blocks.iter().filter(|k| !k.is_park()) {
                 let ids: Vec<usize> = (0..plan.buildings.len())
                     .filter(|&b| plan.buildings[b].city == city.id && block.rect.distance(plan.buildings[b].footprint.centre()) == 0.0)
                     .collect();

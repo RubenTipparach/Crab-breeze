@@ -540,6 +540,10 @@ pub(crate) fn spawn_roads(
     let mut streets = MeshBuilder::tiled(rs.street_tile_m, rs.street_tile_m);
     let mut worn = MeshBuilder::tiled(rs.worn_tile_m, rs.worn_tile_m);
     let mut kerbs = MeshBuilder::tiled(rs.paving_tile_m, rs.paving_tile_m);
+    // The highways on their own concrete, patches and all (owner, 2026-11-04: "use different shading/materials for
+    // parking lot vs roads vs highways").
+    let mut highway = MeshBuilder::tiled(rs.highway_tile_m, rs.highway_tile_m);
+    let mut highway_worn = MeshBuilder::tiled(rs.highway_tile_m, rs.highway_tile_m);
     let mut tracks = MeshBuilder::default();
     // Lane dashes down the middle of every street and highway: 3 m painted, 6 m gap.
     let mut marks = MeshBuilder::default();
@@ -614,13 +618,24 @@ pub(crate) fn spawn_roads(
                 dashes(Vec2::new(c.x, a.y), Vec2::new(c.x, b.y), &|_| yy);
             }
         }
+        // A downtown or flats block is paved kerb to kerb, a park is grass; any other has a pavement round it and the
+        // ground inside (yards, car parks, a playing field: openspec change `city-districts`), as `City::surface_top`.
         for block in &city.blocks {
             let (a, b) = (block.rect.min, block.rect.max);
-            kerbs.cuboid(
-                Vec3::new(a.x, city.ground_m - 1.0, a.y),
-                Vec3::new(b.x, city.ground_m + cfg.kerb_height_m, b.y),
-                if block.park { park } else { pavement },
-            );
+            let (y0, y1) = (city.ground_m - 1.0, city.ground_m + cfg.kerb_height_m);
+            let slab =
+                |k: &mut MeshBuilder, lo: Vec2, hi: Vec2, colour| k.cuboid(Vec3::new(lo.x, y0, lo.y), Vec3::new(hi.x, y1, hi.y), colour);
+            match (block.is_park(), block.kind.paved(), block.rect.inset(city.sidewalk_m)) {
+                (true, _, _) => slab(&mut kerbs, a, b, park),
+                (false, false, Some(i)) => {
+                    // the ring: full-width strips at the two z ends, the sides between them
+                    slab(&mut kerbs, a, Vec2::new(b.x, i.min.y), pavement);
+                    slab(&mut kerbs, Vec2::new(a.x, i.max.y), b, pavement);
+                    slab(&mut kerbs, Vec2::new(a.x, i.min.y), Vec2::new(i.min.x, i.max.y), pavement);
+                    slab(&mut kerbs, Vec2::new(i.max.x, i.min.y), Vec2::new(b.x, i.max.y), pavement);
+                }
+                _ => slab(&mut kerbs, a, b, pavement),
+            }
         }
     }
     // Highways: a strip along the routed centre line, every 4 m, each edge square to the road
@@ -632,7 +647,18 @@ pub(crate) fn spawn_roads(
             let xz = h.point_at(t) + h.dir_at(t).perp() * o;
             Vec3::new(xz.x, h.grade_at(t) + cfg.road_lift_m, xz.y)
         };
-        lay_road(&mut streets, &mut worn, rs, len, h.width_m, 4.0, rs.street_tone, rs.worn_tone, &at);
+        let worn_tone = rs.highway_tone.map(|t| t * rs.patch_tone);
+        lay_road(
+            &mut highway,
+            &mut highway_worn,
+            rs,
+            len,
+            h.width_m,
+            4.0,
+            rs.highway_tone,
+            worn_tone,
+            &at,
+        );
         let lift = cfg.road_lift_m + 0.04;
         let n = h.path.len();
         for k in 0..n - 1 {
@@ -666,9 +692,13 @@ pub(crate) fn spawn_roads(
     // downtown"), patch repairs on the worn set; each its full PBR set.
     let mut set = |folder: &str, roughness: f32| crate::pbr_set::set_material(&mut images, &mut materials, folder, roughness);
     let suburb_mat = set("textures/roads/asphalt026c", 1.0);
+    let lot_mat = set("textures/road/asphalt_worn", 0.95);
     let blocks_mat = set("textures/road/paving", 0.85);
+    let concrete_mat = set("textures/ground/concrete047a", 0.9);
     for (name, mesh, mat) in [
         ("roads", streets, set("textures/roads/asphalt027c", 1.0)),
+        ("highways", highway, concrete_mat.clone()),
+        ("worn highways", highway_worn, concrete_mat),
         ("worn roads", worn, set("textures/road/asphalt_worn", 0.9)),
         ("blocks", kerbs, blocks_mat.clone()),
     ] {
@@ -695,8 +725,10 @@ pub(crate) fn spawn_roads(
             asphalt_tile_m: rs.suburb_tile_m,
             concrete_tile_m: rs.paving_tile_m,
             asphalt: [rs.suburb_tone[0], rs.suburb_tone[1], rs.suburb_tone[2], 1.0],
+            lot_tile_m: rs.worn_tile_m * 2.0,
+            lot: [rs.lot_tone[0], rs.lot_tone[1], rs.lot_tone[2], 1.0],
         },
-        materials: [suburb_mat, blocks_mat, mark_mat],
+        materials: [suburb_mat, blocks_mat, mark_mat, lot_mat],
     });
 }
 
@@ -1620,18 +1652,22 @@ fn cut_by_craters(live: Res<Live>, mut seen: Local<usize>, laid: Query<&Mesh3d, 
     if digs.len() <= *seen {
         return;
     }
-    // The bowl and its rim (`LAID_CUT` of its radius; `digs` holds its reach, `DIG_REACH` radii): past it the ground
-    // is the city's again and its streets stand.
-    let cuts: Vec<(Vec2, f32)> = digs[*seen..]
-        .iter()
-        .map(|(c, reach)| (*c, reach / cb_core::world::deform::DIG_REACH * LAID_CUT))
-        .collect();
+    let cuts = crater_cuts(&digs[*seen..]);
     *seen = digs.len();
     for handle in &laid {
         if let Some(mut mesh) = meshes.get_mut(&handle.0) {
             cut_circles(&mut mesh, &cuts);
         }
     }
+}
+
+/// The circles (centre, radius m) a crater cuts out of what is laid on the ground: the bowl and its rim, `LAID_CUT` of
+/// its radius (`digs` holds each crater's reach, `DIG_REACH` radii); past it the ground is the city's again and its
+/// streets stand. The laid city ground (`cut_by_craters`) and the paving the ground's nodes lay (`paving`) share it.
+pub(crate) fn crater_cuts(digs: &[(Vec2, f32)]) -> Vec<(Vec2, f32)> {
+    digs.iter()
+        .map(|(c, reach)| (*c, reach / cb_core::world::deform::DIG_REACH * LAID_CUT))
+        .collect()
 }
 
 /// Drops the triangles of `mesh` with a corner (x, z) inside any of `cuts` (centre, radius m).
@@ -1643,7 +1679,9 @@ fn cut_circles(mesh: &mut Mesh, cuts: &[(Vec2, f32)]) {
     let Some(indices) = mesh.indices() else { return };
     let all: Vec<u32> = indices.iter().map(|i| i as u32).collect();
     let kept: Vec<u32> = all
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .filter(|t| {
             // any corner inside: a kerb's or a park's tall side half in the hole stood over it as a wall
             !t.iter()

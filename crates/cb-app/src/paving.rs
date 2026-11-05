@@ -24,6 +24,10 @@ pub struct PavingStyle {
     pub concrete_tile_m: f32,
     /// The suburbs' asphalt tone.
     pub asphalt: [f32; 4],
+    /// The car parks' tile (the worn asphalt set, a paler grey than the streets').
+    pub lot_tile_m: f32,
+    /// A car park's tone.
+    pub lot: [f32; 4],
 }
 
 /// What paving is drawn with, made with the roads (`world::spawn_roads`): its style and a material per surface, in
@@ -32,16 +36,19 @@ pub struct PavingStyle {
 pub struct PavingLook {
     /// How its meshes are laid out.
     pub style: PavingStyle,
-    /// Asphalt, concrete and paint.
-    pub materials: [Handle<StandardMaterial>; 3],
+    /// Asphalt, concrete, paint and the car parks' worn asphalt (owner, 2026-11-04: "use different
+    /// shading/materials for parking lot vs roads vs highways").
+    pub materials: [Handle<StandardMaterial>; 4],
 }
 
-/// The paving of one ground node: a mesh per surface (asphalt, concrete, paint), `None` where it has none.
-pub type NodePaving = [Option<Mesh>; 3];
+/// The paving of one ground node: a mesh per surface (asphalt, concrete, paint, car park), `None` where it has none.
+pub type NodePaving = [Option<Mesh>; 4];
 
 /// The paving whose pieces lie in `rect` (each piece of a strip goes to the node holding its middle), on the ground
-/// as a node drawn at `step` shows it.
-pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usize) -> NodePaving {
+/// as a node drawn at `step` shows it; a piece with a corner inside any of `cuts` (a crater's bowl and rim,
+/// `world::crater_cuts`) is gone with the ground it lay on.
+pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usize, cuts: &[(Vec2, f32)]) -> NodePaving {
+    let cut = |c: &[Vec2; 4]| in_cuts(c, cuts);
     let t = &plan.terrain;
     // Past step 1 the lattice is worked out afresh at every read: keep each corner once.
     let mut corners: HashMap<(i64, i64), f32> = HashMap::new();
@@ -56,6 +63,7 @@ pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usiz
     };
     let mut asphalt = MeshBuilder::tiled(style.asphalt_tile_m, style.asphalt_tile_m);
     let mut concrete = MeshBuilder::tiled(style.concrete_tile_m, style.concrete_tile_m);
+    let mut lot = MeshBuilder::tiled(style.lot_tile_m, style.lot_tile_m);
     let mut paint = MeshBuilder::default();
     let concrete_tone = [0.74, 0.73, 0.70, 1.0];
     let white = [0.92, 0.92, 0.88, 1.0];
@@ -71,24 +79,30 @@ pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usiz
         for i in 0..n.saturating_sub(1) {
             let (a, b, sa, sb) = (st.path[i], st.path[i + 1], side(i), side(i + 1));
             let c = [a - sa, a + sa, b + sb, b - sb];
-            if touches(&c, &rect) {
+            if touches(&c, &rect) && !cut(&c) {
                 drape(&mut asphalt, &mut ground, &rect, c, [st.lift_m; 4], style.asphalt, STREET_CELL_M);
             }
         }
     }
     for slab in &paving.slabs {
-        if !touches(&slab.corners, &rect) {
+        if !touches(&slab.corners, &rect) || cut(&slab.corners) {
             continue;
         }
         let (into, colour) = match slab.surface {
             Surface::Asphalt => (&mut asphalt, style.asphalt),
+            Surface::Lot => (&mut lot, style.lot),
             Surface::Concrete => (&mut concrete, concrete_tone),
             Surface::Paint => (&mut paint, white),
         };
         drape(into, &mut ground, &rect, slab.corners, slab.lift_m, colour, SLAB_CELL_M);
     }
     let built = |b: MeshBuilder, tangents: bool| (!b.is_empty()).then(|| if tangents { b.build_with_tangents() } else { b.build() });
-    [built(asphalt, true), built(concrete, true), built(paint, false)]
+    [built(asphalt, true), built(concrete, true), built(paint, false), built(lot, true)]
+}
+
+/// Whether any of corners `c` lies inside one of `cuts` (centre, radius m).
+fn in_cuts(c: &[Vec2; 4], cuts: &[(Vec2, f32)]) -> bool {
+    c.iter().any(|p| cuts.iter().any(|(at, r)| p.distance_squared(*at) < r * r))
 }
 
 /// Whether the box round corners `c` meets `rect`.
@@ -148,6 +162,23 @@ fn drape(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_drive_a_crater_dug_through_is_gone_and_one_outside_it_stays() {
+        let slab = |x: f32| {
+            [
+                Vec2::new(x, 0.0),
+                Vec2::new(x + 3.0, 0.0),
+                Vec2::new(x + 3.0, 10.0),
+                Vec2::new(x, 10.0),
+            ]
+        };
+        let crater = [(Vec2::ZERO, 520.0)];
+        assert!(in_cuts(&slab(100.0), &crater), "a drive in the bowl");
+        assert!(in_cuts(&slab(518.0), &crater), "a car park half over the rim");
+        assert!(!in_cuts(&slab(600.0), &crater), "a drive past the rim");
+        assert!(!in_cuts(&slab(100.0), &[]), "no crater, nothing cut");
+    }
 
     #[test]
     fn a_piece_crossing_two_nodes_is_laid_once_between_them() {

@@ -1631,6 +1631,15 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // The capital as a Fargo-like town (openspec change `city-districts`, placed from the plan: `fargo_view`): from the
+    // air, over a house block, over the strip's car parks, into the downtown, along the highway coming in on its
+    // concrete, and down a house street at eye height.
+    view("fargo-air", [0.0; 3], [0.0; 3]),
+    view("fargo-houses", [0.0; 3], [0.0; 3]),
+    view("fargo-strip", [0.0; 3], [0.0; 3]),
+    view("fargo-downtown", [0.0; 3], [0.0; 3]),
+    view("fargo-highway", [0.0; 3], [0.0; 3]),
+    view("fargo-street", [0.0; 3], [0.0; 3]),
     // The house nearest the largest city, from 22 m off at eye height (night-voxel-light: its rooms at night), and
     // from 300 m, where its far shell is drawn (its lit far windows).
     View {
@@ -1804,6 +1813,19 @@ const VIEWS: &[View] = &[
     },
     View {
         name: "airport-pier",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // a parked airliner (airliner-models) at its pier stand, from the apron and from under its wing
+    View {
+        name: "airport-stand",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "airport-stand-gear",
         eye: [0.0, 0.0, 0.0],
         at: [0.0, 0.0, 0.0],
         above_ground: false,
@@ -2237,6 +2259,91 @@ fn city_view(plan: &crate::world::Plan, air: bool) -> ([f32; 3], [f32; 3]) {
     ([start.x, ground + 2.0, start.y], [ahead.x, ground + 8.0, ahead.y])
 }
 
+/// The capital's views as a Fargo-like town (openspec change `city-districts`): `which` is `air` (900 m off, 420 m
+/// up, at its middle), `houses` (60 m over a house block two thirds of the way out), `strip` (over the strip block
+/// nearest a highway's end), `downtown` (30 m up at the downtown's edge, looking in), `highway` (6 m over the highway
+/// 250 m out from the city, looking in) or `street` (eye height down the street beside a house block).
+fn fargo_view(plan: &crate::world::Plan, which: &str) -> ([f32; 3], [f32; 3]) {
+    use cb_core::world::BlockUse;
+    let Some(city) = plan.cities.first() else {
+        return ([0.0, 400.0, 0.0], [0.0, 0.0, 1000.0]);
+    };
+    let c = city.centre;
+    let g = city.ground_m;
+    let block_near = |kind: BlockUse, to: Vec2| {
+        city.blocks
+            .iter()
+            .filter(|b| b.kind == kind)
+            .min_by(|a, b| a.rect.centre().distance(to).total_cmp(&b.rect.centre().distance(to)))
+            .map(|b| b.rect)
+    };
+    let end = plan
+        .highways
+        .iter()
+        .flat_map(|h| {
+            h.cities
+                .iter()
+                .zip(h.ends)
+                .filter(|(k, _)| **k == city.id)
+                .map(move |(_, e)| (h, e))
+        })
+        .next();
+    let out = |b: Vec2| (b - c).normalize_or(Vec2::X);
+    match which {
+        "air" => ([c.x + 640.0, g + 420.0, c.y + 640.0], [c.x, g, c.y]),
+        "houses" => {
+            let to = c + Vec2::new(0.47, 0.47) * city.half_size_m;
+            let Some(r) = block_near(BlockUse::Houses, to) else {
+                return ([c.x, g + 200.0, c.y], [c.x, g, c.y + 1.0]);
+            };
+            let b = r.centre();
+            let e = b + out(b) * 90.0;
+            ([e.x, g + 55.0, e.y], [b.x, g, b.y])
+        }
+        "strip" => {
+            let to = end.map_or(c, |(_, e)| e);
+            let Some(r) = block_near(BlockUse::Strip, to) else {
+                return ([c.x, g + 200.0, c.y], [c.x, g, c.y + 1.0]);
+            };
+            let b = r.centre();
+            let e = b + out(b) * 100.0 + out(b).perp() * 40.0;
+            ([e.x, g + 45.0, e.y], [b.x, g, b.y])
+        }
+        "downtown" => {
+            let e = c + Vec2::new(1.0, 0.35).normalize() * city.half_size_m * 0.55;
+            ([e.x, g + 30.0, e.y], [c.x, g + 40.0, c.y])
+        }
+        "highway" => {
+            let Some((h, e)) = end else {
+                return ([c.x, g + 200.0, c.y], [c.x, g, c.y + 1.0]);
+            };
+            let (_, t) = h.project(e);
+            let len = h.length_m().max(1.0);
+            // 250 m out along the road from the city's end
+            let from_start = h.point_at(0.0).distance(e) < h.point_at(1.0).distance(e);
+            let t2 = (t + if from_start { 250.0 } else { -250.0 } / len).clamp(0.0, 1.0);
+            let p = h.point_at(t2);
+            let side = h.dir_at(t2).perp() * 7.0;
+            let eye = p + side;
+            ([eye.x, h.grade_at(t2) + 6.0, eye.y], [e.x, g + 10.0, e.y])
+        }
+        _ => {
+            // down the street along a house block's long side, 2 m up
+            let to = c + Vec2::new(0.47, -0.47) * city.half_size_m;
+            let Some(r) = block_near(BlockUse::Houses, to) else {
+                return ([c.x, g + 2.0, c.y], [c.x + 100.0, g + 2.0, c.y]);
+            };
+            let long_x = r.size().x >= r.size().y;
+            let (a, b) = if long_x {
+                (Vec2::new(r.min.x - 6.0, r.min.y - 9.0), Vec2::new(r.max.x, r.min.y - 9.0))
+            } else {
+                (Vec2::new(r.min.x - 9.0, r.min.y - 6.0), Vec2::new(r.min.x - 9.0, r.max.y))
+            };
+            ([a.x, g + 1.8, a.y], [b.x, g + 4.0, b.y])
+        }
+    }
+}
+
 /// `off_m` off the house lot nearest the largest city's middle, at eye height (25 m up past 100 m, from the side away from the city), looking at its
 /// middle 3 m up: at 22 m its rooms and furniture are drawn (`small_buildings`, within 150 m), at 300 m its far shell.
 fn house_view(plan: &crate::world::Plan, off_m: f32) -> ([f32; 3], [f32; 3]) {
@@ -2433,6 +2540,7 @@ fn run_weather_script(
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
             "city-street" => city_view(&plan, false),
+            n if n.starts_with("fargo-") => fargo_view(&plan, &n["fargo-".len()..]),
             "house-near" => house_view(&plan, 22.0),
             "house-far" => house_view(&plan, 300.0),
             "city-air" => city_view(&plan, true),
@@ -2579,6 +2687,18 @@ fn run_weather_script(
                 cb_core::world::sites::SiteKind::Airport,
                 [565.0, 6.7, 410.0],
                 [555.0, 6.7, 290.0],
+            ),
+            "airport-stand" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [455.0, 9.0, 250.0],
+                [517.0, 3.0, 285.0],
+            ),
+            "airport-stand-gear" => site_view(
+                &plan,
+                cb_core::world::sites::SiteKind::Airport,
+                [490.0, 1.8, 300.0],
+                [517.0, 2.0, 282.0],
             ),
             "airport-tower-base" => site_view(
                 &plan,

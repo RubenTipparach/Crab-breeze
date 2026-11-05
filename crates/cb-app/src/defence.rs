@@ -242,6 +242,7 @@ pub fn loss_text(why: Loss) -> String {
         Loss::CityFell { city, damage } => format!("city {} fell ({:.0} % destroyed)", city + 1, damage * 100.0),
         Loss::OutOfTime { wave } => format!("wave {} was not stopped in time", wave + 1),
         Loss::PilotDown => "your mech was destroyed".into(),
+        Loss::OutOfBounds => "you went too far out to sea".into(),
     }
 }
 

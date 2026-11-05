@@ -358,6 +358,8 @@ fn draw_page(
             let name = match s.template.kind {
                 cb_core::world::sites::SiteKind::Airport => "AIRPORT",
                 cb_core::world::sites::SiteKind::Seaport => "SEAPORT",
+                // a base is marked BASE below, with the block-out ones
+                cb_core::world::sites::SiteKind::MilitaryBase => continue,
             };
             if let Some(at) = on_page(s.footprint().centre()) {
                 mark(m, at, name, 14.0, Color::srgb(1.0, 0.78, 0.3), true);
