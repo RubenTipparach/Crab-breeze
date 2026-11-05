@@ -61,6 +61,16 @@
     lot_size_m: (18.0, 36.0),
     setback_m: (1.0, 3.0),
     park_block_chance: 0.06,
+    // What each block is used for: a Fargo-like town (openspec change `city-districts`, design section 4).
+    zones: (
+        downtown_share: (0.18, 0.30),
+        downtown_edge_storeys: 6,
+        flats_share: 0.45,
+        flats_storeys: (3, 5),
+        strip_reach_m: 220.0,
+        school_chance: 0.03,
+        school_size: (0.6, 0.4),
+    ),
     plaza_lot_chance: 0.08,
 
     storey_height_m: 3.5,
@@ -111,6 +121,11 @@
         track_dark: 0.22,
         patch_chance: 0.06,
         patch_tone: 0.75,
+        // the highways on concrete, car parks on the worn set, paler than their streets (owner, 2026-11-04: "use different
+        // shading/materials for parking lot vs roads vs highways")
+        highway_tile_m: 6.0,
+        highway_tone: (0.92, 0.92, 0.90),
+        lot_tone: (0.5, 0.5, 0.5),
     ),
 
     start_pilot_distance_m: 25.0,

@@ -10,8 +10,10 @@ use glam::Vec2;
 /// What a piece of paving is made of.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Surface {
-    /// Streets, car parks and curb cuts.
+    /// Streets and curb cuts.
     Asphalt,
+    /// Car parks: the same asphalt, lighter (faded, oil-stained), so a car park reads apart from its street.
+    Lot,
     /// Drives.
     Concrete,
     /// The stalls' white lines.

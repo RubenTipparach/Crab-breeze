@@ -822,7 +822,7 @@ mod tests {
             .cities
             .iter()
             .flat_map(|c| c.blocks.iter())
-            .find(|b| b.park)
+            .find(|b| b.is_park())
             .map(|b| b.rect.centre());
         if let Some(c) = park {
             assert_eq!(p.surface_at(c), Surface::Dirt);

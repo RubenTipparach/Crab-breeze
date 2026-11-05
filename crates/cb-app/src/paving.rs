@@ -24,6 +24,10 @@ pub struct PavingStyle {
     pub concrete_tile_m: f32,
     /// The suburbs' asphalt tone.
     pub asphalt: [f32; 4],
+    /// The car parks' tile (the worn asphalt set, a paler grey than the streets').
+    pub lot_tile_m: f32,
+    /// A car park's tone.
+    pub lot: [f32; 4],
 }
 
 /// What paving is drawn with, made with the roads (`world::spawn_roads`): its style and a material per surface, in
@@ -32,12 +36,13 @@ pub struct PavingStyle {
 pub struct PavingLook {
     /// How its meshes are laid out.
     pub style: PavingStyle,
-    /// Asphalt, concrete and paint.
-    pub materials: [Handle<StandardMaterial>; 3],
+    /// Asphalt, concrete, paint and the car parks' worn asphalt (owner, 2026-11-04: "use different
+    /// shading/materials for parking lot vs roads vs highways").
+    pub materials: [Handle<StandardMaterial>; 4],
 }
 
-/// The paving of one ground node: a mesh per surface (asphalt, concrete, paint), `None` where it has none.
-pub type NodePaving = [Option<Mesh>; 3];
+/// The paving of one ground node: a mesh per surface (asphalt, concrete, paint, car park), `None` where it has none.
+pub type NodePaving = [Option<Mesh>; 4];
 
 /// The paving whose pieces lie in `rect` (each piece of a strip goes to the node holding its middle), on the ground
 /// as a node drawn at `step` shows it.
@@ -56,6 +61,7 @@ pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usiz
     };
     let mut asphalt = MeshBuilder::tiled(style.asphalt_tile_m, style.asphalt_tile_m);
     let mut concrete = MeshBuilder::tiled(style.concrete_tile_m, style.concrete_tile_m);
+    let mut lot = MeshBuilder::tiled(style.lot_tile_m, style.lot_tile_m);
     let mut paint = MeshBuilder::default();
     let concrete_tone = [0.74, 0.73, 0.70, 1.0];
     let white = [0.92, 0.92, 0.88, 1.0];
@@ -82,13 +88,14 @@ pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usiz
         }
         let (into, colour) = match slab.surface {
             Surface::Asphalt => (&mut asphalt, style.asphalt),
+            Surface::Lot => (&mut lot, style.lot),
             Surface::Concrete => (&mut concrete, concrete_tone),
             Surface::Paint => (&mut paint, white),
         };
         drape(into, &mut ground, &rect, slab.corners, slab.lift_m, colour, SLAB_CELL_M);
     }
     let built = |b: MeshBuilder, tangents: bool| (!b.is_empty()).then(|| if tangents { b.build_with_tangents() } else { b.build() });
-    [built(asphalt, true), built(concrete, true), built(paint, false)]
+    [built(asphalt, true), built(concrete, true), built(paint, false), built(lot, true)]
 }
 
 /// Whether the box round corners `c` meets `rect`.

@@ -49,7 +49,7 @@ pub use deform::Deformation;
 pub use destruct::{Chunk, Moment, Structures};
 pub use dressing::DressingConfig;
 pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};
-pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
+pub use layout::{Block, BlockUse, Building, City, Highway, Rect, StreetKind, StreetPiece};
 pub use platform::{Platform, Slab};
 pub use structure::{Frame, StructureConfig};
 pub use terrain::{ChunkMesh, Heightfield};
@@ -562,7 +562,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         level && !drainage.water_near(c - Vec2::splat(half), c + Vec2::splat(half), cfg.water.river_city_clearance_m)
     };
     let placed = layout::place_cities(&mut root.fork("cities"), cfg, &on_land);
-    let cities: Vec<City> = placed
+    let mut cities: Vec<City> = placed
         .iter()
         .enumerate()
         .map(|(i, &(c, half))| layout::lay_out_city(&mut root.fork(&format!("city/{i}")), i as u32, c, half, shape.height(c), cfg))
@@ -573,6 +573,10 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let mut highways = layout::connect_cities(&cities, cfg, &lay);
 
     let largest = placed.first().map(|p| p.1).unwrap_or(1.0);
+    // What each block is used for, now the highways show where the strip goes (openspec change `city-districts`).
+    for city in &mut cities {
+        layout::zone_city(&mut root.fork(&format!("city/{}/zones", city.id)), city, &highways, largest, cfg);
+    }
     let mut buildings = Vec::new();
     for city in &cities {
         let mut rng = root.fork(&format!("city/{}/buildings", city.id));

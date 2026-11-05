@@ -1,11 +1,14 @@
 //! City layout: where cities go, their street grids, blocks, lots and buildings, and the highways
 //! between them. Pure functions of a seeded stream and `WorldConfig` (procgen-world design
-//! section 2).
+//! section 2). What each block is used for (a Fargo-like town: a small downtown, flats, house blocks, the strip
+//! where a highway comes in) is openspec change `city-districts`, design section 4.
 
 use super::config::WorldConfig;
 use super::grid::CellIndex;
+use crate::data::{Validate, positive, within};
 use crate::rng::SimRng;
 use glam::Vec2;
+use serde::Deserialize;
 
 /// An axis-aligned rectangle on the ground, in world metres (x and z).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -91,13 +94,112 @@ pub struct Building {
     pub height_m: f32,
 }
 
-/// A city block: the pavement between streets.
+/// What a city block is used for (openspec change `city-districts`, design section 4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlockUse {
+    /// The towers.
+    Downtown,
+    /// Walk-ups round the downtown.
+    Flats,
+    /// Businesses with their car parks, where a highway comes into the city.
+    Strip,
+    /// Rows of houses with yards and drives.
+    Houses,
+    /// Grass and trees (no buildings).
+    Park,
+    /// A school and its playing field.
+    School,
+}
+
+impl BlockUse {
+    /// True where the block is paved kerb to kerb; false where only a pavement runs round it and the ground shows
+    /// inside (yards, car parks, a playing field, a park's grass is its own surface).
+    pub fn paved(self) -> bool {
+        matches!(self, BlockUse::Downtown | BlockUse::Flats)
+    }
+
+    /// True where the houses and businesses of the lot placer (`small_buildings::lots`) stand, not `build_city`'s.
+    pub fn has_lots(self) -> bool {
+        matches!(self, BlockUse::Houses | BlockUse::Strip)
+    }
+}
+
+/// A city block: the ground between streets.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Block {
     /// The block's whole area, kerb to kerb.
     pub rect: Rect,
+    /// What stands on it.
+    pub kind: BlockUse,
+}
+
+impl Block {
     /// True for a park (no buildings).
-    pub park: bool,
+    pub fn is_park(&self) -> bool {
+        self.kind == BlockUse::Park
+    }
+
+    /// The ground at `p` inside the block, kerb height or not: on its pavement (all of a paved block, the ring
+    /// `sidewalk_m` wide round any other) the kerb's height; inside the ring, `None` (the ground's own).
+    pub fn on_pavement(&self, p: Vec2, sidewalk_m: f32) -> bool {
+        if self.rect.distance(p) > 0.0 {
+            return false;
+        }
+        self.kind.paved() || self.rect.inset(sidewalk_m).is_none_or(|inner| inner.distance(p) > 0.0)
+    }
+}
+
+/// How a city's blocks are used (`zones:` in `data/world/world.ron`; openspec change `city-districts`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct ZonesConfig {
+    /// The downtown: blocks whose centre is within this share of the city's half size of its centre, for the
+    /// smallest city and for the capital (scaled by size between).
+    pub downtown_share: [f32; 2],
+    /// A downtown's buildings fall to this many storeys at its edge.
+    pub downtown_edge_storeys: u32,
+    /// Flats: blocks within this share of the half size.
+    pub flats_share: f32,
+    /// Storeys of the flats, least and most.
+    pub flats_storeys: [u32; 2],
+    /// The strip: blocks within this of where a highway reaches the city.
+    pub strip_reach_m: f32,
+    /// The share of the house blocks that are schools.
+    pub school_chance: f32,
+    /// A school's building: this share of its block's inner length and depth.
+    pub school_size: [f32; 2],
+}
+
+impl Default for ZonesConfig {
+    fn default() -> Self {
+        Self {
+            downtown_share: [0.18, 0.30],
+            downtown_edge_storeys: 6,
+            flats_share: 0.45,
+            flats_storeys: [3, 5],
+            strip_reach_m: 220.0,
+            school_chance: 0.03,
+            school_size: [0.6, 0.4],
+        }
+    }
+}
+
+impl Validate for ZonesConfig {
+    fn validate(&self) -> Result<(), String> {
+        within("zones.downtown_share[0]", self.downtown_share[0], 0.0, 1.0)?;
+        within("zones.downtown_share[1]", self.downtown_share[1], self.downtown_share[0], 1.0)?;
+        within("zones.flats_share", self.flats_share, self.downtown_share[1], 1.0)?;
+        if self.flats_storeys[0] < 2 || self.flats_storeys[1] < self.flats_storeys[0] {
+            return Err("zones.flats_storeys: least at least 2, most at least the least".into());
+        }
+        if self.downtown_edge_storeys < self.flats_storeys[1] {
+            return Err("zones.downtown_edge_storeys: at least the flats' most".into());
+        }
+        positive("zones.strip_reach_m", self.strip_reach_m)?;
+        within("zones.school_chance", self.school_chance, 0.0, 1.0)?;
+        within("zones.school_size[0]", self.school_size[0], 0.1, 0.95)?;
+        within("zones.school_size[1]", self.school_size[1], 0.1, 0.95)
+    }
 }
 
 /// A city: a flat square with a street grid.
@@ -115,6 +217,8 @@ pub struct City {
     pub streets: Vec<StreetPiece>,
     /// Blocks between the streets.
     pub blocks: Vec<Block>,
+    /// The pavement round a block that is not paved kerb to kerb (`BlockUse::paved`).
+    pub sidewalk_m: f32,
 }
 
 impl City {
@@ -134,9 +238,11 @@ impl City {
         if self.streets.iter().any(|s| s.rect.distance(p) <= 0.0) {
             return Some(self.ground_m + road_lift_m);
         }
+        // a block's pavement (all of a paved block, the ring round any other); inside the ring, the ground's own
+        // (yards, car parks and playing fields lie on the ground)
         self.blocks
             .iter()
-            .any(|b| b.rect.distance(p) <= 0.0)
+            .any(|b| b.on_pavement(p, self.sidewalk_m))
             .then_some(self.ground_m + kerb_height_m)
     }
 }
@@ -412,7 +518,12 @@ pub fn lay_out_city(rng: &mut SimRng, id: u32, centre: Vec2, half: f32, ground_m
                     min: Vec2::new(x0, z0),
                     max: Vec2::new(x1, z1),
                 },
-                park: rng.chance(cfg.park_block_chance),
+                // a house block until `zone_city` says otherwise (it is drawn here so the stream is the same)
+                kind: if rng.chance(cfg.park_block_chance) {
+                    BlockUse::Park
+                } else {
+                    BlockUse::Houses
+                },
             });
         }
     }
@@ -423,10 +534,56 @@ pub fn lay_out_city(rng: &mut SimRng, id: u32, centre: Vec2, half: f32, ground_m
         ground_m,
         streets,
         blocks,
+        sidewalk_m: cfg.sidewalk_m,
     }
 }
 
-/// Fills a city's blocks with buildings, skipping lots under a highway's flat ground.
+/// Says what each of a city's blocks is used for, once its highways are laid (openspec change `city-districts`,
+/// design section 4): the downtown in the middle (at least the block nearest the centre), the strip where a highway
+/// reaches the city, flats round the downtown, a school now and then, houses everywhere else; parks stay parks.
+pub fn zone_city(rng: &mut SimRng, city: &mut City, highways: &[Highway], largest_half_m: f32, cfg: &WorldConfig) {
+    let z = &cfg.zones;
+    let size_t = (city.half_size_m / largest_half_m).clamp(0.0, 1.0);
+    let down_r = city.half_size_m * (z.downtown_share[0] + (z.downtown_share[1] - z.downtown_share[0]) * size_t);
+    let flats_r = city.half_size_m * z.flats_share;
+    let ends: Vec<Vec2> = highways
+        .iter()
+        .flat_map(|h| h.cities.iter().zip(h.ends).filter(|(c, _)| **c == city.id).map(|(_, e)| e))
+        .collect();
+    let nearest = (0..city.blocks.len()).filter(|&i| !city.blocks[i].is_park()).min_by(|&a, &b| {
+        let d = |i: usize| city.blocks[i].rect.centre().distance(city.centre);
+        d(a).total_cmp(&d(b)).then(a.cmp(&b))
+    });
+    for (i, b) in city.blocks.iter_mut().enumerate() {
+        let school = rng.chance(z.school_chance);
+        if b.is_park() {
+            continue;
+        }
+        let d = b.rect.centre().distance(city.centre);
+        b.kind = if d <= down_r || Some(i) == nearest {
+            BlockUse::Downtown
+        } else if ends.iter().any(|&e| b.rect.distance(e) < z.strip_reach_m) {
+            BlockUse::Strip
+        } else if d <= flats_r {
+            BlockUse::Flats
+        } else if school {
+            BlockUse::School
+        } else {
+            BlockUse::Houses
+        };
+    }
+}
+
+/// The downtown's radius in a city (`ZonesConfig::downtown_share`, scaled by the city's size).
+fn downtown_radius_m(city: &City, largest_half_m: f32, cfg: &WorldConfig) -> f32 {
+    let z = &cfg.zones;
+    let size_t = (city.half_size_m / largest_half_m).clamp(0.0, 1.0);
+    city.half_size_m * (z.downtown_share[0] + (z.downtown_share[1] - z.downtown_share[0]) * size_t)
+}
+
+/// Fills a city's downtown, flats and school blocks with buildings, skipping lots under a highway's flat ground (the
+/// house and strip blocks are the lot placer's, `small_buildings::lots`; a park has none). Downtown storeys fall from
+/// the downtown's tallest at its middle to `zones.downtown_edge_storeys` at its edge.
 pub fn build_city(
     rng: &mut SimRng,
     city: &City,
@@ -438,15 +595,42 @@ pub fn build_city(
     let mut out = Vec::new();
     let size_t = (city.half_size_m / largest_half_m).clamp(0.0, 1.0);
     let downtown = cfg.storeys_downtown[0] + (cfg.storeys_downtown[1] - cfg.storeys_downtown[0]) * size_t;
-    let edge = cfg.storeys_edge as f32;
+    let edge = cfg.zones.downtown_edge_storeys as f32;
+    let down_r = downtown_radius_m(city, largest_half_m, cfg).max(1.0);
     let clear_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
+    let fp_clear = |footprint: &Rect| {
+        !highways.iter().any(|h| {
+            corners(footprint)
+                .iter()
+                .chain([footprint.centre()].iter())
+                .any(|&p| h.project(p).0 < clear_m)
+        })
+    };
     for block in &city.blocks {
-        if block.park {
+        if !matches!(block.kind, BlockUse::Downtown | BlockUse::Flats | BlockUse::School) {
             continue;
         }
         let Some(inner) = block.rect.inset(cfg.sidewalk_m) else {
             continue;
         };
+        if block.kind == BlockUse::School {
+            // One long low building at one end of the block, its playing field beside it.
+            let size = inner.size();
+            let footprint = Rect {
+                min: inner.min + Vec2::splat(2.0),
+                max: inner.min + Vec2::new(size.x * cfg.zones.school_size[0], size.y * cfg.zones.school_size[1]),
+            };
+            if fp_clear(&footprint) {
+                out.push(Building {
+                    id: first_id + out.len() as u32,
+                    city: city.id,
+                    footprint,
+                    storeys: 2,
+                    height_m: 2.0 * cfg.storey_height_m,
+                });
+            }
+            continue;
+        }
         let lot = rng.range_f32(cfg.lot_size_m[0], cfg.lot_size_m[1]);
         let size = inner.size();
         let nx = ((size.x / lot).floor() as usize).max(1);
@@ -467,17 +651,18 @@ pub fn build_city(
                 let Some(footprint) = lot_rect.inset(setback) else {
                     continue;
                 };
-                if highways.iter().any(|h| {
-                    corners(&footprint)
-                        .iter()
-                        .chain([footprint.centre()].iter())
-                        .any(|&p| h.project(p).0 < clear_m)
-                }) {
+                if !fp_clear(&footprint) {
                     continue;
                 }
-                let d = (footprint.centre().distance(city.centre) / city.half_size_m).clamp(0.0, 1.0);
-                let max = downtown + (edge - downtown) * d.powf(cfg.storey_falloff_exponent);
-                let storeys = ((max * fill).round() as u32).max(cfg.storeys_edge);
+                let storeys = if block.kind == BlockUse::Flats {
+                    let [lo, hi] = cfg.zones.flats_storeys;
+                    let t = (fill - cfg.storey_fill[0]) / (cfg.storey_fill[1] - cfg.storey_fill[0]).max(1e-6);
+                    lo + ((hi - lo + 1) as f32 * t.clamp(0.0, 0.999)).floor() as u32
+                } else {
+                    let d = (footprint.centre().distance(city.centre) / down_r).clamp(0.0, 1.0);
+                    let max = downtown + (edge - downtown) * d.powf(cfg.storey_falloff_exponent);
+                    ((max * fill).round() as u32).max(cfg.zones.downtown_edge_storeys.min(cfg.storeys_edge.max(2)))
+                };
                 out.push(Building {
                     id: first_id + out.len() as u32,
                     city: city.id,

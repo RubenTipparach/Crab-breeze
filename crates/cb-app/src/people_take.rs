@@ -169,7 +169,7 @@ fn play(
             exit.write(AppExit::error());
             return;
         };
-        let Some(block) = city.blocks.iter().filter(|b| !b.park).min_by(|a, b| {
+        let Some(block) = city.blocks.iter().filter(|b| !b.is_park()).min_by(|a, b| {
             a.rect
                 .centre()
                 .distance(city.centre)

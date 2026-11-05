@@ -65,7 +65,7 @@ pub fn home_loop(
     match home {
         Home::Block(c, b) => {
             let block = cities.get(c as usize)?.blocks.get(b as usize)?;
-            if block.park {
+            if block.is_park() {
                 Some((block.rect.inset(park_inset_m)?, Place::Park))
             } else {
                 Some((block.rect.inset(cfg.sidewalk_m * 0.5)?, Place::Pavement))
@@ -121,7 +121,7 @@ pub fn crossing(city: &City, cfg: &WorldConfig, b: u32, k: u8, out: Vec2) -> Opt
     let along_x = out.x != 0.0;
     let mut best: Option<(f32, u32)> = None;
     for (i, other) in city.blocks.iter().enumerate() {
-        if i as u32 == b || other.park {
+        if i as u32 == b || other.is_park() {
             continue;
         }
         // same row (for a crossing along x) or column (along z), and ahead
@@ -281,7 +281,7 @@ pub fn flee_dir(p: Vec2, danger: Vec2, r: Option<&Rect>) -> Vec2 {
 pub fn pavement_near(city: &City, cfg: &WorldConfig, p: Vec2, within_m: f32) -> Option<(u32, u8)> {
     let mut best: Option<(f32, u32, u8)> = None;
     for (i, b) in city.blocks.iter().enumerate() {
-        if b.park || b.rect.distance(p) > within_m + cfg.sidewalk_m {
+        if b.is_park() || b.rect.distance(p) > within_m + cfg.sidewalk_m {
             continue;
         }
         let Some(r) = b.rect.inset(cfg.sidewalk_m * 0.5) else { continue };
