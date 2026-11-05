@@ -103,6 +103,7 @@ impl CivilHits<'_, '_> {
                     a: c.a,
                     b: c.b,
                     radius_m: c.radius_m,
+                    flat_ends: false,
                 })
             })
             .collect()

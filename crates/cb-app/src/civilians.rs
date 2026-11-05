@@ -99,6 +99,7 @@ fn with_world<R>(plan: &Plan, live: &Live, data: &Data, doors: Option<&RefugeDoo
         cfg: &data.0.world,
         ground: &ground,
         doors: doors.map_or(&NoDoors as &dyn Doors, |d| &d.0 as &dyn Doors),
+        nuked: &crate::nuke::nuked_cities(plan, &live.dug),
     };
     f(&w)
 }

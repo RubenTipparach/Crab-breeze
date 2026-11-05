@@ -1028,6 +1028,18 @@ fn redraw_buildings(
     for id in ids {
         let c = &live.structures.buildings[id as usize];
         let e = ents.0[id as usize];
+        // Razed (`Structures::raze`, a nuclear crater's ground zero): every part of it goes, its near dressing (floors,
+        // rooms, furniture) and its frame included, so nothing hangs over the hole (owner, 2026-10-31).
+        if c.standing == 0 && c.frame.as_ref().is_none_or(|f| f.elements.iter().all(|el| !el.alive)) {
+            let dressing = dressed.0.remove(&id).map(|d| d.parts).unwrap_or_default();
+            let frame = framed.0.remove(&id).map(|f| f.parts).unwrap_or_default();
+            for part in dressing.values().chain(frame.values()) {
+                commands.entity(part.entity).despawn();
+                meshes.remove(&part.mesh);
+            }
+            commands.entity(e).insert(Visibility::Hidden);
+            continue;
+        }
         let Some(f) = c.frame.as_ref() else {
             // No frame (an old save, a test): the cell view.
             if c.standing == 0 {

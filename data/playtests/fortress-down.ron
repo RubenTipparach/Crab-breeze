@@ -1,0 +1,36 @@
+// Bring the Stratostacean down (openspec/changes/crab-airship, section 10): free roam in the Foreman, the mission
+// started from the mail (M, START). The fortress appears over the nearest city's centre and flies out onto its
+// circle; the pilot boards, picks the autocannon, and stands off each lift thruster of the weaker side until its
+// nozzle is at most 22 deg up, then puts the autocannon into it; with three gone the hull thrusters light, and the
+// pilot locks them one at a time and puts missiles up into their ports: two of the three bring it down. It gets clear
+// as it falls and watches it crash and explode. Once it has crashed, the pilot takes out every
+// hostile left (its fighters, its deck guard, any vehicle; owner, 2026-10-30). First person throughout.
+//
+// Any mech with an autocannon and missiles plays it; the take is flown in the Harrow, whose cockpit sees out through
+// its top (owner, 2026-10-30), its racks' salvos locking the hull ports:
+//
+//   ./target/release/crab-breeze --playtest fortress-down --mech mechs/harrow.ron
+(
+    name: "fortress-down",
+    stuck_s: 60.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                SelectWeapon("autocannon"),
+                StartMission("Fortress"),
+                Wait(4.0),
+                Survey(3000.0),
+                LookAtNearest("fortress", 4.0),
+                BringDownFortress(900.0),
+                ClearHostiles(600.0),
+                Survey(2000.0),
+                // about a minute more once every goal is done (owner, 2026-10-30)
+                LookAround(60.0),
+            ],
+        ),
+    ],
+)

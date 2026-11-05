@@ -1,19 +1,21 @@
 ## ADDED Requirements
 
 ### Requirement: The fortress stays up on its lift thrusters
-A crab air fortress SHALL hang on eight lift thrusters, four a side; each side SHALL carry half its weight and a thruster SHALL carry at most a quarter. When a side's outer thrusters cannot carry its half, the fortress SHALL open six hull thrusters, three a side, each carrying at most a sixth, and it SHALL fall only when a side cannot carry its half with both.
+A crab air fortress SHALL hang on eight lift thrusters, its legs, and SHALL hold its height while any one of them is
+working. When the last one is destroyed it SHALL open its six hull thrusters and hold on them, and it SHALL lose all its
+thrust and fall once `hull_kills_to_fall` (3) of them are destroyed. It SHALL never sink or list part way.
 
-#### Scenario: Two lost on each side
-- **WHEN** two lift thrusters are destroyed on each side
-- **THEN** the fortress holds its height and every live thruster runs at full throttle
+#### Scenario: One leg left
+- **WHEN** seven of its eight lift thrusters are destroyed
+- **THEN** it holds its height and its last lift thruster runs past full throttle
 
-#### Scenario: Three lost on one side
-- **WHEN** three lift thrusters on the same side are destroyed
-- **THEN** the fortress sinks while it opens its hull thrusters, then holds its height again
+#### Scenario: Every leg gone
+- **WHEN** the last lift thruster is destroyed
+- **THEN** its hull doors open, its hull thrusters light, and it holds its height throughout
 
-#### Scenario: Two hull thrusters lost on that side
-- **WHEN** two of that side's hull thrusters are then destroyed
-- **THEN** the fortress stops launching and dropping, lists toward that side and sinks at no more than its terminal speed
+#### Scenario: Half the hull thrusters gone
+- **WHEN** three of its six hull thrusters are then destroyed, on either side
+- **THEN** it stops launching and dropping, and falls level under gravity and drag alone until it hits
 
 ### Requirement: The cockpit shows the fortress's lift from the lift rule
 The cockpit's fortress readout SHALL show each side's lift and each thruster's throttle as computed by the lift rule the fortress flies by.
@@ -63,12 +65,16 @@ Every part of the fortress (thrusters, turrets, catapults, bays, lifts, drive th
 - **THEN** it does not penetrate
 
 #### Scenario: A hull port from the side
-- **WHEN** a round reaches an open hull thruster's port hole more than 30 deg from the fortress's vertical
+- **WHEN** a round reaches an open hull thruster's port hole more than 70 deg from the fortress's vertical
 - **THEN** it meets the 300 mm hull and does no damage, while one from directly below does double damage
 
 #### Scenario: The autocannon on a thruster's inboard side
 - **WHEN** 35 mm autocannon rounds hit a lift thruster's exposed inboard side (60 mm)
 - **THEN** they penetrate and do their damage, and the same rounds into its 40 mm nozzle do double damage
+
+#### Scenario: A round through a lift thruster's exhaust
+- **WHEN** a round passes under a lift thruster's nacelle, through its exhaust, without touching the nacelle
+- **THEN** it does not hit the thruster: the thruster's collider is a flat-ended cylinder the nacelle's own size
 
 ### Requirement: The fortress is called the Stratostacean
 Everything the player reads about the crab air fortress (its mission mail, the HUD's mission line, the TARGET page and the mission log) SHALL name it the Stratostacean, from the one `name` in its data.
@@ -98,3 +104,55 @@ The fortress SHALL carry a deck guard of 2 Shrikes and 4 Mites standing on its t
 #### Scenario: A guard walks to the edge
 - **WHEN** a deck guard walks out over the edge of the deck
 - **THEN** it stops at the edge as at a wall
+
+### Requirement: The fortress appears over the nearest city's centre
+
+When its mission starts, the fortress SHALL appear directly over the centre of the city nearest the pilot, at its
+altitude over that city's ground, and SHALL fly out from there onto its circle round that centre.
+
+#### Scenario: Starting the mission
+- **WHEN** the fortress mission starts with the pilot nearest city 2
+- **THEN** the fortress's first position is over city 2's centre, `altitude_m` over its ground
+- **AND** it flies straight out to `circle_radius_m` and circles from there
+
+### Requirement: Lit hull thrusters are targets
+
+A hull thruster SHALL be boxed and lockable while it is lit, so a locked missile can climb into its port.
+
+#### Scenario: Doors open
+- **WHEN** the last lift thruster is destroyed and the hull thrusters light
+- **THEN** every live hull thruster shows a box and can be selected and locked
+
+### Requirement: A scripted pilot brings the fortress down
+
+The playtest beat `BringDownFortress` SHALL fight the fortress as a player can, through the same input actions,
+until it crashes: every lift thruster, then three hull thrusters, with its guns, hopping on its jets near the
+fortress's height with it in sight. It SHALL fly on its jets to any
+target more than 300 m off. After the crash, `ClearHostiles` SHALL shoot down the mechs, vehicles and aircraft left.
+
+#### Scenario: The fortress-nuke playtest
+- **WHEN** `--playtest fortress-nuke` runs in the Foreman
+- **THEN** the fortress crashes and the run reports the win
+- **AND** the pilot watches the mushroom cloud, then takes out the hostiles left
+
+### Requirement: The fortress weaves on its circle
+
+On its circle the fortress SHALL weave in and out by `weave_m`, `weave_per_turn` times a turn.
+
+#### Scenario: A turn of its circle
+- **WHEN** it has flown round its circle
+- **THEN** its distance from the city's centre has ranged from `circle_radius_m - weave_m` to `circle_radius_m + weave_m`
+
+### Requirement: Its crash goes nuclear
+
+When the fortress hits the ground it SHALL dig a crater `crater_radius_m` in radius and `crater_depth_m` deep through
+the city, with nothing of the city drawn over it, blow away every building and house within `crater_radius_m`, damage
+those within `flatten_radius_m` (twice the crater's radius), leave the rest standing, wipe the city it falls on of
+people and cars, and raise a mushroom cloud whose cap climbs to `cap_height_m`.
+
+#### Scenario: The crash
+- **WHEN** the fortress crashes over a city
+- **THEN** the ground at the impact is `crater_depth_m` lower, no road, pavement, building floor or lamp hangs over it,
+  nothing stands within `crater_radius_m`, the buildings within `flatten_radius_m` are broken, those beyond stand, no
+  person or car is brought into that city again, and a mushroom cloud rises over it
+

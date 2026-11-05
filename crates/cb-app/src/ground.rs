@@ -106,6 +106,9 @@ struct Ground {
     /// New tiles meshed and waiting to go on screen with their chunk's holed mesh.
     crater_ready: BTreeMap<(i32, i32), Mesh>,
     material: Handle<StandardMaterial>,
+    /// The crater tiles' own material: the Material Maker `churned_soil` set (the crater's bowl), so dug ground is torn
+    /// earth lit by the sun, not one flat colour (owner, 2026-10-31: "Right now it's just a plane").
+    crater_material: Handle<StandardMaterial>,
     /// The grass's tuning, for the ground's colour under it.
     grass: Arc<GrassConfig>,
     /// What the suburbs' paving is drawn with; none, none laid.
@@ -140,15 +143,65 @@ impl From<&GrassConfig> for GrassTint {
 
 /// How fully grass covers the ground at vertex `p` with normal `n`, `dug_m` changed by craters:
 /// the one rule the grass grows by (`cb_core::grass::ground_cover`).
-fn grass_cover(plan: &WorldPlan, grass: &GrassConfig, p: Vec3, n: Vec3, dug_m: f32) -> f32 {
-    ground_cover(plan, Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y), dug_m, grass)
+fn grass_cover(plan: &WorldPlan, grass: &GrassConfig, p: Vec3, n: Vec3, dug_m: f32, scorch: f32) -> f32 {
+    // none where a blast scorched it, as the blades themselves (`grass::SCORCH_CLEARS`): the ring at a crater's edge,
+    // where the dig fades out, kept its green (owner, 2026-10-31: "there's a grass ring poking out")
+    let burnt = (scorch / cb_core::grass::SCORCH_CLEARS).clamp(0.0, 1.0);
+    ground_cover(plan, Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y), dug_m, grass) * (1.0 - burnt)
 }
+
+/// The blast mark a crater made whole leaves (the Material Maker `blast_scorch` map, its charred middle, cracks,
+/// streaks and ragged edge) laid over its whole scorched reach in the ground's own colour, so it follows the bowl and
+/// its rim as no flat decal can (owner, 2026-10-31: "add some explosion texture? Like a radical scorch mark decal on
+/// the terrain hole?"). Linear albedo over the ground colour `c`.
+fn blast_mark(dug: &Deformation, p: Vec3, c: [f32; 4]) -> [f32; 4] {
+    static MARK: std::sync::OnceLock<Option<image::RgbaImage>> = std::sync::OnceLock::new();
+    let Some(img) = MARK
+        .get_or_init(|| {
+            image::open(crate::cli::repo_root().join("assets/textures/fx/blast_scorch/albedo.png"))
+                .ok()
+                .map(|i| i.to_rgba8())
+        })
+        .as_ref()
+    else {
+        return c;
+    };
+    let mut out = Vec3::new(c[0], c[1], c[2]);
+    for (centre, reach) in &dug.digs {
+        let rel = Vec2::new(p.x, p.z) - *centre;
+        if rel.length() >= *reach {
+            continue;
+        }
+        // turned by where it fell, so two marks are not one stamp
+        let a = (centre.x * 0.37 + centre.y * 0.61).sin() * std::f32::consts::PI;
+        let rel = Vec2::from_angle(a).rotate(rel);
+        let uv = rel / (2.0 * reach) + Vec2::splat(0.5);
+        let (w, h) = img.dimensions();
+        let px = img.get_pixel(((uv.x * w as f32) as u32).min(w - 1), ((uv.y * h as f32) as u32).min(h - 1));
+        let lin = |v: u8| (f32::from(v) / 255.0).powf(2.2);
+        let mark = Vec3::new(lin(px[0]), lin(px[1]), lin(px[2]));
+        out = out.lerp(mark, f32::from(px[3]) / 255.0 * BLAST_MARK);
+    }
+    [out.x, out.y, out.z, c[3]]
+}
+
+/// How fully the blast mark covers the ground where its alpha is whole.
+const BLAST_MARK: f32 = 0.9;
 
 /// Ground under a rubble heap (openspec change `rubble`): dusty broken concrete flecked with brick,
 /// blended in as the heap deepens from 0.2 m to 0.6 m (crater rims stay ground). A stand-in until
 /// the `rubble` layer of `terrain-materials` exists.
-fn rubble_colour(ground: [f32; 4], depth_m: f32, i: usize, j: usize) -> [f32; 4] {
-    let w = ((depth_m - 0.2) / 0.4).clamp(0.0, 1.0);
+fn rubble_colour(ground: [f32; 4], depth_m: f32, scorch: f32, i: usize, j: usize) -> [f32; 4] {
+    // Never inside a blast's scorch: a crater's rim and the rubble the blast threw down are burnt dark, not pale
+    // concrete (the Stratostacean's nuclear crater drew its 25 m rim and a city's flattened rubble near-white,
+    // owner 2026-10-31: "Looks like a big grey quad").
+    // Dug or heaped ground is bare: churned soil, darker the more it moved, where grass and a pale biome layer stood
+    // (the crater's bowl drew as a flat sand-grey).
+    let churn = ((depth_m.abs() - 0.3) / 2.0).clamp(0.0, 1.0) * 0.8;
+    let soil = Vec3::new(0.16, 0.12, 0.09);
+    let base = Vec3::new(ground[0], ground[1], ground[2]).lerp(soil, churn);
+    let ground = [base.x, base.y, base.z, ground[3]];
+    let w = ((depth_m - 0.2) / 0.4).clamp(0.0, 1.0) * if scorch > 0.0 { 0.0 } else { 1.0 };
     if w <= 0.0 {
         return ground;
     }
@@ -313,7 +366,9 @@ fn ground_colour(
     let mut c = c.max(Vec3::ZERO).powf(2.2);
     let dry: f32 = biome.iter().zip(&tint.dryness).map(|(w, d)| w * d).sum::<f32>().clamp(0.0, 1.0);
     c = c.lerp(tint.colour, (cover * tint.strength * (1.0 - dry)).clamp(0.0, 1.0));
-    c = c.lerp(Vec3::new(0.10, 0.08, 0.07), scorch.clamp(0.0, 1.0) * 0.85);
+    // darker and wider than a linear fall-off: most of the blast's reach is burnt (owner, 2026-10-31: "darken the area of
+    // the explosion")
+    c = c.lerp(Vec3::new(0.08, 0.065, 0.055), scorch.clamp(0.0, 1.0).sqrt() * 0.95);
     c.extend(1.0).to_array()
 }
 
@@ -353,18 +408,23 @@ fn node_meshes(
     node: Node,
     cells: usize,
     skip: &HashSet<(usize, usize)>,
+    dug: &Deformation,
 ) -> NodeMeshes {
+    // the drives, car parks and suburb streets a crater dug through are gone with the ground they lay on
+    let cuts = crate::world::crater_cuts(&dug.digs);
     let laid = paving.map_or_else(Default::default, |style| {
-        node_paving(plan, style, node.rect(&plan.terrain, cells), node.step())
+        node_paving(plan, style, node.rect(&plan.terrain, cells), node.step(), &cuts)
     });
-    (node_mesh(plan, grass, node, cells, skip), laid)
+    (node_mesh(plan, grass, node, cells, skip, dug), laid)
 }
 
-/// The drawn ground of a node, leaving out the cells `skip` holds.
-fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, skip: &HashSet<(usize, usize)>) -> Mesh {
+/// The drawn ground of a node, leaving out the cells `skip` holds, on the dug ground: every level of detail takes the
+/// craters' heights, slope and scorch, so a crater is a hole from the air too and no undug edge's skirt stands beside
+/// it (owner, 2026-10-31: "Looks like terrain skirt is showing there. Shouldn't the terrain height map changed?").
+fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, skip: &HashSet<(usize, usize)>, dug: &Deformation) -> Mesh {
     let t = &plan.terrain;
     let step = node.step();
-    let chunk = t.chunk_mesh_lod(
+    let mut chunk = t.chunk_mesh_lod(
         node.x as usize,
         node.z as usize,
         node.cells(cells),
@@ -372,6 +432,21 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
         lod::skirt_m(step, t.cell_m),
         |ix, iz| skip.contains(&(ix, iz)),
     );
+    // The dug ground: each vertex moved by the dig there, and its normal taken from the dug heights a cell either side.
+    let mut scorch = vec![0.0f32; chunk.positions.len()];
+    if dug.has_any() {
+        let d = t.cell_m * step as f32;
+        let h = |x: f32, z: f32| t.height_at(x, z) + dug.delta_at(Vec2::new(x, z));
+        for ((p, n), sc) in chunk.positions.iter_mut().zip(chunk.normals.iter_mut()).zip(scorch.iter_mut()) {
+            let xz = Vec2::new(p.x, p.z);
+            let dy = dug.delta_at(xz);
+            *sc = dug.scorch_xz(xz);
+            if dy != 0.0 {
+                p.y += dy;
+                *n = Vec3::new(h(p.x - d, p.z) - h(p.x + d, p.z), 2.0 * d, h(p.x, p.z - d) - h(p.x, p.z + d)).normalize_or(Vec3::Y);
+            }
+        }
+    }
     let sea = plan.waters.sea_level_m;
     // Patches up close, a crossfade on the coarse nodes far away (seen from the air).
     let patch_far = smoothstep(1.0, 8.0, step as f32);
@@ -383,14 +458,18 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
         .positions
         .iter()
         .zip(&chunk.normals)
-        .map(|(p, n)| {
+        .zip(&scorch)
+        .map(|((p, n), sc)| {
             // A river's water 3 m over this ground: its bank or bed.
             let river = plan
                 .waters
                 .water_at(Vec2::new(p.x, p.z), p.y - 3.0)
                 .is_some_and(|w| w.surface_m > sea);
-            let cover = grass_cover(plan, grass, *p, *n, 0.0);
-            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n), patch_far)
+            let dug_m = dug.delta_at(Vec2::new(p.x, p.z));
+            let cover = grass_cover(plan, grass, *p, *n, dug_m, *sc);
+            let c = ground_colour(*p, *n, sea, river, *sc, cover, grass.into(), biome_at(plan, *p, *n), patch_far);
+            let c = if dug_m != 0.0 { rubble_colour(c, dug_m, *sc, 0, 0) } else { c };
+            if *sc > 0.0 { blast_mark(dug, *p, c) } else { c }
         })
         .collect();
     chunk_to_mesh(chunk, colors)
@@ -517,6 +596,30 @@ fn spawn_ground(
         perceptual_roughness: 1.0,
         ..default()
     });
+    // The crater tiles: churned soil's grain (its colour made neutral, as the ground's is: its own dark brown under the
+    // vertex colour's dark soil drew near black), its normal and occlusion-roughness; the vertex colour gives the
+    // scorch and the soil.
+    let crater_albedo = crate::pbr_set::load_tiling(&root, "textures/fx/churned_soil/albedo.png", true).map(|mut i| {
+        crate::pbr_set::neutral_detail(&mut i);
+        images.add(i)
+    });
+    let mut churned = |map: &str, srgb: bool| {
+        crate::pbr_set::load_tiling(&root, &format!("textures/fx/churned_soil/{map}.png"), srgb).map(|i| images.add(i))
+    };
+    let crater_orm = churned("orm", false);
+    let crater_material = match crater_albedo {
+        Some(albedo) => materials.add(StandardMaterial {
+            base_color: Color::linear_rgb(2.0, 2.0, 2.0),
+            base_color_texture: Some(albedo),
+            normal_map_texture: churned("normal", false),
+            occlusion_texture: crater_orm.clone(),
+            metallic_roughness_texture: crater_orm,
+            metallic: 0.0,
+            perceptual_roughness: 1.0,
+            ..default()
+        }),
+        None => material.clone(),
+    };
     // The first frame's eye: the pilot's, at the start.
     let s = plan.start.pilot_xz;
     let eye = Vec3::new(s.x, t.height_at(s.x, s.y) + 1.7, s.y);
@@ -535,7 +638,15 @@ fn spawn_ground(
             ))
             .id();
         let mut draw = NodeDraw::new(e, true);
-        let built = node_meshes(&plan, &grass, paving.as_ref().map(|p| &p.style), *n, cells, &none);
+        let built = node_meshes(
+            &plan,
+            &grass,
+            paving.as_ref().map(|p| &p.style),
+            *n,
+            cells,
+            &none,
+            &Deformation::default(),
+        );
         put_up(&mut commands, &mut meshes, paving.as_ref(), &mut draw, built);
         nodes.insert(*n, draw);
     }
@@ -566,6 +677,7 @@ fn spawn_ground(
         crater_stale: BTreeSet::new(),
         crater_ready: BTreeMap::new(),
         material,
+        crater_material,
         grass,
         paving,
     });
@@ -721,19 +833,10 @@ fn redraw_craters(
                 .enumerate()
                 .map(|(k, (p, n))| {
                     let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
-                    let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)));
-                    let c = ground_colour(
-                        *p,
-                        *n,
-                        sea,
-                        false,
-                        dug.scorch_at(key, i, j),
-                        cover,
-                        (&*grass).into(),
-                        biome_at(&world, *p, *n),
-                        0.0,
-                    );
-                    rubble_colour(c, dug.delta_sample(key, i, j), i, j)
+                    let scorch = dug.scorch_at(key, i, j);
+                    let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)), scorch);
+                    let c = ground_colour(*p, *n, sea, false, scorch, cover, (&*grass).into(), biome_at(&world, *p, *n), 0.0);
+                    blast_mark(&dug, *p, rubble_colour(c, dug.delta_sample(key, i, j), scorch, i, j))
                 })
                 .collect();
             chunk_to_mesh(tile, colors)
@@ -754,7 +857,7 @@ fn show_tile(commands: &mut Commands, ground: &mut Ground, meshes: &mut Assets<M
                 .spawn((
                     Name::new(format!("crater tile {key:?}")),
                     Mesh3d(mesh),
-                    MeshMaterial3d(ground.material.clone()),
+                    MeshMaterial3d(ground.crater_material.clone()),
                 ))
                 .id();
             ground.tiles.insert(key, e);
@@ -806,12 +909,30 @@ fn stream_ground(
     camera: Single<&GlobalTransform, With<PilotCamera>>,
     bodies: Query<(&GlobalTransform, &RigidBody)>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut dug_seen: Local<(usize, usize)>,
 ) {
     let _t = crate::perf_hud::slow("stream_ground");
     let cfg = &data.0.world.terrain_lod;
     let sea = plan.waters.sea_level_m;
     let eye = camera.translation();
     let g = &mut *ground;
+    // Every node a new crater or blast reaches is built again on the dug ground, at every level of detail.
+    let (blasts, digs) = (&live.dug.blasts, &live.dug.digs);
+    if blasts.len() > dug_seen.0 || digs.len() > dug_seen.1 {
+        let reached: Vec<(Vec2, f32)> = blasts[dug_seen.0..]
+            .iter()
+            .map(|b| (b.centre, data.0.world.craters.reach_m(b.energy_mj)))
+            .chain(digs[dug_seen.1..].iter().copied())
+            .collect();
+        *dug_seen = (blasts.len(), digs.len());
+        let cells = g.cells;
+        for (node, n) in g.nodes.iter_mut() {
+            let r = node.rect(&plan.terrain, cells);
+            if reached.iter().any(|(c, reach)| r.distance(*c) <= *reach) {
+                n.stale = true;
+            }
+        }
+    }
     let (side, cells) = (g.side, g.cells);
     let pool = AsyncComputeTaskPool::get();
 
@@ -896,10 +1017,12 @@ fn stream_ground(
             (HashSet::new(), BTreeSet::new())
         };
         let p = Arc::clone(&plan.0);
+        let r = node.rect(&plan.terrain, cells);
+        let dug = live.dug.within(r.min - Vec2::splat(64.0), r.max + Vec2::splat(64.0));
         if let Some(n) = g.nodes.get_mut(&node) {
             let grass = Arc::clone(&g.grass);
             let style = g.paving.as_ref().map(|l| l.style);
-            n.job = Some(pool.spawn(async move { node_meshes(&p, &grass, style.as_ref(), node, cells, &skip) }));
+            n.job = Some(pool.spawn(async move { node_meshes(&p, &grass, style.as_ref(), node, cells, &skip, &dug) }));
             n.job_holes = holes;
             n.stale = false;
         }

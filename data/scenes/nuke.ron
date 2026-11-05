@@ -1,0 +1,10 @@
+// The nuke test scene's spots on grass (`capture_nuke`; owner, 2026-10-30: "why arent you storing coordinates of good spots?"):
+// for each world seed, where the blast goes off and where the pilot stands to watch it, x and z in metres. A seed with
+// no spot here is searched for one (`open_plain`), and the run prints it to add here.
+(
+    spots: {
+        // A grass plain in the south-west, watched from 2.5 km east-south-east with the sun behind, trees off: the whole
+        // cloud from the fireball to the mushroom in view (nuke scene 9, 2026-10-30).
+        42: (blast: (-4800.0, -4800.0), watcher: (-2490.3, -5756.7)),
+    },
+)

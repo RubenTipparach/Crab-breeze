@@ -24,6 +24,23 @@ pub struct Blast {
     pub energy_mj: f32,
 }
 
+/// A crater's dig and scorch reach this many of its radii.
+pub const CRATER_REACH: f32 = 1.8;
+/// A crater made whole scorches out this many of its radii: to the ring its blast heavily damages (owner, 2026-10-31:
+/// "darken the area of the explosion", "buildings 2x of the radius are heavily damaged").
+pub const DIG_REACH: f32 = 2.0;
+
+/// The one bowl-and-rim profile, `d` the distance from the middle in radii: down `depth_m` at the middle, easing to
+/// nothing at the radius, a rim `rim_m` high round it.
+fn bowl(d: f32, depth_m: f32, rim_m: f32) -> f32 {
+    let bowl = if d < 1.0 {
+        -depth_m * 0.5 * (1.0 + (std::f32::consts::PI * d).cos())
+    } else {
+        0.0
+    };
+    bowl + rim_m * (-((d - 1.0) / 0.35).powi(2)).exp()
+}
+
 /// The dug ground: tile deltas and the blasts that made them, in order.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Deformation {
@@ -32,6 +49,10 @@ pub struct Deformation {
     scorch: HashMap<(i32, i32), Vec<f32>>,
     /// Every blast, in order.
     pub blasts: Vec<Blast>,
+    /// Every crater dug by `dig_crater` (not a blast's), in order: its centre and how far its dig and scorch reach, m.
+    /// What clears and redraws over a blast must clear over these too (the grass stood at the old ground over the
+    /// Stratostacean's crater, 2026-10-31).
+    pub digs: Vec<(Vec2, f32)>,
     origin_m: f32,
 }
 
@@ -93,17 +114,49 @@ impl Deformation {
         }
         self.blasts.push(blast);
         let r = cfg.radius_m_per_cbrt_mj * blast.energy_mj.cbrt();
-        let reach = cfg.reach_m(blast.energy_mj);
-        let (k0, k1) = (
-            self.tile_of(blast.centre - Vec2::splat(reach)),
-            self.tile_of(blast.centre + Vec2::splat(reach)),
-        );
-        let mut touched = Vec::new();
         let protected = |p: Vec2| {
             plan.cities.iter().any(|c| c.rect().distance(p) < 14.0)
                 || plan.highways.iter().any(|h| h.project(p).0 < h.width_m * 0.5 + 3.0)
                 || plan.waters.bridges.iter().any(|b| b.centre.distance(p) < b.length_m * 0.6)
         };
+        self.carve(blast.centre, r, cfg.depth_ratio * r, cfg.rim_ratio * r, cfg.max_dig_m, &protected)
+    }
+
+    /// Digs one crater `radius_m` across its bowl, `depth_m` deep at its middle, with a `rim_m` rim, through cities
+    /// and roads alike: the Stratostacean's crash (crab-airship section 11). The bowl a blast digs, made whole: what
+    /// stood over it (the city's laid ground, its buildings' ground floors, its lamps) is cut away by what draws it
+    /// (owner, 2026-10-31: "break up the road and concrete sidewalk mesh so they don't render when there's a crater",
+    /// "Let's try the alternate"). Returns the tiles it touched.
+    pub fn dig_crater(&mut self, centre: Vec2, radius_m: f32, depth_m: f32, rim_m: f32) -> Vec<(i32, i32)> {
+        if !(centre.is_finite() && radius_m.is_finite() && radius_m > 0.0 && depth_m.is_finite() && rim_m.is_finite()) {
+            return Vec::new();
+        }
+        self.digs.push((centre, radius_m * DIG_REACH));
+        self.shape(centre, radius_m, DIG_REACH, f32::INFINITY, &|_| false, &|d| bowl(d, depth_m, rim_m))
+    }
+
+    /// The one bowl-and-rim shape: down `depth_m` at the middle, easing to nothing at `r`, a rim `rim_m` high round
+    /// it, scorched out to 1.8 `r`; never below `floor_m` under where the ground was; `protected` points not dug.
+    fn carve(&mut self, centre: Vec2, r: f32, depth_m: f32, rim_m: f32, floor_m: f32, protected: &dyn Fn(Vec2) -> bool) -> Vec<(i32, i32)> {
+        self.shape(centre, r, CRATER_REACH, floor_m, protected, &|d| bowl(d, depth_m, rim_m))
+    }
+
+    /// Adds `change(d)` (metres, `d` the distance from `centre` in radii of `r`) to every sample within `reach` radii
+    /// of `centre`, scorching it from 1 at the middle to 0 at `reach`, never below `floor_m` under where the ground was;
+    /// `protected` points keep their height. The one
+    /// shaping loop of a blast's crater and a crater made whole.
+    fn shape(
+        &mut self,
+        centre: Vec2,
+        r: f32,
+        reach_radii: f32,
+        floor_m: f32,
+        protected: &dyn Fn(Vec2) -> bool,
+        change: &dyn Fn(f32) -> f32,
+    ) -> Vec<(i32, i32)> {
+        let reach = r * reach_radii;
+        let (k0, k1) = (self.tile_of(centre - Vec2::splat(reach)), self.tile_of(centre + Vec2::splat(reach)));
+        let mut touched = Vec::new();
         for kz in k0.1..=k1.1 {
             for kx in k0.0..=k1.0 {
                 let key = (kx, kz);
@@ -113,22 +166,16 @@ impl Deformation {
                 for j in 0..TILE_N {
                     for i in 0..TILE_N {
                         let p = self.sample_xz(key, i, j);
-                        let d = p.distance(blast.centre) / r;
-                        if d >= 1.8 {
+                        let d = p.distance(centre) / r;
+                        if d >= reach_radii {
                             continue;
                         }
                         let k = j * TILE_N + i;
-                        scorch[k] = scorch[k].max((1.0 - d / 1.8).clamp(0.0, 1.0));
+                        scorch[k] = scorch[k].max((1.0 - d / reach_radii).clamp(0.0, 1.0));
                         if protected(p) {
                             continue;
                         }
-                        let bowl = if d < 1.0 {
-                            -cfg.depth_ratio * r * 0.5 * (1.0 + (std::f32::consts::PI * d).cos())
-                        } else {
-                            0.0
-                        };
-                        let rim = cfg.rim_ratio * r * (-((d - 1.0) / 0.35).powi(2)).exp();
-                        delta[k] = (delta[k] + bowl + rim).max(-cfg.max_dig_m);
+                        delta[k] = (delta[k] + change(d)).max(-floor_m);
                     }
                 }
                 self.tiles.insert(key, delta);
@@ -263,11 +310,47 @@ impl Deformation {
         self.scorch.get(&key).map_or(0.0, |s| s[j * TILE_N + i])
     }
 
+    /// Any ground dug or heaped at all.
+    pub fn has_any(&self) -> bool {
+        !self.tiles.is_empty()
+    }
+
+    /// The scorch at `p`, 0..1: its nearest tile sample's (what a coarse ground node colours by).
+    pub fn scorch_xz(&self, p: Vec2) -> f32 {
+        let key = self.tile_of(p);
+        let Some(s) = self.scorch.get(&key) else { return 0.0 };
+        let o = self.sample_xz(key, 0, 0);
+        let i = (((p.x - o.x) / STEP_M).round().max(0.0) as usize).min(TILE_N - 1);
+        let j = (((p.y - o.y) / STEP_M).round().max(0.0) as usize).min(TILE_N - 1);
+        s[j * TILE_N + i]
+    }
+
+    /// Only the dug tiles touching `lo..hi` (x, z), and their scorch, to hand a ground node's worker thread what it
+    /// draws on without copying every dug tile.
+    pub fn within(&self, lo: Vec2, hi: Vec2) -> Self {
+        let mut out = Self {
+            origin_m: self.origin_m,
+            digs: self.digs.clone(),
+            ..Default::default()
+        };
+        let (k0, k1) = (self.tile_of(lo), self.tile_of(hi));
+        for (k, t) in &self.tiles {
+            if (k0.0..=k1.0).contains(&k.0) && (k0.1..=k1.1).contains(&k.1) {
+                out.tiles.insert(*k, t.clone());
+                if let Some(sc) = self.scorch.get(k) {
+                    out.scorch.insert(*k, sc.clone());
+                }
+            }
+        }
+        out
+    }
+
     /// Only a tile and its eight neighbours (what `tile_mesh` and `scorch_at` read for that tile),
     /// to hand to a worker thread without copying every dug tile.
     pub fn around(&self, key: (i32, i32)) -> Self {
         let mut out = Self {
             origin_m: self.origin_m,
+            digs: self.digs.clone(),
             ..Default::default()
         };
         for dz in -1..=1 {
@@ -398,6 +481,57 @@ mod tests {
         assert!((d.delta_at(c) + cfg.depth_ratio * r).abs() < 0.05, "centre {}", d.delta_at(c));
         assert!(d.delta_at(c + Vec2::X * r) > 0.0, "rim");
         assert_eq!(d.delta_at(c + Vec2::X * 3.0 * r), 0.0, "untouched beyond");
+    }
+
+    #[test]
+    fn a_node_gets_the_dug_ground_inside_it_and_its_scorch() {
+        let mut d = Deformation::new(8192.0);
+        d.dig_crater(Vec2::new(100.0, -50.0), 400.0, 100.0, 25.0);
+        let inside = d.within(Vec2::new(-200.0, -300.0), Vec2::new(300.0, 200.0));
+        assert!((inside.delta_at(Vec2::new(100.0, -50.0)) - d.delta_at(Vec2::new(100.0, -50.0))).abs() < 1e-4);
+        assert!(inside.delta_at(Vec2::new(100.0, -50.0)) < -90.0, "the bowl's middle, 100 m down");
+        assert!(d.scorch_xz(Vec2::new(100.0, -50.0)) > 0.9, "scorched at the middle");
+        assert_eq!(d.scorch_xz(Vec2::new(3000.0, 3000.0)), 0.0, "and nowhere near it");
+        let far = d.within(Vec2::new(3000.0, 3000.0), Vec2::new(3500.0, 3500.0));
+        assert!(!far.has_any(), "a node far off gets none");
+    }
+
+    #[test]
+    fn a_crater_dug_whole_is_recorded_for_what_clears_over_it() {
+        let mut d = Deformation::new(4096.0);
+        d.dig_crater(Vec2::new(100.0, -50.0), 400.0, 100.0, 25.0);
+        let (c, reach) = d.digs[0];
+        assert_eq!(c, Vec2::new(100.0, -50.0));
+        assert!(
+            (reach - 400.0 * DIG_REACH).abs() < 0.01,
+            "its scorch's reach, the thrown earth's: {reach}"
+        );
+        assert!(d.blasts.is_empty(), "not a blast");
+    }
+
+    #[test]
+    fn the_crash_crater_digs_through_a_city() {
+        let p = plan();
+        let city = p.cities[0].centre;
+        let mut d = Deformation::new(4096.0);
+        let mut by_blast = Deformation::new(4096.0);
+        by_blast.dig(
+            p,
+            Blast {
+                centre: city,
+                energy_mj: 5000.0,
+            },
+            &CraterConfig::default(),
+        );
+        assert_eq!(by_blast.delta_at(city), 0.0, "a shell's crater leaves the city's ground alone");
+        d.dig_crater(city, 260.0, 60.0, 15.0);
+        assert!(
+            (d.delta_at(city) + 60.0).abs() < 0.5,
+            "60 m deep at its middle: {}",
+            d.delta_at(city)
+        );
+        assert!(d.delta_at(city + Vec2::X * 260.0) > 10.0, "its rim");
+        assert_eq!(d.delta_at(city + Vec2::X * 900.0), 0.0, "untouched beyond");
     }
 
     #[test]

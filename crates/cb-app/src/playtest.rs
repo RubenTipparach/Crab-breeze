@@ -104,6 +104,9 @@ struct Pilot {
     start_s: f32,
     /// A jet leg is resting the jets, on the skates (`cb_core::playtest::rest_jets`).
     jets_resting: bool,
+    /// Hovering: the jets are burning now, and since when (real seconds; `cb_core::playtest::tap_jets`).
+    jet_on: bool,
+    jet_since_s: f32,
 }
 
 /// Keys the scripted pilot presses, applied after the devices are read so the game sees them as a key's press.
@@ -149,6 +152,8 @@ impl Plugin for PlaytestPlugin {
             seen: None,
             start_s: 0.0,
             jets_resting: false,
+            jet_on: false,
+            jet_since_s: 0.0,
         })
         .init_resource::<PressKey>()
         .init_resource::<Hands>()
@@ -373,10 +378,14 @@ struct More<'w, 's> {
     boats: Option<Res<'w, crate::boats::Boats>>,
     targeting: Res<'w, crate::targeting::TargetState>,
     fortress: Option<Res<'w, crate::fortress::FortressRun>>,
+    nukes: Query<'w, 's, &'static crate::nuke::NukeCloud>,
     hostiles: Option<Res<'w, crate::units::Hostiles>>,
     fog: Option<Res<'w, crate::ground_fog::FogNow>>,
     free: Option<Res<'w, crate::missions::FreeRoamRun>>,
     my_id: Query<'w, 's, &'static crate::mech::MechId, With<Piloted>>,
+    /// The piloted mech's rig and every transform: where its guns' barrels are (`MechRig::muzzle`).
+    my_rig: Query<'w, 's, &'static crate::mech::MechRig, With<Piloted>>,
+    globals: Query<'w, 's, &'static GlobalTransform>,
 }
 
 /// The cockpit's screens and scope, the hands, and the blasts this frame.
@@ -533,6 +542,55 @@ fn jet_leg(
     act
 }
 
+/// The first of `capsules` on the line from `from` to `to` (none past `to`), as a round flying that line meets them.
+fn first_on_line(capsules: &[cb_core::weapons::PartCapsule], from: Vec3, to: Vec3) -> Option<&cb_core::weapons::PartCapsule> {
+    let d = to - from;
+    let len = d.length();
+    let dir = d.normalize_or_zero();
+    capsules
+        .iter()
+        .filter_map(|c| {
+            cb_core::weapons::ray_capsule(from, dir, c)
+                .filter(|t| *t <= len + 30.0)
+                .map(|t| (t, c))
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, c)| c)
+}
+
+/// Holds the mech in the air at `y_m` over `goal` (x, z): the jets tapped (`cb_core::playtest::tap_jets`), the rockets'
+/// swivel and the skates (lateral thrusters in the air) pushing it toward the point, the view's frame being theirs.
+/// The hull ports are taken with missiles, not the guns. Off: the guns take them as they take the lift thrusters (owner,
+/// 2026-11-01: "you dont need missiles, regular gun shots or cannons should destroy it just fine"), from near the crab's
+/// height with it in view, and never run dry; the missile approach stays for a mech without a gun.
+const BRING_DOWN_BY_MISSILE: bool = false;
+
+/// Where the bot aims on a lift thruster, metres up its axis from the nacelle's flat lower end: the middle of
+/// the nozzle's weak band (`Weak::Lift::below_m` 12, the nacelle 20 m each way), never the exhaust below it.
+const NOZZLE_UP_M: f32 = 4.0;
+
+/// How far ahead a hover's goal leads a moving target, seconds: `hover` closes at a quarter of the gap a second.
+const HOVER_LEAD_S: f32 = 4.0;
+
+fn hover(t: &mut Pilot, m: &cb_core::mech::MechState, p: &cb_core::pilot::PilotState, goal: Vec2, y_m: f32, now: f32) -> Actions {
+    let off_s = if t.jet_on { 0.0 } else { now - t.jet_since_s };
+    let on = cb_core::playtest::tap_jets(t.jet_on, y_m - m.pos.y, m.vel_y_m_s, m.boost.heat, off_s);
+    if on != t.jet_on {
+        t.jet_on = on;
+        t.jet_since_s = now;
+    }
+    let to = goal - Vec2::new(m.pos.x, m.pos.z);
+    let want = (to * 0.25).clamp_length_max(25.0);
+    let err = want - m.vel;
+    let view = Vec2::new(-p.yaw_rad.sin(), -p.yaw_rad.cos());
+    let right = Vec2::new(-view.y, view.x);
+    Actions {
+        lift_axis: if on { 1.0 } else { 0.0 },
+        move_xy: (Vec2::new(err.dot(right), err.dot(view)) / 6.0).clamp_length_max(1.0),
+        ..Default::default()
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn play(
     mut t: ResMut<Pilot>,
@@ -601,6 +659,19 @@ fn play(
         finish(&mut t, now, None);
         return;
     };
+    // Its mech destroyed: say so at once and end the run as failed, so the take stops rather than filming the
+    // ejected pilot staring at the ground for the rest of the beat (owner, 2026-10-31: "Did you blow up again? Might
+    // wanna make the bot notify you").
+    // Not only while seated: the seat throws the pilot out on the frame the mech is destroyed.
+    if s.access.0.as_ref().is_some_and(|a| a.destroyed) {
+        say(&format!(
+            "PLAYTEST_ALERT mech destroyed in beat {} {beat:?}, {:.0} s in",
+            t.beat,
+            now - t.start_s
+        ));
+        fail(&mut t, now, "the mech was destroyed");
+        return;
+    }
     let in_beat = now - t.beat_real_s;
     let mut act = Actions::default();
     let mut done = false;
@@ -1796,6 +1867,292 @@ fn play(
                 }
             }
         }
+        Beat::BringDownFortress(cap) => {
+            let Some(f) = x.fortress.as_deref() else {
+                fail(&mut t, now, "no Stratostacean in the sky");
+                return;
+            };
+            let d = &s.data.0.fortress;
+            let wreck = f.f.pos;
+            let look_at = |p: &cb_core::pilot::PilotState| {
+                let d = wreck - eye;
+                look_toward(p.yaw_rad, p.pitch_rad, eye, wreck, d.y.atan2(Vec2::new(d.x, d.z).length()), 0.15)
+            };
+            if f.f.crashed || f.outcome == Some(true) {
+                // Down: watch it burn for 8 s (the crash and its explosion on camera), then done.
+                act.throttle_zero = true;
+                act.look_delta_deg = look_at(p);
+                dist = None;
+                if t.leg != 7 {
+                    t.leg = 7;
+                    t.toggled_s = now;
+                    info!("playtest: the {} is down, after {in_beat:.0} s", d.cfg.name);
+                    say(&format!("PLAYTEST_NOTE the {} was brought down in {in_beat:.0} s", d.cfg.name));
+                } else if now - t.toggled_s > 8.0 {
+                    done = true;
+                }
+            } else if f.outcome == Some(false) {
+                fail(&mut t, now, "the pilot's mech went down fighting the fortress");
+                return;
+            } else if in_beat > *cap {
+                let left: Vec<&str> = (0..d.shape.parts.len())
+                    .filter(|&i| matches!(d.shape.parts[i].kind.as_str(), "lift" | "hull") && f.f.parts[i].alive)
+                    .map(|i| d.shape.parts[i].id.as_str())
+                    .collect();
+                fail(&mut t, now, &format!("still flying after {cap:.0} s; thrusters left: {left:?}"));
+                return;
+            } else if f.f.falling {
+                // It is coming down: get 700 m clear of it, then stand and watch it fall, the view on it throughout.
+                let here = Vec2::new(m.pos.x, m.pos.z);
+                let under = Vec2::new(wreck.x, wreck.z);
+                if here.distance(under) < 700.0 {
+                    let away = (here - under).normalize_or(Vec2::X);
+                    act = travel(&mut t, m, p, eye, here + away * 900.0, now, s.real.delta_secs());
+                } else {
+                    act.throttle_zero = true;
+                }
+                act.look_delta_deg = look_at(p);
+                dist = None;
+            } else if let Some(i) = f.f.next_to_bring_down(d)
+                && let Some(c) = f.capsules.iter().find(|c| c.part == i)
+            {
+                let hull = d.shape.parts[i].kind == "hull";
+                // The nozzle: the middle of the nacelle's weak lower band (4 m up from its flat lower end, inside the
+                // part, never the exhaust under it); a hull thruster's port is the lower end of its duct, where it opens
+                // under the hull.
+                let (lo, hi) = if c.a.y < c.b.y { (c.a, c.b) } else { (c.b, c.a) };
+                let axis = (hi - lo).normalize_or(Vec3::Y);
+                let spot = if hull {
+                    lo + axis * (c.radius_m * 0.5)
+                } else {
+                    lo + axis * NOZZLE_UP_M
+                };
+                let speed = spec.weapons.get(sim.selected).map_or(1000.0, |w| w.speed_m_s);
+                let aim = cb_core::weapons::lead(eye, spot, f.f.velocity(), speed, true);
+                let here = Vec2::new(m.pos.x, m.pos.z);
+                let under = Vec2::new(aim.x, aim.z);
+                let flat = here.distance(under);
+                // A gun stands off until the nozzle is low enough to aim at; a missile turns and climbs, so for a hull
+                // thruster it closes to well inside a missile's reach (260 m/s for 6 s).
+                let want = cb_core::playtest::BRING_DOWN_HOVER_STANDOFF_M;
+                let up = (aim.y - eye.y).atan2(flat);
+                // The hover closes at a quarter of what is left a second, so behind a fortress moving at 15 m/s it
+                // settles 60 m short (it hung 144-243 m off a port it wanted 90 m from): lead its goal by where the
+                // fortress will be in `HOVER_LEAD_S`.
+                let lead = Vec2::new(f.f.velocity().x, f.f.velocity().z) * HOVER_LEAD_S;
+                if hull && BRING_DOWN_BY_MISSILE {
+                    // Missiles: keep closing on the stand-off point just under the port (they need no still gun), near the
+                    // crab's height, the crab in sight. In the air the whole way, hopping on the jets (owner, 2026-10-31:
+                    // "it should fire togain altitude quick, coast fall and relight", "crab should be withing line of
+                    // sight, not constantly above me").
+                    let goal = under + (here - under).normalize_or(Vec2::X) * want + lead;
+                    act = hover(&mut t, m, p, goal, aim.y - cb_core::playtest::BRING_DOWN_PORT_BELOW_M, now);
+                    act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
+                    // The goal rides with the fortress: no stuck check on it (the beat's cap ends a fight that drags).
+                    dist = None;
+                    let id = crate::fortress::FORTRESS_TARGET_BASE + i as u32;
+                    if spec.weapons.iter().any(|w| w.multi_lock().is_some()) {
+                        // A multi-lock pod (the Harrow's racks) spreads its locks over every target in its cone, the
+                        // other side's thrusters and the guns too (48 missiles did 120 damage, fortress-down run 9). Hold
+                        // the key nearly under the port while the locks are all on this side's live hull thrusters; let go
+                        // once each has one, or the moment one lands elsewhere; then wait out the reload (10 s).
+                        let wanted: Vec<u32> = (0..d.shape.parts.len())
+                            .filter(|&j| {
+                                let r = &d.shape.parts[j];
+                                r.kind == "hull" && r.side == d.shape.parts[i].side && f.f.parts[j].alive
+                            })
+                            .map(|j| crate::fortress::FORTRESS_TARGET_BASE + j as u32)
+                            .collect();
+                        let held = &sim.guns.locks.held;
+                        let stray = held.iter().any(|h| !wanted.contains(h));
+                        let full = held.len() >= wanted.len();
+                        let ready = now - t.toggled_s > 10.5;
+                        // only while the port is near straight up, as a single missile (`BRING_DOWN_MISSILE_OFF_VERTICAL_DEG`)
+                        let steep = (90.0 - up.to_degrees().abs()) < cb_core::playtest::BRING_DOWN_MISSILE_OFF_VERTICAL_DEG;
+                        if t.leg == 3 && (stray || full || !steep) {
+                            // let go: the salvo leaves
+                            t.leg = 0;
+                            t.toggled_s = now;
+                            info!("playtest: salvo away on {:?} ({} locks)", held, held.len());
+                        } else if t.leg == 3 || (ready && steep) {
+                            t.leg = 3;
+                            act.fire_missile = true;
+                        }
+                    } else if x.targeting.selected != Some(id) {
+                        if now - t.toggled_s > 0.5 {
+                            t.toggled_s = now;
+                            act.target_next = true;
+                            info!(
+                                "playtest: target-next for {} (selected {:?})",
+                                d.shape.parts[i].id, x.targeting.selected
+                            );
+                        }
+                    } else if x.targeting.locked(&s.data.0.targeting) == Some(id)
+                        && (90.0 - up.to_degrees().abs()) < cb_core::playtest::BRING_DOWN_MISSILE_OFF_VERTICAL_DEG
+                    {
+                        // Only at a full lock: an unlocked missile flies straight past (40 rounds went that way,
+                        // fortress-down run 7).
+                        act.fire_missile = in_beat.rem_euclid(2.5) < 0.3;
+                    }
+                } else {
+                    // Up close (owner, 2026-10-30, choice B): on tapped jets the whole way to it, and hover
+                    // `BRING_DOWN_HOVER_STANDOFF_M` off the nozzle, a little under it, facing it, and hold the gun on it
+                    // (owner, 2026-10-31: "it flew once, then skated around and wasted time").
+                    // Outboard of the thruster, so the line up to its nozzle clears the hull and its legs.
+                    let out = (under - Vec2::new(f.f.pos.x, f.f.pos.z)).normalize_or(Vec2::X);
+                    let goal = under + out * want + lead;
+                    // a lift thruster's nozzle 12 deg up; a hull port 22 deg up, steep enough that the rounds go in
+                    let pitch = if hull {
+                        cb_core::playtest::BRING_DOWN_PORT_PITCH_DEG
+                    } else {
+                        cb_core::playtest::BRING_DOWN_HOVER_PITCH_DEG
+                    };
+                    let hover_y = cb_core::playtest::hover_y_at(aim.y, want, spec.body.eye_height_m, pitch);
+                    act = hover(&mut t, m, p, goal, hover_y, now);
+                    act.turn_axis = crate::showcase::steer(m, under);
+                    act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, aim, up, 0.15);
+                    let view = Vec3::new(
+                        -p.yaw_rad.sin() * p.pitch_rad.cos(),
+                        p.pitch_rad.sin(),
+                        -p.yaw_rad.cos() * p.pitch_rad.cos(),
+                    );
+                    let off_deg = view.angle_between((aim - eye).normalize_or(Vec3::Y)).to_degrees();
+                    // Fire only when the first thing on the line from the gun's own barrel is the thruster (owner,
+                    // 2026-10-30: "the bot isnt raycasting from gun barrel to target", "its bullets keep hitting crab
+                    // shell").
+                    let barrel = spec
+                        .weapons
+                        .get(sim.selected)
+                        .and_then(|w| x.my_rig.iter().next().and_then(|r| r.muzzle(w)))
+                        .and_then(|e| x.globals.get(e).ok())
+                        .map_or(eye, |g| g.translation());
+                    let clear = first_on_line(&f.capsules, barrel, aim).is_some_and(|c| c.part == i);
+                    act.fire[0] = clear && off_deg < 1.5 && up.to_degrees() < 24.5 && flat < want + 250.0;
+                    if !clear && now - t.toggled_s > 2.0 {
+                        t.toggled_s = now;
+                        info!(
+                            "playtest: holding fire at {}: {:?} is in the way",
+                            d.shape.parts[i].id,
+                            first_on_line(&f.capsules, barrel, aim).map(|c| c.part)
+                        );
+                    }
+                    dist = None;
+                }
+                if now - t.next_s > 3.0 {
+                    t.next_s = now;
+                    let l = f.f.lift(d);
+                    info!(
+                        "playtest: at {} ({:.0} hp), {flat:.0} m off (want {want:.0}), {:.0} m up, {:.0} deg up; lift port {:.2} stbd {:.2}{}; lock {:?}, rounds {:?}",
+                        d.shape.parts[i].id,
+                        f.f.parts[i].hp,
+                        m.pos.y - s.plan.terrain.height_at(m.pos.x, m.pos.z),
+                        up.to_degrees(),
+                        l.port,
+                        l.stbd,
+                        if l.lit { ", hull lit" } else { "" },
+                        x.targeting.locked(&s.data.0.targeting),
+                        sim.guns.rounds_left,
+                    );
+                }
+            } else {
+                act.throttle_zero = true;
+            }
+        }
+        Beat::ClearHostiles(cap) => {
+            let foes: Vec<&crate::units::Hostile> = x
+                .hostiles
+                .iter()
+                .flat_map(|h| h.0.iter())
+                .filter(|h| !crate::air_traffic::is_civil(h.id) && h.id < crate::fortress::FORTRESS_ID)
+                .collect();
+            if foes.is_empty() {
+                // None left: wait 3 s for any still coming in, then done.
+                act.throttle_zero = true;
+                if t.leg == 0 {
+                    t.leg = 1;
+                    t.toggled_s = now;
+                } else if now - t.toggled_s > 3.0 {
+                    info!("playtest: no hostiles left, after {in_beat:.0} s");
+                    say(&format!("PLAYTEST_NOTE every hostile taken out in {in_beat:.0} s"));
+                    done = true;
+                }
+            } else if in_beat > *cap {
+                fail(&mut t, now, &format!("{} hostiles still standing after {cap:.0} s", foes.len()));
+                return;
+            } else {
+                t.leg = 0;
+                // One at a time until it is dead (re-picking the nearest every frame, the lock never finished as the
+                // fighters flew past, fortress-nuke try 6): the ground first, the crab mechs and vehicles shooting
+                // back, then the aircraft.
+                let in_air = |h: &crate::units::Hostile| h.feet.y - s.plan.terrain.height_at(h.feet.x, h.feet.z) > 30.0;
+                let kept = t.goal_id.and_then(|id| foes.iter().find(|h| h.id == id).copied());
+                let nearest = kept.unwrap_or_else(|| {
+                    foes.iter()
+                        .min_by(|a, b| {
+                            (in_air(a), a.feet.distance(m.pos))
+                                .partial_cmp(&(in_air(b), b.feet.distance(m.pos)))
+                                .expect("finite")
+                        })
+                        .copied()
+                        .expect("not empty")
+                });
+                if t.goal_id != Some(nearest.id) {
+                    t.goal_id = Some(nearest.id);
+                    info!(
+                        "playtest: taking on {} {} ({:.0} m off)",
+                        if in_air(nearest) { "aircraft" } else { "ground unit" },
+                        nearest.id,
+                        nearest.feet.distance(m.pos)
+                    );
+                }
+                let brain = t.brain.get_or_insert_with(|| {
+                    cb_core::ai::AiPilot::new(
+                        cb_core::ai::Skill {
+                            aim_noise_deg: 0.3,
+                            fire_error_deg: 3.5,
+                            range_m: 130.0,
+                            hop_chance: 0.3,
+                            ..Default::default()
+                        },
+                        cb_core::rng::SimRng::new(s.plan.seed).fork("playtest"),
+                    )
+                });
+                act = brain_actions(
+                    brain,
+                    sim,
+                    &Aim {
+                        eye,
+                        target: nearest.feet,
+                        target_vel: nearest.vel,
+                        wall: false,
+                    },
+                    spec,
+                    &s.plan,
+                    &s.live,
+                    s.real.delta_secs(),
+                );
+                // Missiles at the nearest, as a player would: cycle the target until it is the one selected, fire at a
+                // full lock. They reach what the guns cannot, an aircraft over the torso's aim (owner, 2026-10-31: "the
+                // mech isnt shooting any other mech or flying vehicle down").
+                if x.targeting.selected != Some(nearest.id) {
+                    if now - t.toggled_s > 0.5 {
+                        t.toggled_s = now;
+                        act.target_next = true;
+                    }
+                } else if x.targeting.locked(&s.data.0.targeting) == Some(nearest.id) {
+                    act.fire_missile = in_beat.rem_euclid(1.5) < 0.3;
+                }
+                if now - t.next_s > 3.0 {
+                    t.next_s = now;
+                    info!(
+                        "playtest: {} hostiles left, the nearest (id {}) {:.0} m off",
+                        foes.len(),
+                        nearest.id,
+                        nearest.feet.distance(m.pos)
+                    );
+                }
+            }
+        }
         Beat::WalkToMech(within) => {
             let Some(a) = s.access.0.as_ref() else {
                 fail(&mut t, now, "no mech to walk to");
@@ -1904,6 +2261,8 @@ fn play(
             | Beat::FireAtGround(..)
             | Beat::FireAtNearest(..)
             | Beat::LandOnFortress(_)
+            | Beat::BringDownFortress(_)
+            | Beat::ClearHostiles(_)
             | Beat::DriveCar(..)
     ) && dist.is_none();
     if timed && in_beat > 20.0 && !done {
@@ -2217,6 +2576,7 @@ fn nearest(kind: &str, eyes: Vec3, s: &Scene, x: &More) -> Option<(Vec3, String)
                 "the Stratostacean's deck".to_string(),
             )
         }),
+        "nuke" => pick(x.nukes.iter().map(|c| (c.look_at(), "the mushroom cloud".to_string())).collect()),
         _ => None,
     }
 }
@@ -2262,6 +2622,13 @@ fn place(kind: &str, here: Vec2, s: &Scene, x: &More) -> Option<(Vec2, String)> 
                 .map(|(i, l)| (l.centre, format!("house lot {i}")))
                 .collect(),
         ),
+        // the latest crater made whole (a nuclear crash's), to fly over it
+        "crater" => s.live.dug.digs.last().map(|(c, reach)| {
+            (
+                *c,
+                format!("the crater, {:.0} m across", reach / cb_core::world::deform::DIG_REACH * 2.0),
+            )
+        }),
         // the city farthest from here (the fast-flight runs)
         "farthest-city" => s
             .plan
@@ -2415,4 +2782,37 @@ fn survey(
         spec.weapons.get(sim.selected).map_or("?", |w| w.name.as_str())
     ));
     out.join("; ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cb_core::weapons::PartCapsule;
+
+    fn capsule(part: usize, x: f32) -> PartCapsule {
+        PartCapsule {
+            mech: 1,
+            part,
+            a: Vec3::new(x, -5.0, 0.0),
+            b: Vec3::new(x, 5.0, 0.0),
+            radius_m: 3.0,
+            flat_ends: false,
+        }
+    }
+
+    #[test]
+    fn the_line_from_the_barrel_meets_the_nearer_part_first_and_nothing_past_the_target() {
+        let hull = capsule(9, 50.0);
+        let thruster = capsule(3, 100.0);
+        let behind = capsule(5, 400.0);
+        let parts = [thruster, hull, behind];
+        let first = first_on_line(&parts, Vec3::ZERO, Vec3::new(100.0, 0.0, 0.0)).map(|c| c.part);
+        assert_eq!(first, Some(9), "the hull is in the way");
+        let clear = first_on_line(&[thruster, behind], Vec3::ZERO, Vec3::new(100.0, 0.0, 0.0)).map(|c| c.part);
+        assert_eq!(clear, Some(3), "a clear line meets the thruster");
+        assert!(
+            first_on_line(&[behind], Vec3::ZERO, Vec3::new(100.0, 0.0, 0.0)).is_none(),
+            "nothing past the target"
+        );
+    }
 }

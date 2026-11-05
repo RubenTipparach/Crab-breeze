@@ -316,7 +316,13 @@ fn step_traffic(
     let initial = !sim.filled || !ready.0;
     let seen = |p: Vec3| !initial && in_cone(eye, fwd, half, p);
     let behind = |p: Vec3| sight_blocked(&plan, eye, p);
-    let mech_bodies: Vec<(Vec2, f32)> = near.iter().map(|m| (m.at, m.radius_m)).collect();
+    // Clear of the mechs, and of every city a nuclear crater wiped (owner, 2026-10-31: "dont spawn people or cars in the
+    // city that got nuked").
+    let mech_bodies: Vec<(Vec2, f32)> = near
+        .iter()
+        .map(|m| (m.at, m.radius_m))
+        .chain(crate::nuke::nuked_cities(&plan, &live.dug))
+        .collect();
     if initial {
         sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies, u32::MAX);
     } else {
@@ -362,6 +368,7 @@ pub fn car_capsules(sim: &TrafficSim, data: &Data, near: &[Vec3], reach_m: f32) 
             a,
             b,
             radius_m,
+            flat_ends: false,
         })
         .collect()
 }

@@ -12,6 +12,7 @@ use crate::day_night::Light;
 use crate::sim::{Data, PresentSet};
 use crate::state::GameApp;
 use crate::world::Plan;
+use crate::world::{CutByCraters, kept_for_cutting};
 use bevy::asset::RenderAssetUsages;
 use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, MeshVertexBufferLayoutRef, PrimitiveTopology};
@@ -278,7 +279,12 @@ fn spawn_lamps(
     for key in keys {
         let m = metal_tiles.remove(&key).expect("a tile listed");
         let material = if key.1 { galvanised.clone() } else { metal.clone() };
-        commands.spawn((Name::new("lamp poles"), Mesh3d(meshes.add(m)), MeshMaterial3d(material)));
+        commands.spawn((
+            Name::new("lamp poles"),
+            Mesh3d(meshes.add(kept_for_cutting(m))),
+            MeshMaterial3d(material),
+            CutByCraters,
+        ));
     }
     let mut keys: Vec<_> = head_tiles.keys().copied().collect();
     keys.sort();
@@ -291,13 +297,15 @@ fn spawn_lamps(
             .expect("every colour");
         commands.spawn((
             Name::new("lamp heads"),
-            Mesh3d(meshes.add(h)),
+            CutByCraters,
+            Mesh3d(meshes.add(kept_for_cutting(h))),
             MeshMaterial3d(material),
             NotShadowCaster,
         ));
         commands.spawn((
             Name::new("lamp glow"),
-            Mesh3d(meshes.add(glow_mesh(&glow_heads[&key]))),
+            CutByCraters,
+            Mesh3d(meshes.add(kept_for_cutting(glow_mesh(&glow_heads[&key])))),
             MeshMaterial3d(of(&glows, key.1)),
             NotShadowCaster,
         ));
@@ -307,7 +315,8 @@ fn spawn_lamps(
     for key in keys {
         let mut e = commands.spawn((
             Name::new("light dots"),
-            Mesh3d(meshes.add(glow_mesh(&dot_groups[&key]))),
+            CutByCraters,
+            Mesh3d(meshes.add(kept_for_cutting(glow_mesh(&dot_groups[&key])))),
             MeshMaterial3d(of(&dot_glows, key.2)),
             NotShadowCaster,
         ));

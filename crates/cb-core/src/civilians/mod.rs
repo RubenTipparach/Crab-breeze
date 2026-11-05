@@ -209,6 +209,9 @@ pub struct World<'a> {
     pub ground: &'a dyn Ground,
     /// Street doors to run for.
     pub doors: &'a dyn Doors,
+    /// Cities a nuclear crater has wiped (centre x, z, and a radius covering each): nobody is brought into them, and
+    /// anyone there is gone (owner, 2026-10-31: "dont spawn people or cars in the city that got nuked").
+    pub nuked: &'a [(Vec2, f32)],
 }
 
 impl People {
@@ -234,7 +237,8 @@ impl People {
             return 0;
         }
         let keep2 = cfg.keep_radius_m * cfg.keep_radius_m;
-        self.list.retain(|p| p.pos.distance_squared(pilot) <= keep2);
+        let wiped = |p: Vec2| w.nuked.iter().any(|(c, r)| p.distance_squared(*c) < r * r);
+        self.list.retain(|p| p.pos.distance_squared(pilot) <= keep2 && !wiped(p.pos));
         let far: Vec<Home> = self
             .active
             .iter()
@@ -252,7 +256,7 @@ impl People {
         self.pending = false;
         let mut wanted: Vec<(f32, Home)> = Vec::new();
         for (ci, city) in w.cities.iter().enumerate() {
-            if city.rect().distance(pilot) > cfg.spawn_radius_m {
+            if city.rect().distance(pilot) > cfg.spawn_radius_m || wiped((city.rect().min + city.rect().max) * 0.5) {
                 continue;
             }
             for (bi, b) in city.blocks.iter().enumerate() {

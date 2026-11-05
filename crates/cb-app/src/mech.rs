@@ -155,6 +155,16 @@ impl MechRig {
         self.named.get(name).copied()
     }
 
+    /// Where weapon `w`'s shots leave: its own socket when the model has it (a back unit's barrel, a pod's mouth),
+    /// else the contract muzzle of its arm; a missile without a pod leaves from the right arm. The one rule for the
+    /// guns and for anything that checks a gun's line (the scripted pilot).
+    pub fn muzzle(&self, w: &cb_core::weapons::WeaponSpec) -> Option<Entity> {
+        let fallback = if w.arm == PartKind::ArmL { "MUZZLE_L" } else { "MUZZLE_R" };
+        self.socket(&w.socket)
+            .or_else(|| self.named(&w.socket))
+            .or_else(|| self.socket(fallback))
+    }
+
     /// The torso bone's entity.
     pub(crate) fn torso(&self) -> Entity {
         self.bones[3].entity
@@ -1687,15 +1697,7 @@ pub fn step_mech(
                 sim.recoil_prev_t_s[a] = None;
                 sim.recoil_t_s[a] = Some(0.0);
             }
-            // The weapon's own socket when the model has it (a back unit's barrel, a pod's mouth), else the
-            // contract muzzle of its arm; a missile without a pod leaves from the right arm.
-            let named = rig.socket(&w.socket).or_else(|| rig.named(&w.socket));
-            let fallback = if w.arm == PartKind::ArmL { "MUZZLE_L" } else { "MUZZLE_R" };
-            let Some(muzzle) = named
-                .or_else(|| rig.socket(fallback))
-                .and_then(|e| globals.get(e).ok())
-                .map(|g| g.translation())
-            else {
+            let Some(muzzle) = rig.muzzle(w).and_then(|e| globals.get(e).ok()).map(|g| g.translation()) else {
                 continue;
             };
             let target = aim_at.unwrap_or(muzzle + cb_core::mech::forward(sim.curr.heading_rad + sim.curr.twist_rad) * 500.0);
