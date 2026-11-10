@@ -4,7 +4,8 @@
 // over life (as bevy_hanabi drew them: `ImageSampleMapping::Modulate`). Each fades where it meets the
 // world behind it (the depth prepass, "soft particles", as the clouds do in `cloud.wesl`) and near the
 // eye; Bevy's fog hazes far ones; the result is written premultiplied (`AlphaMode::Premultiplied`).
-// Unlit: the sheets carry their own light from above. Linear HDR colour, reverse-Z depth.
+// The sheets carry their own light from above, but for the nuclear cloud's lit smoke (`smoke_lit`), lit here by the sun
+// from its normal map. Linear HDR colour, reverse-Z depth.
 
 import bevy_pbr::render::view_transformations::position_world_to_clip;
 import bevy_pbr::render::mesh_view_bindings::view;
@@ -13,9 +14,23 @@ import bevy_pbr::prepass::utils::prepass_depth;
 @if(DISTANCE_FOG)
 import bevy_pbr::render::{mesh_view_bindings::fog, pbr_functions::apply_fog};
 
+import super::water_common::layer_depth;
+
 // Matches `SoftLook` in `soft_sprites.rs`.
 struct SoftLook {
     fade: vec4<f32>, // x soft depth against the world m, y fade-in distance from the eye m
+    fog: vec4<f32>,  // the ground fog's layer: x density at sea level per m, y scale height m, z sea level m
+    haze: vec4<f32>, // the aerial haze: x density at sea level per m, y scale height m
+    sun: vec4<f32>,  // xyz toward the sun, w how much of it there is
+    sun_colour: vec4<f32>, // rgb the sun's colour (brightest channel 1), w the sky's share on a shaded side
+}
+
+// The share of a sprite's light that crosses the air to the eye, as the clouds take it (`air_between` in `cloud.wesl`,
+// without its mist thickening): a far sprite thins away into the haze the fog pass lays over what is behind it.
+fn air_between(eye: vec3<f32>, dir: vec3<f32>, dist: f32) -> f32 {
+    let layer = layer_depth(look.fog.x, look.fog.y, look.fog.z, eye.y, dir.y, dist);
+    let haze = layer_depth(look.haze.x, look.haze.y, look.fog.z, eye.y, dir.y, dist);
+    return exp(-(max(layer, 0.0) + max(haze, 0.0)));
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> look: SoftLook;
@@ -23,6 +38,12 @@ struct SoftLook {
 @group(constants::MATERIAL_BIND_GROUP) @binding(2) var smoke_sampler: sampler;
 @group(constants::MATERIAL_BIND_GROUP) @binding(3) var dust_tex: texture_2d<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(4) var dust_sampler: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(5) var fire_tex: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(6) var fire_sampler: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(7) var lit_tex: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(8) var lit_sampler: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(9) var lit_normal_tex: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(10) var lit_normal_sampler: sampler;
 
 // Cells across a sheet (`particles::GRID`).
 const GRID: f32 = 4.0;
@@ -32,7 +53,7 @@ struct SoftVertex {
     @location(0) centre: vec3<f32>,
     // The quad's corner, -1..1.
     @location(1) corner: vec2<f32>,
-    // x full size m, y spin radians, z sheet cell, w sheet (0 smoke, 1 dust).
+    // x full size m, y spin radians, z sheet cell, w sheet (0 smoke, 1 dust, 2 to 3 smoke cross-faded to fire).
     @location(2) shape: vec4<f32>,
     // Colour over life, linear, alpha in w.
     @location(3) colour: vec4<f32>,
@@ -44,6 +65,9 @@ struct SoftFragment {
     @location(1) uv: vec2<f32>,
     @location(2) @interpolate(flat) sheet: f32,
     @location(3) colour: vec4<f32>,
+    // The quad's own right and up in the world (turned by its spin), for the lit sheet's normals.
+    @location(4) @interpolate(flat) across: vec3<f32>,
+    @location(5) @interpolate(flat) upward: vec3<f32>,
 }
 
 @vertex
@@ -63,7 +87,13 @@ fn vertex(in: SoftVertex) -> SoftFragment {
     let local = vec2<f32>(in.corner.x * 0.5 + 0.5, 0.5 - in.corner.y * 0.5);
     out.uv = (vec2<f32>(col, row) + local) / GRID;
     out.sheet = in.shape.w;
-    out.colour = in.colour;
+    out.across = right * c + up * s;
+    out.upward = up * c - right * s;
+    // The air between the eye and the sprite, once for its centre rather than per pixel: big overlapping puffs (a
+    // nuclear cloud) paid it hundreds of times a pixel (docs/benchmarks/2026-10-30-nuke).
+    let to_centre = in.centre - view.world_position;
+    let centre_dist = length(to_centre);
+    out.colour = vec4<f32>(in.colour.rgb, in.colour.a * air_between(view.world_position, to_centre / max(centre_dist, 1e-3), centre_dist));
     return out;
 }
 
@@ -86,10 +116,24 @@ fn soft_edge(pixel: vec4<f32>) -> f32 {
 fn fragment(in: SoftFragment) -> @location(0) vec4<f32> {
     let a = textureSample(smoke_tex, smoke_sampler, in.uv);
     let b = textureSample(dust_tex, dust_sampler, in.uv);
-    let tex = select(a, b, in.sheet > 0.5);
+    let f = textureSample(fire_tex, fire_sampler, in.uv);
+    // The lit smoke: its sheet's normal (green up the image, as the quad's up) turned into the world, lit by the sun
+    // with the sky filling the shaded side.
+    let l = textureSample(lit_tex, lit_sampler, in.uv);
+    let tn = textureSample(lit_normal_tex, lit_normal_sampler, in.uv).xyz * 2.0 - 1.0;
+    let toward_eye = normalize(cross(in.across, in.upward));
+    let n = normalize(in.across * tn.x + in.upward * tn.y + toward_eye * max(tn.z, 0.05));
+    let facing = clamp(dot(n, look.sun.xyz) * 0.5 + 0.5, 0.0, 1.0);
+    let sunlit = look.sun_colour.rgb * look.sun.w * facing * facing;
+    let shade = look.sun_colour.w + (1.0 - look.sun_colour.w) * sunlit;
+    let smoke = vec4<f32>(l.rgb * shade, l.a);
+    // 2 to 3: the fireball sheet over the lit smoke's same shapes, by how much it still burns.
+    let burning = mix(smoke, f, clamp(in.sheet - 2.0, 0.0, 1.0));
+    let tex = select(select(a, b, in.sheet > 0.5), burning, in.sheet > 1.5);
     var out = tex * in.colour;
     let eye = view.world_position;
-    let near = smoothstep(0.0, look.fade.y, distance(in.world, eye));
+    let dist = distance(in.world, eye);
+    let near = smoothstep(0.0, look.fade.y, dist);
     out.a *= soft_edge(in.position) * near;
     if out.a < 0.003 {
         discard;

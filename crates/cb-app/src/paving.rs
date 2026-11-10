@@ -45,8 +45,10 @@ pub struct PavingLook {
 pub type NodePaving = [Option<Mesh>; 4];
 
 /// The paving whose pieces lie in `rect` (each piece of a strip goes to the node holding its middle), on the ground
-/// as a node drawn at `step` shows it.
-pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usize) -> NodePaving {
+/// as a node drawn at `step` shows it; a piece with a corner inside any of `cuts` (a crater's bowl and rim,
+/// `world::crater_cuts`) is gone with the ground it lay on.
+pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usize, cuts: &[(Vec2, f32)]) -> NodePaving {
+    let cut = |c: &[Vec2; 4]| in_cuts(c, cuts);
     let t = &plan.terrain;
     // Past step 1 the lattice is worked out afresh at every read: keep each corner once.
     let mut corners: HashMap<(i64, i64), f32> = HashMap::new();
@@ -77,13 +79,13 @@ pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usiz
         for i in 0..n.saturating_sub(1) {
             let (a, b, sa, sb) = (st.path[i], st.path[i + 1], side(i), side(i + 1));
             let c = [a - sa, a + sa, b + sb, b - sb];
-            if touches(&c, &rect) {
+            if touches(&c, &rect) && !cut(&c) {
                 drape(&mut asphalt, &mut ground, &rect, c, [st.lift_m; 4], style.asphalt, STREET_CELL_M);
             }
         }
     }
     for slab in &paving.slabs {
-        if !touches(&slab.corners, &rect) {
+        if !touches(&slab.corners, &rect) || cut(&slab.corners) {
             continue;
         }
         let (into, colour) = match slab.surface {
@@ -96,6 +98,11 @@ pub fn node_paving(plan: &WorldPlan, style: &PavingStyle, rect: Rect, step: usiz
     }
     let built = |b: MeshBuilder, tangents: bool| (!b.is_empty()).then(|| if tangents { b.build_with_tangents() } else { b.build() });
     [built(asphalt, true), built(concrete, true), built(paint, false), built(lot, true)]
+}
+
+/// Whether any of corners `c` lies inside one of `cuts` (centre, radius m).
+fn in_cuts(c: &[Vec2; 4], cuts: &[(Vec2, f32)]) -> bool {
+    c.iter().any(|p| cuts.iter().any(|(at, r)| p.distance_squared(*at) < r * r))
 }
 
 /// Whether the box round corners `c` meets `rect`.
@@ -155,6 +162,23 @@ fn drape(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_drive_a_crater_dug_through_is_gone_and_one_outside_it_stays() {
+        let slab = |x: f32| {
+            [
+                Vec2::new(x, 0.0),
+                Vec2::new(x + 3.0, 0.0),
+                Vec2::new(x + 3.0, 10.0),
+                Vec2::new(x, 10.0),
+            ]
+        };
+        let crater = [(Vec2::ZERO, 520.0)];
+        assert!(in_cuts(&slab(100.0), &crater), "a drive in the bowl");
+        assert!(in_cuts(&slab(518.0), &crater), "a car park half over the rim");
+        assert!(!in_cuts(&slab(600.0), &crater), "a drive past the rim");
+        assert!(!in_cuts(&slab(100.0), &[]), "no crater, nothing cut");
+    }
 
     #[test]
     fn a_piece_crossing_two_nodes_is_laid_once_between_them() {

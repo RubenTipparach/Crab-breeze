@@ -3,8 +3,8 @@
 //! mechs too when they get hit", "so we can see damage reflected on them", "when parts fly off or critical damage, the
 //! mech needs to be on fire and smoking", "when they fall they also should kick up dust").
 //!
-//! - A crater dug in soil gets a forward decal of the Material Maker `blast_scorch` maps (one shared material, so every
-//!   scorch batches), held for its life and capped.
+//! - A blast on soil or paving gets a forward decal of the Material Maker `blast_scorch` maps (one shared material, so
+//!   every scorch batches), held for its life and capped.
 //! - A hit on a mech leaves a decal from the `hit_marks` sheet on the node that draws the struck part (a skin's limb, or
 //!   the rig's bone), so it moves with the part and leaves with it when it is thrown. Capped per mech and in all.
 //! - A part under a quarter of its structure smokes; a mech under a quarter in all burns from the torso.
@@ -180,12 +180,20 @@ fn scorch_craters(
     let Some(material) = &assets.scorch else { return };
     let craters = &data.0.world.craters;
     for b in blasts.iter().skip(blasts.len() - fresh) {
-        if plan.0.surface_at(b.centre) != Surface::Dirt {
+        // On every surface but the sea: a blast on a street or a plaza scorches the paving too, though only soil is dug
+        // (owner, 2026-10-31: "Small craters need the decal fix too").
+        let ground = plan.height_at(b.centre.x, b.centre.y);
+        if ground < plan.0.waters.sea_level_m {
             continue;
         }
         let r = craters.radius_m_per_cbrt_mj * b.energy_mj.max(0.0).cbrt();
         let side = cfg.scorch_per_radius * r;
-        let ground = plan.height_at(b.centre.x, b.centre.y) + craters.rim_ratio * r;
+        let rim = if plan.0.surface_at(b.centre) == Surface::Dirt {
+            craters.rim_ratio * r
+        } else {
+            0.0
+        };
+        let ground = ground + rim;
         let yaw = (b.centre.x * 0.37 + b.centre.y * 0.61).sin() * std::f32::consts::PI;
         let e = commands
             .spawn((

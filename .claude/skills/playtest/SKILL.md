@@ -46,6 +46,7 @@ The game prints these on stdout, one per line, so tools can wait on them:
 | `PLAYTEST_START <name>` | the first beat begins (recording starts here) |
 | `PLAYTEST_BEAT <i> <beat>` | each beat begins |
 | `PLAYTEST_RESULT <ok|stuck|crash> <detail>` | the script ended, and how |
+| `PLAYTEST_ALERT <what>` | something went wrong that ends the run, said the moment it happens (the mech destroyed); a `PLAYTEST_RESULT fail` follows. Watch for it with the take's monitor |
 | `PLAYTEST_END <name>` | after a two-second hold on the last frame (recording stops here) |
 
 `PLAYTEST_RESULT stuck` names the beat and where the pilot was. A beat with no progress for

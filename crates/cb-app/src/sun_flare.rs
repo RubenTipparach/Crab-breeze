@@ -195,6 +195,12 @@ enum Role {
     Cockpit,
 }
 
+/// A brief second source for the flare (owner, 2026-10-30, of a nuclear blast: "First the flash. It needs to be a big
+/// lensflare"): while it is set the flare turns on world point `.0` instead of the sun, `.1` times the sun's flare
+/// strength, through the same pass, occlusion and fade. Set each frame by `nuke`; `None` otherwise.
+#[derive(Resource, Default, Clone, Copy, Debug)]
+pub struct FlareFlash(pub Option<(Vec3, f32)>);
+
 /// What the passes need from the main world, per view.
 #[derive(Component, Clone, Copy)]
 struct FlareView {
@@ -205,6 +211,8 @@ struct FlareView {
     light: Vec3,
     /// Toward the sun.
     toward_sun: Vec3,
+    /// A flash's flare: core, glow, spikes and streak only, with no halo ring, ghosts or colour fringes.
+    plain: bool,
 }
 
 /// The look, as the render world holds it (data is fixed for the run).
@@ -216,7 +224,8 @@ fn extract_flare(
     data: Extract<Res<Data>>,
     look: Option<Res<RenderFlareLook>>,
     sun: Extract<Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody), With<crate::world::Sun>>>,
-    eyes: Extract<Query<(RenderEntity, &SunFlareMedium, Option<&Exposure>), With<SunFlareEye>>>,
+    eyes: Extract<Query<(RenderEntity, &SunFlareMedium, Option<&Exposure>, &GlobalTransform), With<SunFlareEye>>>,
+    flash: Extract<Option<Res<FlareFlash>>>,
     cockpits: Extract<Query<RenderEntity, With<SunFlareCockpit>>>,
 ) {
     let flare = &data.0.sun.flare;
@@ -230,25 +239,44 @@ fn extract_flare(
     let toward_sun = transform.back().as_vec3();
     let c = LinearRgba::from(light.color);
     let colour = Vec3::new(c.red, c.green, c.blue);
-    for (entity, medium, exposure) in &eyes {
+    let flash = flash.as_ref().and_then(|f| f.0);
+    for (entity, medium, exposure, eye) in &eyes {
         let exposure = exposure.copied().unwrap_or_default().exposure();
+        // A flash (`FlareFlash`): the flare on its point, its strength the sun's (above the horizon or not) times its own.
+        let (light, toward) = match flash {
+            Some((at, k)) => (
+                Vec3::new(1.0, 0.95, 0.85) * strength(light.illuminance, exposure, flare.gain) * k,
+                (at - eye.translation()).normalize_or(toward_sun),
+            ),
+            // No flare from a sun below the horizon (`day_night`).
+            None => (
+                colour * strength(light.illuminance * body.visible, exposure, flare.gain),
+                toward_sun,
+            ),
+        };
         if let Ok(mut e) = commands.get_entity(entity) {
             e.insert(FlareView {
                 role: Role::Eye,
                 medium: medium.0,
-                // No flare from a sun below the horizon (`day_night`).
-                light: colour * strength(light.illuminance * body.visible, exposure, flare.gain),
-                toward_sun,
+                light,
+                toward_sun: toward,
+                plain: flash.is_some(),
             });
         }
     }
+    // The cockpit tests the same direction the eyes draw toward: the flash's, from the eye, while there is one.
+    let toward_cockpit = match (flash, eyes.iter().next()) {
+        (Some((at, _)), Some((_, _, _, eye))) => (at - eye.translation()).normalize_or(toward_sun),
+        _ => toward_sun,
+    };
     for entity in &cockpits {
         if let Ok(mut e) = commands.get_entity(entity) {
             e.insert(FlareView {
                 role: Role::Cockpit,
                 medium: 1.0,
                 light: Vec3::ZERO,
-                toward_sun,
+                toward_sun: toward_cockpit,
+                plain: flash.is_some(),
             });
         }
     }
@@ -310,6 +338,15 @@ impl SunFlareUniform {
             ghost_colours,
             taps: tap_uvs(ndc, aspect, look.occlusion_radius_h),
         }
+    }
+
+    /// A flash's flare (owner, 2026-10-30: "a simpler lensflare without the rainbow ring"): no halo ring, no ghosts,
+    /// no red and blue fringes on the spikes.
+    fn plain(&mut self) {
+        self.halo = Vec4::ZERO;
+        self.rays.w = 0.0;
+        self.spike_shape.z = 0.0;
+        self.shape.z = 0.0;
     }
 }
 
@@ -511,7 +548,10 @@ fn prepare_flare(
         let aspect = if size.y > 0.0 { size.x / size.y } else { 1.0 };
         let placed = placed(flare, clip_from_world, look.offscreen_margin_ndc);
         let (ndc, visibility) = placed.unwrap_or((Vec2::splat(4.0), 0.0));
-        let uniform = SunFlareUniform::new(look, ndc, aspect, flare.light, visibility);
+        let mut uniform = SunFlareUniform::new(look, ndc, aspect, flare.light, visibility);
+        if flare.plain {
+            uniform.plain();
+        }
         let samples = msaa.samples();
         let id = specialized.specialize(
             &cache,

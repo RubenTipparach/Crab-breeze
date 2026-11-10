@@ -869,6 +869,32 @@ impl Traffic {
         n
     }
 
+    /// Every wreck within `radius_m` of `centre` set down on the ground as it is now, tilted to its slope: a crater
+    /// dug under a nuked city drops its burnt cars onto the bowl (owner, 2026-11-01: "these burning cars should've
+    /// changed height and rotation to match crater floor"). A wreck still on its lane gets a body at rest. Returns
+    /// how many were set down.
+    pub fn set_down_wrecks(&mut self, data: &TrafficData, ground: &impl Ground, centre: Vec2, radius_m: f32) -> usize {
+        let mut n = 0;
+        for c in self.cars.iter_mut() {
+            if !c.state.wreck() || Vec2::new(c.pos.x, c.pos.z).distance(centre) > radius_m {
+                continue;
+            }
+            let spec = &data.kinds[c.kind as usize];
+            let mut b = c.body.take().unwrap_or_else(|| {
+                let mut b = CarBody::parked(spec, ground, Vec2::new(c.pos.x, c.pos.z), c.heading_rad);
+                b.health = c.health;
+                b
+            });
+            b.set_down(spec, ground);
+            c.pos = b.pos;
+            c.heading_rad = b.heading_rad;
+            c.was = (c.pos, c.heading_rad);
+            c.body = Some(b);
+            n += 1;
+        }
+        n
+    }
+
     fn ignite(&mut self, i: usize, cfg: &TrafficConfig) {
         let c = &mut self.cars[i];
         c.state = CarState::Burning { left_s: cfg.burn_s };
@@ -2436,6 +2462,39 @@ mod tests {
         let c = t.get(target.id).unwrap();
         assert_eq!(c.state, CarState::Burnt);
         assert!(c.pos.distance(at) < 0.01, "the wreck stays put");
+    }
+
+    #[test]
+    fn a_wreck_over_dug_ground_is_set_down_on_it_tilted_to_its_slope() {
+        // A bowl dug 40 m down, its side climbing 0.3 m a metre toward +x.
+        struct Bowl;
+        impl Ground for Bowl {
+            fn height_at(&self, x: f32, _z: f32) -> f32 {
+                -40.0 + 0.3 * x
+            }
+            fn push_out(&self, p: Vec2, _radius_m: f32) -> Vec2 {
+                p
+            }
+        }
+        let (mut t, _, d) = filled(16);
+        let wreck = t.cars.iter().find(|c| c.state == CarState::Driving).unwrap().clone();
+        t.blast(&d, wreck.pos, 8.0, false);
+        let far = t.cars.iter().find(|c| !c.state.wreck()).map(|c| (c.id, c.pos));
+        let n = t.set_down_wrecks(&d, &Bowl, Vec2::new(wreck.pos.x, wreck.pos.z), 50.0);
+        assert!(n >= 1);
+        let c = t.get(wreck.id).unwrap();
+        assert!(
+            (c.pos.y - Bowl.height_at(c.pos.x, c.pos.z)).abs() < 0.2,
+            "on the floor: {}",
+            c.pos.y
+        );
+        let b = c.body.as_ref().expect("a body at rest");
+        let slope = 0.3f32.atan();
+        let tilt = b.pitch_rad.hypot(b.roll_rad);
+        assert!((tilt - slope).abs() < 0.02, "tilted with the bowl: {tilt} against {slope}");
+        if let Some((id, pos)) = far {
+            assert_eq!(t.get(id).unwrap().pos, pos, "a car that still runs is left alone");
+        }
     }
 
     #[test]

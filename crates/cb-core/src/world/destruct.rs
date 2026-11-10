@@ -201,6 +201,26 @@ impl Structures {
         (broke, chunks)
     }
 
+    /// Razes building `b` outright, every element of its frame and every cell gone with nothing left to fall: a
+    /// nuclear crater's ground zero, where its ground floor would otherwise hang over the hole (owner, 2026-10-31).
+    /// Returns whether anything stood.
+    pub fn raze(&mut self, b: u32) -> bool {
+        if b as usize >= self.buildings.len() {
+            return false;
+        }
+        let f = self.frame_mut(b as usize);
+        let mut any = false;
+        for e in &mut f.elements {
+            any |= e.alive;
+            e.alive = false;
+        }
+        let c = &mut self.buildings[b as usize];
+        any |= c.standing > 0;
+        c.intact.iter_mut().for_each(|x| *x = false);
+        c.standing = 0;
+        any
+    }
+
     /// Lets building `b`'s frame find its balance now; returns the chunks that fell. What fell is
     /// dropped: it lands later on the floor below or the ground.
     pub fn settle(&mut self, b: u32) -> Vec<Chunk> {
@@ -422,6 +442,19 @@ mod tests {
 
     fn tallest() -> u32 {
         plan().buildings.iter().max_by_key(|b| b.storeys).unwrap().id
+    }
+
+    #[test]
+    fn a_razed_building_keeps_nothing_standing() {
+        let mut s = Structures::new(plan());
+        assert!(s.raze(0), "it stood");
+        let c = &s.buildings[0];
+        assert_eq!(c.standing, 0);
+        assert!(
+            c.frame.as_ref().is_some_and(|f| f.elements.iter().all(|e| !e.alive)),
+            "not even its ground floor"
+        );
+        assert!(!s.raze(0), "nothing left the second time");
     }
 
     #[test]
