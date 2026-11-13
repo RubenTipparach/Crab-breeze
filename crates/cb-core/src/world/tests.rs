@@ -132,12 +132,15 @@ fn seed_42_builds_the_golden_world() {
 const GOLDEN_CITIES: usize = 13;
 // 2026-11-04: the Fargo-like city (openspec change `city-districts`, design section 4): `build_city` builds the
 // downtown, flats and schools only (3609 to 709); the house and strip blocks are the lot placer's.
-const GOLDEN_BUILDINGS: usize = 709;
-const GOLDEN_HIGHWAYS: usize = 12;
+// 2026-11-13: the highway through the city (openspec change `city-districts`, design section 5): three cities get a
+// trunk on a viaduct (12 highways to 15), its row's blocks are car parks, the blocks beside an arterial are drawn long
+// enough for a ramp (709 buildings to 582); the trees at the start move with the re-laid highways.
+const GOLDEN_BUILDINGS: usize = 582;
+const GOLDEN_HIGHWAYS: usize = 15;
 const GOLDEN_RIVERS: usize = 64;
-const GOLDEN_TREES_AT_START: usize = 38407;
+const GOLDEN_TREES_AT_START: usize = 38650;
 // 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
-const GOLDEN_FINGERPRINT: u64 = 10312752859990284784;
+const GOLDEN_FINGERPRINT: u64 = 12089242126031853867;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -354,7 +357,11 @@ fn the_ground_under_a_highway_is_the_road_grade() {
                 if plan.waters.bridges.iter().any(|b| b.centre.distance(p) < b.length_m * 0.5 + 2.0) {
                     continue; // On a bridge: the river runs under the deck.
                 }
-                if plan.decks.covers(p) {
+                if plan
+                    .decks
+                    .near(p)
+                    .any(|d| d.project(p).is_some_and(|(dist, _, _)| dist <= d.width_m * 0.5 + 1.0))
+                {
                     continue; // On a viaduct: the land is under its slab (`every_deck_over_a_street_leaves_room_for_a_lorry`).
                 }
                 let (_, tt) = h.project(p);

@@ -1640,6 +1640,11 @@ const VIEWS: &[View] = &[
     view("fargo-downtown", [0.0; 3], [0.0; 3]),
     view("fargo-highway", [0.0; 3], [0.0; 3]),
     view("fargo-street", [0.0; 3], [0.0; 3]),
+    // The highway through the capital on its viaduct (city-districts design section 5): an exit from the air, under
+    // the viaduct at the street's level looking along it, and from a ramp's landing up it to the viaduct.
+    view("fargo-exit", [0.0; 3], [0.0; 3]),
+    view("fargo-under", [0.0; 3], [0.0; 3]),
+    view("fargo-ramp", [0.0; 3], [0.0; 3]),
     // The house nearest the largest city, from 22 m off at eye height (night-voxel-light: its rooms at night), and
     // from 300 m, where its far shell is drawn (its lit far windows).
     View {
@@ -2289,7 +2294,43 @@ fn fargo_view(plan: &crate::world::Plan, which: &str) -> ([f32; 3], [f32; 3]) {
         })
         .next();
     let out = |b: Vec2| (b - c).normalize_or(Vec2::X);
+    // the capital's trunk and its first exit's ramps
+    let trunk = plan.highways.iter().position(|h| h.cities == [city.id, city.id]);
+    let ramp = trunk.and_then(|k| plan.ramps.iter().find(|r| r.highway == k as u32));
     match which {
+        "exit" | "under" | "ramp" => {
+            let (Some(k), Some(r)) = (trunk, ramp) else {
+                return ([c.x, g + 300.0, c.y], [c.x, g, c.y + 1.0]);
+            };
+            let h = &plan.highways[k];
+            let j = r.junction;
+            let (_, t) = h.project(j);
+            let on = h.point_at(t);
+            let dir = h.dir_at(t);
+            let side = (j - on).normalize_or(dir.perp());
+            match which {
+                "exit" => {
+                    let e = on + side * 260.0 - dir * 180.0;
+                    ([e.x, g + 140.0, e.y], [on.x, g + 5.0, on.y])
+                }
+                "under" => {
+                    let e = on - dir * 120.0 + side * 6.0;
+                    let a = on + dir * 200.0;
+                    ([e.x, g + 1.8, e.y], [a.x, g + 6.0, a.y])
+                }
+                _ => {
+                    let land = r
+                        .line
+                        .iter()
+                        .copied()
+                        .find(|p| p.y <= g + plan.road_lift_m + 0.1)
+                        .unwrap_or(r.line[0]);
+                    let up = r.line.iter().copied().max_by(|a, b| a.y.total_cmp(&b.y)).unwrap_or(land);
+                    let e = Vec2::new(land.x, land.z) + (Vec2::new(land.x, land.z) - Vec2::new(up.x, up.z)).normalize_or(Vec2::X) * 25.0;
+                    ([e.x, g + 1.8, e.y], [up.x, up.y, up.z])
+                }
+            }
+        }
         "air" => ([c.x + 640.0, g + 420.0, c.y + 640.0], [c.x, g, c.y]),
         "houses" => {
             let to = c + Vec2::new(0.47, 0.47) * city.half_size_m;

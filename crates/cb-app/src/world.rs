@@ -706,6 +706,8 @@ pub(crate) fn spawn_roads(
     let lot_mat = set("textures/road/asphalt_worn", 0.95);
     let blocks_mat = set("textures/road/paving", 0.85);
     let concrete_mat = set("textures/ground/concrete047a", 0.9);
+    let streets_mat = set("textures/roads/asphalt027c", 1.0);
+    let worn_mat = set("textures/road/asphalt_worn", 0.9);
     // The roads over roads (openspec change `city-districts`, design section 5): the viaducts' slabs and barriers and
     // the ramps, by tile with their levels of detail; each ramp's road surface goes into the roads' own meshes, so it
     // runs on into the viaduct's concrete and the street's asphalt without a seam. Over the asphalt where a ramp lands,
@@ -728,10 +730,10 @@ pub(crate) fn spawn_roads(
         rs.highway_tile_m,
     );
     for (name, mesh, mat) in [
-        ("roads", streets, set("textures/roads/asphalt027c", 1.0)),
+        ("roads", streets, streets_mat),
         ("highways", highway, concrete_mat.clone()),
         ("worn highways", highway_worn, concrete_mat),
-        ("worn roads", worn, set("textures/road/asphalt_worn", 0.9)),
+        ("worn roads", worn, worn_mat),
         ("blocks", kerbs, blocks_mat.clone()),
     ] {
         commands.spawn((

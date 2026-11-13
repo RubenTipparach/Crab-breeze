@@ -183,8 +183,12 @@ impl Decks {
     }
 }
 
-/// A highway is a viaduct where its road stands at least this far over the land under it.
-pub const VIADUCT_OVER_M: f32 = 2.5;
+/// A highway is a deck where its road stands at least this far over the land under it: on fill (walls to the ground)
+/// while it is low, on piers once there is room under it (`FILL_BELOW_M`), so no road ever floats over the land.
+pub const VIADUCT_OVER_M: f32 = 0.3;
+/// A deck stands on fill below this height over the land, on piers above it: 4.5 m of headroom under a 1.2 m slab,
+/// and a little to spare.
+pub const FILL_BELOW_M: f32 = HEADROOM_M + VIADUCT_SLAB_M + 0.2;
 /// A viaduct's slab, metres deep.
 pub const VIADUCT_SLAB_M: f32 = 1.2;
 /// A pier every so far along a viaduct, where it may stand.
@@ -243,11 +247,14 @@ pub fn viaducts(
                 pts,
                 width_m: h.width_m,
                 slab_m: VIADUCT_SLAB_M,
-                fill_below_m: 0.0,
+                fill_below_m: FILL_BELOW_M,
                 kind: DeckKind::Viaduct { highway: k as u32 },
                 piers: Vec::new(),
             };
-            deck.piers = piers_under(&deck, ground, pier_ok);
+            deck.piers = piers_under(&deck, ground, pier_ok)
+                .into_iter()
+                .filter(|p| p.top_m + deck.slab_m - ground(p.at) >= FILL_BELOW_M)
+                .collect();
             out.push(deck);
         }
     }

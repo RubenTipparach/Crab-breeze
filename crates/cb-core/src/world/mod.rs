@@ -810,13 +810,13 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
             pts: r.deck.clone(),
             width_m: r.width_m,
             slab_m: decks::VIADUCT_SLAB_M,
-            fill_below_m: decks::HEADROOM_M + decks::VIADUCT_SLAB_M + 0.2,
+            fill_below_m: decks::FILL_BELOW_M,
             kind: decks::DeckKind::Ramp { ramp: i as u32 },
             piers: Vec::new(),
         };
         d.piers = decks::piers_under(&d, &ground, &pier_ok)
             .into_iter()
-            .filter(|p| p.top_m - ground(p.at) >= d.fill_below_m)
+            .filter(|p| p.top_m + d.slab_m - ground(p.at) >= d.fill_below_m)
             .collect();
         all_decks.push(d);
     }
