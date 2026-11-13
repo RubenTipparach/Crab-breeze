@@ -33,7 +33,7 @@ Design section 5. The same headless setup, seed 42, `CB_STILLS_SETTLE_S=40`.
 | --- | --- |
 | `fargo-exit.jpg` | an exit from 140 m up: the trunk on its viaduct along the row of car parks, the piers, four one-way ramps down to the frontage streets beside the arterial |
 | `fargo-under.jpg` | under the viaduct at eye height: the slab's underside, a pier with its cap beam, the ramps on their fill walls either side |
-| `fargo-ramp.jpg` | from a ramp's landing up the ramp to the viaduct: the street's asphalt running on up the ramp, the deck's concrete fading out over it, the barriers following the grade |
+| `fargo-ramp.jpg` | at a ramp's landing beside the viaduct: cars waiting at the light where the ramp meets the street |
 | `fargo-air-trunk.jpg` | the capital from 900 m off with the trunk across it, its exits and the two highways climbing onto it |
 
 ## Downtown shapes (2026-11-13)
@@ -42,8 +42,8 @@ Design section 6: each city draws its downtown's shape; the capital is compact.
 
 | Still | What it shows |
 | --- | --- |
-| `fargo-main-street.jpg` | the first city whose downtown is a main street, from the air |
-| `fargo-two-cores.jpg` | the first city whose downtown has two cores, from the air |
+| `fargo-main-street.jpg` | the first city whose downtown is a main street (in the desert), from the air |
+| `fargo-two-cores.jpg` | the first city whose downtown has two cores (it also has a trunk), from the air: two clusters of towers in a ring of flats |
 
 ```sh
 CB_STILLS_ONLY=fargo-exit,fargo-under,fargo-ramp,fargo-air,fargo-main-street,fargo-two-cores CB_STILLS_SETTLE_S=40 ...
