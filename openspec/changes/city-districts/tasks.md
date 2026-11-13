@@ -19,9 +19,14 @@
 
 ## 3. Step 2: exits
 
-- [ ] 3.1 Layered road surfaces (a deck over the road under it), ramps on embankments, the lane graph joining a highway along its length, height queries by level
-- [ ] 3.2 The mockup's exits and highway modes in the generator
-- [ ] 3.3 The drive check (fill, clearance, grade, turns, ramp ends, bot) as `cb-core` tests
+- [ ] 3.1 Decks (`RoadDeck`) and height queries by level: support under the feet, pushed out from under a slab, `road_top_at` leaving out decked highway
+- [ ] 3.2 The trunk: its row (`BlockUse::Under`), the two highways re-laid onto it, arterial blocks long enough for a ramp
+- [ ] 3.3 Exits: four one-way ramps per arterial, landing at the frontage street's junction
+- [ ] 3.4 The lane graph along a highway: nodes at ramps, one-way ramp lanes, shared highway ends, lanes with their own heights
+- [ ] 3.5 The drive check (fill, clearance, grade, ramp ends, bot) as `cb-core` tests
+- [ ] 3.6 Drawn: decks, piers, ramps with three levels of detail, blended joins (concrete fading into asphalt, ramps welded into streets)
+- [ ] 3.7 Headless stills of the viaduct and an exit
+- [ ] 3.8 The other modes (overpasses on embankments, the bypass) after the owner has seen the viaduct
 
 ## 4. Step 3: drifting grids
 

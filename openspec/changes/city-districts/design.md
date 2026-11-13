@@ -106,6 +106,54 @@ suburbs' own rules (a drive no steeper than its limit, reaching the road, off th
 surface (`Surface::Lot`) on the worn asphalt set, paler than the streets; the highway takes the CC0 Concrete047A set
 the quays already use.
 
+## 5. Step 2 in the game: a highway through the city, on a viaduct, with exits
+
+The owner, 2026-11-13: "keep working on that, get it all in the game", "with LODs and shit, and make sure the
+texturing is blended correctly", "the mockup doesnt even try to merge textures and geometry together well".
+
+### What the player sees
+
+Where two of a city's highways come in from roughly opposite sides, they no longer stop at the city's edge: they climb
+onto one viaduct, 9 m up, that crosses the city along a row of blocks south of the downtown. Under it the streets run on
+at grade and the row is car parks between the piers. At an arterial the viaduct has an exit: a ramp each way down to the
+frontage street beside it and back up (a diamond with frontage roads, the shape the narrow grid allows). A city with
+one highway keeps today's arrival at its edge.
+
+### How it is built
+
+| Part | Rule |
+| --- | --- |
+| Trunk | a highway of its own (`Highway`, both ends the city), straight along a block row's middle from 40 m outside the square to 40 m outside the other side, its grade the city's ground plus 9 m |
+| Its row | the block row (along the trunk's axis) nearest 0.35 of the half size south (or east) of the centre that is not downtown; its blocks become `BlockUse::Under`: car parks between piers |
+| The two highways | re-laid to end at the trunk's ends at its height (their grading climbs at most 6 %); where the land under them is lower than the road by 2.5 m or more (the city's plateau pulls it down), the road is a deck on piers, elsewhere an embankment |
+| Decks | `RoadDeck`: a centre line with heights, a width, a 1.2 m slab, piers kept off every street; computed from the highways (grade over the ground) and laid for ramps; one index |
+| Exits | at each arterial crossing the row: four one-way ramps 9 m wide, an off-ramp each way in the block before the arterial and an on-ramp in the block after, descending at 8 % and level for their last 20 m, landing at the junction of the arterial and the frontage street; ramps lower than 5.9 m stay inside their block (nothing passes under them lower than 4.5 m). The blocks beside an arterial are drawn 100-110 m long so a ramp fits. A trunk with no exit that fits is not built |
+| Heights | `road_top_at` leaves out a highway where it is a deck; every deck is a surface under a body within a step of its feet (`Scene::support_at`, like a roof or the Stratostacean's deck), and a body between a deck's slab and 12 m over its feet is pushed out from under it. Cars, the pilot, people and the mech choose their level by their feet |
+| Lanes | the lane graph joins a highway along its length: a junction node where each ramp leaves or joins, the highway cut into roads between them; ramps are one-way (`LaneKind::Ramp`), no connector turns more than 90 degrees onto or off a ramp; a highway end at another highway's end shares its node. Every lane carries its own heights (a highway's or deck's own grade, not the ground under it) |
+| Drive check | `cb-core` tests: every lane has a way out and reaches the downtown; every ramp joins a road at both ends; grades at most 8 %; 4.5 m under every deck over a road; a bot drives from a street up a ramp, along the trunk, off another exit |
+
+### Drawn, with levels of detail and blended surfaces
+
+| Part | LOD0 (near) | LOD1 | LOD2 (far) |
+| --- | --- | --- | --- |
+| Deck | slab with fascia and underside, concrete barriers with their cap, expansion joints, lane paint | slab and barriers as boxes | the slab only (the roads' own mesh) |
+| Piers | a column with a cap beam, chamfered | a box | none past 1.5 km |
+| Ramps | as the deck, on fill where low (walls to the ground) | slab and walls | slab |
+
+Each part is cut into 512 m tiles with a visibility range per level (`VisibilityRange`), so a far viaduct costs a slab.
+
+Surfaces join without seams. Textures are mapped in world space (as every road is), so a ramp, laid in the streets'
+own Asphalt027C at the streets' tone, runs into its frontage street with no line. Where a ramp leaves the concrete deck, a
+6 m strip of the deck's concrete fades out over the ramp's asphalt (vertex alpha over the same world-space UVs); where a
+deck lands on its embankment, the concrete runs onto the highway's own concrete. A ramp's landing is welded to the street:
+its last 20 m level with the street, its edges meeting the street's edge, no step and no gap.
+
+### Cost
+
+Per city with a trunk: about 1.2 km of viaduct (about 6,000 triangles with barriers at LOD0, 400 at LOD2), 30 piers
+(instanced, 120 triangles each at LOD0), 4 to 12 ramps (about 2,000 triangles each at LOD0). Three to five draw calls per
+tile at LOD0. No new textures (Concrete047A and Asphalt027C are loaded already).
+
 ## 3. Cost
 
 ## 3. Cost
@@ -124,6 +172,7 @@ capital or fewer. It is measured on the owner's machine before it is built.
 | --- | --- | --- | --- |
 | CD1 | Is the Fargo look the right one, and which variations? | Small and large downtowns, all three shapes, both highways | answered: approved (owner, 2026-11-04: "looks great") |
 | CD2 | Which cities get which variation? | The capital large; the rest small, the shape and the highway drawn per city | provisional |
+| CD6 | Which mode in game first? | The viaduct through the city (the streets run on under it; overpasses on embankments would cut the grid's streets) | provisional |
 | CD5 | Frontage roads: none, as now (the ramps and overpasses need the ground), or added outside the interchanges? | None | provisional |
 | CD4 | Which highway mode is the default, and does a city mix them (elevated through the downtown, at grade outside)? | At grade outside the edge, overpasses in town; elevated only for the capital's downtown | provisional |
 | CD3 | Water | None but the coast where a city stands on it; no rivers (removed from the game) | provisional |
