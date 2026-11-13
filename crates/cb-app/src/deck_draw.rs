@@ -245,13 +245,15 @@ pub fn spawn(
             count += 1;
             let mesh = b.build_with_tangents();
             tris += mesh.indices().map_or(0, |i| i.len() / 3);
-            commands.spawn((
+            let mut e = commands.spawn((
                 Name::new(name),
                 Mesh3d(meshes.add(crate::world::kept_for_cutting(mesh))),
                 MeshMaterial3d(mat),
-                range,
                 crate::world::CutByCraters,
             ));
+            if std::env::var("CB_DECK_RANGES").is_ok_and(|v| v == "1") {
+                e.insert(range);
+            }
         }
     }
     info!(
