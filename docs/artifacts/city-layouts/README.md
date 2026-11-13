@@ -1,6 +1,6 @@
 # City Layouts: Today and Future
 
-Published: https://claude.ai/artifact/8TEjkZ4V2CpHyj2doztEHf
+Published: https://claude.ai/artifact/VfpLdsDWkrxFqSMXm5WHKj (republished 2026-11-13 from this folder's `city_layouts.html`; the first link no longer opened)
 
 **What it shows.** Two cities on one ground, on one camera, at true scale, with a 24 m block for the mech. You can see them side by side or one at a time, from the air, at mech height or in plan.
 
