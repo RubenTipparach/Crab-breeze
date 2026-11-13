@@ -375,13 +375,206 @@ fn the_ground_under_a_highway_is_the_road_grade() {
 fn every_lane_on_the_island_has_a_way_out() {
     let plan = seed_42();
     let cfg = shipped();
-    let g = lanes::LaneGraph::build(&plan.cities, &plan.highways, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    let g = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
     assert!(g.lanes.len() > 1000, "{} lanes", g.lanes.len());
     for l in &g.lanes {
         assert!(!l.out.is_empty(), "lane {} ({:?}) dead-ends", l.id, l.kind);
     }
+    let highway_roads = g.roads.iter().filter(|r| r.kind == lanes::LaneKind::Highway).count();
     let highway_lanes = g.road_lanes().filter(|l| l.kind == lanes::LaneKind::Highway).count();
-    assert_eq!(highway_lanes, plan.highways.len() * 4, "two lanes each way on every highway");
+    assert_eq!(
+        highway_lanes,
+        highway_roads * 4,
+        "two lanes each way on every highway, its pieces between exits too"
+    );
+}
+
+// ---- The highway through the city and its exits (openspec change `city-districts`, design section 5): the drive
+// check, on the generated island.
+
+/// The capital's trunk: a highway whose two ends are both the city.
+fn capital_trunk(plan: &WorldPlan) -> Option<usize> {
+    plan.highways.iter().position(|h| h.cities == [0, 0])
+}
+
+#[test]
+fn the_capital_has_a_trunk_on_a_viaduct_with_exits() {
+    let plan = seed_42();
+    let k = capital_trunk(plan).expect("the capital has a trunk");
+    let ramps = plan.ramps.iter().filter(|r| r.highway == k as u32).count();
+    assert!(ramps >= 4, "an exit is four ramps: {ramps}");
+    let viaduct = plan
+        .decks
+        .decks
+        .iter()
+        .filter(|d| d.kind == decks::DeckKind::Viaduct { highway: k as u32 })
+        .map(|d| d.length_m())
+        .sum::<f32>();
+    let city = &plan.cities[0];
+    assert!(
+        viaduct > city.half_size_m * 1.8,
+        "the trunk crosses the city on its viaduct: {viaduct:.0} m"
+    );
+    // its row is car parks under it
+    assert!(city.blocks.iter().any(|b| b.kind == BlockUse::Under), "the row under the viaduct");
+}
+
+#[test]
+fn every_ramp_joins_its_highway_and_its_street_and_climbs_no_more_than_8_percent() {
+    let plan = seed_42();
+    let cfg = shipped();
+    assert!(!plan.ramps.is_empty());
+    for (i, r) in plan.ramps.iter().enumerate() {
+        let h = &plan.highways[r.highway as usize];
+        let deck_top = h.grade_at(0.5) + plan.road_lift_m;
+        let street_top = plan.cities[r.city as usize].ground_m + plan.road_lift_m;
+        let (first, last) = (r.line[0], *r.line.last().unwrap());
+        let (high, low) = if r.off { (first, last) } else { (last, first) };
+        assert!(
+            (high.y - deck_top).abs() < 0.05,
+            "ramp {i} meets the viaduct at its top: {} vs {deck_top}",
+            high.y
+        );
+        assert!(
+            (low.y - street_top).abs() < 0.05,
+            "ramp {i} lands level with the street: {} vs {street_top}",
+            low.y
+        );
+        assert!(
+            low.distance(Vec3::new(r.junction.x, low.y, r.junction.y)) < 1.0,
+            "ramp {i} lands at its junction"
+        );
+        for w in r.line.windows(2) {
+            let run = Vec2::new(w[1].x - w[0].x, w[1].z - w[0].z).length();
+            if run > 0.5 {
+                let grade = (w[1].y - w[0].y).abs() / run;
+                assert!(grade <= cfg.trunk.ramp_grade + 1e-3, "ramp {i} climbs {:.1} %", grade * 100.0);
+            }
+        }
+    }
+}
+
+#[test]
+fn every_deck_over_a_street_leaves_room_for_a_lorry() {
+    let plan = seed_42();
+    let mut over = 0;
+    for d in &plan.decks.decks {
+        for w in d.pts.windows(2) {
+            for k in 0..=4 {
+                let p = w[0].lerp(w[1], k as f32 / 4.0);
+                let q = Vec2::new(p.x, p.z);
+                for c in plan.cities.iter().filter(|c| c.rect().distance(q) < 60.0) {
+                    if c.streets.iter().any(|st| st.rect.distance(q) <= 0.0) {
+                        over += 1;
+                        let street = c.ground_m + plan.road_lift_m;
+                        let under = d.underside_m(p.y, c.ground_m);
+                        assert!(
+                            under - street >= decks::HEADROOM_M - 1e-3,
+                            "a deck {:.2} m over the street at ({:.0}, {:.0})",
+                            under - street,
+                            p.x,
+                            p.z
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert!(over > 0, "the viaduct crosses the city's streets");
+}
+
+#[test]
+fn traffic_on_the_viaduct_rides_its_deck_not_the_street_under_it() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let g = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    let k = capital_trunk(plan).expect("a trunk") as u32;
+    let deck = plan.cities[0].ground_m + cfg.trunk.deck_m;
+    let on_trunk: Vec<&lanes::Lane> = g.road_lanes().filter(|l| g.roads[l.road as usize].highway == Some(k)).collect();
+    assert!(!on_trunk.is_empty());
+    for l in on_trunk {
+        let ys = l.ys.as_ref().expect("a trunk lane carries its heights");
+        assert!(
+            ys.iter().all(|&y| (y - deck - plan.road_lift_m).abs() < 0.05),
+            "lane {} off the deck",
+            l.id
+        );
+    }
+}
+
+#[test]
+fn a_bot_drives_from_a_street_up_a_ramp_along_the_trunk_and_off_another_exit() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let g = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    let k = capital_trunk(plan).expect("a trunk") as u32;
+    let city_street = |l: &lanes::Lane| l.kind.in_city() && g.nodes[l.from_node as usize].city == 0;
+    let start = g.road_lanes().find(|l| city_street(l)).expect("a capital street lane").id;
+    // breadth first over the lanes, remembering whether the way here used the trunk and a ramp up and one down
+    let mut seen = std::collections::BTreeMap::new();
+    let mut queue = std::collections::VecDeque::from([(start, 0u8)]);
+    let mut done = false;
+    while let Some((l, state)) = queue.pop_front() {
+        if seen.insert((l, state), ()).is_some() {
+            continue;
+        }
+        let lane = &g.lanes[l as usize];
+        let road = &g.roads[lane.road as usize];
+        let mut next = state;
+        if lane.kind == lanes::LaneKind::Ramp && state == 0 {
+            next = 1; // up a ramp
+        } else if road.highway == Some(k) && state == 1 {
+            next = 2; // along the trunk
+        } else if lane.kind == lanes::LaneKind::Ramp && state == 2 {
+            next = 3; // down another
+        } else if state == 3 && city_street(lane) {
+            done = true;
+            break;
+        }
+        for &o in &lane.out {
+            queue.push_back((o, next));
+        }
+    }
+    assert!(done, "a car can go up onto the trunk and come off it again into the city");
+}
+
+#[test]
+fn a_car_on_the_viaduct_stands_on_it_and_one_under_it_stands_on_the_street() {
+    let plan = seed_42();
+    let dug = Deformation::new(4096.0);
+    let scene = Scene {
+        plan,
+        dug: &dug,
+        trees: None,
+        structures: None,
+        platforms: &[],
+        interiors: None,
+    };
+    let k = capital_trunk(plan).expect("a trunk") as u32;
+    let d = plan
+        .decks
+        .decks
+        .iter()
+        .find(|d| d.kind == decks::DeckKind::Viaduct { highway: k })
+        .expect("its viaduct");
+    // over a street of the capital
+    let city = &plan.cities[0];
+    let p = d
+        .pts
+        .windows(2)
+        .flat_map(|w| (0..8).map(move |i| w[0].lerp(w[1], i as f32 / 8.0)))
+        .find(|p| city.streets.iter().any(|st| st.rect.distance(Vec2::new(p.x, p.z)) <= 0.0))
+        .expect("the viaduct over a street");
+    let street = city.ground_m + plan.road_lift_m;
+    let on = scene.support_at(p.x, p.z, p.y);
+    assert!((on - p.y).abs() < 0.05, "on the deck: {on} vs {}", p.y);
+    let under = scene.support_at(p.x, p.z, street);
+    assert!((under - street).abs() < 0.05, "under it, on the street: {under} vs {street}");
+    let cars = OnRoads { ground: &scene, plan };
+    assert!(
+        (cars.support_at(p.x, p.z, street) - street).abs() < 0.05,
+        "a car under it stays on the street"
+    );
 }
 
 #[test]
@@ -1346,7 +1539,7 @@ fn a_road_runs_from_a_city_to_every_site_and_the_lane_graph_reaches_its_gate() {
             s.origin
         );
     }
-    let graph = lanes::LaneGraph::build(&plan.cities, &plan.highways, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    let graph = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
     for h in &access {
         let gate = graph.nodes.iter().find(|n| n.at.distance(h.ends[1]) < 1.0).expect("a gate node");
         assert!(

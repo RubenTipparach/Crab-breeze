@@ -284,7 +284,7 @@ impl MeshBuilder {
     }
 
     /// An axis-aligned box from `min` to `max` (all six faces).
-    fn cuboid(&mut self, min: Vec3, max: Vec3, color: [f32; 4]) {
+    pub(crate) fn cuboid(&mut self, min: Vec3, max: Vec3, color: [f32; 4]) {
         let [x0, y0, z0] = min.to_array();
         let [x1, y1, z1] = max.to_array();
         let v = |x, y, z| Vec3::new(x, y, z);
@@ -625,6 +625,17 @@ pub(crate) fn spawn_roads(
             let (y0, y1) = (city.ground_m - 1.0, city.ground_m + cfg.kerb_height_m);
             let slab =
                 |k: &mut MeshBuilder, lo: Vec2, hi: Vec2, colour| k.cuboid(Vec3::new(lo.x, y0, lo.y), Vec3::new(hi.x, y1, hi.y), colour);
+            // under the viaduct: car parks between its piers, on the car parks' worn asphalt, a little under the streets'
+            // level so a ramp's landing lies over them
+            if block.kind == cb_core::world::BlockUse::Under {
+                let top = city.ground_m + cfg.road_lift_m - cb_core::world::layout::UNDER_BELOW_STREET_M;
+                worn.cuboid(
+                    Vec3::new(a.x, y0, a.y),
+                    Vec3::new(b.x, top, b.y),
+                    [rs.lot_tone[0], rs.lot_tone[1], rs.lot_tone[2], 1.0],
+                );
+                continue;
+            }
             match (block.is_park(), block.kind.paved(), block.rect.inset(city.sidewalk_m)) {
                 (true, _, _) => slab(&mut kerbs, a, b, park),
                 (false, false, Some(i)) => {
@@ -695,6 +706,27 @@ pub(crate) fn spawn_roads(
     let lot_mat = set("textures/road/asphalt_worn", 0.95);
     let blocks_mat = set("textures/road/paving", 0.85);
     let concrete_mat = set("textures/ground/concrete047a", 0.9);
+    // The roads over roads (openspec change `city-districts`, design section 5): the viaducts' slabs and barriers and
+    // the ramps, by tile with their levels of detail; each ramp's road surface goes into the roads' own meshes, so it
+    // runs on into the viaduct's concrete and the street's asphalt without a seam. Over the asphalt where a ramp lands,
+    // its concrete fades out (the same concrete, alpha-blended, a centimetre up and biased in depth).
+    let blend_mat = {
+        let mut m = materials.get(&concrete_mat).cloned().unwrap_or_default();
+        m.alpha_mode = AlphaMode::Blend;
+        m.depth_bias = 8.0;
+        materials.add(m)
+    };
+    crate::deck_draw::spawn(
+        &mut commands,
+        &mut meshes,
+        &world,
+        &mut highway,
+        &mut streets,
+        (rs.highway_tone, rs.street_tone),
+        concrete_mat.clone(),
+        blend_mat,
+        rs.highway_tile_m,
+    );
     for (name, mesh, mat) in [
         ("roads", streets, set("textures/roads/asphalt027c", 1.0)),
         ("highways", highway, concrete_mat.clone()),

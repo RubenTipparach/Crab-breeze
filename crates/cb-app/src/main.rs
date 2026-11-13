@@ -29,6 +29,7 @@ mod clouds_render;
 mod cockpit_space;
 mod combat;
 mod day_night;
+mod deck_draw;
 mod defence;
 mod demolition;
 mod far_facades;

@@ -932,6 +932,8 @@ pub struct WorldConfig {
     pub debris: DebrisConfig,
     /// What each city block is used for (openspec change `city-districts`).
     pub zones: super::layout::ZonesConfig,
+    /// The highway through a city and its exits (openspec change `city-districts`, design section 5).
+    pub trunk: super::trunk::TrunkConfig,
     /// Where the houses and small businesses stand (openspec change `small-buildings`).
     pub small_buildings: super::small_buildings::SmallBuildingsConfig,
     /// The houses' and small businesses' kits, read from `assets/models/small_buildings/` by
@@ -1054,6 +1056,7 @@ impl Default for WorldConfig {
             dressing: super::dressing::DressingConfig::default(),
             interiors: super::interior::InteriorConfig::default(),
             zones: super::layout::ZonesConfig::default(),
+            trunk: super::trunk::TrunkConfig::default(),
             small_buildings: super::small_buildings::SmallBuildingsConfig::default(),
             small_kits: Default::default(),
             sites: super::sites::SitesConfig::default(),
@@ -1159,6 +1162,7 @@ impl Validate for WorldConfig {
         self.dressing.validate()?;
         self.interiors.validate()?;
         self.zones.validate()?;
+        self.trunk.validate()?;
         self.small_buildings.validate()?;
         self.sites.validate()?;
         self.debris.validate()?;

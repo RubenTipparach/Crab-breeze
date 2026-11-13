@@ -94,6 +94,9 @@ pub struct Building {
     pub height_m: f32,
 }
 
+/// The car parks under a viaduct lie this far under the streets' surface, metres, so a ramp's landing lies over them.
+pub const UNDER_BELOW_STREET_M: f32 = 0.06;
+
 /// What a city block is used for (openspec change `city-districts`, design section 4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockUse {
@@ -103,6 +106,9 @@ pub enum BlockUse {
     Flats,
     /// Businesses with their car parks, where a highway comes into the city.
     Strip,
+    /// Car parks between the piers of the viaduct through the city, and its ramps (openspec change `city-districts`,
+    /// design section 5).
+    Under,
     /// Rows of houses with yards and drives.
     Houses,
     /// Grass and trees (no buildings).
@@ -142,7 +148,7 @@ impl Block {
     /// The ground at `p` inside the block, kerb height or not: on its pavement (all of a paved block, the ring
     /// `sidewalk_m` wide round any other) the kerb's height; inside the ring, `None` (the ground's own).
     pub fn on_pavement(&self, p: Vec2, sidewalk_m: f32) -> bool {
-        if self.rect.distance(p) > 0.0 {
+        if self.rect.distance(p) > 0.0 || self.kind == BlockUse::Under {
             return false;
         }
         self.kind.paved() || self.rect.inset(sidewalk_m).is_none_or(|inner| inner.distance(p) > 0.0)
@@ -237,6 +243,10 @@ impl City {
         }
         if self.streets.iter().any(|s| s.rect.distance(p) <= 0.0) {
             return Some(self.ground_m + road_lift_m);
+        }
+        // the car parks under a viaduct: their asphalt, a little under the streets (as `cb-app::world` draws them)
+        if self.blocks.iter().any(|b| b.kind == BlockUse::Under && b.rect.distance(p) <= 0.0) {
+            return Some(self.ground_m + road_lift_m - UNDER_BELOW_STREET_M);
         }
         // a block's pavement (all of a paved block, the ring round any other); inside the ring, the ground's own
         // (yards, car parks and playing fields lie on the ground)
@@ -446,8 +456,13 @@ fn street_lines(rng: &mut SimRng, lo: f32, hi: f32, cfg: &WorldConfig) -> Lines 
     // Draw blocks until the next one would not fit, then stretch them all to fill exactly.
     let mut blocks = Vec::new();
     let mut used = width(0);
+    let every = cfg.arterial_every.max(1) as usize;
     loop {
-        let b = rng.range_f32(cfg.block_size_m[0], cfg.block_size_m[1]);
+        // a block beside an arterial is long enough for an exit's ramp (openspec change `city-districts`, design 5)
+        let i = blocks.len();
+        let beside = cfg.trunk.enabled && (i.is_multiple_of(every) || (i + 1).is_multiple_of(every));
+        let range = if beside { cfg.trunk.arterial_block_m } else { cfg.block_size_m };
+        let b = rng.range_f32(range[0], range[1]);
         let next = used + b + width(blocks.len() + 1);
         if next > hi - lo && !blocks.is_empty() {
             break;
@@ -575,7 +590,7 @@ pub fn zone_city(rng: &mut SimRng, city: &mut City, highways: &[Highway], larges
 }
 
 /// The downtown's radius in a city (`ZonesConfig::downtown_share`, scaled by the city's size).
-fn downtown_radius_m(city: &City, largest_half_m: f32, cfg: &WorldConfig) -> f32 {
+pub fn downtown_radius_m(city: &City, largest_half_m: f32, cfg: &WorldConfig) -> f32 {
     let z = &cfg.zones;
     let size_t = (city.half_size_m / largest_half_m).clamp(0.0, 1.0);
     city.half_size_m * (z.downtown_share[0] + (z.downtown_share[1] - z.downtown_share[0]) * size_t)

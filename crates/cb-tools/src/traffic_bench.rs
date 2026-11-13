@@ -98,7 +98,7 @@ pub fn run(args: &[String]) -> ExitCode {
     };
     let plan = cb_core::world::generate(seed, &data.world);
     let t0 = std::time::Instant::now();
-    let graph = LaneGraph::build(&plan.cities, &plan.highways, &data.traffic.cfg.lanes, data.world.arterial_width_m);
+    let graph = LaneGraph::of_plan(&plan, &data.traffic.cfg.lanes, data.world.arterial_width_m);
     let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
     let lit = graph.nodes.iter().filter(|n| n.signal).count();
     println!(

@@ -1316,8 +1316,12 @@ impl Traffic {
             }
             let lane = &g.lanes[c.lane as usize];
             let (p, d) = lane.line.at(c.s_m);
-            let hs = self.heights[c.lane as usize]
-                .get_or_insert_with(|| lane.line.points.iter().map(|q| view.ground.height_at(q.x, q.y)).collect());
+            // a lane on a highway or a ramp rides its road's own surface (a viaduct over the street, not the street)
+            let hs = self.heights[c.lane as usize].get_or_insert_with(|| {
+                lane.ys
+                    .clone()
+                    .unwrap_or_else(|| lane.line.points.iter().map(|q| view.ground.height_at(q.x, q.y)).collect())
+            });
             let (k, u) = lane.line.locate(c.s_m);
             let y = hs[k] + (hs[(k + 1).min(hs.len() - 1)] - hs[k]) * u;
             c.pos = Vec3::new(p.x, y, p.y);
@@ -1651,7 +1655,15 @@ impl Traffic {
                     if !clear || under {
                         continue;
                     }
-                    let at = Vec3::new(p.x, ground.height_at(p.x, p.y), p.y);
+                    // on its road's own surface: a viaduct's lane, not the street under it
+                    let y = lane.ys.as_ref().map_or_else(
+                        || ground.height_at(p.x, p.y),
+                        |ys| {
+                            let (k, u) = lane.line.locate(s);
+                            ys[k] + (ys[(k + 1).min(ys.len() - 1)] - ys[k]) * u
+                        },
+                    );
+                    let at = Vec3::new(p.x, y, p.y);
                     let hidden = !in_view(at)
                         || (at.distance(eye) > cfg.hidden_beyond_m && {
                             asked_cover += 1;
