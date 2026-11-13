@@ -26,7 +26,8 @@
 - [x] 3.5 The drive check (fill, clearance, grade, ramp ends, bot) as `cb-core` tests
 - [x] 3.6 Drawn: decks, piers, ramps with three levels of detail, blended joins (concrete fading into asphalt, ramps welded into streets)
 - [x] 3.7 Headless stills of the viaduct and an exit
-- [ ] 3.8 The other modes (overpasses on embankments, the bypass) after the owner has seen the viaduct
+- [ ] 3.8 The bypass (design section 7): forks on two highways, a route round the city, the lane graph's forks, a bot round it
+- [ ] 3.9 Overpasses on embankments (once a grid leaves room for their embankments)
 
 ## 4. Step 3: drifting grids
 

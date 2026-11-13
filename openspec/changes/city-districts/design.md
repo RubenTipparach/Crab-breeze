@@ -184,6 +184,39 @@ downtown does ("apartment blocks of 3-5 storeys within 650 m").
 
 Cost: none at run time (the same buildings, placed differently); a few microseconds a city at generation.
 
+## 7. The bypass in the game
+
+A city that has two or more highways but no trunk (they come in from the same side, or no exit fits) gets a bypass:
+through traffic goes round the city instead of through its streets, as in the mockup's bypass mode ("under the city is
+with bypass and bridges, and levies"; owner, 2026-11-04).
+
+### What the player sees
+
+About 250 m out along each of two of the city's highways, a road forks off and swings round the outside of the city,
+clear of its square and its blend band, to the other highway, which it joins the same way. The city keeps its own
+arrivals: the highways still run on into its streets, so a driver can go into town or round it. The bypass is a highway
+of its own, on the highways' concrete, graded the same way.
+
+### How it is built
+
+| Part | Rule |
+| --- | --- |
+| Which cities | a city with no trunk and at least two highways that arrive from another city; the pair whose arrivals are farthest apart round the centre |
+| Its ends | a fork on each of the two highways, `bypass.fork_out_m` (250 m) along it from the city's edge, at that highway's grade there |
+| Its route | `lay_road`, as every highway: round the city, kept out of its square and the road's band by the trunk's rule (`TrunkEnd` keeps a road out of a square but near its end); the first and last `lead_in_m` (60 m) straight along the highway it leaves, so it forks off in line |
+| Lanes | a highway end that lies on another highway's line (not at its end) is a fork: the other highway is split there by a junction node, the same node a ramp's tap makes (one rule for both). The bypass is two-way |
+| Drawing | its road surface stops at the highway's edge, so the two never overlap; the highway's concrete runs on under the fork |
+| Drive check | every lane has a way out (the island test already covers every lane); a bot drives from one highway round the bypass onto the other |
+
+Kept only where the route lays (`lay_road` finds one within the detour box) and the sites still fit: the bypasses are
+laid before the airports and bases, which keep clear of them as of every highway; seed 42 must keep its two airports,
+two seaports and four bases.
+
+### Cost
+
+One more highway per bypass city (about 2-3 km of road, its terrain flattened like any highway's): on seed 42 up to ten
+bypasses, about 25 km of road, about 10,000 triangles and no new draw calls (the highways' mesh).
+
 ## 3. Cost
 
 Mockup counts, from its own footer:
@@ -202,5 +235,5 @@ capital or fewer. It is measured on the owner's machine before it is built.
 | CD2 | Which cities get which variation? | The capital large; the rest small, the shape and the highway drawn per city (compact 0.5, main street 0.25, two cores 0.25; section 6) | provisional |
 | CD6 | Which mode in game first? | The viaduct through the city (the streets run on under it; overpasses on embankments would cut the grid's streets) | provisional |
 | CD5 | Frontage roads: none, as now (the ramps and overpasses need the ground), or added outside the interchanges? | None | provisional |
-| CD4 | Which highway mode is the default, and does a city mix them (elevated through the downtown, at grade outside)? | At grade outside the edge, overpasses in town; elevated only for the capital's downtown | provisional |
+| CD4 | Which highway mode is the default, and does a city mix them (elevated through the downtown, at grade outside)? | Elevated through a city whose highways come in from opposite sides (section 5), a bypass round the rest (section 7); overpasses wait for a grid that leaves room for their embankments | provisional |
 | CD3 | Water | None but the coast where a city stands on it; no rivers (removed from the game) | provisional |
