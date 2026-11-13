@@ -125,8 +125,8 @@ one highway keeps today's arrival at its edge.
 | --- | --- |
 | Trunk | a highway of its own (`Highway`, both ends the city), straight along a block row's middle from 40 m outside the square to 40 m outside the other side, its grade the city's ground plus 9 m |
 | Its row | the block row (along the trunk's axis) nearest 0.35 of the half size south (or east) of the centre that is not downtown; its blocks become `BlockUse::Under`: car parks between piers |
-| The two highways | re-laid to end at the trunk's ends at its height (their grading climbs at most 6 %); where the land under them is lower than the road by 2.5 m or more (the city's plateau pulls it down), the road is a deck on piers, elsewhere an embankment |
-| Decks | `RoadDeck`: a centre line with heights, a width, a 1.2 m slab, piers kept off every street; computed from the highways (grade over the ground) and laid for ramps; one index |
+| The two highways | re-laid to end at the trunk's ends at its height (their grading climbs at most 6 %), each running its last 120 m straight in along the trunk's line (`trunk.lead_in_m`), so it meets the trunk in line: a corner there left a wedge of road off both decks; where the land under them is lower than the road by 2.5 m or more (the city's plateau pulls it down), the road is a deck on piers, elsewhere an embankment |
+| Decks | `RoadDeck`: a centre line with heights, a width, a 1.2 m slab, piers kept off every street; computed from the highways (the road's top 0.3 m or more over the land anywhere across its width) and laid for ramps; one index. A point on the outside of a bend is on the deck by the joint between its two legs (only the deck's own ends stop it) |
 | Exits | at each arterial crossing the row: four one-way ramps 9 m wide, an off-ramp each way in the block before the arterial and an on-ramp in the block after, descending at 8 % and level for their last 20 m, landing at the junction of the arterial and the frontage street; ramps lower than 5.9 m stay inside their block (nothing passes under them lower than 4.5 m). The blocks beside an arterial are drawn 100-110 m long so a ramp fits. A trunk with no exit that fits is not built |
 | Heights | `road_top_at` leaves out a highway where it is a deck; every deck is a surface under a body within a step of its feet (`Scene::support_at`, like a roof or the Stratostacean's deck), and a body between a deck's slab and 12 m over its feet is pushed out from under it. Cars, the pilot, people and the mech choose their level by their feet |
 | Lanes | the lane graph joins a highway along its length: a junction node where each ramp leaves or joins, the highway cut into roads between them; ramps are one-way (`LaneKind::Ramp`), no connector turns more than 90 degrees onto or off a ramp; a highway end at another highway's end shares its node. Every lane carries its own heights (a highway's or deck's own grade, not the ground under it) |
@@ -171,7 +171,9 @@ no other city's draws move), and the downtown's buildings fall from its heart to
 
 `Downtown::reach(p)` is the one rule: 0 at the heart, 1 at the edge, more outside. Zoning takes a block whose centre
 has reach 1 or less (and always the block nearest its heart), and the storeys fall with
-`reach ^ storey_falloff_exponent`. The trunk's row (section 5) still keeps clear of the downtown's radius, whatever its
+`reach ^ storey_falloff_exponent`; the lot nearest the heart stands the downtown's full height, so a city's tallest
+tower is a rule, not a draw. A main street runs along the street axis nearer the way its nearest highway comes in, as a
+main street leads out to the road into town (drawn as the city is zoned, once its highways are laid). The trunk's row (section 5) still keeps clear of the downtown's radius, whatever its
 shape: the highways a trunk re-lays then do not move with the shape (with them the air bases beside them moved, and one
 no longer fitted), and a downtown block the row takes is a car park under the viaduct like the rest of the row.
 

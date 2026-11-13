@@ -1606,7 +1606,9 @@ impl Traffic {
             let mut added: Vec<(f32, f32, f32, bool)> = Vec::new();
             for parked in [false, true] {
                 let (want, mut have) = if parked { (want_parked, have_parked) } else { (want, have) };
-                let mut tries = want.saturating_sub(have) * 3;
+                // six random places for each car it lacks: a short street loses its first 30 m and the gaps round
+                // its cars, and three left the shortest underfilled
+                let mut tries = want.saturating_sub(have) * 6;
                 while have < want && made < budget && tries > 0 {
                     tries -= 1;
                     tries_made += 1;
@@ -2432,7 +2434,9 @@ mod tests {
 
     // Re-recorded 2026-10-28 for the stepping by distance (`StepLod`): the cars beyond 300 m of the eye are stepped
     // every second or fourth step with the time owed, so their places at any one step differ; the count is unchanged.
-    const GOLDEN_11: (usize, u64) = (455, 15428268099846911920);
+    // Re-recorded 2026-11-13 (city-districts design section 5): the blocks beside an arterial are drawn long enough for
+    // a ramp, so the town's lanes differ, and the fill tries six places for each car it lacks.
+    const GOLDEN_11: (usize, u64) = (448, 9924714505719713979);
 
     #[test]
     fn a_blast_within_120_m_stops_the_traffic_for_20_to_40_s() {

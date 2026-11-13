@@ -135,12 +135,14 @@ const GOLDEN_CITIES: usize = 13;
 // 2026-11-13: the highway through the city (openspec change `city-districts`, design section 5): three cities get a
 // trunk on a viaduct (12 highways to 15), its row's blocks are car parks, the blocks beside an arterial are drawn long
 // enough for a ramp (709 buildings to 582); the trees at the start move with the re-laid highways.
-const GOLDEN_BUILDINGS: usize = 582;
+// 2026-11-13: the downtown shapes and the large downtown's housing (design section 6): the flats ring grows with the
+// city's size (582 to 943 buildings); the joined highways run onto their trunk in line, which moves trees at the start.
+const GOLDEN_BUILDINGS: usize = 943;
 const GOLDEN_HIGHWAYS: usize = 15;
 const GOLDEN_RIVERS: usize = 64;
-const GOLDEN_TREES_AT_START: usize = 38650;
+const GOLDEN_TREES_AT_START: usize = 38601;
 // 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
-const GOLDEN_FINGERPRINT: u64 = 12089242126031853867;
+const GOLDEN_FINGERPRINT: u64 = 17769285620832638243;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -462,6 +464,31 @@ fn every_downtown_block_lies_within_its_shape_and_the_cities_take_more_than_one_
                 );
             }
         }
+    }
+}
+
+#[test]
+fn each_citys_tallest_building_stands_on_the_downtown_lot_nearest_its_heart() {
+    use super::layout::downtown;
+    let plan = seed_42();
+    let cfg = shipped_with_rivers();
+    let largest = plan.cities.iter().map(|c| c.half_size_m).fold(0.0, f32::max);
+    for c in &plan.cities {
+        let dt = downtown(c, largest, &cfg);
+        let mine: Vec<_> = plan.buildings.iter().filter(|b| b.city == c.id).collect();
+        let Some(heart) = mine
+            .iter()
+            .filter(|b| {
+                c.blocks
+                    .iter()
+                    .any(|k| k.kind == BlockUse::Downtown && k.rect.distance(b.footprint.centre()) <= 0.0)
+            })
+            .min_by(|a, b| dt.reach(a.footprint.centre()).total_cmp(&dt.reach(b.footprint.centre())))
+        else {
+            continue;
+        };
+        let tallest = mine.iter().map(|b| b.storeys).max().unwrap_or(0);
+        assert_eq!(heart.storeys, tallest, "city {}: the heart's tower is the tallest", c.id);
     }
 }
 

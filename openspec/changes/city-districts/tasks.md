@@ -19,13 +19,13 @@
 
 ## 3. Step 2: exits
 
-- [ ] 3.1 Decks (`RoadDeck`) and height queries by level: support under the feet, pushed out from under a slab, `road_top_at` leaving out decked highway
-- [ ] 3.2 The trunk: its row (`BlockUse::Under`), the two highways re-laid onto it, arterial blocks long enough for a ramp
-- [ ] 3.3 Exits: four one-way ramps per arterial, landing at the frontage street's junction
-- [ ] 3.4 The lane graph along a highway: nodes at ramps, one-way ramp lanes, shared highway ends, lanes with their own heights
-- [ ] 3.5 The drive check (fill, clearance, grade, ramp ends, bot) as `cb-core` tests
-- [ ] 3.6 Drawn: decks, piers, ramps with three levels of detail, blended joins (concrete fading into asphalt, ramps welded into streets)
-- [ ] 3.7 Headless stills of the viaduct and an exit
+- [x] 3.1 Decks (`RoadDeck`) and height queries by level: support under the feet, pushed out from under a slab, `road_top_at` leaving out decked highway
+- [x] 3.2 The trunk: its row (`BlockUse::Under`), the two highways re-laid onto it, arterial blocks long enough for a ramp
+- [x] 3.3 Exits: four one-way ramps per arterial, landing at the frontage street's junction
+- [x] 3.4 The lane graph along a highway: nodes at ramps, one-way ramp lanes, shared highway ends, lanes with their own heights
+- [x] 3.5 The drive check (fill, clearance, grade, ramp ends, bot) as `cb-core` tests
+- [x] 3.6 Drawn: decks, piers, ramps with three levels of detail, blended joins (concrete fading into asphalt, ramps welded into streets)
+- [x] 3.7 Headless stills of the viaduct and an exit
 - [ ] 3.8 The other modes (overpasses on embankments, the bypass) after the owner has seen the viaduct
 
 ## 4. Step 3: drifting grids
@@ -34,8 +34,8 @@
 
 ## 5. The mockup's variations
 
-- [ ] 5.1 Downtown shapes (compact, main street, two cores) drawn per city, `Downtown::reach` the one rule for zoning, storeys and the trunk's row
-- [ ] 5.2 The large downtown's housing: the flats ring by the city's size
+- [x] 5.1 Downtown shapes (compact, main street, two cores) drawn per city, `Downtown::reach` the one rule for zoning and storeys
+- [x] 5.2 The large downtown's housing: the flats ring by the city's size
 - [ ] 5.3 The coast: a city on the shore with its harbour
 
 ## 6. Left over
