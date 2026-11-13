@@ -1645,6 +1645,9 @@ const VIEWS: &[View] = &[
     view("fargo-exit", [0.0; 3], [0.0; 3]),
     view("fargo-under", [0.0; 3], [0.0; 3]),
     view("fargo-ramp", [0.0; 3], [0.0; 3]),
+    // The first city whose downtown is a main street, and the first with two cores, from the air (design section 6).
+    view("fargo-main-street", [0.0; 3], [0.0; 3]),
+    view("fargo-two-cores", [0.0; 3], [0.0; 3]),
     // The house nearest the largest city, from 22 m off at eye height (night-voxel-light: its rooms at night), and
     // from 300 m, where its far shell is drawn (its lit far windows).
     View {
@@ -2270,6 +2273,24 @@ fn city_view(plan: &crate::world::Plan, air: bool) -> ([f32; 3], [f32; 3]) {
 /// 250 m out from the city, looking in) or `street` (eye height down the street beside a house block).
 fn fargo_view(plan: &crate::world::Plan, which: &str) -> ([f32; 3], [f32; 3]) {
     use cb_core::world::BlockUse;
+    use cb_core::world::layout::DowntownShape;
+    // a city whose downtown takes the named shape, from the air (city-districts design section 6)
+    if let Some(want) = match which {
+        "main-street" => Some(1),
+        "two-cores" => Some(2),
+        _ => None,
+    } {
+        let shape = |c: &&cb_core::world::City| match c.downtown_shape {
+            DowntownShape::Compact => 0,
+            DowntownShape::MainStreet { .. } => 1,
+            DowntownShape::TwoCores { .. } => 2,
+        };
+        let Some(c) = plan.cities.iter().find(|c| shape(c) == want) else {
+            return ([0.0, 400.0, 0.0], [0.0, 0.0, 1000.0]);
+        };
+        let (p, g, k) = (c.centre, c.ground_m, c.half_size_m * 1.3);
+        return ([p.x + k, g + k * 0.85, p.y + k], [p.x, g, p.y]);
+    }
     let Some(city) = plan.cities.first() else {
         return ([0.0, 400.0, 0.0], [0.0, 0.0, 1000.0]);
     };

@@ -1,14 +1,15 @@
 //! Draws the roads over roads (openspec change `city-districts`, design section 5): each viaduct's slab under the
 //! highway's own surface (its fascia, its underside, its barriers), each exit's ramps (concrete where they stand over the
 //! ground, the streets' own asphalt where they land, a strip of the concrete fading out over the asphalt between, so
-//! the two meet with no line), and the piers. Every structure is cut into 512 m tiles at three levels of detail by
-//! Bevy's visibility ranges: barriers and pier caps near, the slab's sides and plain piers further, nothing past that
-//! but the road's surface (drawn with the roads). Surfaces are mapped in world space, as every road is, so a ramp's
+//! the two meet with no line), and the piers. Every structure is cut into 512 m tiles at three levels of detail, chosen
+//! each frame by the eye's distance to the tile ([`DeckLod`]): barriers and pier caps near, the slab's sides and plain
+//! piers further, nothing past that but the road's surface (drawn with the roads). The tiles keep their vertices in
+//! world space (the crater cut and the seamless mapping need them there), so Bevy's own visibility ranges, which
+//! measure from the entity's origin, cannot choose them. Surfaces are mapped in world space, as every road is, so a ramp's
 //! asphalt runs on into its street and its concrete onto the viaduct's without a seam. The decks themselves are
 //! `cb_core::world::decks`.
 
 use crate::world::MeshBuilder;
-use bevy::camera::visibility::VisibilityRange;
 use bevy::prelude::*;
 use cb_core::world::WorldPlan;
 use cb_core::world::decks::{DeckKind, RoadDeck};
@@ -16,7 +17,7 @@ use std::collections::BTreeMap;
 
 /// The tiles the structures are cut into, metres.
 const TILE_M: f32 = 512.0;
-/// The detail (barriers, pier caps) draws to here, fading over the last 150 m.
+/// The detail (barriers, pier caps) draws while the eye is within this of the tile's nearest point, metres.
 const NEAR_M: f32 = 1300.0;
 /// The slab's sides and plain piers draw to here.
 const FAR_M: f32 = 4000.0;
@@ -122,16 +123,13 @@ fn slab(tiles: &mut Tiles, d: &RoadDeck, ground: &dyn Fn(Vec2) -> f32, open: &dy
             face(&mut tile.mid, q, r0 * side, colour);
             // a barrier on the edge, where it stands a metre over the ground and no ramp leaves here
             if e0.y - g(e0) > 1.0 && !open(e0) && !open(e1) {
-                let c = (e0 + e1) * 0.5 - (r0 + r1) * 0.5 * side * BARRIER_M.y * 0.5 + Vec3::Y * BARRIER_M.x * 0.5;
-                let len = Vec2::new(e1.x - e0.x, e1.z - e0.z).length();
-                let dir = Vec2::new(e1.x - e0.x, e1.z - e0.z).normalize_or(Vec2::X);
-                obox(
-                    &mut tile.near,
-                    c,
-                    Vec3::new(BARRIER_M.y * 0.5, BARRIER_M.x * 0.5, len * 0.5 + 0.02),
-                    dir,
-                    colour,
-                );
+                // swept along the edge (outer face, top, inner face), each corner shared with the next piece, so the
+                // barrier follows the deck's grade with no step and no gap
+                let up = Vec3::Y * BARRIER_M.x;
+                let (i0, i1) = (e0 - r0 * side * BARRIER_M.y, e1 - r1 * side * BARRIER_M.y);
+                face(&mut tile.near, [e0, e1, e1 + up, e0 + up], r0 * side, colour);
+                face(&mut tile.near, [e0 + up, e1 + up, i1 + up, i0 + up], Vec3::Y, colour);
+                face(&mut tile.near, [i0, i1, i1 + up, i0 + up], -r0 * side, colour);
             }
         }
         // the underside, where the slab stands on piers
@@ -222,22 +220,13 @@ pub fn spawn(
             );
         }
     }
-    let near = VisibilityRange {
-        start_margin: 0.0..0.0,
-        end_margin: (NEAR_M - 150.0)..NEAR_M,
-        use_aabb: true,
-    };
-    let far = VisibilityRange {
-        start_margin: 0.0..0.0,
-        end_margin: (FAR_M - 300.0)..FAR_M,
-        use_aabb: true,
-    };
     let (mut tris, mut count) = (0, 0);
-    for (_, t) in tiles.by_key {
-        for (name, b, range, mat) in [
-            ("deck detail", t.near, near.clone(), structure_mat.clone()),
-            ("deck structure", t.mid, far.clone(), structure_mat.clone()),
-            ("ramp blend", t.blend, far.clone(), blend_mat.clone()),
+    for (key, t) in tiles.by_key {
+        let lo = Vec2::new(key.0 as f32, key.1 as f32) * TILE_M;
+        for (name, b, to_m, mat) in [
+            ("deck detail", t.near, NEAR_M, structure_mat.clone()),
+            ("deck structure", t.mid, FAR_M, structure_mat.clone()),
+            ("ramp blend", t.blend, FAR_M, blend_mat.clone()),
         ] {
             if b.is_empty() {
                 continue;
@@ -245,15 +234,18 @@ pub fn spawn(
             count += 1;
             let mesh = b.build_with_tangents();
             tris += mesh.indices().map_or(0, |i| i.len() / 3);
-            let mut e = commands.spawn((
+            commands.spawn((
                 Name::new(name),
                 Mesh3d(meshes.add(crate::world::kept_for_cutting(mesh))),
                 MeshMaterial3d(mat),
                 crate::world::CutByCraters,
+                DeckLod {
+                    min: lo,
+                    max: lo + Vec2::splat(TILE_M),
+                    to_m,
+                },
+                Visibility::Hidden,
             ));
-            if std::env::var("CB_DECK_RANGES").is_ok_and(|v| v == "1") {
-                e.insert(range);
-            }
         }
     }
     info!(
@@ -261,6 +253,41 @@ pub fn spawn(
         plan.decks.decks.len(),
         plan.ramps.len()
     );
+}
+
+/// One level of a tile: drawn while the eye is within `to_m` of the tile's square (`min`, `max`, x and z), metres.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct DeckLod {
+    min: Vec2,
+    max: Vec2,
+    to_m: f32,
+}
+
+impl DeckLod {
+    /// Whether the level draws with the eye at `eye` (x and z, metres): within `to_m` of the tile's square.
+    fn shows(&self, eye: Vec2) -> bool {
+        eye.clamp(self.min, self.max).distance_squared(eye) <= self.to_m * self.to_m
+    }
+}
+
+/// Chooses the decks' levels of detail from the pilot's eye each frame.
+pub struct DeckLodPlugin;
+
+impl Plugin for DeckLodPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, choose_levels);
+    }
+}
+
+/// Shows each tile's level while the eye is within its range, hides it past that; touches only the ones that change.
+fn choose_levels(eye: Option<Single<&GlobalTransform, With<crate::pilot::PilotCamera>>>, mut tiles: Query<(&DeckLod, &mut Visibility)>) {
+    let Some(eye) = eye else { return };
+    let at = eye.translation();
+    let at = Vec2::new(at.x, at.z);
+    for (lod, mut vis) in &mut tiles {
+        let want = if lod.shows(at) { Visibility::Inherited } else { Visibility::Hidden };
+        vis.set_if_neq(want);
+    }
 }
 
 /// A ramp's road surface: concrete into `concrete` over the ground, asphalt into `asphalt` from `BLEND_M` before it
@@ -329,5 +356,26 @@ fn ramp_surface(
                 tile.blend.quad_shaded(q2, cols);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_level_shows_within_its_range_of_the_tiles_nearest_point_and_hides_past_it() {
+        let lod = DeckLod {
+            min: Vec2::ZERO,
+            max: Vec2::splat(TILE_M),
+            to_m: NEAR_M,
+        };
+        assert!(lod.shows(Vec2::splat(100.0)), "inside the tile");
+        assert!(
+            lod.shows(Vec2::new(TILE_M + NEAR_M - 1.0, 200.0)),
+            "just inside the range beside it"
+        );
+        assert!(!lod.shows(Vec2::new(TILE_M + NEAR_M + 1.0, 200.0)), "just past the range");
+        assert!(!lod.shows(Vec2::new(-NEAR_M, -NEAR_M)), "past the range off a corner");
     }
 }

@@ -5,7 +5,7 @@
 //! one-way ramps, off and on each way, between the viaduct and the frontage street beside the row, landing at the
 //! arterial's junction with it (a diamond with frontage roads, the shape the grid allows). Pure and deterministic.
 
-use super::layout::{BlockUse, City, Highway, Rect};
+use super::layout::{BlockUse, City, Downtown, Highway, Rect};
 use crate::data::{Validate, positive, within};
 use glam::{Vec2, Vec3};
 use serde::Deserialize;
@@ -24,6 +24,9 @@ pub struct TrunkConfig {
     pub outside_m: f32,
     /// The two highways' ends stay level at the trunk's height for this long, metres.
     pub end_level_m: f32,
+    /// Each highway runs on straight along the trunk's line for this long past its end before it may turn, so it
+    /// meets the trunk in line (no corner in the road, no wedge of road left off the decks), metres.
+    pub lead_in_m: f32,
     /// Two highways make a trunk when they leave the city at least this far apart, degrees.
     pub min_apart_deg: f32,
     /// A ramp's paved width, metres.
@@ -48,6 +51,7 @@ impl Default for TrunkConfig {
             row_offset_share: 0.35,
             outside_m: 40.0,
             end_level_m: 16.0,
+            lead_in_m: 120.0,
             min_apart_deg: 110.0,
             ramp_width_m: 9.0,
             ramp_grade: 0.08,
@@ -66,6 +70,7 @@ impl Validate for TrunkConfig {
         within("trunk.row_offset_share", self.row_offset_share, 0.0, 1.0)?;
         positive("trunk.outside_m", self.outside_m)?;
         positive("trunk.end_level_m", self.end_level_m)?;
+        positive("trunk.lead_in_m", self.lead_in_m)?;
         within("trunk.min_apart_deg", self.min_apart_deg, 0.0, 180.0)?;
         positive("trunk.ramp_width_m", self.ramp_width_m)?;
         within("trunk.ramp_grade", self.ramp_grade, 0.01, 0.12)?;
@@ -122,9 +127,10 @@ pub struct Ramp {
 
 /// Chooses each city's trunk, if it has one: two of its highways leaving it at least `min_apart_deg` apart (the
 /// widest pair), the trunk along the street axis nearer their line, over the row of blocks nearest `row_offset_share`
-/// of the half size off the centre (south for a trunk along x, east along z) that keeps clear of `downtown_m` of the
-/// centre. `None` with fewer than two such highways.
-pub fn choose(city: &City, highways: &[Highway], downtown_m: f32, cfg: &TrunkConfig) -> Option<TrunkPlan> {
+/// of the half size off the centre (south for a trunk along x, east along z) that keeps clear of the `downtown`'s radius (whatever its
+/// shape, so the highways it re-lays do not move with the shape; a downtown block the row takes is a car park under the
+/// viaduct, `zone_rows`). `None` with fewer than two such highways.
+pub fn choose(city: &City, highways: &[Highway], downtown: &Downtown, cfg: &TrunkConfig) -> Option<TrunkPlan> {
     if !cfg.enabled {
         return None;
     }
@@ -157,6 +163,7 @@ pub fn choose(city: &City, highways: &[Highway], downtown_m: f32, cfg: &TrunkCon
     let lines = if along_x { &zs } else { &xs };
     let across = |p: Vec2| if along_x { p.y } else { p.x };
     let centre = across(c);
+    let downtown_m = downtown.radius_m;
     let want = centre + city.half_size_m * cfg.row_offset_share;
     let row = lines
         .windows(2)

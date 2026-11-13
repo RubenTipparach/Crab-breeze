@@ -419,6 +419,93 @@ fn capital_trunk(plan: &WorldPlan) -> Option<usize> {
 }
 
 #[test]
+fn every_downtown_block_lies_within_its_shape_and_the_cities_take_more_than_one_shape() {
+    use super::layout::{DowntownShape, downtown};
+    let plan = seed_42();
+    let cfg = shipped_with_rivers();
+    let largest = plan.cities.iter().map(|c| c.half_size_m).fold(0.0, f32::max);
+    assert_eq!(
+        plan.cities[0].downtown_shape,
+        DowntownShape::Compact,
+        "the capital's downtown is compact"
+    );
+    let shapes: std::collections::BTreeSet<u8> = plan
+        .cities
+        .iter()
+        .map(|c| match c.downtown_shape {
+            DowntownShape::Compact => 0,
+            DowntownShape::MainStreet { .. } => 1,
+            DowntownShape::TwoCores { .. } => 2,
+        })
+        .collect();
+    assert!(shapes.len() >= 2, "the cities' downtowns take more than one shape: {shapes:?}");
+    for c in &plan.cities {
+        let dt = downtown(c, largest, &cfg);
+        let down: Vec<_> = c.blocks.iter().filter(|b| b.kind == BlockUse::Downtown).collect();
+        assert!(!down.is_empty(), "city {} has a downtown", c.id);
+        // all but the one block always taken (the nearest the heart) lie within the shape
+        let outside = down.iter().filter(|b| dt.reach(b.rect.centre()) > 1.0).count();
+        assert!(
+            outside <= 1,
+            "city {}: {outside} downtown blocks outside its {:?}",
+            c.id,
+            c.downtown_shape
+        );
+        // no block within the shape is left out of it (parks and the trunk's row aside)
+        for b in &c.blocks {
+            if dt.reach(b.rect.centre()) <= 1.0 {
+                assert!(
+                    matches!(b.kind, BlockUse::Downtown | BlockUse::Park | BlockUse::Under),
+                    "city {}: a block inside its downtown is {:?}",
+                    c.id,
+                    b.kind
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_downtowns_reach_is_zero_at_its_heart_and_one_at_its_edge_in_every_shape() {
+    use super::layout::{DowntownShape, downtown};
+    let cfg = shipped_with_rivers();
+    let mut city = plan_city_for_shapes();
+    let z = &cfg.zones;
+    for shape in [
+        DowntownShape::Compact,
+        DowntownShape::MainStreet { along_x: true },
+        DowntownShape::MainStreet { along_x: false },
+        DowntownShape::TwoCores {
+            dir: Vec2::new(1.0, 1.0).normalize(),
+        },
+    ] {
+        city.downtown_shape = shape;
+        let dt = downtown(&city, city.half_size_m, &cfg);
+        let r = dt.radius_m;
+        let (heart, edge) = match shape {
+            DowntownShape::Compact => (city.centre, city.centre + Vec2::new(r, 0.0)),
+            DowntownShape::MainStreet { along_x: true } => (city.centre, city.centre + Vec2::new(r * z.main_street_share[0], 0.0)),
+            DowntownShape::MainStreet { along_x: false } => (city.centre, city.centre + Vec2::new(r * z.main_street_share[1], 0.0)),
+            DowntownShape::TwoCores { dir } => {
+                let core = city.centre + dir * r * z.two_cores_share[1];
+                (core, core + dir * r * z.two_cores_share[0])
+            }
+        };
+        assert!(dt.reach(heart) < 1e-4, "{shape:?}: the heart");
+        assert!(
+            (dt.reach(edge) - 1.0).abs() < 1e-3,
+            "{shape:?}: the edge reaches {}",
+            dt.reach(edge)
+        );
+    }
+}
+
+/// A plain city for the downtown shapes' own test.
+fn plan_city_for_shapes() -> City {
+    seed_42().cities[0].clone()
+}
+
+#[test]
 fn the_capital_has_a_trunk_on_a_viaduct_with_exits() {
     let plan = seed_42();
     let k = capital_trunk(plan).expect("the capital has a trunk");

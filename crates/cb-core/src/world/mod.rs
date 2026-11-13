@@ -918,8 +918,8 @@ fn lay_trunks(
     let low_m = decks::HEADROOM_M + decks::VIADUCT_SLAB_M + 0.2;
     let mut plans: Vec<trunk::TrunkPlan> = Vec::new();
     for city in cities {
-        let downtown = layout::downtown_radius_m(city, largest_half_m, cfg);
-        let Some(p) = trunk::choose(city, highways, downtown, &cfg.trunk) else {
+        let downtown = layout::downtown(city, largest_half_m, cfg);
+        let Some(p) = trunk::choose(city, highways, &downtown, &cfg.trunk) else {
             continue;
         };
         // a highway joins at most one trunk at each end
@@ -939,6 +939,8 @@ fn lay_trunks(
             for (k, &(h, e)) in p.joins.iter().enumerate() {
                 ends.entry(h).or_default()[e] = Some(roads::TrunkEnd {
                     at: p.ends[k],
+                    out: (p.ends[k] - p.ends[1 - k]).normalize_or(Vec2::X),
+                    lead_m: cfg.trunk.lead_in_m,
                     top_m: p.top_m,
                     level_m: cfg.trunk.end_level_m,
                 });

@@ -68,14 +68,19 @@ impl RoadDeck {
     pub fn project(&self, p: Vec2) -> Option<(f32, f32, f32)> {
         let mut best: Option<(f32, f32, f32)> = None;
         let mut along = 0.0;
-        for w in self.pts.windows(2) {
+        let last = self.pts.len().saturating_sub(2);
+        for (i, w) in self.pts.windows(2).enumerate() {
             let (a, b) = (Vec2::new(w[0].x, w[0].z), Vec2::new(w[1].x, w[1].z));
             let ab = b - a;
             let l2 = ab.length_squared();
             let len = l2.sqrt();
             if l2 > 1e-9 {
                 let t = (p - a).dot(ab) / l2;
-                if (-1e-4..=1.0 + 1e-4).contains(&t) {
+                // only the deck's own two ends stop it: at a bend, a point on its outside lies past one leg's end and
+                // before the next one's start, and is on the deck by the joint between them
+                let lo = if i == 0 { -1e-4 } else { f32::NEG_INFINITY };
+                let hi = if i == last { 1.0 + 1e-4 } else { f32::INFINITY };
+                if (lo..=hi).contains(&t) {
                     let t = t.clamp(0.0, 1.0);
                     let d = (a + ab * t).distance(p);
                     if best.is_none_or(|(bd, _, _)| d < bd) {
@@ -197,7 +202,7 @@ const PIER_EVERY_M: f32 = 32.0;
 const SAMPLE_M: f32 = 4.0;
 
 /// The viaducts of `highways` (by index): every run of road whose top (its grade plus `road_lift_m`) stands at least
-/// `VIADUCT_OVER_M` over `ground`, carried one sample past each end so it lands on its embankment; a pier every
+/// `VIADUCT_OVER_M` over `ground` anywhere across its width, carried one sample past each end so it lands on its embankment; a pier every
 /// `PIER_EVERY_M` where the land is under the slab and `pier_ok` lets it stand (never on a street).
 pub fn viaducts(
     highways: &[super::layout::Highway],
@@ -217,10 +222,13 @@ pub fn viaducts(
             let xz = h.point_at(t);
             (xz, h.grade_at(t) + road_lift_m)
         };
+        // across its whole width: where the land falls away across the road, an edge stands over it first
         let over: Vec<bool> = (0..=n)
             .map(|i| {
                 let (xz, top) = at(i);
-                top - ground(xz) >= VIADUCT_OVER_M
+                let t = (i as f32 / n as f32).clamp(0.0, 1.0);
+                let across = h.dir_at(t).perp() * h.width_m * 0.5;
+                [xz - across, xz, xz + across].iter().any(|&p| top - ground(p) >= VIADUCT_OVER_M)
             })
             .collect();
         let mut i = 0;
@@ -364,5 +372,22 @@ mod tests {
         let d = Decks::new(d.decks, 4096.0);
         let out = d.push_out(Vec2::new(0.0, 14.0), 1.0, 0.0, &|_| 0.0);
         assert!(out.y >= 15.0 - 1e-3, "a car meets the fill's wall, it cannot pass under: {out}");
+    }
+
+    #[test]
+    fn a_point_on_the_outside_of_a_bend_is_on_the_deck_and_one_past_its_end_is_not() {
+        // a deck turning 90 degrees at the origin: along -x to it, then along +z from it
+        let d = RoadDeck {
+            pts: vec![Vec3::new(-100.0, 9.0, 0.0), Vec3::ZERO.with_y(9.0), Vec3::new(0.0, 9.0, 100.0)],
+            width_m: 28.0,
+            slab_m: 1.2,
+            fill_below_m: 0.0,
+            kind: DeckKind::Viaduct { highway: 0 },
+            piers: Vec::new(),
+        };
+        // outside the corner, past the first leg's end and before the second's start
+        assert_eq!(d.top_at(Vec2::new(8.0, -8.0)), Some(9.0), "the outside of the bend");
+        assert_eq!(d.top_at(Vec2::new(-104.0, 0.0)), None, "past the deck's first end");
+        assert_eq!(d.top_at(Vec2::new(0.0, 104.0)), None, "past its last end");
     }
 }

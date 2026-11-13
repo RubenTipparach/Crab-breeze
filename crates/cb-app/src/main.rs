@@ -267,6 +267,8 @@ fn main() -> AppExit {
     .add_plugins(ground_fog::GroundFogPlugin)
     // The railgun's scope window on the front screen (railgun-scope).
     .add_plugins(scope::ScopePlugin)
+    // The levels of detail of the roads over roads (city-districts).
+    .add_plugins(deck_draw::DeckLodPlugin)
     // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
     .add_plugins((traffic::TrafficPlugin, traffic_lights::TrafficLightsPlugin))
     // Buildings a pilot on foot walks into, and their street doors (building-interiors).

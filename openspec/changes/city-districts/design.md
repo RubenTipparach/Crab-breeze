@@ -140,7 +140,10 @@ one highway keeps today's arrival at its edge.
 | Piers | a column with a cap beam, chamfered | a box | none past 1.5 km |
 | Ramps | as the deck, on fill where low (walls to the ground) | slab and walls | slab |
 
-Each part is cut into 512 m tiles with a visibility range per level (`VisibilityRange`), so a far viaduct costs a slab.
+Each part is cut into 512 m tiles, each level of a tile shown while the eye is within its range of the tile's square
+(`DeckLod`: detail to 1.3 km, plain structure to 4 km), so a far viaduct costs a slab. Bevy's own `VisibilityRange`
+measures from the entity's origin, and the tiles keep their vertices in world space (the crater cut and the seamless
+mapping need them there), so with it every tile was hidden: the game chooses the level itself.
 
 Surfaces join without seams. Textures are mapped in world space (as every road is), so a ramp, laid in the streets'
 own Asphalt027C at the streets' tone, runs into its frontage street with no line. Where a ramp leaves the concrete deck, a
@@ -154,7 +157,30 @@ Per city with a trunk: about 1.2 km of viaduct (about 6,000 triangles with barri
 (instanced, 120 triangles each at LOD0), 4 to 12 ramps (about 2,000 triangles each at LOD0). Three to five draw calls per
 tile at LOD0. No new textures (Concrete047A and Asphalt027C are loaded already).
 
-## 3. Cost
+## 6. The mockup's variations in the game: downtown shapes and the large downtown's housing
+
+The mockup draws each city's downtown in one of three shapes, small or large (section 2). In the game every city's
+downtown is a circle today. With this change each city draws its shape from its own stream (`city/<id>/downtown`, so
+no other city's draws move), and the downtown's buildings fall from its heart to its edge in that shape.
+
+| Shape | Share (provisional, CD2) | Where its blocks are | Its heart |
+| --- | --- | --- | --- |
+| Compact | 0.5 | within the downtown radius `r` of the centre (as today) | the centre |
+| Main street | 0.25 | a band along x or z through the centre, `r * 2.2` long each way and `r * 0.45` wide each way | the centre line, falling along it |
+| Two cores | 0.25 | two circles of `r * 0.65`, their centres `r * 0.85` either side of the city's centre on a diagonal | each core's centre |
+
+`Downtown::reach(p)` is the one rule: 0 at the heart, 1 at the edge, more outside. Zoning takes a block whose centre
+has reach 1 or less (and always the block nearest its heart), and the storeys fall with
+`reach ^ storey_falloff_exponent`. The trunk's row (section 5) still keeps clear of the downtown's radius, whatever its
+shape: the highways a trunk re-lays then do not move with the shape (with them the air bases beside them moved, and one
+no longer fitted), and a downtown block the row takes is a car park under the viaduct like the rest of the row.
+
+**The large downtown grows its housing.** The flats round the downtown (walk-ups of 3 to 5 storeys) reach out by the
+city's size like the downtown does: `zones.flats_share` becomes a pair, `[0.45, 0.62]` of the half size from the
+smallest city to the largest, so the capital has a wide ring of apartment blocks round its towers, as the mockup's large
+downtown does ("apartment blocks of 3-5 storeys within 650 m").
+
+Cost: none at run time (the same buildings, placed differently); a few microseconds a city at generation.
 
 ## 3. Cost
 
@@ -171,7 +197,7 @@ capital or fewer. It is measured on the owner's machine before it is built.
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | CD1 | Is the Fargo look the right one, and which variations? | Small and large downtowns, all three shapes, both highways | answered: approved (owner, 2026-11-04: "looks great") |
-| CD2 | Which cities get which variation? | The capital large; the rest small, the shape and the highway drawn per city | provisional |
+| CD2 | Which cities get which variation? | The capital large; the rest small, the shape and the highway drawn per city (compact 0.5, main street 0.25, two cores 0.25; section 6) | provisional |
 | CD6 | Which mode in game first? | The viaduct through the city (the streets run on under it; overpasses on embankments would cut the grid's streets) | provisional |
 | CD5 | Frontage roads: none, as now (the ramps and overpasses need the ground), or added outside the interchanges? | None | provisional |
 | CD4 | Which highway mode is the default, and does a city mix them (elevated through the downtown, at grade outside)? | At grade outside the edge, overpasses in town; elevated only for the capital's downtown | provisional |

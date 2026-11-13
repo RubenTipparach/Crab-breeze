@@ -32,7 +32,13 @@
 
 - [ ] 4.1 Turned blocks and footprints through collision, facades and interiors
 
-## 5. Left over
+## 5. The mockup's variations
 
-- [ ] 5.1 Measure the cost of a large city on the owner's machine
-- [ ] 5.2 The game's road colliders pass the same drive check (fill, clearance, grade, turns, ramp ends, bot) in `cb-core` tests
+- [ ] 5.1 Downtown shapes (compact, main street, two cores) drawn per city, `Downtown::reach` the one rule for zoning, storeys and the trunk's row
+- [ ] 5.2 The large downtown's housing: the flats ring by the city's size
+- [ ] 5.3 The coast: a city on the shore with its harbour
+
+## 6. Left over
+
+- [ ] 6.1 Measure the cost of a large city on the owner's machine
+- [ ] 6.2 The game's road colliders pass the same drive check (fill, clearance, grade, turns, ramp ends, bot) in `cb-core` tests
