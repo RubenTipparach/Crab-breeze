@@ -354,6 +354,9 @@ fn the_ground_under_a_highway_is_the_road_grade() {
                 if plan.waters.bridges.iter().any(|b| b.centre.distance(p) < b.length_m * 0.5 + 2.0) {
                     continue; // On a bridge: the river runs under the deck.
                 }
+                if plan.decks.covers(p) {
+                    continue; // On a viaduct: the land is under its slab (`every_deck_over_a_street_leaves_room_for_a_lorry`).
+                }
                 let (_, tt) = h.project(p);
                 let got = plan.height_at(p.x, p.y);
                 // The drawn road sits `road_lift_m` (0.15 m) above the grade; the ground's straight
@@ -378,7 +381,18 @@ fn every_lane_on_the_island_has_a_way_out() {
     let g = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
     assert!(g.lanes.len() > 1000, "{} lanes", g.lanes.len());
     for l in &g.lanes {
-        assert!(!l.out.is_empty(), "lane {} ({:?}) dead-ends", l.id, l.kind);
+        let road = &g.roads[l.road as usize];
+        assert!(
+            !l.out.is_empty(),
+            "lane {} ({:?}, ramp {:?}) dead-ends: from node {} at {} to node {} at {}",
+            l.id,
+            l.kind,
+            road.ramp.map(|r| (r, plan.ramps[r as usize].off)),
+            l.from_node,
+            g.nodes[l.from_node as usize].at,
+            l.to_node,
+            g.nodes[l.to_node as usize].at
+        );
     }
     let highway_roads = g.roads.iter().filter(|r| r.kind == lanes::LaneKind::Highway).count();
     let highway_lanes = g.road_lanes().filter(|l| l.kind == lanes::LaneKind::Highway).count();
@@ -465,8 +479,11 @@ fn every_deck_over_a_street_leaves_room_for_a_lorry() {
                 let q = Vec2::new(p.x, p.z);
                 for c in plan.cities.iter().filter(|c| c.rect().distance(q) < 60.0) {
                     if c.streets.iter().any(|st| st.rect.distance(q) <= 0.0) {
-                        over += 1;
                         let street = c.ground_m + plan.road_lift_m;
+                        if (p.y - street).abs() < 0.5 {
+                            continue; // a ramp's landing, level with the street it joins
+                        }
+                        over += 1;
                         let under = d.underside_m(p.y, c.ground_m);
                         assert!(
                             under - street >= decks::HEADROOM_M - 1e-3,

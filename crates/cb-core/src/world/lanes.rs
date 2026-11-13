@@ -459,6 +459,12 @@ impl LaneGraph {
             taps.sort_by(|p, q| p.0.total_cmp(&q.0).then(p.1.cmp(&q.1)));
             let mut chain: Vec<(f32, u32)> = vec![(0.0, a)];
             for &(t, i) in &taps {
+                // ramps that meet the highway at one point (one way's on-ramp, the other's off-ramp) share its junction
+                if let Some(&(pt, id)) = chain.last().filter(|(pt, _)| (t - pt) * h.length_m() < 1.0 && chain.len() > 1) {
+                    let _ = pt;
+                    tap_nodes[i] = id;
+                    continue;
+                }
                 let id = g.nodes.len() as u32;
                 g.nodes.push(Node {
                     id,

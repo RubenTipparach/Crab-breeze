@@ -287,9 +287,12 @@ pub fn exits(
             (1, after.0, after.0 + reach),
             (1, before.1 - reach, before.1),
         ];
+        // every junction on the trunk keeps clear of its ends (the highway between two junctions needs room for its
+        // lanes past both: `lanes::LaneGraph::lay_lanes`)
+        let margin = trunk.width_m * 1.5 + 10.0;
         let fits = spans
             .iter()
-            .all(|&(side, u0, u1)| u0 > 0.0 && u1 < len && used[side].iter().all(|&(p, q)| u1 < p || u0 > q));
+            .all(|&(side, u0, u1)| u0 > margin && u1 < len - margin && used[side].iter().all(|&(p, q)| u1 < p || u0 > q));
         if !fits {
             continue;
         }

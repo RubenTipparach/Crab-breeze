@@ -870,11 +870,21 @@ fn entrance_of(site: &Site, l: &Layout, stair: &Stair, cfg: &InteriorConfig, see
                 let cell_u = if l.f2.long_x { site.size.x } else { site.size.z };
                 let mid = (a + b) * 0.5;
                 let cells = ((l.u1 - l.u0) / cell_u).round() as usize;
-                let ud = (0..cells)
-                    .map(|i| l.u0 + cell_u * (i as f32 + 0.5))
-                    .filter(|&u| u - width_m * 0.5 - 0.6 >= a && u + width_m * 0.5 + 0.6 <= b)
-                    .min_by(|p, q| (p - mid).abs().total_cmp(&(q - mid).abs()))
+                let centres = || (0..cells).map(|i| l.u0 + cell_u * (i as f32 + 0.5));
+                let nearest = |it: &mut dyn Iterator<Item = f32>| it.min_by(|p, q| (p - mid).abs().total_cmp(&(q - mid).abs()));
+                // a bay's middle with room either side; else the bay's middle nearest (a partition stands on the bays'
+                // edges, so the door never meets one: the middle of what the stair leaves may be such an edge)
+                let ud = nearest(&mut centres().filter(|&u| u - width_m * 0.5 - 0.6 >= a && u + width_m * 0.5 + 0.6 <= b))
+                    .or_else(|| nearest(&mut centres().filter(|&u| u >= a && u <= b)))
                     .unwrap_or(mid);
+                // the middle of its 3 m facade bay: the rooms' partitions stand on the bay lines (`BAY_M`, from `u0`),
+                // which a cell's middle need not keep clear of when a cell is not a whole number of bays
+                let bay_mid = l.u0 + (((ud - l.u0) / BAY_M - 0.5).round() + 0.5) * BAY_M;
+                let ud = if bay_mid - width_m * 0.5 - 0.35 >= a && bay_mid + width_m * 0.5 + 0.35 <= b {
+                    bay_mid
+                } else {
+                    ud
+                };
                 let vf = if l.back_high { l.v0 } else { l.v1 };
                 (
                     (ud, vf),
