@@ -139,12 +139,14 @@ const GOLDEN_CITIES: usize = 13;
 // city's size (582 to 943 buildings); the joined highways run onto their trunk in line, which moves trees at the start.
 // 2026-11-14: a downtown block is the mockup's two or four big lots, towers standing apart on some (943 to 731), and
 // the ramps swing out level to the viaduct's edge and run beside it before they descend.
-const GOLDEN_BUILDINGS: usize = 731;
-const GOLDEN_HIGHWAYS: usize = 15;
+// 2026-11-14: streets the mockup's 14 m and arterials 22 m (section 6b): more blocks fit (731 to 965 buildings) and six
+// cities get a trunk (15 highways to 18).
+const GOLDEN_BUILDINGS: usize = 965;
+const GOLDEN_HIGHWAYS: usize = 18;
 const GOLDEN_RIVERS: usize = 64;
-const GOLDEN_TREES_AT_START: usize = 38601;
+const GOLDEN_TREES_AT_START: usize = 38721;
 // 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
-const GOLDEN_FINGERPRINT: u64 = 2930140565214727679;
+const GOLDEN_FINGERPRINT: u64 = 7329084543618373276;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -287,12 +289,31 @@ fn every_building_stands_in_a_city() {
 }
 
 #[test]
-fn streets_are_wide_enough_for_a_mech() {
+fn a_mech_walks_down_every_street_between_its_building_lines() {
+    // 2026-11-14: streets the mockup's 14 m (22 m arterials; owner: "usually wide city corridors have 2 lanes on each
+    // side"), no longer 24 m for two of the first 12 m mechs abreast: the widest mech's body fits between the buildings
+    // either side (the street and its pavements), walking over the parked cars.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+    let widest = crate::GameData::mech_files(&root)
+        .iter()
+        .map(|m| {
+            crate::GameData::load(&root, m)
+                .unwrap_or_else(|e| panic!("{e}"))
+                .mech
+                .locomotion
+                .body_radius_m
+                * 2.0
+        })
+        .fold(0.0, f32::max);
+    assert!(widest > 10.0, "the roster's mechs are big: {widest} m");
     for c in &seed_42().cities {
         for s in &c.streets {
-            assert!(s.width_m >= 24.0, "street {:?} is {} m", s.rect, s.width_m);
-            let narrow = s.rect.size().min_element();
-            assert!(narrow >= 24.0 - 1e-3, "street piece {:?} narrower than 24 m", s.rect);
+            let clear = s.rect.size().min_element() + c.sidewalk_m * 2.0;
+            assert!(
+                clear >= widest - 1e-3,
+                "street {:?}: {clear} m between its buildings for a {widest} m mech",
+                s.rect
+            );
         }
     }
 }

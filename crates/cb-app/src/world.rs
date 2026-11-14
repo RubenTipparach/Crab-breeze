@@ -459,13 +459,13 @@ fn lay_road(
     other: &mut MeshBuilder,
     rs: &cb_core::world::config::RoadSurfaceConfig,
     length_m: f32,
-    width_m: f32,
+    (width_m, lanes): (f32, &[f32]),
     step_m: f32,
     tone: [f32; 3],
     other_tone: [f32; 3],
     at: &dyn Fn(f32, f32) -> Vec3,
 ) {
-    let bounds = rs.lane_bounds(width_m);
+    let bounds = rs.lane_bounds(width_m, lanes);
     let half = width_m * 0.5;
     let n = (length_m / step_m).ceil().max(1.0) as usize;
     let colour = |p: Vec3, tone: [f32; 3], shade: f32| {
@@ -484,7 +484,7 @@ fn lay_road(
         let group = ((s0 + s1) * 0.5 / rs.tint_cell_m).floor();
         let key = at((group + 0.5) * rs.tint_cell_m, 0.0);
         let key = Vec2::new(key.x, key.z);
-        let patched = |o0: f32, o1: f32| rs.patched(key, rs.lane_at((o0 + o1) * 0.5, width_m));
+        let patched = |o0: f32, o1: f32| rs.patched(key, rs.lane_at((o0 + o1) * 0.5, lanes));
         if !bounds.windows(2).any(|w| patched(w[0], w[1])) {
             quad(own, s0, s1, -half, half, tone, 1.0);
             continue;
@@ -499,10 +499,11 @@ fn lay_road(
     }
 }
 
-/// Lays the tyre tracks of a straight road piece from `a` to `b` (x, z), `width_m` wide, at heights `ya` and `yb`:
+/// Lays the tyre tracks of a straight road piece from `a` to `b` (x, z), its lanes at `lanes` either side (the
+/// traffic's), at heights `ya` and `yb`:
 /// for each track, two strips that fade from nothing at its edges to `track_dark` at its middle, as the alpha of a
 /// black blended over the asphalt, so the asphalt's own grain shows through and the fog takes them with it.
-fn lay_tracks(mesh: &mut MeshBuilder, rs: &cb_core::world::config::RoadSurfaceConfig, a: Vec2, b: Vec2, ya: f32, yb: f32, width_m: f32) {
+fn lay_tracks(mesh: &mut MeshBuilder, rs: &cb_core::world::config::RoadSurfaceConfig, a: Vec2, b: Vec2, ya: f32, yb: f32, lanes: &[f32]) {
     let dir = (b - a).normalize_or(Vec2::X);
     let side = dir.perp();
     let p = |at: Vec2, y: f32, o: f32| {
@@ -510,7 +511,7 @@ fn lay_tracks(mesh: &mut MeshBuilder, rs: &cb_core::world::config::RoadSurfaceCo
         Vec3::new(q.x, y, q.y)
     };
     let (clear, dark) = ([0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, rs.track_dark]);
-    for c in rs.track_centres(width_m) {
+    for c in rs.track_centres(lanes) {
         for (o0, o1, c0, c1) in [(c - rs.track_half_m, c, clear, dark), (c, c + rs.track_half_m, dark, clear)] {
             let mut q = [p(a, ya, o0), p(b, yb, o0), p(b, yb, o1), p(a, ya, o1)];
             let mut k = [c0, c0, c1, c1];
@@ -535,6 +536,8 @@ pub(crate) fn spawn_roads(
 ) {
     let cfg = &data.0.world;
     let rs = &cfg.road_surfaces;
+    // the traffic's lanes: the tyre tracks and patches are laid where the cars drive
+    let lane_layout = &data.0.traffic.cfg.lanes;
     let pavement = [0.55, 0.54, 0.51, 1.0];
     let park = [0.26, 0.40, 0.19, 1.0];
     let mut streets = MeshBuilder::tiled(rs.street_tile_m, rs.street_tile_m);
@@ -584,33 +587,24 @@ pub(crate) fn spawn_roads(
                 let p = start + dir * s + across * o;
                 Vec3::new(p.x, y, p.y)
             };
-            if s.kind == cb_core::world::StreetKind::Arterial {
-                lay_road(
-                    &mut streets,
-                    &mut worn,
-                    rs,
-                    len,
-                    wid,
-                    rs.tint_cell_m,
-                    rs.arterial_tone,
-                    rs.worn_tone,
-                    &at,
-                );
+            let (lanes, tone) = if s.kind == cb_core::world::StreetKind::Arterial {
+                (&lane_layout.arterial_offsets_m, rs.arterial_tone)
             } else {
-                lay_road(
-                    &mut streets,
-                    &mut worn,
-                    rs,
-                    len,
-                    wid,
-                    rs.tint_cell_m,
-                    rs.street_tone,
-                    rs.worn_tone,
-                    &at,
-                );
-            }
+                (&lane_layout.street_offsets_m, rs.street_tone)
+            };
+            lay_road(
+                &mut streets,
+                &mut worn,
+                rs,
+                len,
+                (wid, lanes),
+                rs.tint_cell_m,
+                tone,
+                rs.worn_tone,
+                &at,
+            );
             let yt = y + TRACK_LIFT_M;
-            lay_tracks(&mut tracks, rs, start, start + dir * len, yt, yt, wid);
+            lay_tracks(&mut tracks, rs, start, start + dir * len, yt, yt, lanes);
             let yy = y + 0.04;
             if half.x > half.y {
                 dashes(Vec2::new(a.x, c.y), Vec2::new(b.x, c.y), &|_| yy);
@@ -664,7 +658,7 @@ pub(crate) fn spawn_roads(
             &mut highway_worn,
             rs,
             len,
-            h.width_m,
+            (h.width_m, &lane_layout.highway_offsets_m),
             4.0,
             rs.highway_tone,
             worn_tone,
@@ -676,7 +670,15 @@ pub(crate) fn spawn_roads(
             let (g0, g1) = (h.grade_m[k], h.grade_m[k + 1]);
             dashes(h.path[k], h.path[k + 1], &|t| g0 + (g1 - g0) * t + lift);
             let yt = cfg.road_lift_m + TRACK_LIFT_M;
-            lay_tracks(&mut tracks, rs, h.path[k], h.path[k + 1], g0 + yt, g1 + yt, h.width_m);
+            lay_tracks(
+                &mut tracks,
+                rs,
+                h.path[k],
+                h.path[k + 1],
+                g0 + yt,
+                g1 + yt,
+                &lane_layout.highway_offsets_m,
+            );
         }
     }
     info!(

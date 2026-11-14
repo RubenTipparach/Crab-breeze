@@ -36,8 +36,9 @@ even try to merge textures and geometry together well".
   `city_layouts.html` and passes its own drive check before it goes near the generator.
 - **One implementation.** Lots in a city use the suburbs' placer and its drive rule; a ramp's deck uses the same
   `RoadDeck` as a viaduct; a crater cuts drives with `world::crater_cuts` like it cuts streets. Never a second copy.
-- **Roads over roads are decks.** Wherever a road stands 2.5 m or more over the land (`VIADUCT_OVER_M`) or over another
-  road, it is a `RoadDeck`. `road_top_at` leaves a highway out where it is a deck; `Decks::top_under` gives the surface
+- **Roads over roads are decks.** Wherever any of a road's width stands 0.3 m or more over the land (`VIADUCT_OVER_M`:
+  on fill while low, on piers once there is headroom) or over another road, it is a `RoadDeck`; a point on the outside
+  of a deck's bend is on it (only its two ends stop it). `road_top_at` leaves a highway out where it is a deck; `Decks::top_under` gives the surface
   within a step (`STEP_M`) of a body's feet; `Decks::push_out` keeps a body off a slab with less than `HEADROOM_M` over its
   feet. Cars, the pilot, the people and the mech all choose their level by their feet: never by "the highest road here".
 - **Every lane carries its own heights** where it rides its road's surface (a highway's grade, a deck's top), not the
@@ -45,6 +46,15 @@ even try to merge textures and geometry together well".
 - **Highways meet the city at exits.** A ramp is one-way, at most 8 % (`trunk.ramp_grade`), level for its last
   `ramp_landing_m`, and lands at a street junction; nothing passes under a ramp lower than 5.9 m (4.5 m of headroom under
   a 1.2 m slab), so its low part stays inside its block. No connector turns more than 90 degrees onto or off a ramp.
+  A ramp joins its deck the way a real one does: it swings out (eased, no corner) until its edge meets the deck's edge
+  at the deck's height, runs level beside it with no barrier between (`ramp_gore_m`), and only then climbs or descends,
+  its height set by distance along the deck, never by the rounding of its curves. A highway joining a trunk runs onto
+  it in line (`lead_in_m`), never at a corner.
+- **Lanes are the traffic's.** A road's lanes, tyre tracks and patch repairs are laid on the traffic's own lane offsets
+  (`LaneLayout`, `RoadSurfaceConfig::lane_bounds`): never a lane every 3.5 m across whatever width the road has. A city
+  street is 14 m, one lane each way and a parking strip; an arterial 22 m, two lanes each way.
+- **A downtown block is lots, not a wall.** Two or four big lots a block; a tower (a slim shaft with room round it) on
+  some, more near the heart and in a large city; mid-rise on the rest; the heart's lot always the tallest.
 - **Grids stay connected.** Every street joins the network; a street cut off by a structure is not built (in the mockup
   the drive check's own fill prunes it). No building on a street, a highway or inside an exit's footprint.
 - **Car parks, streets and highways look apart.** Streets on Asphalt027C, car parks on the worn asphalt set
@@ -55,7 +65,10 @@ even try to merge textures and geometry together well".
   world-space UVs. Geometry meets exactly: a landing is level with its street, its edges on the street's edges, no step,
   no gap, no two surfaces in one plane (z-fighting).
 - **Levels of detail for every structure.** Decks, piers, barriers and ramps come in three levels (detail near; boxes;
-  the slab only far), cut into 512 m tiles with `VisibilityRange`, and say what they cost (triangles, draw calls).
+  the slab only far), cut into 512 m tiles, and say what they cost (triangles, draw calls). A tile's level is chosen
+  by the eye's distance to its square (`deck_draw::DeckLod`): Bevy's `VisibilityRange` measures from the entity's
+  origin, and meshes kept in world space (for the crater cut and the seamless mapping) sit at the origin, so with it they
+  were never drawn.
 
 ## The drive check
 

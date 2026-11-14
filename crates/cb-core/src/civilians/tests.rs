@@ -633,8 +633,9 @@ fn golden_seed_42() {
 }
 
 // Re-recorded 2026-11-13 (openspec change `city-districts`, design section 5): the blocks beside an arterial are drawn
-// long enough for an exit's ramp, so the city the people walk is laid out differently.
-const GOLDEN_42: u64 = 0x2c8c_d0fb_e8ee_e367;
+// long enough for an exit's ramp, so the city the people walk is laid out differently; 2026-11-14, streets the
+// mockup's 14 m and arterials 22 m.
+const GOLDEN_42: u64 = 0x11c9_1d5b_cc16_a821;
 
 /// A measurement instrument, not a check: the CPU time of a fixed step with 2,000 people (the design's
 /// budget), and of a blast and twenty rounds among them. Run it in release:

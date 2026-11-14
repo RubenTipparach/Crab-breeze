@@ -6,7 +6,7 @@
 The ground only receives shadows and the buildings cast them.
 
 **Today** runs the generator's own rules and numbers from `data/world/world.ron`:
-- blocks 70-110 m, streets 24 m, a 36 m arterial every fourth street;
+- blocks 70-110 m, streets 24 m, a 36 m arterial every fourth street (14 m and 22 m since 2026-11-14, section 6b);
 - lots 18-36 m, setback 1-3 m, sidewalk 4 m;
 - 60 storeys at the centre, falling to 2 with exponent 0.7, fill 0.35-1, 3.5 m a storey;
 - parks 6 %, plazas 8 %;
@@ -191,6 +191,25 @@ smallest city to the largest, so the capital has a wide ring of apartment blocks
 downtown does ("apartment blocks of 3-5 storeys within 650 m").
 
 Cost: none at run time (the same buildings, placed differently); a few microseconds a city at generation.
+
+## 6b. Streets the mockup's width, worn where the cars drive
+
+The owner, 2026-11-14, of an arterial: "why are the streets all stripy? I only see like 3-4 lanes on each side",
+"which is excessive for a city, usually wide city corridors have 2 lanes on each side too". The game's streets were
+24 m and its arterials 36 m, wider than the mockup's (14 m and 22 m), and the road surface drew a lane with two tyre
+tracks every 3.5 m across the whole width: five dark lanes a side on an arterial whose traffic used two.
+
+| Road | Width | Lanes each way (centre offsets) | At the kerb |
+| --- | --- | --- | --- |
+| Street | 14 m | one, 3.5 m wide (1.75 m) | a parking strip, cars parked 2.5 m in from the edge |
+| Arterial | 22 m | two (1.75 m, 5.25 m) | a parking strip |
+| Highway | 28 m (unchanged) | two (3.5 m, 7.0 m) | the shoulder |
+
+One rule for where cars drive: the road surface's lanes, tyre tracks and patch repairs are laid on the traffic's own
+lanes (`LaneLayout`'s offsets, `RoadSurfaceConfig::lane_bounds`, `track_centres`, `lane_at`), so the tracks show
+exactly the lanes cars use and the parking strips carry none. A test holds every road's lanes within its width with a
+parked car's room at the kerb. Narrower streets fit more blocks and longer runs between arterials: on seed 42 six
+cities get a trunk with exits (three before).
 
 ## 7. The bypass in the game
 

@@ -2161,13 +2161,20 @@ mod tests {
         let mut queue: Vec<&Car> = t.cars.iter().filter(|c| c.lane == feed && c.on_lane()).collect();
         queue.sort_by(|a, b| b.s_m.total_cmp(&a.s_m));
         assert!(!queue.is_empty());
-        for c in &queue {
-            assert!(c.speed_m_s < 0.1, "car {} has stopped", c.id);
-        }
+        // the packed queue from the wreck back: each car up against the one ahead (within 1.25 standstill gaps)
+        // has stopped and keeps its gap; cars still rolling up to the tail are not part of it yet
+        assert!(queue[0].speed_m_s < 0.1, "car {} at the head has stopped", queue[0].id);
+        let mut packed = 1;
         for w in queue.windows(2) {
             let gap = w[0].s_m - w[1].s_m - (length_of(&d, w[0]) + length_of(&d, w[1])) * 0.5;
+            if gap > d.cfg.min_gap_m * 1.25 {
+                break;
+            }
+            assert!(w[1].speed_m_s < 0.1, "car {} has stopped", w[1].id);
             assert!(gap >= d.cfg.min_gap_m * 0.9, "the queue keeps its standstill gap: {gap}");
+            packed += 1;
         }
+        assert!(packed >= 3, "a queue of {packed} behind the wreck");
     }
 
     #[test]
@@ -2435,8 +2442,9 @@ mod tests {
     // Re-recorded 2026-10-28 for the stepping by distance (`StepLod`): the cars beyond 300 m of the eye are stepped
     // every second or fourth step with the time owed, so their places at any one step differ; the count is unchanged.
     // Re-recorded 2026-11-13 (city-districts design section 5): the blocks beside an arterial are drawn long enough for
-    // a ramp, so the town's lanes differ, and the fill tries six places for each car it lacks.
-    const GOLDEN_11: (usize, u64) = (448, 9924714505719713979);
+    // a ramp, so the town's lanes differ, and the fill tries six places for each car it lacks; 2026-11-14, streets 14 m
+    // and arterials 22 m, their lanes beside the centre line.
+    const GOLDEN_11: (usize, u64) = (563, 8106484826328737587);
 
     #[test]
     fn a_blast_within_120_m_stops_the_traffic_for_20_to_40_s() {

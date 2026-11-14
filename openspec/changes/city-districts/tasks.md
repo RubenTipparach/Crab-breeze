@@ -37,6 +37,7 @@
 
 - [x] 5.1 Downtown shapes (compact, main street, two cores) drawn per city, `Downtown::reach` the one rule for zoning and storeys
 - [x] 5.2 The large downtown's housing: the flats ring by the city's size
+- [x] 5.4 Streets the mockup's width (14 m, 22 m arterials), the road's lanes, tracks and patches on the traffic's lanes
 - [ ] 5.3 The coast: a city on the shore with its harbour
 
 ## 6. Left over

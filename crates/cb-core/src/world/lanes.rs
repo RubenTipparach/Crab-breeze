@@ -18,7 +18,8 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields, default)]
 pub struct LaneLayout {
     /// Each lane of an ordinary street, by its offset to the right of the centre line, metres
-    /// (one lane each way).
+    /// (one lane each way). The road's tyre tracks and patches are laid on these lanes too
+    /// (`RoadSurfaceConfig::lane_bounds`).
     pub street_offsets_m: Vec<f32>,
     /// The same for an arterial (two lanes each way).
     pub arterial_offsets_m: Vec<f32>,
@@ -36,8 +37,8 @@ pub struct LaneLayout {
 impl Default for LaneLayout {
     fn default() -> Self {
         Self {
-            street_offsets_m: vec![3.5],
-            arterial_offsets_m: vec![3.5, 7.0],
+            street_offsets_m: vec![1.75],
+            arterial_offsets_m: vec![1.75, 5.25],
             highway_offsets_m: vec![3.5, 7.0],
             ramp_offsets_m: vec![0.0],
             conflict_m: 2.5,
@@ -896,7 +897,7 @@ mod tests {
             let road = &g.roads[l.road as usize];
             let (p, d) = l.line.at(l.length_m() * 0.5);
             let (rp, _) = road.line.at(road.line.length_m() * 0.5);
-            assert!((p - rp).dot(right_of(d)) > 3.0, "lane {} sits right of its centre line", l.id);
+            assert!((p - rp).dot(right_of(d)) > 1.0, "lane {} sits right of its centre line", l.id);
         }
     }
 
