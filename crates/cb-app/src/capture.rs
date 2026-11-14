@@ -1645,6 +1645,8 @@ const VIEWS: &[View] = &[
     view("fargo-exit", [0.0; 3], [0.0; 3]),
     view("fargo-under", [0.0; 3], [0.0; 3]),
     view("fargo-ramp", [0.0; 3], [0.0; 3]),
+    // Above where an off-ramp meets the viaduct, level and edge to edge, looking along it.
+    view("fargo-gore", [0.0; 3], [0.0; 3]),
     // The first city whose downtown is a main street, and the first with two cores, from the air (design section 6).
     view("fargo-main-street", [0.0; 3], [0.0; 3]),
     view("fargo-two-cores", [0.0; 3], [0.0; 3]),
@@ -2319,6 +2321,18 @@ fn fargo_view(plan: &crate::world::Plan, which: &str) -> ([f32; 3], [f32; 3]) {
     let trunk = plan.highways.iter().position(|h| h.cities == [city.id, city.id]);
     let ramp = trunk.and_then(|k| plan.ramps.iter().find(|r| r.highway == k as u32));
     match which {
+        "gore" => {
+            // above where an off-ramp meets the viaduct, looking along it
+            let Some(r) = trunk.and_then(|k| plan.ramps.iter().find(|r| r.highway == k as u32 && r.off)) else {
+                return ([c.x, g + 300.0, c.y], [c.x, g, c.y + 1.0]);
+            };
+            let Some(&m) = r.deck.first() else {
+                return ([c.x, g + 300.0, c.y], [c.x, g, c.y + 1.0]);
+            };
+            let ahead = r.deck.get(r.deck.len() / 3).copied().unwrap_or(m);
+            let back = Vec2::new(m.x, m.z) - (Vec2::new(ahead.x, ahead.z) - Vec2::new(m.x, m.z)).normalize_or(Vec2::X) * 45.0;
+            ([back.x, m.y + 22.0, back.y], [ahead.x, ahead.y, ahead.z])
+        }
         "exit" | "under" | "ramp" => {
             let (Some(k), Some(r)) = (trunk, ramp) else {
                 return ([c.x, g + 300.0, c.y], [c.x, g, c.y + 1.0]);
