@@ -18,3 +18,14 @@ Found and fixed on the way: the deck tiles were never drawn under Bevy's `Visibi
 world space, their origin at 0); the game now chooses each tile's level from the eye (`DeckLod`).
 
 Stills: `docs/screenshots/city-districts/game/` (README there).
+
+## Re-shot 2026-11-14
+
+After the owner's two notes ("how the cars leave the highway when they are not connected", "how can you make downtown
+one big massive block?"), at commit f95f5eff:
+
+| Beat | Outcome |
+| --- | --- |
+| Where an off-ramp meets the viaduct (`fargo-gore.jpg`) | the ramp leaves at the viaduct's height, edge to edge, no barrier between, level beside it, then descends |
+| An exit from 140 m (`fargo-exit.jpg`) | the ramps peel off the viaduct's sides instead of running beside it below a wall |
+| Into the downtown (`fargo-downtown.jpg`) | three towers standing apart on their lots, mid-rise blocks round them, streets between |
