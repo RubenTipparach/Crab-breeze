@@ -27,6 +27,7 @@ Where each skill in this directory came from, so a later copy from the source ca
 | `combined-lowpoly-vehicle` | New, from the owner's `vehicle-skills` bake-off: a skill distilled from CG Geek's low-poly vehicle tutorial, combined with arjun988/blender-skills `vehicle-artist`, majidmanzarpour/blender-game-skills `blender-image-to-3d`, God-601/blender-mcp-master, AndreiFlau/blender-mcp-skill and this repository's `blender-hard-surface`. It is refined over three scored rounds: a drawn coupe; a CC0 estate; then a CC0 roadster, a public domain truck and an aircraft. | v1.3 | 2026-10-28 | Original write-up; no text copied from the source skills. An "In Crab Breeze" note added. |
 | `lowpoly-car-surface-shell` | New, distilled from Praize3d's "Low poly car modeling in blender" parts 1 to 6 (YouTube), studied privately from frame sheets | v1.0 | 2026-10-28 | Independent write-up of the technique; no transcript. An "In Crab Breeze" note added. |
 | `lowpoly-car-interior` | New, distilled from Praize3d's interior videos (parts 1 to 6 and two seat videos), studied privately from frame sheets | v1.0 | 2026-10-28 | Independent write-up of the technique; no transcript. An "In Crab Breeze" note added. |
+| `city-roads` | New, written in Crab Breeze from openspec change `city-districts` and the owner's notes on it | v1.0 | 2026-11-13 | Original. |
 
 Not copied, and why:
 - (`light-baking` and `panel-textures` were left out on 2026-10-23 as serving Star Crew's low-poly

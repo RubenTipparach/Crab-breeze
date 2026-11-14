@@ -52,14 +52,61 @@ pub fn lay_highway(
     (from, to): (Vec2, Vec2),
     cfg: &WorldConfig,
 ) -> Option<Highway> {
-    let end = |k: usize, at: Vec2| RoadEnd {
-        city: Some(k),
-        id: cities[k].id,
-        rect: cities[k].rect(),
-        ground_m: cities[k].ground_m,
-        at,
+    lay_highway_to(shape, drainage, cities, (a, b), (from, to), [None, None], cfg)
+}
+
+/// A highway end that is a trunk's (openspec change `city-districts`, design section 5): the road ends at `at`, outside
+/// its city's square, at the trunk's height `top_m` (level for its last `level_m`), keeps out of the square on its way
+/// there, and runs its last `lead_m` straight in along the trunk's line (`out`), so it meets the trunk in line.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TrunkEnd {
+    /// The trunk's end, outside the square.
+    pub at: Vec2,
+    /// Along the trunk's line, away from the city (x, z), unit length.
+    pub out: Vec2,
+    /// The road runs straight along `out` from `at` for this long before it may turn, metres.
+    pub lead_m: f32,
+    /// The trunk's grade there.
+    pub top_m: f32,
+    /// Level for this long at the end.
+    pub level_m: f32,
+}
+
+/// `lay_highway`, with either end a trunk's (`TrunkEnd`) instead of its city's edge.
+pub fn lay_highway_to(
+    shape: &Shape,
+    drainage: &Drainage,
+    cities: &[City],
+    (a, b): (usize, usize),
+    (from, to): (Vec2, Vec2),
+    trunk: [Option<TrunkEnd>; 2],
+    cfg: &WorldConfig,
+) -> Option<Highway> {
+    let end = |k: usize, at: Vec2, t: Option<TrunkEnd>| match t {
+        None => RoadEnd {
+            city: Some(k),
+            id: cities[k].id,
+            rect: cities[k].rect(),
+            ground_m: cities[k].ground_m,
+            at,
+            trunk: None,
+            tip: None,
+        },
+        Some(t) => {
+            // routed to the lead-in's far end; the straight lead-in to the trunk's end is added after
+            let lead = t.at + t.out * t.lead_m;
+            RoadEnd {
+                city: Some(k),
+                id: cities[k].id,
+                rect: super::layout::Rect::centred(lead, Vec2::splat(1.0)),
+                ground_m: t.top_m,
+                at: lead,
+                trunk: Some((cities[k].rect(), t.level_m.max(t.lead_m))),
+                tip: Some(t.at),
+            }
+        }
     };
-    lay_road(shape, drainage, cities, [end(a, from), end(b, to)], cfg)
+    lay_road(shape, drainage, cities, [end(a, from, trunk[0]), end(b, to, trunk[1])], cfg)
 }
 
 /// The id a road's second end carries when it ends at a site's gate, not at a city (`Highway::cities`).
@@ -85,6 +132,8 @@ pub fn lay_access(
             rect: r,
             ground_m: cities[city].ground_m,
             at: from,
+            trunk: None,
+            tip: None,
         },
         RoadEnd {
             city: None,
@@ -92,6 +141,8 @@ pub fn lay_access(
             rect: site,
             ground_m,
             at: gate,
+            trunk: None,
+            tip: None,
         },
     ];
     lay_road(shape, drainage, cities, ends, cfg)
@@ -105,6 +156,10 @@ struct RoadEnd {
     rect: super::layout::Rect,
     ground_m: f32,
     at: Vec2,
+    /// A trunk's end: its city's square, kept out of except near the end, and how long the end stays level.
+    trunk: Option<(super::layout::Rect, f32)>,
+    /// A trunk's end beyond `at`: the road runs on straight from `at` to here (its lead-in).
+    tip: Option<Vec2>,
 }
 
 fn lay_road(shape: &Shape, drainage: &Drainage, cities: &[City], ends: [RoadEnd; 2], cfg: &WorldConfig) -> Option<Highway> {
@@ -130,6 +185,11 @@ fn lay_road(shape: &Shape, drainage: &Drainage, cities: &[City], ends: [RoadEnd;
             .iter()
             .enumerate()
             .any(|(k, c)| k != a && k != b && c.rect().distance(p) < reach)
+            // a trunk's city: out of its square (and the road's band) but for the last cells to the trunk's end
+            || ends.iter().any(|e| {
+                e.trunk
+                    .is_some_and(|(sq, _)| sq.distance(p) < cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m && e.at.distance(p) > 120.0)
+            })
     };
     let passable = |k: usize| {
         let p = drainage.centre(k);
@@ -225,6 +285,14 @@ fn lay_road(shape: &Shape, drainage: &Drainage, cities: &[City], ends: [RoadEnd;
         i = j;
     }
     let mut line = taut;
+    // a trunk's end: the straight lead-in on to its tip, added before the rounding, which keeps a line's ends and the
+    // direction of its first and last legs, so the road meets the trunk in line
+    if let Some(tip) = ends[0].tip {
+        line.insert(0, tip);
+    }
+    if let Some(tip) = ends[1].tip {
+        line.push(tip);
+    }
     for _ in 0..4 {
         line = chaikin(&line);
     }
@@ -249,7 +317,12 @@ fn lay_road(shape: &Shape, drainage: &Drainage, cities: &[City], ends: [RoadEnd;
         along.max(level_end_m(cfg))
     };
     let n_path = path.len();
-    let level = [clear_of(&ra, &mut (0..n_path)), clear_of(&rb, &mut (0..n_path).rev())];
+    let mut level = [clear_of(&ra, &mut (0..n_path)), clear_of(&rb, &mut (0..n_path).rev())];
+    for (k, e) in ends.iter().enumerate() {
+        if let Some((_, l)) = e.trunk {
+            level[k] = l;
+        }
+    }
     let grade = grade_along(&path, shape, ends_ground, level, cfg);
     Some(Highway::new(
         [ends[0].id, ends[1].id],

@@ -721,41 +721,50 @@ impl RoadSurfaceConfig {
         1.0 + self.tint_amount * n.clamp(-1.0, 1.0)
     }
 
-    /// The lane boundaries across a road `width_m` wide, from its centre line, edge to edge in order: its
-    /// edges, the centre line and every `lane_m` out from it while a whole lane fits.
-    pub fn lane_bounds(&self, width_m: f32) -> Vec<f32> {
+    /// The lane boundaries across a road `width_m` wide, from its centre line, edge to edge in order: its edges, the
+    /// centre line and each lane's two sides, its lanes `lane_m` wide at `offsets_m` either side of the centre line (the
+    /// traffic's own, `lanes::LaneLayout`: one rule for where cars drive and where the road is worn).
+    pub fn lane_bounds(&self, width_m: f32, offsets_m: &[f32]) -> Vec<f32> {
         let half = width_m * 0.5;
-        let lanes = (half / self.lane_m).floor() as i32;
-        let mut b: Vec<f32> = (-lanes..=lanes).map(|k| k as f32 * self.lane_m).collect();
-        if half > lanes as f32 * self.lane_m + 1e-3 {
-            b.insert(0, -half);
-            b.push(half);
+        let mut b = vec![-half, 0.0, half];
+        for &o in offsets_m {
+            for e in [o - self.lane_m * 0.5, o + self.lane_m * 0.5] {
+                if e > 1e-3 && e < half - 1e-3 {
+                    b.push(e);
+                    b.push(-e);
+                }
+            }
         }
+        b.sort_by(f32::total_cmp);
+        b.dedup_by(|x, y| (*x - *y).abs() < 1e-3);
         b
     }
 
-    /// The tyre tracks' centres across a road `width_m` wide, from its centre line: two in every lane,
-    /// `track_offset_m` either side of its middle.
-    pub fn track_centres(&self, width_m: f32) -> Vec<f32> {
-        let lanes = (width_m * 0.5 / self.lane_m).floor() as i32;
-        let mut c = Vec::new();
-        for side in [-1.0f32, 1.0] {
-            for lane in 0..lanes {
-                let mid = side * (lane as f32 + 0.5) * self.lane_m;
-                c.push(mid - self.track_offset_m);
-                c.push(mid + self.track_offset_m);
-            }
-        }
+    /// The tyre tracks' centres across a road, from its centre line: two in every lane (the traffic's lanes at
+    /// `offsets_m` either side), `track_offset_m` either side of its middle; none at the kerb, where cars park.
+    pub fn track_centres(&self, offsets_m: &[f32]) -> Vec<f32> {
+        let mut c: Vec<f32> = offsets_m
+            .iter()
+            .flat_map(|&o| {
+                [
+                    o - self.track_offset_m,
+                    o + self.track_offset_m,
+                    -o - self.track_offset_m,
+                    -o + self.track_offset_m,
+                ]
+            })
+            .collect();
         c.sort_by(f32::total_cmp);
         c
     }
 
-    /// The lane (signed: negative left of the centre line, from 1) a point `offset_m` across a road
-    /// `width_m` wide lies in, or 0 outside every lane (the kerbside strip).
-    pub fn lane_at(&self, offset_m: f32, width_m: f32) -> i32 {
-        let lanes = (width_m * 0.5 / self.lane_m).floor() as i32;
-        let k = (offset_m.abs() / self.lane_m).floor() as i32 + 1;
-        if k > lanes { 0 } else { k * offset_m.signum() as i32 }
+    /// The lane (signed: negative left of the centre line, from 1 at the centre outward) a point `offset_m` across a
+    /// road lies in, its lanes at `offsets_m` either side, or 0 outside every lane (the kerbside strip).
+    pub fn lane_at(&self, offset_m: f32, offsets_m: &[f32]) -> i32 {
+        offsets_m
+            .iter()
+            .position(|&o| (offset_m.abs() - o).abs() < self.lane_m * 0.5)
+            .map_or(0, |k| (k as i32 + 1) * offset_m.signum() as i32)
     }
 
     /// Whether the lane cell of lane `lane` whose along-road cell is centred at `p` is a patch repair:
@@ -932,6 +941,8 @@ pub struct WorldConfig {
     pub debris: DebrisConfig,
     /// What each city block is used for (openspec change `city-districts`).
     pub zones: super::layout::ZonesConfig,
+    /// The highway through a city and its exits (openspec change `city-districts`, design section 5).
+    pub trunk: super::trunk::TrunkConfig,
     /// Where the houses and small businesses stand (openspec change `small-buildings`).
     pub small_buildings: super::small_buildings::SmallBuildingsConfig,
     /// The houses' and small businesses' kits, read from `assets/models/small_buildings/` by
@@ -1009,8 +1020,8 @@ impl Default for WorldConfig {
             plateau_flat_margin_m: 12.0,
             plateau_blend_m: 120.0,
             block_size_m: [70.0, 110.0],
-            street_width_m: 24.0,
-            arterial_width_m: 36.0,
+            street_width_m: 14.0,
+            arterial_width_m: 22.0,
             arterial_every: 4,
             sidewalk_m: 4.0,
             lot_size_m: [18.0, 36.0],
@@ -1054,6 +1065,7 @@ impl Default for WorldConfig {
             dressing: super::dressing::DressingConfig::default(),
             interiors: super::interior::InteriorConfig::default(),
             zones: super::layout::ZonesConfig::default(),
+            trunk: super::trunk::TrunkConfig::default(),
             small_buildings: super::small_buildings::SmallBuildingsConfig::default(),
             small_kits: Default::default(),
             sites: super::sites::SitesConfig::default(),
@@ -1159,6 +1171,7 @@ impl Validate for WorldConfig {
         self.dressing.validate()?;
         self.interiors.validate()?;
         self.zones.validate()?;
+        self.trunk.validate()?;
         self.small_buildings.validate()?;
         self.sites.validate()?;
         self.debris.validate()?;
@@ -1230,24 +1243,21 @@ mod road_surface_tests {
     }
 
     #[test]
-    fn a_street_is_cut_into_lanes_with_two_tyre_tracks_in_each() {
+    fn a_street_is_cut_into_its_traffics_lanes_with_two_tyre_tracks_in_each() {
         let cfg = RoadSurfaceConfig::default();
-        let b = cfg.lane_bounds(24.0);
-        assert_eq!(b.first(), Some(&-12.0));
-        assert_eq!(b.last(), Some(&12.0));
-        assert_eq!(
-            b.len(),
-            9,
-            "three 3.5 m lanes a side, the centre line and the kerbside strips: {b:?}"
-        );
-        assert!(b.windows(2).all(|w| w[0] < w[1]));
-        let t = cfg.track_centres(24.0);
-        assert_eq!(t.len(), 12);
+        // a 14 m street, one lane each way 1.75 m from the centre line, a parking strip at each kerb
+        let b = cfg.lane_bounds(14.0, &[1.75]);
+        assert_eq!(b, vec![-7.0, -3.5, 0.0, 3.5, 7.0], "two lanes and the kerbside strips");
+        let t = cfg.track_centres(&[1.75]);
+        assert_eq!(t.len(), 4, "two tracks in each of the two lanes, none in the parking strips");
         assert!(t.iter().any(|&o| (o - (1.75 + 0.9)).abs() < 1e-4));
-        assert_eq!(cfg.lane_at(1.0, 24.0), 1);
-        assert_eq!(cfg.lane_at(-4.0, 24.0), -2);
-        assert_eq!(cfg.lane_at(11.0, 24.0), 0, "the kerbside strip is no lane");
-        assert_eq!(cfg.lane_bounds(7.0), vec![-3.5, 0.0, 3.5], "a road of whole lanes has no strip");
+        assert_eq!(cfg.lane_at(1.0, &[1.75]), 1);
+        assert_eq!(cfg.lane_at(-2.0, &[1.75]), -1);
+        assert_eq!(cfg.lane_at(5.0, &[1.75]), 0, "the kerbside strip is no lane");
+        // a 22 m arterial: two lanes each way
+        assert_eq!(cfg.lane_bounds(22.0, &[1.75, 5.25]), vec![-11.0, -7.0, -3.5, 0.0, 3.5, 7.0, 11.0]);
+        assert_eq!(cfg.track_centres(&[1.75, 5.25]).len(), 8);
+        assert_eq!(cfg.lane_at(-6.0, &[1.75, 5.25]), -2);
     }
 
     #[test]

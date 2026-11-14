@@ -12,6 +12,7 @@ pub mod clouds;
 pub mod collision;
 pub mod config;
 pub mod cover;
+pub mod decks;
 pub mod deform;
 pub mod destruct;
 pub mod door;
@@ -36,6 +37,7 @@ pub mod small_buildings;
 pub mod structure;
 pub mod sun_shade;
 pub mod terrain;
+pub mod trunk;
 pub mod water;
 pub mod weather;
 
@@ -246,12 +248,15 @@ impl Ground for Scene<'_> {
             (a, b) => a.or(b),
         };
         let under = roof.map_or(ground, |r| r.max(ground));
+        // a deck (a viaduct, a ramp) within a step of the feet: a body on it stands on it, one under it does not
+        let under = self.plan.decks.top_under(p, feet_y).map_or(under, |t| t.max(under));
         platform::top_under(self.platforms, x, z, feet_y).map_or(under, |t| t.max(under))
     }
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let p = self.push_out_buildings(p, radius_m, feet_y);
         let p = self.push_out_houses(p, radius_m, feet_y);
         let p = self.push_out_sites(p, radius_m, feet_y);
+        let p = self.plan.decks.push_out(p, radius_m, feet_y, &|q| self.height_at(q.x, q.y));
         let p = rocks::push_out(&self.plan.rocks, p, radius_m, feet_y);
         // trunks stand on the ground: a body far above it (on a deck, a roof) passes over them
         match self.trees {
@@ -288,9 +293,14 @@ impl WorldPlan {
                 return Some(c.ground_m + self.road_lift_m);
             }
         }
-        let highway = self.highways.iter().find_map(|h| {
+        let decked = |k: usize| {
+            self.decks
+                .near(p)
+                .any(|d| d.kind == decks::DeckKind::Viaduct { highway: k as u32 } && d.top_at(p).is_some())
+        };
+        let highway = self.highways.iter().enumerate().find_map(|(k, h)| {
             let (d, t) = h.project(p);
-            (d <= h.width_m * 0.5).then(|| h.grade_at(t) + self.road_lift_m)
+            (d <= h.width_m * 0.5 && !decked(k)).then(|| h.grade_at(t) + self.road_lift_m)
         });
         highway.or_else(|| self.small.paving.lift_at(p).map(|l| self.terrain.height_at(p.x, p.y) + l))
     }
@@ -451,6 +461,11 @@ pub struct WorldPlan {
     pub road_lift_m: f32,
     /// How far a city block's pavement is drawn over the city's ground, metres (`WorldConfig::kerb_height_m`).
     pub kerb_height_m: f32,
+    /// Every road surface over the land or over another road: viaducts and ramps (`decks`; openspec change
+    /// `city-districts`, design section 5).
+    pub decks: decks::Decks,
+    /// The exits' ramps (`trunk::Ramp`), each one-way, between a trunk and a city's street.
+    pub ramps: Vec<trunk::Ramp>,
     /// The houses and small businesses on their lots (openspec change `small-buildings`), and the airport's and the
     /// seaport's buildings as lots of their own zones.
     pub small: small_buildings::Lots,
@@ -573,10 +588,15 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let mut highways = layout::connect_cities(&cities, cfg, &lay);
 
     let largest = placed.first().map(|p| p.1).unwrap_or(1.0);
+    // The highway through a city (openspec change `city-districts`, design section 5): where two of a city's
+    // highways come in from opposite sides, a trunk on a viaduct joins them across the city, with exits; kept only
+    // where an exit fits and both highways can be laid onto it.
+    let (trunks, ramps) = lay_trunks(&shape, &drainage, &cities, &mut highways, largest, cfg);
     // What each block is used for, now the highways show where the strip goes (openspec change `city-districts`).
     for city in &mut cities {
         layout::zone_city(&mut root.fork(&format!("city/{}/zones", city.id)), city, &highways, largest, cfg);
     }
+    trunk::zone_rows(&mut cities, &trunks);
     let mut buildings = Vec::new();
     for city in &cities {
         let mut rng = root.fork(&format!("city/{}/buildings", city.id));
@@ -772,6 +792,35 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let channels = waters.channels(&cfg.water, &keep_out, cfg.plateau_flat_margin_m, &highways, road_flat_m);
     let terrain = terrain.with_channels(channels);
     let sun_shade = sun_shade::SunShade::bake(&terrain, cfg.world_size_m, sun_shade::to_sun(), &cfg.sun_shade);
+    // Every road over the land: each highway's viaduct where its grade stands over the ground (openspec change
+    // `city-districts`, design section 5), its piers kept off the streets and the other roads.
+    let pier_ok = |p: Vec2, r: f32| {
+        !cities.iter().any(|c| c.streets.iter().any(|st| st.rect.distance(p) < r))
+            && !highways
+                .iter()
+                .any(|h| h.project(p).0 < h.width_m * 0.5 + r && h.grade_at(h.project(p).1) < terrain.height_at(p.x, p.y) + 2.0)
+    };
+    let ground = |p: Vec2| terrain.height_at(p.x, p.y);
+    let mut all_decks = decks::viaducts(&highways, cfg.road_lift_m, &ground, &pier_ok);
+    for (i, r) in ramps.iter().enumerate() {
+        if r.deck.len() < 2 {
+            continue;
+        }
+        let mut d = decks::RoadDeck {
+            pts: r.deck.clone(),
+            width_m: r.width_m,
+            slab_m: decks::VIADUCT_SLAB_M,
+            fill_below_m: decks::FILL_BELOW_M,
+            kind: decks::DeckKind::Ramp { ramp: i as u32 },
+            piers: Vec::new(),
+        };
+        d.piers = decks::piers_under(&d, &ground, &pier_ok)
+            .into_iter()
+            .filter(|p| p.top_m + d.slab_m - ground(p.at) >= d.fill_below_m)
+            .collect();
+        all_decks.push(d);
+    }
+    let decks = decks::Decks::new(all_decks, cfg.world_size_m);
 
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
@@ -846,10 +895,98 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         bases,
         road_lift_m: cfg.road_lift_m,
         kerb_height_m: cfg.kerb_height_m,
+        decks,
+        ramps,
         small,
         sites: placed_sites,
         airport_rejections,
     }
+}
+
+/// Each city's trunk and its exits (openspec change `city-districts`, design section 5): chosen (`trunk::choose`), kept
+/// only with an exit that fits, then the two highways it joins re-laid to end at its ends at its height (a plan whose
+/// highway cannot be laid so is dropped and the highway kept as it was), the trunks appended to `highways`. Returns
+/// the trunks kept and every exit's ramps (their `highway` the trunk's index).
+fn lay_trunks(
+    shape: &Shape,
+    drainage: &hydrology::Drainage,
+    cities: &[City],
+    highways: &mut Vec<Highway>,
+    largest_half_m: f32,
+    cfg: &WorldConfig,
+) -> (Vec<trunk::TrunkPlan>, Vec<trunk::Ramp>) {
+    let low_m = decks::HEADROOM_M + decks::VIADUCT_SLAB_M + 0.2;
+    let mut plans: Vec<trunk::TrunkPlan> = Vec::new();
+    for city in cities {
+        let downtown = layout::downtown(city, largest_half_m, cfg);
+        let Some(p) = trunk::choose(city, highways, &downtown, &cfg.trunk) else {
+            continue;
+        };
+        // a highway joins at most one trunk at each end
+        if plans.iter().any(|q| q.joins.iter().any(|j| p.joins.contains(j))) {
+            continue;
+        }
+        let t = trunk::trunk_highway(&p, cfg.highway_width_m, cfg.world_size_m);
+        if trunk::exits(&p, 0, &t, city, cfg.road_lift_m, low_m, cfg.arterial_width_m, &cfg.trunk).is_empty() {
+            continue;
+        }
+        plans.push(p);
+    }
+    // Re-lay every highway a trunk takes, both its ends at once; a plan whose highway will not lay is dropped.
+    loop {
+        let mut ends: std::collections::BTreeMap<usize, [Option<roads::TrunkEnd>; 2]> = Default::default();
+        for p in &plans {
+            for (k, &(h, e)) in p.joins.iter().enumerate() {
+                ends.entry(h).or_default()[e] = Some(roads::TrunkEnd {
+                    at: p.ends[k],
+                    out: (p.ends[k] - p.ends[1 - k]).normalize_or(Vec2::X),
+                    lead_m: cfg.trunk.lead_in_m,
+                    top_m: p.top_m,
+                    level_m: cfg.trunk.end_level_m,
+                });
+            }
+        }
+        let mut laid = Vec::new();
+        let mut failed = None;
+        for (&h, t) in &ends {
+            let old = &highways[h];
+            let (a, b) = (old.cities[0] as usize, old.cities[1] as usize);
+            match roads::lay_highway_to(shape, drainage, cities, (a, b), (old.ends[0], old.ends[1]), *t, cfg) {
+                Some(new) => laid.push((h, new)),
+                None => {
+                    failed = Some(h);
+                    break;
+                }
+            }
+        }
+        match failed {
+            Some(h) => plans.retain(|p| !p.joins.iter().any(|j| j.0 == h)),
+            None => {
+                for (h, new) in laid {
+                    highways[h] = new;
+                }
+                break;
+            }
+        }
+    }
+    let mut ramps = Vec::new();
+    for p in &plans {
+        let index = highways.len() as u32;
+        let t = trunk::trunk_highway(p, cfg.highway_width_m, cfg.world_size_m);
+        let city = &cities[p.city as usize];
+        ramps.extend(trunk::exits(
+            p,
+            index,
+            &t,
+            city,
+            cfg.road_lift_m,
+            low_m,
+            cfg.arterial_width_m,
+            &cfg.trunk,
+        ));
+        highways.push(t);
+    }
+    (plans, ramps)
 }
 
 /// The street piece running along z nearest the largest city's centre (ties to the first).

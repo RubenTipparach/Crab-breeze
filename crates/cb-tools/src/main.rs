@@ -380,6 +380,20 @@ fn main() -> ExitCode {
                     ids.len(),
                     c.centre.distance(start)
                 );
+                // the highways that arrive (bearing from the centre, degrees clockwise from +z) and any trunk through it
+                let arrive: Vec<String> = plan
+                    .highways
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(k, h)| (0..2).filter(move |&e| h.cities[e] == c.id).map(move |e| (k, h, e)))
+                    .map(|(k, h, e)| {
+                        let d = h.ends[e] - c.centre;
+                        let kind = if h.cities[0] == h.cities[1] { " trunk" } else { "" };
+                        format!("{k}{kind} at {:.0} deg", d.x.atan2(d.y).to_degrees().rem_euclid(360.0))
+                    })
+                    .collect();
+                let ramps = plan.ramps.iter().filter(|r| r.city == c.id).count();
+                println!("  highways: {}; {ramps} ramps; downtown {:?}", arrive.join(", "), c.downtown_shape);
             }
             ExitCode::SUCCESS
         }
