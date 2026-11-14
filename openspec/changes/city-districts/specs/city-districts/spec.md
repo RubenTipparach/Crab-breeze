@@ -33,6 +33,10 @@ downtown's full height, to its edge.
 - **WHEN** the island is generated
 - **THEN** its cities' downtowns take more than one shape, and every downtown block but the one nearest the heart lies within its shape
 
+#### Scenario: A downtown block
+- **WHEN** a downtown block is built
+- **THEN** it holds two or four lots, towers standing apart on some of them with room round each, mid-rise blocks on the rest
+
 #### Scenario: The heart of a downtown
 - **WHEN** a downtown's buildings are placed
 - **THEN** the tallest stands on the lot nearest its heart

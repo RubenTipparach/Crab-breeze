@@ -179,8 +179,16 @@ pub fn spawn(
         match d.kind {
             DeckKind::Viaduct { .. } => slab(&mut tiles, d, &ground, &open, grey),
             DeckKind::Ramp { ramp } => {
-                // the ramp's own barriers stay closed (it leaves the viaduct, the viaduct's barrier opens)
-                slab(&mut tiles, d, &ground, &|_| false, grey);
+                // the ramp's barrier opens where its edge meets the viaduct's at the viaduct's height (where cars cross
+                // from one to the other); everywhere else it stays closed
+                let meets = |p: Vec3| {
+                    plan.decks.near(Vec2::new(p.x, p.z)).any(|v| {
+                        matches!(v.kind, DeckKind::Viaduct { .. })
+                            && v.project(Vec2::new(p.x, p.z))
+                                .is_some_and(|(dist, top, _)| dist <= v.width_m * 0.5 + 1.0 && (top - p.y).abs() < 1.0)
+                    })
+                };
+                slab(&mut tiles, d, &ground, &meets, grey);
                 let r = &plan.ramps[ramp as usize];
                 ramp_surface(
                     &mut tiles,

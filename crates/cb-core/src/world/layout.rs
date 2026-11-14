@@ -174,6 +174,21 @@ pub struct ZonesConfig {
     /// A two-core downtown: each core's radius and its centre's distance from the city's centre, as shares of the
     /// downtown's radius.
     pub two_cores_share: [f32; 2],
+    /// A downtown block is cut into two big lots along its length, or into four with this chance (the mockup's).
+    pub downtown_four_lots_chance: f32,
+    /// A downtown lot left open as a plaza, this often.
+    pub downtown_plaza_chance: f32,
+    /// A downtown lot's chance of a tower in the smallest city: this much, plus this much more at the heart (falling
+    /// to nothing at the downtown's edge).
+    pub tower_chance_small: [f32; 2],
+    /// The same in the largest city (scaled by size between).
+    pub tower_chance_large: [f32; 2],
+    /// A tower's shaft is this share of its lot's narrower side, least and most: it stands on its lot with room round it.
+    pub tower_width_share: [f32; 2],
+    /// A tower is at least this many storeys.
+    pub tower_min_storeys: u32,
+    /// The storeys of a downtown lot with no tower, least and most.
+    pub downtown_low_storeys: [u32; 2],
     /// Storeys of the flats, least and most.
     pub flats_storeys: [u32; 2],
     /// The strip: blocks within this of where a highway reaches the city.
@@ -193,6 +208,13 @@ impl Default for ZonesConfig {
             downtown_shapes: [0.5, 0.25, 0.25],
             main_street_share: [2.2, 0.45],
             two_cores_share: [0.65, 0.85],
+            downtown_four_lots_chance: 0.5,
+            downtown_plaza_chance: 0.08,
+            tower_chance_small: [0.12, 0.4],
+            tower_chance_large: [0.3, 0.6],
+            tower_width_share: [0.5, 0.75],
+            tower_min_storeys: 10,
+            downtown_low_storeys: [3, 8],
             flats_storeys: [3, 5],
             strip_reach_m: 220.0,
             school_chance: 0.03,
@@ -222,6 +244,28 @@ impl Validate for ZonesConfig {
         within("zones.main_street_share[1]", self.main_street_share[1], 0.1, 5.0)?;
         within("zones.two_cores_share[0]", self.two_cores_share[0], 0.1, 2.0)?;
         within("zones.two_cores_share[1]", self.two_cores_share[1], 0.0, 3.0)?;
+        within("zones.downtown_four_lots_chance", self.downtown_four_lots_chance, 0.0, 1.0)?;
+        within("zones.downtown_plaza_chance", self.downtown_plaza_chance, 0.0, 1.0)?;
+        for (name, c) in [
+            ("tower_chance_small", self.tower_chance_small),
+            ("tower_chance_large", self.tower_chance_large),
+        ] {
+            within(&format!("zones.{name}[0]"), c[0], 0.0, 1.0)?;
+            within(&format!("zones.{name}[1]"), c[1], 0.0, 1.0 - c[0])?;
+        }
+        within("zones.tower_width_share[0]", self.tower_width_share[0], 0.1, 1.0)?;
+        within(
+            "zones.tower_width_share[1]",
+            self.tower_width_share[1],
+            self.tower_width_share[0],
+            1.0,
+        )?;
+        if self.tower_min_storeys < 2 {
+            return Err("zones.tower_min_storeys: at least 2".into());
+        }
+        if self.downtown_low_storeys[0] < 1 || self.downtown_low_storeys[1] < self.downtown_low_storeys[0] {
+            return Err("zones.downtown_low_storeys: least at least 1, most at least the least".into());
+        }
         if self.flats_storeys[0] < 2 || self.flats_storeys[1] < self.flats_storeys[0] {
             return Err("zones.flats_storeys: least at least 2, most at least the least".into());
         }
@@ -729,8 +773,8 @@ pub fn build_city(
     let tallest = cfg.storeys_downtown[0] + (cfg.storeys_downtown[1] - cfg.storeys_downtown[0]) * size_t;
     let edge = cfg.zones.downtown_edge_storeys as f32;
     let dt = self::downtown(city, largest_half_m, cfg);
-    // the downtown lot nearest its heart: (its reach, its index in `out`, its full height in storeys)
-    let mut heart: Option<(f32, usize, f32)> = None;
+    // the downtown lot nearest its heart: (its reach, its index in `out`, its full height in storeys, its tower's shaft)
+    let mut heart: Option<(f32, usize, f32, Rect)> = None;
     let clear_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
     let fp_clear = |footprint: &Rect| {
         !highways.iter().any(|h| {
@@ -765,6 +809,71 @@ pub fn build_city(
             }
             continue;
         }
+        if block.kind == BlockUse::Downtown {
+            // The mockup's downtown (city-districts design section 6): two or four big lots, a tower on some (more near
+            // the heart and in a large city), a slim shaft with room round it; mid-rise blocks on the rest.
+            let z = &cfg.zones;
+            let size = inner.size();
+            let four = rng.chance(z.downtown_four_lots_chance);
+            let (nx, nz) = match (four, size.x >= size.y) {
+                (true, _) => (2, 2),
+                (false, true) => (2, 1),
+                (false, false) => (1, 2),
+            };
+            let cell = Vec2::new(size.x / nx as f32, size.y / nz as f32);
+            let chance = |share: f32| {
+                let c = |k: usize| z.tower_chance_small[k] + (z.tower_chance_large[k] - z.tower_chance_small[k]) * size_t;
+                c(0) + c(1) * share
+            };
+            for iz in 0..nz {
+                for ix in 0..nx {
+                    let lot_rect = Rect {
+                        min: inner.min + cell * Vec2::new(ix as f32, iz as f32),
+                        max: inner.min + cell * Vec2::new(ix as f32 + 1.0, iz as f32 + 1.0),
+                    };
+                    let plaza = rng.chance(z.downtown_plaza_chance);
+                    let setback = rng.range_f32(cfg.setback_m[0], cfg.setback_m[1]);
+                    let fill = rng.range_f32(cfg.storey_fill[0], cfg.storey_fill[1]);
+                    let roll = rng.next_f32();
+                    let width = rng.range_f32(z.tower_width_share[0], z.tower_width_share[1]);
+                    let aspect = rng.range_f32(0.8, 1.2);
+                    if plaza {
+                        continue;
+                    }
+                    let Some(lot_fp) = lot_rect.inset(setback) else {
+                        continue;
+                    };
+                    let d = dt.reach(lot_fp.centre()).clamp(0.0, 1.0);
+                    let max = tallest + (edge - tallest) * d.powf(cfg.storey_falloff_exponent);
+                    // the tower's shaft, centred on its lot
+                    let side = lot_fp.size().min_element() * width;
+                    let half = Vec2::new(side, side * aspect).min(lot_fp.size()) * 0.5;
+                    let shaft = Rect::centred(lot_fp.centre(), half);
+                    let nearest_yet = heart.is_none_or(|(hd, ..)| d < hd) && fp_clear(&shaft);
+                    let tower = roll < chance(1.0 - d);
+                    let (footprint, storeys) = if tower {
+                        (shaft, ((max * fill).round() as u32).max(z.tower_min_storeys))
+                    } else {
+                        let [lo, hi] = z.downtown_low_storeys;
+                        (lot_fp, lo + ((hi - lo + 1) as f32 * fill_share(fill, cfg)).floor() as u32)
+                    };
+                    if !fp_clear(&footprint) {
+                        continue;
+                    }
+                    if nearest_yet {
+                        heart = Some((d, out.len(), max, shaft));
+                    }
+                    out.push(Building {
+                        id: first_id + out.len() as u32,
+                        city: city.id,
+                        footprint,
+                        storeys,
+                        height_m: storeys as f32 * cfg.storey_height_m,
+                    });
+                }
+            }
+            continue;
+        }
         let lot = rng.range_f32(cfg.lot_size_m[0], cfg.lot_size_m[1]);
         let size = inner.size();
         let nx = ((size.x / lot).floor() as usize).max(1);
@@ -788,18 +897,9 @@ pub fn build_city(
                 if !fp_clear(&footprint) {
                     continue;
                 }
-                let storeys = if block.kind == BlockUse::Flats {
-                    let [lo, hi] = cfg.zones.flats_storeys;
-                    let t = (fill - cfg.storey_fill[0]) / (cfg.storey_fill[1] - cfg.storey_fill[0]).max(1e-6);
-                    lo + ((hi - lo + 1) as f32 * t.clamp(0.0, 0.999)).floor() as u32
-                } else {
-                    let d = dt.reach(footprint.centre()).clamp(0.0, 1.0);
-                    let max = tallest + (edge - tallest) * d.powf(cfg.storey_falloff_exponent);
-                    if heart.is_none_or(|(hd, _, _)| d < hd) {
-                        heart = Some((d, out.len(), max));
-                    }
-                    ((max * fill).round() as u32).max(cfg.zones.downtown_edge_storeys.min(cfg.storeys_edge.max(2)))
-                };
+                // only the flats come here (the downtown has its own lots, above)
+                let [lo, hi] = cfg.zones.flats_storeys;
+                let storeys = lo + ((hi - lo + 1) as f32 * fill_share(fill, cfg)).floor() as u32;
                 out.push(Building {
                     id: first_id + out.len() as u32,
                     city: city.id,
@@ -811,12 +911,18 @@ pub fn build_city(
         }
     }
     // the lot nearest the downtown's heart stands its full height: the city's tallest tower is a rule, not a draw
-    if let Some((_, i, max)) = heart {
+    if let Some((_, i, max, shaft)) = heart {
         let b = &mut out[i];
+        b.footprint = shaft;
         b.storeys = b.storeys.max(max.round() as u32);
         b.height_m = b.storeys as f32 * cfg.storey_height_m;
     }
     out
+}
+
+/// Where `fill` lies in `storey_fill`, 0 to just under 1: the share a building draws its storeys by.
+fn fill_share(fill: f32, cfg: &WorldConfig) -> f32 {
+    ((fill - cfg.storey_fill[0]) / (cfg.storey_fill[1] - cfg.storey_fill[0]).max(1e-6)).clamp(0.0, 0.999)
 }
 
 /// How far each facade of `footprint` looks out before another building's footprint, in the side

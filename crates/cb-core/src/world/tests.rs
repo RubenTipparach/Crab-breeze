@@ -137,12 +137,14 @@ const GOLDEN_CITIES: usize = 13;
 // enough for a ramp (709 buildings to 582); the trees at the start move with the re-laid highways.
 // 2026-11-13: the downtown shapes and the large downtown's housing (design section 6): the flats ring grows with the
 // city's size (582 to 943 buildings); the joined highways run onto their trunk in line, which moves trees at the start.
-const GOLDEN_BUILDINGS: usize = 943;
+// 2026-11-14: a downtown block is the mockup's two or four big lots, towers standing apart on some (943 to 731), and
+// the ramps swing out level to the viaduct's edge and run beside it before they descend.
+const GOLDEN_BUILDINGS: usize = 731;
 const GOLDEN_HIGHWAYS: usize = 15;
 const GOLDEN_RIVERS: usize = 64;
 const GOLDEN_TREES_AT_START: usize = 38601;
 // 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
-const GOLDEN_FINGERPRINT: u64 = 17769285620832638243;
+const GOLDEN_FINGERPRINT: u64 = 2930140565214727679;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -584,6 +586,83 @@ fn every_ramp_joins_its_highway_and_its_street_and_climbs_no_more_than_8_percent
             if run > 0.5 {
                 let grade = (w[1].y - w[0].y).abs() / run;
                 assert!(grade <= cfg.trunk.ramp_grade + 1e-3, "ramp {i} climbs {:.1} %", grade * 100.0);
+            }
+        }
+    }
+}
+
+#[test]
+fn every_ramp_meets_the_viaduct_level_and_beside_it_where_its_deck_begins() {
+    // the owner, 2026-11-14: "how the cars leave the highway when they are not connected"
+    let plan = seed_42();
+    let cfg = shipped();
+    for (i, r) in plan.ramps.iter().enumerate() {
+        let h = &plan.highways[r.highway as usize];
+        let deck_top = h.grade_at(0.5) + plan.road_lift_m;
+        // the ramp's own deck, from the viaduct's side: where it meets the viaduct it is at the viaduct's height, its
+        // edge against the viaduct's edge, and it stays level beside it for most of the gore
+        let deck: Vec<Vec3> = if r.off {
+            r.deck.clone()
+        } else {
+            r.deck.iter().rev().copied().collect()
+        };
+        let meet = deck[0];
+        assert!(
+            (meet.y - deck_top).abs() < 0.05,
+            "ramp {i} meets the viaduct {:.2} m below its top",
+            deck_top - meet.y
+        );
+        let (dist, _) = h.project(Vec2::new(meet.x, meet.z));
+        let flush = h.width_m * 0.5 + r.width_m * 0.5;
+        assert!(
+            (dist - flush).abs() < 1.0,
+            "ramp {i}'s edge meets the viaduct's: its centre {dist:.1} m out, not {flush:.1}"
+        );
+        let mut level = 0.0;
+        for w in deck.windows(2) {
+            if (w[1].y - deck_top).abs() > 0.05 {
+                break;
+            }
+            level += Vec2::new(w[1].x - w[0].x, w[1].z - w[0].z).length();
+        }
+        assert!(
+            level >= cfg.trunk.ramp_gore_m * 0.6,
+            "ramp {i} runs level beside the viaduct for only {level:.1} m"
+        );
+    }
+}
+
+#[test]
+fn a_downtown_block_holds_at_most_four_buildings_and_its_towers_stand_apart() {
+    let plan = seed_42();
+    let cfg = shipped();
+    for c in &plan.cities {
+        for b in c.blocks.iter().filter(|b| b.kind == BlockUse::Downtown) {
+            let on: Vec<_> = plan
+                .buildings
+                .iter()
+                .filter(|k| k.city == c.id && b.rect.distance(k.footprint.centre()) <= 0.0)
+                .collect();
+            assert!(on.len() <= 4, "city {}: a downtown block holds {} buildings", c.id, on.len());
+            let towers: Vec<_> = on
+                .iter()
+                .filter(|k| k.storeys >= cfg.zones.tower_min_storeys.max(cfg.zones.downtown_low_storeys[1] + 1))
+                .collect();
+            for (x, t) in towers.iter().enumerate() {
+                for u in &towers[x + 1..] {
+                    assert!(
+                        t.footprint.distance(u.footprint.centre()) > 0.0 && !t.footprint.overlaps(&u.footprint),
+                        "city {}: towers touch",
+                        c.id
+                    );
+                    let gap = (t.footprint.centre() - u.footprint.centre()).abs() - (t.footprint.size() + u.footprint.size()) * 0.5;
+                    assert!(
+                        gap.max_element() >= 8.0,
+                        "city {}: two towers {:.1} m apart",
+                        c.id,
+                        gap.max_element()
+                    );
+                }
             }
         }
     }

@@ -35,8 +35,11 @@ pub struct TrunkConfig {
     pub ramp_grade: f32,
     /// Between the viaduct's edge and a ramp's, metres.
     pub ramp_gap_m: f32,
-    /// A ramp leaves or joins the viaduct over this length, metres.
+    /// A ramp swings out from the viaduct's middle until its edge meets the viaduct's edge over this length, metres.
     pub ramp_merge_m: f32,
+    /// Then it runs on level beside the viaduct, its edge against the viaduct's, for this long before it climbs or
+    /// descends, so the two decks meet at one height and cars cross from one to the other, metres.
+    pub ramp_gore_m: f32,
     /// A ramp's level end, from where it reaches the street to the junction's corner, metres.
     pub ramp_landing_m: f32,
     /// The blocks either side of an arterial are drawn this long, least and most, so a ramp fits, metres.
@@ -56,7 +59,8 @@ impl Default for TrunkConfig {
             ramp_width_m: 9.0,
             ramp_grade: 0.08,
             ramp_gap_m: 0.5,
-            ramp_merge_m: 30.0,
+            ramp_merge_m: 40.0,
+            ramp_gore_m: 30.0,
             ramp_landing_m: 25.0,
             arterial_block_m: [104.0, 112.0],
         }
@@ -70,6 +74,7 @@ impl Validate for TrunkConfig {
         within("trunk.row_offset_share", self.row_offset_share, 0.0, 1.0)?;
         positive("trunk.outside_m", self.outside_m)?;
         positive("trunk.end_level_m", self.end_level_m)?;
+        positive("trunk.ramp_gore_m", self.ramp_gore_m)?;
         positive("trunk.lead_in_m", self.lead_in_m)?;
         within("trunk.min_apart_deg", self.min_apart_deg, 0.0, 180.0)?;
         positive("trunk.ramp_width_m", self.ramp_width_m)?;
@@ -271,6 +276,8 @@ pub fn exits(
     let desc = rise / cfg.ramp_grade;
     let low = (low_m - road_lift_m).max(0.0) / cfg.ramp_grade;
     let off_v = trunk.width_m * 0.5 + cfg.ramp_gap_m + cfg.ramp_width_m * 0.5;
+    // beside the viaduct with its edge against the viaduct's, where the two decks meet level
+    let flush_v = trunk.width_m * 0.5 + cfg.ramp_width_m * 0.5;
     let mut lines: Vec<(f32, f32)> = crossing.iter().map(|&(c, w)| (u_of(c), w)).collect();
     lines.sort_by(|p, q| p.0.total_cmp(&q.0));
     let mut used: [Vec<(f32, f32)>; 2] = [Vec::new(), Vec::new()];
@@ -287,7 +294,7 @@ pub fn exits(
             continue;
         }
         // the four ramps' extents along the trunk, (side, from, to)
-        let reach = desc + cfg.ramp_merge_m + cfg.ramp_landing_m;
+        let reach = desc + cfg.ramp_merge_m + cfg.ramp_gore_m + cfg.ramp_landing_m;
         let spans = [
             (0usize, before.1 - reach, before.1),
             (0, after.0, after.0 + reach),
@@ -322,15 +329,21 @@ pub fn exits(
                 off_block.0 + cfg.ramp_landing_m
             };
             let top_u = g_u - dir * desc;
-            let tap_u = top_u - dir * cfg.ramp_merge_m;
+            let flush_u = top_u - dir * cfg.ramp_gore_m;
+            let tap_u = flush_u - dir * cfg.ramp_merge_m;
             let corner_u = ua - dir * (wa * 0.5 + 2.0);
+            let flush = mid_v + side_sign * flush_v;
             let off_pts = vec![
-                (tap_u, mid_v, deck_top),
-                (top_u, v_ramp, deck_top),
-                (g_u, v_ramp, street_top),
-                (corner_u, corner_v, street_top),
-                (ua, v_front, street_top),
+                (tap_u, mid_v),
+                (flush_u, flush),
+                (top_u, flush),
+                (g_u, v_ramp),
+                (corner_u, corner_v),
+                (ua, v_front),
             ];
+            // level at the deck until it is past the gore, then down at the ramp's grade (by distance along the trunk,
+            // never steeper along the ramp itself), level at the street
+            let off_y = move |u: f32| deck_top - rise * (dir * (u - top_u) / desc).clamp(0.0, 1.0);
             // on-ramp: from the junction, up, onto the trunk past the arterial
             let g2_u = if dir > 0.0 {
                 on_block.0 + cfg.ramp_landing_m
@@ -338,24 +351,32 @@ pub fn exits(
                 on_block.1 - cfg.ramp_landing_m
             };
             let top2_u = g2_u + dir * desc;
-            let tap2_u = top2_u + dir * cfg.ramp_merge_m;
+            let flush2_u = top2_u + dir * cfg.ramp_gore_m;
+            let tap2_u = flush2_u + dir * cfg.ramp_merge_m;
             let corner2_u = ua + dir * (wa * 0.5 + 2.0);
             let on_pts = vec![
-                (ua, v_front, street_top),
-                (corner2_u, corner_v, street_top),
-                (g2_u, v_ramp, street_top),
-                (top2_u, v_ramp, deck_top),
-                (tap2_u, mid_v, deck_top),
+                (ua, v_front),
+                (corner2_u, corner_v),
+                (g2_u, v_ramp),
+                (top2_u, flush),
+                (flush2_u, flush),
+                (tap2_u, mid_v),
             ];
-            for (off, pts, tap_u) in [(true, off_pts, tap_u), (false, on_pts, tap2_u)] {
-                let raw: Vec<Vec3> = pts
-                    .iter()
-                    .map(|&(u, v, y)| {
-                        let p = at(u, v);
-                        Vec3::new(p.x, y, p.y)
-                    })
+            let on_y = move |u: f32| street_top + rise * (dir * (u - g2_u) / desc).clamp(0.0, 1.0);
+            let ys: [&dyn Fn(f32) -> f32; 2] = [&off_y, &on_y];
+            for ((off, pts, tap_u), y_of) in [(true, off_pts, tap_u), (false, on_pts, tap2_u)].into_iter().zip(ys) {
+                // laid out in plan from the viaduct's side (an on-ramp is laid as an off-ramp and turned round): an
+                // eased swing out to the viaduct's edge, straight beside it, an eased swing away, then rounded into the
+                // street; the heights follow the profile, so it stays level with the deck until it is beside it
+                let seq: Vec<(f32, f32)> = if off { pts.clone() } else { pts.iter().rev().copied().collect() };
+                let mut plan_line = ramp_plan(&seq.iter().map(|&(u, v)| at(u, v)).collect::<Vec<_>>());
+                if !off {
+                    plan_line.reverse();
+                }
+                let line: Vec<Vec3> = plan_line
+                    .into_iter()
+                    .map(|p| Vec3::new(p.x, y_of((p - a).dot(u_dir)), p.y))
                     .collect();
-                let line = smooth(&raw, 3);
                 // the deck drawn as the ramp's own: from where it stands clear of the viaduct
                 let clear = trunk.width_m * 0.5 + cfg.ramp_width_m * 0.5 - 0.01;
                 let deck: Vec<Vec3> = line
@@ -376,6 +397,37 @@ pub fn exits(
             }
         }
     }
+    out
+}
+
+/// A ramp's line in plan, from the viaduct's side, through its six points (`seq`: the tap on the viaduct's middle, where
+/// its edge meets the viaduct's, the end of the gore beside it, its foot, the block's corner and the junction): an eased
+/// swing from the tap out to the viaduct's edge and from the gore's end away to its foot (no corner at either end of
+/// either swing), straight between, then rounded into the street.
+fn ramp_plan(seq: &[Vec2]) -> Vec<Vec2> {
+    let step = 2.0f32;
+    let ease = |from: Vec2, to: Vec2, out: &mut Vec<Vec2>| {
+        let along = (to - from).dot((seq[2] - seq[1]).normalize_or(Vec2::X));
+        let n = (along.abs() / step).ceil().max(1.0) as usize;
+        let dir = (seq[2] - seq[1]).normalize_or(Vec2::X);
+        let side = Vec2::new(-dir.y, dir.x);
+        let (s0, s1) = (from.dot(side), to.dot(side));
+        for k in 1..=n {
+            let t = k as f32 / n as f32;
+            let e = (1.0 - (std::f32::consts::PI * t).cos()) * 0.5;
+            let p = from + dir * (along * t);
+            out.push(p + side * ((s0 + (s1 - s0) * e) - p.dot(side)));
+        }
+    };
+    let mut out = vec![seq[0]];
+    ease(seq[0], seq[1], &mut out);
+    out.push(seq[2]);
+    ease(seq[2], seq[3], &mut out);
+    // into the street: rounded, leaving its foot straight on along the viaduct
+    let dir = (seq[3] - seq[2]).normalize_or(Vec2::X);
+    let lead = seq[3] + dir * (seq[3].distance(seq[4]) * 0.4).min(12.0);
+    let turn: Vec<Vec3> = [seq[3], lead, seq[4], seq[5]].iter().map(|p| Vec3::new(p.x, 0.0, p.y)).collect();
+    out.extend(smooth(&turn, 3).into_iter().skip(1).map(|p| Vec2::new(p.x, p.z)));
     out
 }
 
