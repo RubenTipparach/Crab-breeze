@@ -50,3 +50,13 @@ Design section 6: each city draws its downtown's shape; the capital is compact.
 ```sh
 CB_STILLS_ONLY=fargo-exit,fargo-under,fargo-ramp,fargo-air,fargo-main-street,fargo-two-cores CB_STILLS_SETTLE_S=40 ...
 ```
+
+## Streets the mockup's width (2026-11-14)
+
+Design section 6b: streets 14 m (one lane each way and a parking strip), arterials 22 m (two lanes each way); the tyre
+tracks and patches laid on the traffic's own lanes, none in the parking strips.
+
+| Still | What it shows |
+| --- | --- |
+| `fargo-street-14m.jpg` | down a street at eye height: a lane each way with its tyre tracks, cars parked at the kerb, no stripes across the width |
+| `fargo-downtown-14m.jpg` | over the capital's rooftops toward its heart's tower |
