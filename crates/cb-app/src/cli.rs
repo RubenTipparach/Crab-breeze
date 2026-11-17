@@ -99,13 +99,20 @@ impl Args {
     }
 }
 
-/// The repository root: `CB_ROOT` if set, else the nearest ancestor of the working directory with
-/// `data/world/world.ron`, else the one this binary was built from.
+/// The file that marks a root holding the game's `data/` (and `assets/` beside it).
+const ROOT_MARKER: &str = "data/world/world.ron";
+
+/// The repository root: `CB_ROOT` if set; else the executable's own folder when the game is shipped with its files
+/// beside it (`shipped_in`, openspec change `itch-deploy`); else the nearest ancestor of the working directory with
+/// `data/world/world.ron`; else the one this binary was built from.
 pub fn repo_root() -> PathBuf {
     if let Ok(r) = std::env::var("CB_ROOT") {
         return PathBuf::from(r);
     }
-    let marker = Path::new("data/world/world.ron");
+    if let Some(dir) = shipped_in(std::env::current_exe().ok().as_deref()) {
+        return dir;
+    }
+    let marker = Path::new(ROOT_MARKER);
     if let Ok(cwd) = std::env::current_dir() {
         for dir in cwd.ancestors() {
             if dir.join(marker).exists() {
@@ -114,6 +121,13 @@ pub fn repo_root() -> PathBuf {
         }
     }
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+/// The folder of the executable `exe` when it holds the game's files (`data/world/world.ron`): a shipped build,
+/// started from anywhere, reads its own files and keeps its saves there. A dev build in `target/` has none beside it.
+fn shipped_in(exe: Option<&Path>) -> Option<PathBuf> {
+    let dir = exe?.parent()?;
+    dir.join(ROOT_MARKER).is_file().then(|| dir.to_path_buf())
 }
 
 /// True when the environment variable `name` is set to anything but `0` (perf-bench switches).
@@ -132,6 +146,28 @@ fn take_name(v: Option<String>) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_shipped_game_reads_the_files_beside_its_exe_and_a_dev_build_does_not() {
+        let tmp = std::env::temp_dir().join(format!("cb-shipped-{}", std::process::id()));
+        let shipped = tmp.join("crab-breeze");
+        std::fs::create_dir_all(shipped.join("data/world")).unwrap();
+        std::fs::write(shipped.join(ROOT_MARKER), "()").unwrap();
+        let dev = tmp.join("target/release");
+        std::fs::create_dir_all(&dev).unwrap();
+        assert_eq!(
+            shipped_in(Some(&shipped.join("crab-breeze.exe"))),
+            Some(shipped.clone()),
+            "beside the exe"
+        );
+        assert_eq!(
+            shipped_in(Some(&dev.join("crab-breeze"))),
+            None,
+            "a dev build has no data beside it"
+        );
+        assert_eq!(shipped_in(None), None);
+        std::fs::remove_dir_all(&tmp).ok();
+    }
 
     #[test]
     fn perf_gate_is_switched_on_by_its_flag() {

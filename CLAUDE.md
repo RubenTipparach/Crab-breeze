@@ -162,6 +162,11 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   Bevy's `AssetServer`. Materials are PBR (`StandardMaterial`) fed by Material Maker maps.
 - **Desktop first.** Windows is the owner's playtest machine; Linux builds and runs in cloud
   sessions for tests and headless captures. A web build is not a target unless the owner adds it.
+- **Shipped builds come from one workflow** (owner, 2026-11-17: "look at how pale-blue-dot has builds set up for mac,
+  linux, windows. do that here"): `.github/workflows/deploy-itch.yml`, run by hand on any branch, builds `--release`
+  for Windows, Linux and Mac (Apple Silicon), packages the exe with `data/` and `assets/` beside it, and pushes to itch
+  with butler (secret `BUTLER_API_KEY`). A shipped game finds its files beside its exe (`cli::repo_root`).
+  `openspec/changes/itch-deploy`.
 
 ## 3. Spec-driven work: OpenSpec
 
