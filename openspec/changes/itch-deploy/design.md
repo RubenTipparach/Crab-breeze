@@ -26,7 +26,7 @@
   One platform at a time, and a `concurrency` group (`deploy-itch`, never cancelling) queues runs.
 
 One secret, `BUTLER_API_KEY` (https://itch.io/user/settings/api-keys), set in the repository's Settings, Secrets and
-variables, Actions. The game is not a secret: `ITCH_GAME` in the workflow's `env` (provisional, IT1).
+variables, Actions. The game is not a secret: `ITCH_GAME: ruben-tipparach/stratostacean` in the workflow's `env` (IT1).
 
 ## 2. Files beside the exe
 
@@ -59,4 +59,4 @@ somewhere they can write.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| IT1 | The itch page the builds go to | `ruben-tipparach/crab-breeze` (Pale Blue Dot's pattern: `ruben-tipparach/pale-blue-dot`); the page must exist on itch before the first deploy | provisional |
+| IT1 | The itch page the builds go to | `ruben-tipparach/stratostacean` | answered (owner, 2026-11-18: https://ruben-tipparach.itch.io/stratostacean; the guessed `crab-breeze` was refused by itch as "invalid game") |

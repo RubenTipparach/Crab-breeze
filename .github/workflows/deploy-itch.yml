@@ -26,8 +26,8 @@ on:
         type: string
 
 env:
-  # The itch page the builds go to (provisional, itch-deploy IT1: Pale Blue Dot's pattern). It must exist on itch.
-  ITCH_GAME: ruben-tipparach/crab-breeze
+  # https://ruben-tipparach.itch.io/stratostacean (owner, 2026-11-18; itch-deploy IT1).
+  ITCH_GAME: ruben-tipparach/stratostacean
   CARGO_TERM_COLOR: always
 
 permissions:
