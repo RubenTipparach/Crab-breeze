@@ -162,6 +162,11 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   Bevy's `AssetServer`. Materials are PBR (`StandardMaterial`) fed by Material Maker maps.
 - **Desktop first.** Windows is the owner's playtest machine; Linux builds and runs in cloud
   sessions for tests and headless captures. A web build is not a target unless the owner adds it.
+- **Shipped builds come from one workflow** (owner, 2026-11-17: "look at how pale-blue-dot has builds set up for mac,
+  linux, windows. do that here"): `.github/workflows/deploy-itch.yml`, run by hand on any branch, builds `--release`
+  for Windows, Linux and Mac (Apple Silicon), packages the exe with `data/` and `assets/` beside it, and pushes to itch
+  with butler (secret `BUTLER_API_KEY`). A shipped game finds its files beside its exe (`cli::repo_root`).
+  `openspec/changes/itch-deploy`.
 
 ## 3. Spec-driven work: OpenSpec
 
@@ -534,6 +539,7 @@ Before claiming anything is done, run what applies:
 | `panel-textures` | Star Crew's textures skill: cockpit panels modelled in Blender and baked to PBR maps (section 10). |
 | `light-baking` | Star Crew's light baking: the cockpit's lamps, sky and occlusion baked into atlases (section 10). |
 | `music-authoring` | Tom Lander's music pipeline: motifs in notes, Strudel scores, multitrack MIDI, LMMS headless with real instruments (section 1). |
+| `city-roads` | Cities and their roads: block uses, highways through cities on viaducts with exits, roads over roads, lanes, the drive check, LODs and blended joins (section 10). |
 | `combined-lowpoly-vehicle` | Game-ready vehicles (cars, trucks, aircraft, tracked) from blueprints in headless bpy: measured, gated and checked (section 10). |
 | `lowpoly-car-surface-shell` | A hero car body as an open shell with sharp crease loops and framed openings (section 10). |
 | `lowpoly-car-interior` | Vehicle cabins seen through the glass: dash, console, door cards, seats (section 10). |

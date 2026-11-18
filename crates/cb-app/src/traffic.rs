@@ -113,7 +113,7 @@ impl Plugin for TrafficPlugin {
         let plan = app.world().resource::<Plan>().0.clone();
         let data = &app.world().resource::<Data>().0;
         let started = std::time::Instant::now();
-        let graph = LaneGraph::build(&plan.cities, &plan.highways, &data.traffic.cfg.lanes, data.world.arterial_width_m);
+        let graph = LaneGraph::of_plan(&plan, &data.traffic.cfg.lanes, data.world.arterial_width_m);
         info!(
             "traffic: {} lanes at {} junctions, built in {:.0} ms",
             graph.lanes.len(),

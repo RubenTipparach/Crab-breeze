@@ -22,6 +22,25 @@ A city with a large downtown SHALL be wider than one with a small downtown, with
 - **WHEN** the capital has a large downtown
 - **THEN** its house blocks reach farther out than a small city's, and apartment blocks stand within 700 m of the downtown
 
+### Requirement: A downtown takes one of three shapes
+
+Each city's downtown SHALL be compact (round its centre), a main street (a band through the centre along the street axis
+toward the highway that comes in nearest) or two cores (two round cores either side of the centre), drawn per city from
+its own stream, the capital compact; its towers SHALL fall from its heart, where the lot nearest the heart stands the
+downtown's full height, to its edge.
+
+#### Scenario: The cities of one island
+- **WHEN** the island is generated
+- **THEN** its cities' downtowns take more than one shape, and every downtown block but the one nearest the heart lies within its shape
+
+#### Scenario: A downtown block
+- **WHEN** a downtown block is built
+- **THEN** it holds two or four lots, towers standing apart on some of them with room round each, mid-rise blocks on the rest
+
+#### Scenario: The heart of a downtown
+- **WHEN** a downtown's buildings are placed
+- **THEN** the tallest stands on the lot nearest its heart
+
 ### Requirement: Water only where the island has it
 
 A city SHALL have no river, and the sea and a harbour only where it stands on the coast.

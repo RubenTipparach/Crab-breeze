@@ -1,0 +1,216 @@
+name: Deploy to itch.io
+
+# One pipeline for Windows, Linux and Mac (`openspec/changes/itch-deploy`), after Pale Blue Dot's.
+#
+# NOTHING TRIGGERS THIS BUT A PERSON. It runs on whichever branch is picked in
+# "Run workflow"; no push, tag or schedule starts it.
+#
+# The deploy box is ticked by default, so "Run workflow" publishes. Untick it
+# for a build-only dry run: the three packages are still built and kept as
+# workflow artifacts, and nothing reaches itch.
+#
+# The one secret is BUTLER_API_KEY (https://itch.io/user/settings/api-keys).
+# The game itself is not a secret and is named below.
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Push the builds to itch.io (untick for a build-only dry run)'
+        required: false
+        default: true
+        type: boolean
+      channel_suffix:
+        description: 'Appended to every channel name, e.g. -beta gives windows-beta (empty for the main channels)'
+        required: false
+        default: ''
+        type: string
+
+env:
+  # The itch page the builds go to (provisional, itch-deploy IT1: Pale Blue Dot's pattern). It must exist on itch.
+  ITCH_GAME: ruben-tipparach/crab-breeze
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing must not hide whether the others build.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+            exe: crab-breeze.exe
+          - platform: linux
+            os: ubuntu-latest
+            exe: crab-breeze
+          # macos-15 is Apple Silicon (arm64). There is no Intel build.
+          - platform: mac
+            os: macos-15
+            exe: crab-breeze
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The rustc this tree is built with in the cloud sessions (2026-11-17); above the workspace's rust-version (1.97).
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.99.1
+
+      # Bevy's desktop window (x11 and winit's Wayland), its audio (cpal on ALSA) and gamepads (udev).
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev \
+            libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev libxkbcommon-x11-0
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      # The release profile is the one played and measured (CLAUDE.md section 7; thin LTO, one codegen unit).
+      - name: Build
+        run: cargo build --release --locked -p cb-app
+
+      - name: Package
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          EXE: ${{ matrix.exe }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          pkg="package/crab-breeze-${PLATFORM}"
+          mkdir -p "$pkg"
+          cp "target/release/${EXE}" "$pkg/"
+          chmod +x "$pkg/${EXE}"
+          # data/ and assets/ beside the exe: the game reads them from there (cb-app cli::repo_root, itch-deploy).
+          cp -R data "$pkg/data"
+          cp -R assets "$pkg/assets"
+          {
+            echo "Crab Breeze"
+            echo "==========="
+            echo ""
+            echo "Build: ${short_sha} on ${BRANCH}, ${PLATFORM}, $(date -u +%Y-%m-%d)."
+            echo ""
+            echo "Run ${EXE}. Keep the data and assets folders beside it: the game"
+            echo "reads its world, mechs, models, textures, sounds and shaders from"
+            echo "there. Your career and free-roam saves are kept in a saves folder"
+            echo "beside the game."
+            echo ""
+            echo "Controls: WASD walk or drive, mouse look, E board the mech, Esc the"
+            echo "menu (its Controls page lists every key)."
+            if [ "$PLATFORM" = "mac" ]; then
+              echo ""
+              echo "Mac (Apple Silicon only): this build is not signed by Apple."
+              echo "If macOS says it cannot be opened because the developer"
+              echo "cannot be verified, either right-click ${EXE} and choose"
+              echo "Open, or run this once in Terminal from this folder:"
+              echo ""
+              echo "    xattr -dr com.apple.quarantine ."
+              echo ""
+              echo "Installing through the itch.io app avoids this."
+            fi
+            if [ "$PLATFORM" = "linux" ]; then
+              echo ""
+              echo "Linux: start it from a terminal with ./${EXE} if your file"
+              echo "manager will not run it. It needs X11 or Wayland, Vulkan and ALSA."
+            fi
+          } > "$pkg/README.txt"
+          # Zipped here, not by upload-artifact, so the Unix executable bit
+          # survives; butler pushes the zip as it is.
+          zip_name="crab-breeze-${PLATFORM}.zip"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            (cd "$pkg" && 7z a -tzip "../../${zip_name}" . > /dev/null)
+          else
+            (cd "$pkg" && zip -qr "../../${zip_name}" .)
+          fi
+          ls -l "$zip_name"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crab-breeze-${{ matrix.platform }}
+          path: crab-breeze-${{ matrix.platform }}.zip
+          if-no-files-found: error
+          # Already a zip; compressing it again gains nothing.
+          compression-level: 0
+
+  deploy:
+    name: Push to itch.io
+    needs: build
+    if: ${{ inputs.deploy }}
+    runs-on: ubuntu-latest
+    # One deploy at a time. itch refuses a push to a channel whose previous
+    # build is still processing; queue rather than cancel, because a run in
+    # flight may already have pushed some channels.
+    concurrency:
+      group: deploy-itch
+      cancel-in-progress: false
+    steps:
+      - name: Check the secret
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          if [ -z "${BUTLER_API_KEY}" ]; then
+            echo "::error title=Missing secret BUTLER_API_KEY::Add the repository secret BUTLER_API_KEY (Settings > Secrets and variables > Actions > New repository secret), with an itch.io API key from https://itch.io/user/settings/api-keys. Or re-run with 'deploy' unticked for a build-only dry run."
+            exit 1
+          fi
+
+      - name: Check the channel suffix
+        env:
+          SUFFIX: ${{ inputs.channel_suffix }}
+        run: |
+          if ! [[ "$SUFFIX" =~ ^[A-Za-z0-9._-]*$ ]]; then
+            echo "::error::channel_suffix '$SUFFIX' may hold only letters, digits, '.', '_' and '-'."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+
+      - name: Install butler
+        run: |
+          set -euo pipefail
+          curl -fsSL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          mkdir -p "$HOME/butler"
+          unzip -q butler.zip -d "$HOME/butler"
+          chmod +x "$HOME/butler/butler"
+          echo "$HOME/butler" >> "$GITHUB_PATH"
+          "$HOME/butler/butler" -V
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: crab-breeze-*
+          path: dist
+          merge-multiple: true
+
+      - name: Push
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          SUFFIX: ${{ inputs.channel_suffix }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_SHA::7}-${BRANCH//\//-}"
+          echo "Version: ${version}"
+          # One platform at a time, so no two pushes race on itch.
+          for platform in windows linux mac; do
+            echo "::group::${ITCH_GAME}:${platform}${SUFFIX}"
+            bash .github/scripts/butler-push.sh "dist/crab-breeze-${platform}.zip" \
+              "${ITCH_GAME}:${platform}${SUFFIX}" --userversion "${version}"
+            echo "::endgroup::"
+          done
+          echo "Pushed ${version} to https://${ITCH_GAME%%/*}.itch.io/${ITCH_GAME#*/}"

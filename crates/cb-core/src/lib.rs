@@ -397,6 +397,31 @@ mod tests {
         }
     }
 
+    /// The traffic's lanes fit their roads (owner, 2026-11-14: "usually wide city corridors have 2 lanes on each side"):
+    /// each lane within its road's half, a parked car's room left at the kerb of a street and an arterial, and a street
+    /// one lane each way, an arterial two.
+    #[test]
+    fn the_lanes_fit_their_roads_with_room_to_park_at_the_kerb() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let mech = GameData::mech_files(&root).into_iter().next().expect("a mech");
+        let d = GameData::load(&root, &mech).unwrap_or_else(|e| panic!("{e}"));
+        let (w, l) = (&d.world, &d.traffic.cfg.lanes);
+        let lane = w.road_surfaces.lane_m;
+        for (name, width, offsets, kerb, count) in [
+            ("street", w.street_width_m, &l.street_offsets_m, true, 1),
+            ("arterial", w.arterial_width_m, &l.arterial_offsets_m, true, 2),
+            ("highway", w.highway_width_m, &l.highway_offsets_m, false, 2),
+        ] {
+            assert_eq!(offsets.len(), count, "{name}: {count} lanes each way");
+            let outer = offsets.last().copied().unwrap_or(0.0) + lane * 0.5;
+            assert!(outer <= width * 0.5 + 1e-3, "{name}: its lanes run past its edge");
+            if kerb {
+                let parked = width * 0.5 - l.parked_in_from_edge_m;
+                assert!(parked - 1.0 >= outer - 1e-3, "{name}: a parked car stands in its outer lane");
+            }
+        }
+    }
+
     /// Every roster mech sits in a cockpit of its own (openspec change `cockpit-identity`).
     #[test]
     fn no_two_mechs_share_a_cockpit_interior() {

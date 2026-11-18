@@ -18,12 +18,15 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields, default)]
 pub struct LaneLayout {
     /// Each lane of an ordinary street, by its offset to the right of the centre line, metres
-    /// (one lane each way).
+    /// (one lane each way). The road's tyre tracks and patches are laid on these lanes too
+    /// (`RoadSurfaceConfig::lane_bounds`).
     pub street_offsets_m: Vec<f32>,
     /// The same for an arterial (two lanes each way).
     pub arterial_offsets_m: Vec<f32>,
     /// The same for a highway (two lanes each way).
     pub highway_offsets_m: Vec<f32>,
+    /// An exit's ramp: its one lane, by its offset to the right of the ramp's centre line (one-way, so usually 0).
+    pub ramp_offsets_m: Vec<f32>,
     /// Two connectors across one junction conflict when they pass within this of each other, metres:
     /// two cars may not be on them at once.
     pub conflict_m: f32,
@@ -34,9 +37,10 @@ pub struct LaneLayout {
 impl Default for LaneLayout {
     fn default() -> Self {
         Self {
-            street_offsets_m: vec![3.5],
-            arterial_offsets_m: vec![3.5, 7.0],
+            street_offsets_m: vec![1.75],
+            arterial_offsets_m: vec![1.75, 5.25],
             highway_offsets_m: vec![3.5, 7.0],
+            ramp_offsets_m: vec![0.0],
             conflict_m: 2.5,
             parked_in_from_edge_m: 2.5,
         }
@@ -76,6 +80,8 @@ pub enum LaneKind {
     Highway,
     /// A path across a junction, from one road's lane to another's.
     Connector,
+    /// An exit's ramp: one-way, between a highway and a street (openspec change `city-districts`).
+    Ramp,
 }
 
 impl LaneKind {
@@ -227,6 +233,9 @@ pub struct Lane {
     /// A road lane running into a junction with traffic lights: which of the junction's two phases its light shows
     /// green in (survey W39); `None` where junctions take turns by arrival, and for connectors.
     pub phase: Option<u8>,
+    /// The height of its road's surface at each point of `line` where it rides its road's own surface (a highway's
+    /// grade, a viaduct's or a ramp's top), not the ground under it; `None` where the ground is the road (city streets).
+    pub ys: Option<Vec<f32>>,
 }
 
 impl Lane {
@@ -265,6 +274,10 @@ pub struct Road {
     pub width_m: f32,
     /// What kind of road.
     pub kind: LaneKind,
+    /// The highway it is part of (index in the plan's highways), if any.
+    pub highway: Option<u32>,
+    /// The ramp it is (index in the plan's ramps), if any.
+    pub ramp: Option<u32>,
 }
 
 /// Every lane on the island.
@@ -282,7 +295,7 @@ pub struct LaneGraph {
 const SAME_LINE_M: f32 = 0.5;
 
 /// A city's street lines: centre and width, in order along the axis.
-fn street_axes(city: &City) -> (Vec<(f32, f32)>, Vec<(f32, f32)>) {
+pub(crate) fn street_axes(city: &City) -> (Vec<(f32, f32)>, Vec<(f32, f32)>) {
     let r: Rect = city.rect();
     let mut xs: Vec<(f32, f32)> = Vec::new();
     let mut zs: Vec<(f32, f32)> = Vec::new();
@@ -310,6 +323,34 @@ impl LaneGraph {
     /// lines cross, every highway joined at each end to the nearest junction of its city (a site's access road at its
     /// far end to a gate node of its own).
     pub fn build(cities: &[City], highways: &[Highway], layout: &LaneLayout, arterial_width_m: f32) -> Self {
+        Self::build_with(cities, highways, &[], None, layout, arterial_width_m)
+    }
+
+    /// The graph of a world plan: its cities, highways and exits' ramps, every lane on a highway or ramp carrying its
+    /// own heights (`Lane::ys`).
+    pub fn of_plan(plan: &super::WorldPlan, layout: &LaneLayout, arterial_width_m: f32) -> Self {
+        Self::build_with(
+            &plan.cities,
+            &plan.highways,
+            &plan.ramps,
+            Some(plan.road_lift_m),
+            layout,
+            arterial_width_m,
+        )
+    }
+
+    /// `build`, with the exits' `ramps` (openspec change `city-districts`, design section 5): a junction node on a
+    /// highway where each ramp leaves or joins it, the highway cut into roads between them, each ramp a one-way road
+    /// to its street junction; a highway's end at another highway's end shares a node with it. With `road_lift_m`,
+    /// every highway and ramp lane carries its road's own heights (its grade or its top, plus the lift).
+    pub fn build_with(
+        cities: &[City],
+        highways: &[Highway],
+        ramps: &[super::trunk::Ramp],
+        road_lift_m: Option<f32>,
+        layout: &LaneLayout,
+        arterial_width_m: f32,
+    ) -> Self {
         let mut g = LaneGraph::default();
         // the junction nearest each point, per city, for joining highways
         let mut city_nodes: Vec<(u32, Vec<u32>)> = Vec::new();
@@ -355,46 +396,219 @@ impl LaneGraph {
             }
             city_nodes.push((city.id, ids));
         }
-        for h in highways {
-            let nearest = |city: u32, p: Vec2| {
+        // where two highways' ends meet, one node joins them
+        let mut joints: Vec<(Vec2, u32)> = Vec::new();
+        let meets = |k: usize, e: usize| {
+            highways
+                .iter()
+                .enumerate()
+                .any(|(j, o)| j != k && o.ends.iter().any(|q| q.distance(highways[k].ends[e]) < 1.0))
+        };
+        let mut tap_nodes: Vec<u32> = vec![u32::MAX; ramps.len()];
+        for (k, h) in highways.iter().enumerate() {
+            let nearest = |g: &LaneGraph, city: u32, p: Vec2| {
                 city_nodes.iter().find(|(c, _)| *c == city).and_then(|(_, ids)| {
                     ids.iter()
                         .copied()
                         .min_by(|&a, &b| g.nodes[a as usize].at.distance(p).total_cmp(&g.nodes[b as usize].at.distance(p)))
                 })
             };
-            let near = nearest(h.cities[0], h.ends[0]);
-            // A site's access road ends at a gate of its own (`roads::SITE_END`): a dead end cars turn round at.
-            let far = if h.cities[1] == super::roads::SITE_END {
-                near.map(|_| {
+            let mut end_node = |g: &mut LaneGraph, e: usize| -> Option<u32> {
+                let p = h.ends[e];
+                let city = h.cities[e.min(1)];
+                if meets(k, e) {
+                    if let Some(&(_, id)) = joints.iter().find(|(q, _)| q.distance(p) < 1.0) {
+                        return Some(id);
+                    }
                     let id = g.nodes.len() as u32;
                     g.nodes.push(Node {
                         id,
-                        at: h.ends[1],
+                        at: p,
+                        city: if city == super::roads::SITE_END { h.cities[0] } else { city },
+                        connectors: Vec::new(),
+                        radius_m: h.width_m * 0.5,
+                        signal: false,
+                    });
+                    joints.push((p, id));
+                    return Some(id);
+                }
+                if e == 1 && h.cities[1] == super::roads::SITE_END {
+                    // A site's access road ends at a gate of its own (`roads::SITE_END`): a dead end cars turn round at.
+                    let id = g.nodes.len() as u32;
+                    g.nodes.push(Node {
+                        id,
+                        at: p,
                         city: h.cities[0],
                         connectors: Vec::new(),
                         radius_m: h.width_m * 0.5,
                         signal: false,
                     });
-                    id
-                })
-            } else {
-                nearest(h.cities[1], h.ends[1])
+                    return Some(id);
+                }
+                nearest(g, city, p)
             };
-            let (Some(a), Some(b)) = (near, far) else {
+            let (Some(a), Some(b)) = (end_node(&mut g, 0), end_node(&mut g, 1)) else {
                 continue;
             };
-            let mut line = vec![g.nodes[a as usize].at];
-            line.extend(h.path.iter().copied());
-            if h.cities[1] != super::roads::SITE_END {
-                line.push(g.nodes[b as usize].at);
+            // the junctions along it, where its ramps leave and join it, in order
+            let mut taps: Vec<(f32, usize)> = ramps
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| r.highway == k as u32)
+                .map(|(i, r)| (r.tap_t, i))
+                .collect();
+            taps.sort_by(|p, q| p.0.total_cmp(&q.0).then(p.1.cmp(&q.1)));
+            let mut chain: Vec<(f32, u32)> = vec![(0.0, a)];
+            for &(t, i) in &taps {
+                // ramps that meet the highway at one point (one way's on-ramp, the other's off-ramp) share its junction
+                if let Some(&(pt, id)) = chain.last().filter(|(pt, _)| (t - pt) * h.length_m() < 1.0 && chain.len() > 1) {
+                    let _ = pt;
+                    tap_nodes[i] = id;
+                    continue;
+                }
+                let id = g.nodes.len() as u32;
+                g.nodes.push(Node {
+                    id,
+                    at: h.point_at(t),
+                    city: ramps[i].city,
+                    connectors: Vec::new(),
+                    radius_m: h.width_m * 0.5,
+                    signal: false,
+                });
+                tap_nodes[i] = id;
+                chain.push((t, id));
             }
-            g.add_road(a, b, Some(line), h.width_m, LaneKind::Highway);
+            chain.push((1.0, b));
+            let len = h.length_m().max(1e-6);
+            let mut along = vec![0.0f32];
+            for w in h.path.windows(2) {
+                along.push(along.last().copied().unwrap_or(0.0) + w[0].distance(w[1]));
+            }
+            for w in chain.windows(2) {
+                let ((t0, n0), (t1, n1)) = (w[0], w[1]);
+                let mut line = vec![if t0 <= 0.0 { g.nodes[n0 as usize].at } else { h.point_at(t0) }];
+                if t0 <= 0.0 && g.nodes[n0 as usize].at.distance(h.path[0]) > 0.5 {
+                    line.push(h.path[0]);
+                }
+                for (i, p) in h.path.iter().enumerate() {
+                    let t = along[i] / len;
+                    if t > t0 + 1e-4 && t < t1 - 1e-4 {
+                        line.push(*p);
+                    }
+                }
+                let last = h.path[h.path.len() - 1];
+                if t1 >= 1.0 && g.nodes[n1 as usize].at.distance(last) > 0.5 {
+                    line.push(last);
+                }
+                line.push(if t1 >= 1.0 { g.nodes[n1 as usize].at } else { h.point_at(t1) });
+                line.dedup_by(|p, q| p.distance(*q) < 0.05);
+                if line.len() < 2 {
+                    continue;
+                }
+                g.add_road(n0, n1, Some(line), h.width_m, LaneKind::Highway);
+                if let Some(r) = g.roads.last_mut() {
+                    r.highway = Some(k as u32);
+                }
+            }
+        }
+        // each ramp, one-way between its highway's junction and its street junction
+        for (i, r) in ramps.iter().enumerate() {
+            let tap = tap_nodes[i];
+            if tap == u32::MAX {
+                continue;
+            }
+            let Some(street) = city_nodes.iter().find(|(c, _)| *c == r.city).and_then(|(_, ids)| {
+                ids.iter().copied().min_by(|&a, &b| {
+                    g.nodes[a as usize]
+                        .at
+                        .distance(r.junction)
+                        .total_cmp(&g.nodes[b as usize].at.distance(r.junction))
+                })
+            }) else {
+                continue;
+            };
+            let mut line: Vec<Vec2> = r.line.iter().map(|p| Vec2::new(p.x, p.z)).collect();
+            line.dedup_by(|p, q| p.distance(*q) < 0.05);
+            let (a, b) = if r.off { (tap, street) } else { (street, tap) };
+            if r.off {
+                line[0] = g.nodes[tap as usize].at;
+            } else if let Some(l) = line.last_mut() {
+                *l = g.nodes[tap as usize].at;
+            }
+            g.add_road(a, b, Some(line), r.width_m, LaneKind::Ramp);
+            if let Some(road) = g.roads.last_mut() {
+                road.ramp = Some(i as u32);
+            }
         }
         g.lay_lanes(layout);
         g.join(layout);
         g.signal();
+        if let Some(lift) = road_lift_m {
+            g.heights(highways, ramps, lift);
+        }
         g
+    }
+
+    /// Gives every lane on a highway or a ramp its road's own heights (`Lane::ys`): a highway's grade, a ramp's top, each
+    /// plus `road_lift_m` where it is a grade; a connector between two such lanes runs straight between their heights.
+    fn heights(&mut self, highways: &[Highway], ramps: &[super::trunk::Ramp], road_lift_m: f32) {
+        let on_ramp = |r: &super::trunk::Ramp, q: Vec2| {
+            let mut best = (f32::INFINITY, r.line[0].y);
+            for w in r.line.windows(2) {
+                let (a, b) = (Vec2::new(w[0].x, w[0].z), Vec2::new(w[1].x, w[1].z));
+                let ab = b - a;
+                let l2 = ab.length_squared().max(1e-9);
+                let t = ((q - a).dot(ab) / l2).clamp(0.0, 1.0);
+                let d = (a + ab * t).distance(q);
+                if d < best.0 {
+                    best = (d, w[0].y + (w[1].y - w[0].y) * t);
+                }
+            }
+            best.1
+        };
+        for i in 0..self.lanes.len() {
+            let road = &self.roads[self.lanes[i].road as usize];
+            if self.lanes[i].kind == LaneKind::Connector {
+                continue;
+            }
+            let ys: Option<Vec<f32>> = if let Some(k) = road.highway {
+                let h = &highways[k as usize];
+                Some(
+                    self.lanes[i]
+                        .line
+                        .points
+                        .iter()
+                        .map(|&q| h.grade_at(h.project(q).1) + road_lift_m)
+                        .collect(),
+                )
+            } else {
+                road.ramp
+                    .map(|r| self.lanes[i].line.points.iter().map(|&q| on_ramp(&ramps[r as usize], q)).collect())
+            };
+            self.lanes[i].ys = ys;
+        }
+        for i in 0..self.lanes.len() {
+            if self.lanes[i].kind != LaneKind::Connector {
+                continue;
+            }
+            // a connector's way in is the lane whose `out` holds it; its way out is its own `out`
+            let Some(from) = self
+                .lanes
+                .iter()
+                .find(|l| l.out.contains(&(i as u32)) && l.kind != LaneKind::Connector)
+            else {
+                continue;
+            };
+            let Some(&to) = self.lanes[i].out.first() else { continue };
+            let (y0, y1) = (
+                from.ys.as_ref().and_then(|v| v.last().copied()),
+                self.lanes[to as usize].ys.as_ref().and_then(|v| v.first().copied()),
+            );
+            if let (Some(y0), Some(y1)) = (y0, y1) {
+                let n = self.lanes[i].line.points.len().max(2) - 1;
+                self.lanes[i].ys = Some((0..=n).map(|k| y0 + (y1 - y0) * k as f32 / n as f32).collect());
+            }
+        }
     }
 
     /// Puts traffic lights where an arterial meets at least two other roads (survey W39), and gives each road lane
@@ -442,6 +656,8 @@ impl LaneGraph {
             nodes: [a, b],
             width_m,
             kind,
+            highway: None,
+            ramp: None,
         });
     }
 
@@ -458,6 +674,7 @@ impl LaneGraph {
             let offsets = match road.kind {
                 LaneKind::Street => &layout.street_offsets_m,
                 LaneKind::Arterial => &layout.arterial_offsets_m,
+                LaneKind::Ramp => &layout.ramp_offsets_m,
                 _ => &layout.highway_offsets_m,
             };
             let [a, b] = road.nodes;
@@ -468,7 +685,10 @@ impl LaneGraph {
             }
             let trimmed = road.line.cut(ta, len - tb);
             for (dir, line, from, to) in [(0, trimmed.clone(), a, b), (1, trimmed.reversed(), b, a)] {
-                let _ = dir;
+                // a ramp is one-way, from its first node to its second
+                if road.kind == LaneKind::Ramp && dir == 1 {
+                    continue;
+                }
                 for (slot, &o) in offsets.iter().enumerate() {
                     let outermost = slot + 1 == offsets.len();
                     let parking_m = (road.kind.in_city() && outermost).then(|| {
@@ -489,6 +709,7 @@ impl LaneGraph {
                         conflicts: Vec::new(),
                         parking_m,
                         phase: None,
+                        ys: None,
                     });
                 }
             }
@@ -527,6 +748,10 @@ impl LaneGraph {
                     let (p0, d0) = l.line.at(l.length_m());
                     let (p1, d1) = target.line.at(0.0);
                     let turn = d0.perp_dot(d1).atan2(d0.dot(d1));
+                    // onto or off a ramp only the way it runs: never a turn back across the highway
+                    if (l.kind == LaneKind::Ramp || target.kind == LaneKind::Ramp) && turn.abs() > std::f32::consts::FRAC_PI_2 {
+                        continue;
+                    }
                     // a cubic from the lane's end to the next lane's start, leaving and arriving along each
                     let h = p0.distance(p1) * 0.4;
                     let (c0, c1) = (p0 + d0 * h, p1 - d1 * h);
@@ -557,6 +782,7 @@ impl LaneGraph {
                     conflicts: Vec::new(),
                     parking_m: None,
                     phase: None,
+                    ys: None,
                 });
             }
         }
@@ -671,7 +897,7 @@ mod tests {
             let road = &g.roads[l.road as usize];
             let (p, d) = l.line.at(l.length_m() * 0.5);
             let (rp, _) = road.line.at(road.line.length_m() * 0.5);
-            assert!((p - rp).dot(right_of(d)) > 3.0, "lane {} sits right of its centre line", l.id);
+            assert!((p - rp).dot(right_of(d)) > 1.0, "lane {} sits right of its centre line", l.id);
         }
     }
 

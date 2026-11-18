@@ -47,6 +47,7 @@ fn city(id: u32, x: f32, z: f32) -> City {
         streets: Vec::new(),
         blocks: Vec::new(),
         sidewalk_m: 4.0,
+        downtown_shape: crate::world::layout::DowntownShape::Compact,
     }
 }
 

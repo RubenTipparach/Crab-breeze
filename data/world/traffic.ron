@@ -7,10 +7,12 @@
     // short I think lol"). tools/blender/build_cars.py reads it too; rebuild the models after changing it.
     car_height_scale: 1.18,
     lanes: (
-        // Traffic keeps to the right. A 24 m street has one lane each way 3.5 m from its centre line;
-        // a 36 m arterial and a 28 m highway have two each way.
-        street_offsets_m: [3.5],
-        arterial_offsets_m: [3.5, 7.0],
+        // Traffic keeps to the right. A 14 m street has one 3.5 m lane each way beside its centre line and a
+        // parking strip at each kerb; a 22 m arterial two lanes each way and the parking strips (owner, 2026-11-14:
+        // "usually wide city corridors have 2 lanes on each side"); a 28 m highway two each way. The roads' tyre
+        // tracks and patches are laid on these same lanes.
+        street_offsets_m: [1.75],
+        arterial_offsets_m: [1.75, 5.25],
         highway_offsets_m: [3.5, 7.0],
         // two paths across one junction that pass within this are never used at once
         conflict_m: 2.5,

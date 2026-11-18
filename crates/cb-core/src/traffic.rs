@@ -1316,8 +1316,12 @@ impl Traffic {
             }
             let lane = &g.lanes[c.lane as usize];
             let (p, d) = lane.line.at(c.s_m);
-            let hs = self.heights[c.lane as usize]
-                .get_or_insert_with(|| lane.line.points.iter().map(|q| view.ground.height_at(q.x, q.y)).collect());
+            // a lane on a highway or a ramp rides its road's own surface (a viaduct over the street, not the street)
+            let hs = self.heights[c.lane as usize].get_or_insert_with(|| {
+                lane.ys
+                    .clone()
+                    .unwrap_or_else(|| lane.line.points.iter().map(|q| view.ground.height_at(q.x, q.y)).collect())
+            });
             let (k, u) = lane.line.locate(c.s_m);
             let y = hs[k] + (hs[(k + 1).min(hs.len() - 1)] - hs[k]) * u;
             c.pos = Vec3::new(p.x, y, p.y);
@@ -1602,7 +1606,9 @@ impl Traffic {
             let mut added: Vec<(f32, f32, f32, bool)> = Vec::new();
             for parked in [false, true] {
                 let (want, mut have) = if parked { (want_parked, have_parked) } else { (want, have) };
-                let mut tries = want.saturating_sub(have) * 3;
+                // six random places for each car it lacks: a short street loses its first 30 m and the gaps round
+                // its cars, and three left the shortest underfilled
+                let mut tries = want.saturating_sub(have) * 6;
                 while have < want && made < budget && tries > 0 {
                     tries -= 1;
                     tries_made += 1;
@@ -1651,7 +1657,15 @@ impl Traffic {
                     if !clear || under {
                         continue;
                     }
-                    let at = Vec3::new(p.x, ground.height_at(p.x, p.y), p.y);
+                    // on its road's own surface: a viaduct's lane, not the street under it
+                    let y = lane.ys.as_ref().map_or_else(
+                        || ground.height_at(p.x, p.y),
+                        |ys| {
+                            let (k, u) = lane.line.locate(s);
+                            ys[k] + (ys[(k + 1).min(ys.len() - 1)] - ys[k]) * u
+                        },
+                    );
+                    let at = Vec3::new(p.x, y, p.y);
                     let hidden = !in_view(at)
                         || (at.distance(eye) > cfg.hidden_beyond_m && {
                             asked_cover += 1;
@@ -2147,13 +2161,20 @@ mod tests {
         let mut queue: Vec<&Car> = t.cars.iter().filter(|c| c.lane == feed && c.on_lane()).collect();
         queue.sort_by(|a, b| b.s_m.total_cmp(&a.s_m));
         assert!(!queue.is_empty());
-        for c in &queue {
-            assert!(c.speed_m_s < 0.1, "car {} has stopped", c.id);
-        }
+        // the packed queue from the wreck back: each car up against the one ahead (within 1.25 standstill gaps)
+        // has stopped and keeps its gap; cars still rolling up to the tail are not part of it yet
+        assert!(queue[0].speed_m_s < 0.1, "car {} at the head has stopped", queue[0].id);
+        let mut packed = 1;
         for w in queue.windows(2) {
             let gap = w[0].s_m - w[1].s_m - (length_of(&d, w[0]) + length_of(&d, w[1])) * 0.5;
+            if gap > d.cfg.min_gap_m * 1.25 {
+                break;
+            }
+            assert!(w[1].speed_m_s < 0.1, "car {} has stopped", w[1].id);
             assert!(gap >= d.cfg.min_gap_m * 0.9, "the queue keeps its standstill gap: {gap}");
+            packed += 1;
         }
+        assert!(packed >= 3, "a queue of {packed} behind the wreck");
     }
 
     #[test]
@@ -2420,7 +2441,10 @@ mod tests {
 
     // Re-recorded 2026-10-28 for the stepping by distance (`StepLod`): the cars beyond 300 m of the eye are stepped
     // every second or fourth step with the time owed, so their places at any one step differ; the count is unchanged.
-    const GOLDEN_11: (usize, u64) = (455, 15428268099846911920);
+    // Re-recorded 2026-11-13 (city-districts design section 5): the blocks beside an arterial are drawn long enough for
+    // a ramp, so the town's lanes differ, and the fill tries six places for each car it lacks; 2026-11-14, streets 14 m
+    // and arterials 22 m, their lanes beside the centre line.
+    const GOLDEN_11: (usize, u64) = (563, 8106484826328737587);
 
     #[test]
     fn a_blast_within_120_m_stops_the_traffic_for_20_to_40_s() {

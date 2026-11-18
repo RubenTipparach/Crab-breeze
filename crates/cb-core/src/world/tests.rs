@@ -132,12 +132,21 @@ fn seed_42_builds_the_golden_world() {
 const GOLDEN_CITIES: usize = 13;
 // 2026-11-04: the Fargo-like city (openspec change `city-districts`, design section 4): `build_city` builds the
 // downtown, flats and schools only (3609 to 709); the house and strip blocks are the lot placer's.
-const GOLDEN_BUILDINGS: usize = 709;
-const GOLDEN_HIGHWAYS: usize = 12;
+// 2026-11-13: the highway through the city (openspec change `city-districts`, design section 5): three cities get a
+// trunk on a viaduct (12 highways to 15), its row's blocks are car parks, the blocks beside an arterial are drawn long
+// enough for a ramp (709 buildings to 582); the trees at the start move with the re-laid highways.
+// 2026-11-13: the downtown shapes and the large downtown's housing (design section 6): the flats ring grows with the
+// city's size (582 to 943 buildings); the joined highways run onto their trunk in line, which moves trees at the start.
+// 2026-11-14: a downtown block is the mockup's two or four big lots, towers standing apart on some (943 to 731), and
+// the ramps swing out level to the viaduct's edge and run beside it before they descend.
+// 2026-11-14: streets the mockup's 14 m and arterials 22 m (section 6b): more blocks fit (731 to 965 buildings) and six
+// cities get a trunk (15 highways to 18).
+const GOLDEN_BUILDINGS: usize = 965;
+const GOLDEN_HIGHWAYS: usize = 18;
 const GOLDEN_RIVERS: usize = 64;
-const GOLDEN_TREES_AT_START: usize = 38407;
+const GOLDEN_TREES_AT_START: usize = 38721;
 // 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
-const GOLDEN_FINGERPRINT: u64 = 10312752859990284784;
+const GOLDEN_FINGERPRINT: u64 = 7329084543618373276;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -280,12 +289,31 @@ fn every_building_stands_in_a_city() {
 }
 
 #[test]
-fn streets_are_wide_enough_for_a_mech() {
+fn a_mech_walks_down_every_street_between_its_building_lines() {
+    // 2026-11-14: streets the mockup's 14 m (22 m arterials; owner: "usually wide city corridors have 2 lanes on each
+    // side"), no longer 24 m for two of the first 12 m mechs abreast: the widest mech's body fits between the buildings
+    // either side (the street and its pavements), walking over the parked cars.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+    let widest = crate::GameData::mech_files(&root)
+        .iter()
+        .map(|m| {
+            crate::GameData::load(&root, m)
+                .unwrap_or_else(|e| panic!("{e}"))
+                .mech
+                .locomotion
+                .body_radius_m
+                * 2.0
+        })
+        .fold(0.0, f32::max);
+    assert!(widest > 10.0, "the roster's mechs are big: {widest} m");
     for c in &seed_42().cities {
         for s in &c.streets {
-            assert!(s.width_m >= 24.0, "street {:?} is {} m", s.rect, s.width_m);
-            let narrow = s.rect.size().min_element();
-            assert!(narrow >= 24.0 - 1e-3, "street piece {:?} narrower than 24 m", s.rect);
+            let clear = s.rect.size().min_element() + c.sidewalk_m * 2.0;
+            assert!(
+                clear >= widest - 1e-3,
+                "street {:?}: {clear} m between its buildings for a {widest} m mech",
+                s.rect
+            );
         }
     }
 }
@@ -354,6 +382,13 @@ fn the_ground_under_a_highway_is_the_road_grade() {
                 if plan.waters.bridges.iter().any(|b| b.centre.distance(p) < b.length_m * 0.5 + 2.0) {
                     continue; // On a bridge: the river runs under the deck.
                 }
+                if plan
+                    .decks
+                    .near(p)
+                    .any(|d| d.project(p).is_some_and(|(dist, _, _)| dist <= d.width_m * 0.5 + 1.0))
+                {
+                    continue; // On a viaduct: the land is under its slab (`every_deck_over_a_street_leaves_room_for_a_lorry`).
+                }
                 let (_, tt) = h.project(p);
                 let got = plan.height_at(p.x, p.y);
                 // The drawn road sits `road_lift_m` (0.15 m) above the grade; the ground's straight
@@ -375,13 +410,409 @@ fn the_ground_under_a_highway_is_the_road_grade() {
 fn every_lane_on_the_island_has_a_way_out() {
     let plan = seed_42();
     let cfg = shipped();
-    let g = lanes::LaneGraph::build(&plan.cities, &plan.highways, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    let g = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
     assert!(g.lanes.len() > 1000, "{} lanes", g.lanes.len());
     for l in &g.lanes {
-        assert!(!l.out.is_empty(), "lane {} ({:?}) dead-ends", l.id, l.kind);
+        let road = &g.roads[l.road as usize];
+        assert!(
+            !l.out.is_empty(),
+            "lane {} ({:?}, ramp {:?}) dead-ends: from node {} at {} to node {} at {}",
+            l.id,
+            l.kind,
+            road.ramp.map(|r| (r, plan.ramps[r as usize].off)),
+            l.from_node,
+            g.nodes[l.from_node as usize].at,
+            l.to_node,
+            g.nodes[l.to_node as usize].at
+        );
     }
+    let highway_roads = g.roads.iter().filter(|r| r.kind == lanes::LaneKind::Highway).count();
     let highway_lanes = g.road_lanes().filter(|l| l.kind == lanes::LaneKind::Highway).count();
-    assert_eq!(highway_lanes, plan.highways.len() * 4, "two lanes each way on every highway");
+    assert_eq!(
+        highway_lanes,
+        highway_roads * 4,
+        "two lanes each way on every highway, its pieces between exits too"
+    );
+}
+
+// ---- The highway through the city and its exits (openspec change `city-districts`, design section 5): the drive
+// check, on the generated island.
+
+/// The capital's trunk: a highway whose two ends are both the city.
+fn capital_trunk(plan: &WorldPlan) -> Option<usize> {
+    plan.highways.iter().position(|h| h.cities == [0, 0])
+}
+
+#[test]
+fn every_downtown_block_lies_within_its_shape_and_the_cities_take_more_than_one_shape() {
+    use super::layout::{DowntownShape, downtown};
+    let plan = seed_42();
+    let cfg = shipped_with_rivers();
+    let largest = plan.cities.iter().map(|c| c.half_size_m).fold(0.0, f32::max);
+    assert_eq!(
+        plan.cities[0].downtown_shape,
+        DowntownShape::Compact,
+        "the capital's downtown is compact"
+    );
+    let shapes: std::collections::BTreeSet<u8> = plan
+        .cities
+        .iter()
+        .map(|c| match c.downtown_shape {
+            DowntownShape::Compact => 0,
+            DowntownShape::MainStreet { .. } => 1,
+            DowntownShape::TwoCores { .. } => 2,
+        })
+        .collect();
+    assert!(shapes.len() >= 2, "the cities' downtowns take more than one shape: {shapes:?}");
+    for c in &plan.cities {
+        let dt = downtown(c, largest, &cfg);
+        let down: Vec<_> = c.blocks.iter().filter(|b| b.kind == BlockUse::Downtown).collect();
+        assert!(!down.is_empty(), "city {} has a downtown", c.id);
+        // all but the one block always taken (the nearest the heart) lie within the shape
+        let outside = down.iter().filter(|b| dt.reach(b.rect.centre()) > 1.0).count();
+        assert!(
+            outside <= 1,
+            "city {}: {outside} downtown blocks outside its {:?}",
+            c.id,
+            c.downtown_shape
+        );
+        // no block within the shape is left out of it (parks and the trunk's row aside)
+        for b in &c.blocks {
+            if dt.reach(b.rect.centre()) <= 1.0 {
+                assert!(
+                    matches!(b.kind, BlockUse::Downtown | BlockUse::Park | BlockUse::Under),
+                    "city {}: a block inside its downtown is {:?}",
+                    c.id,
+                    b.kind
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn each_citys_tallest_building_stands_on_the_downtown_lot_nearest_its_heart() {
+    use super::layout::downtown;
+    let plan = seed_42();
+    let cfg = shipped_with_rivers();
+    let largest = plan.cities.iter().map(|c| c.half_size_m).fold(0.0, f32::max);
+    for c in &plan.cities {
+        let dt = downtown(c, largest, &cfg);
+        let mine: Vec<_> = plan.buildings.iter().filter(|b| b.city == c.id).collect();
+        let Some(heart) = mine
+            .iter()
+            .filter(|b| {
+                c.blocks
+                    .iter()
+                    .any(|k| k.kind == BlockUse::Downtown && k.rect.distance(b.footprint.centre()) <= 0.0)
+            })
+            .min_by(|a, b| dt.reach(a.footprint.centre()).total_cmp(&dt.reach(b.footprint.centre())))
+        else {
+            continue;
+        };
+        let tallest = mine.iter().map(|b| b.storeys).max().unwrap_or(0);
+        assert_eq!(heart.storeys, tallest, "city {}: the heart's tower is the tallest", c.id);
+    }
+}
+
+#[test]
+fn a_downtowns_reach_is_zero_at_its_heart_and_one_at_its_edge_in_every_shape() {
+    use super::layout::{DowntownShape, downtown};
+    let cfg = shipped_with_rivers();
+    let mut city = plan_city_for_shapes();
+    let z = &cfg.zones;
+    for shape in [
+        DowntownShape::Compact,
+        DowntownShape::MainStreet { along_x: true },
+        DowntownShape::MainStreet { along_x: false },
+        DowntownShape::TwoCores {
+            dir: Vec2::new(1.0, 1.0).normalize(),
+        },
+    ] {
+        city.downtown_shape = shape;
+        let dt = downtown(&city, city.half_size_m, &cfg);
+        let r = dt.radius_m;
+        let (heart, edge) = match shape {
+            DowntownShape::Compact => (city.centre, city.centre + Vec2::new(r, 0.0)),
+            DowntownShape::MainStreet { along_x: true } => (city.centre, city.centre + Vec2::new(r * z.main_street_share[0], 0.0)),
+            DowntownShape::MainStreet { along_x: false } => (city.centre, city.centre + Vec2::new(r * z.main_street_share[1], 0.0)),
+            DowntownShape::TwoCores { dir } => {
+                let core = city.centre + dir * r * z.two_cores_share[1];
+                (core, core + dir * r * z.two_cores_share[0])
+            }
+        };
+        assert!(dt.reach(heart) < 1e-4, "{shape:?}: the heart");
+        assert!(
+            (dt.reach(edge) - 1.0).abs() < 1e-3,
+            "{shape:?}: the edge reaches {}",
+            dt.reach(edge)
+        );
+    }
+}
+
+/// A plain city for the downtown shapes' own test.
+fn plan_city_for_shapes() -> City {
+    seed_42().cities[0].clone()
+}
+
+#[test]
+fn the_capital_has_a_trunk_on_a_viaduct_with_exits() {
+    let plan = seed_42();
+    let k = capital_trunk(plan).expect("the capital has a trunk");
+    let ramps = plan.ramps.iter().filter(|r| r.highway == k as u32).count();
+    assert!(ramps >= 4, "an exit is four ramps: {ramps}");
+    let viaduct = plan
+        .decks
+        .decks
+        .iter()
+        .filter(|d| d.kind == decks::DeckKind::Viaduct { highway: k as u32 })
+        .map(|d| d.length_m())
+        .sum::<f32>();
+    let city = &plan.cities[0];
+    assert!(
+        viaduct > city.half_size_m * 1.8,
+        "the trunk crosses the city on its viaduct: {viaduct:.0} m"
+    );
+    // its row is car parks under it
+    assert!(city.blocks.iter().any(|b| b.kind == BlockUse::Under), "the row under the viaduct");
+}
+
+#[test]
+fn every_ramp_joins_its_highway_and_its_street_and_climbs_no_more_than_8_percent() {
+    let plan = seed_42();
+    let cfg = shipped();
+    assert!(!plan.ramps.is_empty());
+    for (i, r) in plan.ramps.iter().enumerate() {
+        let h = &plan.highways[r.highway as usize];
+        let deck_top = h.grade_at(0.5) + plan.road_lift_m;
+        let street_top = plan.cities[r.city as usize].ground_m + plan.road_lift_m;
+        let (first, last) = (r.line[0], *r.line.last().unwrap());
+        let (high, low) = if r.off { (first, last) } else { (last, first) };
+        assert!(
+            (high.y - deck_top).abs() < 0.05,
+            "ramp {i} meets the viaduct at its top: {} vs {deck_top}",
+            high.y
+        );
+        assert!(
+            (low.y - street_top).abs() < 0.05,
+            "ramp {i} lands level with the street: {} vs {street_top}",
+            low.y
+        );
+        assert!(
+            low.distance(Vec3::new(r.junction.x, low.y, r.junction.y)) < 1.0,
+            "ramp {i} lands at its junction"
+        );
+        for w in r.line.windows(2) {
+            let run = Vec2::new(w[1].x - w[0].x, w[1].z - w[0].z).length();
+            if run > 0.5 {
+                let grade = (w[1].y - w[0].y).abs() / run;
+                assert!(grade <= cfg.trunk.ramp_grade + 1e-3, "ramp {i} climbs {:.1} %", grade * 100.0);
+            }
+        }
+    }
+}
+
+#[test]
+fn every_ramp_meets_the_viaduct_level_and_beside_it_where_its_deck_begins() {
+    // the owner, 2026-11-14: "how the cars leave the highway when they are not connected"
+    let plan = seed_42();
+    let cfg = shipped();
+    for (i, r) in plan.ramps.iter().enumerate() {
+        let h = &plan.highways[r.highway as usize];
+        let deck_top = h.grade_at(0.5) + plan.road_lift_m;
+        // the ramp's own deck, from the viaduct's side: where it meets the viaduct it is at the viaduct's height, its
+        // edge against the viaduct's edge, and it stays level beside it for most of the gore
+        let deck: Vec<Vec3> = if r.off {
+            r.deck.clone()
+        } else {
+            r.deck.iter().rev().copied().collect()
+        };
+        let meet = deck[0];
+        assert!(
+            (meet.y - deck_top).abs() < 0.05,
+            "ramp {i} meets the viaduct {:.2} m below its top",
+            deck_top - meet.y
+        );
+        let (dist, _) = h.project(Vec2::new(meet.x, meet.z));
+        let flush = h.width_m * 0.5 + r.width_m * 0.5;
+        assert!(
+            (dist - flush).abs() < 1.0,
+            "ramp {i}'s edge meets the viaduct's: its centre {dist:.1} m out, not {flush:.1}"
+        );
+        let mut level = 0.0;
+        for w in deck.windows(2) {
+            if (w[1].y - deck_top).abs() > 0.05 {
+                break;
+            }
+            level += Vec2::new(w[1].x - w[0].x, w[1].z - w[0].z).length();
+        }
+        assert!(
+            level >= cfg.trunk.ramp_gore_m * 0.6,
+            "ramp {i} runs level beside the viaduct for only {level:.1} m"
+        );
+    }
+}
+
+#[test]
+fn a_downtown_block_holds_at_most_four_buildings_and_its_towers_stand_apart() {
+    let plan = seed_42();
+    let cfg = shipped();
+    for c in &plan.cities {
+        for b in c.blocks.iter().filter(|b| b.kind == BlockUse::Downtown) {
+            let on: Vec<_> = plan
+                .buildings
+                .iter()
+                .filter(|k| k.city == c.id && b.rect.distance(k.footprint.centre()) <= 0.0)
+                .collect();
+            assert!(on.len() <= 4, "city {}: a downtown block holds {} buildings", c.id, on.len());
+            let towers: Vec<_> = on
+                .iter()
+                .filter(|k| k.storeys >= cfg.zones.tower_min_storeys.max(cfg.zones.downtown_low_storeys[1] + 1))
+                .collect();
+            for (x, t) in towers.iter().enumerate() {
+                for u in &towers[x + 1..] {
+                    assert!(
+                        t.footprint.distance(u.footprint.centre()) > 0.0 && !t.footprint.overlaps(&u.footprint),
+                        "city {}: towers touch",
+                        c.id
+                    );
+                    let gap = (t.footprint.centre() - u.footprint.centre()).abs() - (t.footprint.size() + u.footprint.size()) * 0.5;
+                    assert!(
+                        gap.max_element() >= 8.0,
+                        "city {}: two towers {:.1} m apart",
+                        c.id,
+                        gap.max_element()
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn every_deck_over_a_street_leaves_room_for_a_lorry() {
+    let plan = seed_42();
+    let mut over = 0;
+    for d in &plan.decks.decks {
+        for w in d.pts.windows(2) {
+            for k in 0..=4 {
+                let p = w[0].lerp(w[1], k as f32 / 4.0);
+                let q = Vec2::new(p.x, p.z);
+                for c in plan.cities.iter().filter(|c| c.rect().distance(q) < 60.0) {
+                    if c.streets.iter().any(|st| st.rect.distance(q) <= 0.0) {
+                        let street = c.ground_m + plan.road_lift_m;
+                        if (p.y - street).abs() < 0.5 {
+                            continue; // a ramp's landing, level with the street it joins
+                        }
+                        over += 1;
+                        let under = d.underside_m(p.y, c.ground_m);
+                        assert!(
+                            under - street >= decks::HEADROOM_M - 1e-3,
+                            "a deck {:.2} m over the street at ({:.0}, {:.0})",
+                            under - street,
+                            p.x,
+                            p.z
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert!(over > 0, "the viaduct crosses the city's streets");
+}
+
+#[test]
+fn traffic_on_the_viaduct_rides_its_deck_not_the_street_under_it() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let g = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    let k = capital_trunk(plan).expect("a trunk") as u32;
+    let deck = plan.cities[0].ground_m + cfg.trunk.deck_m;
+    let on_trunk: Vec<&lanes::Lane> = g.road_lanes().filter(|l| g.roads[l.road as usize].highway == Some(k)).collect();
+    assert!(!on_trunk.is_empty());
+    for l in on_trunk {
+        let ys = l.ys.as_ref().expect("a trunk lane carries its heights");
+        assert!(
+            ys.iter().all(|&y| (y - deck - plan.road_lift_m).abs() < 0.05),
+            "lane {} off the deck",
+            l.id
+        );
+    }
+}
+
+#[test]
+fn a_bot_drives_from_a_street_up_a_ramp_along_the_trunk_and_off_another_exit() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let g = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    let k = capital_trunk(plan).expect("a trunk") as u32;
+    let city_street = |l: &lanes::Lane| l.kind.in_city() && g.nodes[l.from_node as usize].city == 0;
+    let start = g.road_lanes().find(|l| city_street(l)).expect("a capital street lane").id;
+    // breadth first over the lanes, remembering whether the way here used the trunk and a ramp up and one down
+    let mut seen = std::collections::BTreeMap::new();
+    let mut queue = std::collections::VecDeque::from([(start, 0u8)]);
+    let mut done = false;
+    while let Some((l, state)) = queue.pop_front() {
+        if seen.insert((l, state), ()).is_some() {
+            continue;
+        }
+        let lane = &g.lanes[l as usize];
+        let road = &g.roads[lane.road as usize];
+        let mut next = state;
+        if lane.kind == lanes::LaneKind::Ramp && state == 0 {
+            next = 1; // up a ramp
+        } else if road.highway == Some(k) && state == 1 {
+            next = 2; // along the trunk
+        } else if lane.kind == lanes::LaneKind::Ramp && state == 2 {
+            next = 3; // down another
+        } else if state == 3 && city_street(lane) {
+            done = true;
+            break;
+        }
+        for &o in &lane.out {
+            queue.push_back((o, next));
+        }
+    }
+    assert!(done, "a car can go up onto the trunk and come off it again into the city");
+}
+
+#[test]
+fn a_car_on_the_viaduct_stands_on_it_and_one_under_it_stands_on_the_street() {
+    let plan = seed_42();
+    let dug = Deformation::new(4096.0);
+    let scene = Scene {
+        plan,
+        dug: &dug,
+        trees: None,
+        structures: None,
+        platforms: &[],
+        interiors: None,
+    };
+    let k = capital_trunk(plan).expect("a trunk") as u32;
+    let d = plan
+        .decks
+        .decks
+        .iter()
+        .find(|d| d.kind == decks::DeckKind::Viaduct { highway: k })
+        .expect("its viaduct");
+    // over a street of the capital
+    let city = &plan.cities[0];
+    let p = d
+        .pts
+        .windows(2)
+        .flat_map(|w| (0..8).map(move |i| w[0].lerp(w[1], i as f32 / 8.0)))
+        .find(|p| city.streets.iter().any(|st| st.rect.distance(Vec2::new(p.x, p.z)) <= 0.0))
+        .expect("the viaduct over a street");
+    let street = city.ground_m + plan.road_lift_m;
+    let on = scene.support_at(p.x, p.z, p.y);
+    assert!((on - p.y).abs() < 0.05, "on the deck: {on} vs {}", p.y);
+    let under = scene.support_at(p.x, p.z, street);
+    assert!((under - street).abs() < 0.05, "under it, on the street: {under} vs {street}");
+    let cars = OnRoads { ground: &scene, plan };
+    assert!(
+        (cars.support_at(p.x, p.z, street) - street).abs() < 0.05,
+        "a car under it stays on the street"
+    );
 }
 
 #[test]
@@ -1346,7 +1777,7 @@ fn a_road_runs_from_a_city_to_every_site_and_the_lane_graph_reaches_its_gate() {
             s.origin
         );
     }
-    let graph = lanes::LaneGraph::build(&plan.cities, &plan.highways, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    let graph = lanes::LaneGraph::of_plan(plan, &lanes::LaneLayout::default(), cfg.arterial_width_m);
     for h in &access {
         let gate = graph.nodes.iter().find(|n| n.at.distance(h.ends[1]) < 1.0).expect("a gate node");
         assert!(

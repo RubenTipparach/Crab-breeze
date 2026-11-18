@@ -19,15 +19,28 @@
 
 ## 3. Step 2: exits
 
-- [ ] 3.1 Layered road surfaces (a deck over the road under it), ramps on embankments, the lane graph joining a highway along its length, height queries by level
-- [ ] 3.2 The mockup's exits and highway modes in the generator
-- [ ] 3.3 The drive check (fill, clearance, grade, turns, ramp ends, bot) as `cb-core` tests
+- [x] 3.1 Decks (`RoadDeck`) and height queries by level: support under the feet, pushed out from under a slab, `road_top_at` leaving out decked highway
+- [x] 3.2 The trunk: its row (`BlockUse::Under`), the two highways re-laid onto it, arterial blocks long enough for a ramp
+- [x] 3.3 Exits: four one-way ramps per arterial, landing at the frontage street's junction
+- [x] 3.4 The lane graph along a highway: nodes at ramps, one-way ramp lanes, shared highway ends, lanes with their own heights
+- [x] 3.5 The drive check (fill, clearance, grade, ramp ends, bot) as `cb-core` tests
+- [x] 3.6 Drawn: decks, piers, ramps with three levels of detail, blended joins (concrete fading into asphalt, ramps welded into streets)
+- [x] 3.7 Headless stills of the viaduct and an exit
+- [ ] 3.8 The bypass (design section 7): forks on two highways, a route round the city, the lane graph's forks, a bot round it
+- [ ] 3.9 Overpasses on embankments (once a grid leaves room for their embankments)
 
 ## 4. Step 3: drifting grids
 
 - [ ] 4.1 Turned blocks and footprints through collision, facades and interiors
 
-## 5. Left over
+## 5. The mockup's variations
 
-- [ ] 5.1 Measure the cost of a large city on the owner's machine
-- [ ] 5.2 The game's road colliders pass the same drive check (fill, clearance, grade, turns, ramp ends, bot) in `cb-core` tests
+- [x] 5.1 Downtown shapes (compact, main street, two cores) drawn per city, `Downtown::reach` the one rule for zoning and storeys
+- [x] 5.2 The large downtown's housing: the flats ring by the city's size
+- [x] 5.4 Streets the mockup's width (14 m, 22 m arterials), the road's lanes, tracks and patches on the traffic's lanes
+- [ ] 5.3 The coast: a city on the shore with its harbour
+
+## 6. Left over
+
+- [ ] 6.1 Measure the cost of a large city on the owner's machine
+- [ ] 6.2 The game's road colliders pass the same drive check (fill, clearance, grade, turns, ramp ends, bot) in `cb-core` tests
