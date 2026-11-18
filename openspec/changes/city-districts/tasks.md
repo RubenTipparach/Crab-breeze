@@ -31,14 +31,15 @@
 
 ## 4. Step 3: drifting grids
 
-- [ ] 4.1 Turned blocks and footprints through collision, facades and interiors
+- [ ] 4.1 The city's buildings as turned boxes (`Building` heading, `to_local`/`to_world`) through collision, destruction, interiors, dressing and the GPU state (design section 8, stage 1)
+- [ ] 4.2 The grid drifting by district: streets as centre lines, welded seams, turned blocks (stage 2)
 
 ## 5. The mockup's variations
 
 - [x] 5.1 Downtown shapes (compact, main street, two cores) drawn per city, `Downtown::reach` the one rule for zoning and storeys
 - [x] 5.2 The large downtown's housing: the flats ring by the city's size
 - [x] 5.4 Streets the mockup's width (14 m, 22 m arterials), the road's lanes, tracks and patches on the traffic's lanes
-- [ ] 5.3 The coast: a city on the shore with its harbour
+- [ ] 5.3 The coast: a city near the sea takes its strip along the shore and an arterial to its seaport (design section 9)
 
 ## 6. Left over
 

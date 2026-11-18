@@ -244,6 +244,45 @@ two seaports and four bases.
 One more highway per bypass city (about 2-3 km of road, its terrain flattened like any highway's): on seed 42 up to ten
 bypasses, about 25 km of road, about 10,000 triangles and no new draw calls (the highways' mesh).
 
+## 8. Step 3 in the game: drifting grids (measured 2026-11-18, not built)
+
+The mockup bends its one grid by a slow warp of up to about 40 m, so neighbourhoods sit a few degrees apart. In the
+game today every city is one axis-aligned square:
+
+| Part | Today | Turns? |
+| --- | --- | --- |
+| Houses, strip businesses, sites | lots with a heading (`small_buildings::lots::Lot::heading_rad`), turned through collision, destruction and drawing | yes, already |
+| Streets and blocks | `Rect` pieces (`StreetPiece`, `Block`) | no |
+| Downtown, flats and school buildings | `Building::footprint: Rect` | no |
+
+`Building::footprint` is read in 35 files (135 places): collision, destruction and its cells, interiors and doors,
+facade dressing and far facades, the GPU building state, cover, navigation, weapons, missions, the nuke's damage, the map,
+air traffic fields and the capture views.
+
+The plan, in two stages, each playable:
+
+1. **The city's buildings become turned boxes.** `Building` gains a heading (its footprint stays a `Rect` in its own
+   frame, about its centre), with one pair of functions, `Building::to_local` and `to_world`, that every reader calls
+   before its rectangle test. Collision, destruction cells, interiors and dressing already work in a building's own
+   axes, so most readers change one line. A test turns every building of seed 42 by 7 degrees and checks the existing
+   collision, destruction and interior tests still pass.
+2. **The grid drifts by district.** Each city is cut into districts of about 4 x 4 blocks; each district's grid turns
+   by a drawn angle within +/- 6 degrees about its own centre, and its streets become centre lines with widths (as the
+   highways and ramps are), welded at the district seams where two grids meet (a junction node where a street meets the
+   seam street). Blocks become turned boxes; their buildings take the district's heading; the lane graph, lamps and
+   `City::surface_top` read the street lines. The drive check (every lane reaches the downtown) covers the seams.
+
+Cost at run time: none measurable (the same buildings and streets, turned). Work: stage 1 touches about 35 files;
+stage 2 rewrites the street layout (`layout::lay_out_city`, `street_lines`) and its readers.
+
+## 9. The coast in the game (not built)
+
+The mockup's coastal city has the sea along one side, a beach and a small harbour of quay cranes. In the game the
+seaports (`sites`, two on seed 42) stand 3-4 km from their cities, on their own sites. The coast variation: a city whose
+square comes within 600 m of the sea gets its strip along the shore (a beach on the island's own sand), and the seaport
+nearest it, if within 5 km, is joined to it by an arterial, not an access road. No new harbour is drawn: the seaports'
+quays and cranes are the harbour.
+
 ## 3. Cost
 
 Mockup counts, from its own footer:
